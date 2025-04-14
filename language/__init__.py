@@ -12,7 +12,6 @@ from language.energy import (
 )
 from language.folding_callbacks import EsmFoldv1, FoldingCallback, FoldingResult
 from language.optimize import (
-    run_simulated_annealing, 
     calculate_energy_score, 
     calculate_hierarchical_energy
 )
