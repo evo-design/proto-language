@@ -10,7 +10,8 @@ from typing import List, Union
 import numpy as np
 from biotite.structure import AtomArray
 
-ALL_RESIDUE_TYPES = [
+# Amino acid types
+AMINO_ACID_TYPES = [
     "A",
     "R",
     "N",
@@ -33,10 +34,10 @@ ALL_RESIDUE_TYPES = [
     "V",
 ]
 
-RESIDUE_TYPES_WITHOUT_CYSTEINE = deepcopy(ALL_RESIDUE_TYPES)
-RESIDUE_TYPES_WITHOUT_CYSTEINE.remove("C")
+AMINO_ACID_TYPES_WITHOUT_CYSTEINE = deepcopy(AMINO_ACID_TYPES)
+AMINO_ACID_TYPES_WITHOUT_CYSTEINE.remove("C")
 
-RESIDUE_TYPES_1to3 = {
+AMINO_ACID_TYPES_1to3 = {
     "A": "ALA",
     "R": "ARG",
     "N": "ASN",
@@ -58,10 +59,11 @@ RESIDUE_TYPES_1to3 = {
     "Y": "TYR",
     "V": "VAL",
 }
-RESIDUE_TYPES_3to1 = {v: k for k, v in RESIDUE_TYPES_1to3.items()}
+AMINO_ACID_TYPES_3to1 = {v: k for k, v in AMINO_ACID_TYPES_1to3.items()}
 
 
-class SequenceSegmentFactory(ABC):
+class AminoAcidSequenceSegmentFactory(ABC):
+    
     def __init__(self) -> None:
         pass
 
@@ -78,7 +80,8 @@ class SequenceSegmentFactory(ABC):
         pass
 
 
-class ConstantSequenceSegment(SequenceSegmentFactory):
+class ConstantAminoAcidSequence(AminoAcidSequenceSegmentFactory):
+    
     def __init__(self, sequence: str) -> None:
         super().__init__()
         self.sequence = sequence
@@ -93,21 +96,22 @@ class ConstantSequenceSegment(SequenceSegmentFactory):
         return 0
 
 
-class FixedLengthSequenceSegment(SequenceSegmentFactory):
+class FixedLengthAminoAcidSequence(AminoAcidSequenceSegmentFactory):
+    
     def __init__(
         self, initial_sequence: Union[str, int], disallow_mutations_to_cysteine=True,
     ) -> None:
         super().__init__()
         self.mutation_residue_types = (
-            RESIDUE_TYPES_WITHOUT_CYSTEINE
+            AMINO_ACID_TYPES_WITHOUT_CYSTEINE
             if disallow_mutations_to_cysteine
-            else ALL_RESIDUE_TYPES
+            else AMINO_ACID_TYPES
         )
 
         self.sequence = (
             initial_sequence
-            if type(initial_sequence) == str
-            else random_sequence(
+            if isinstance(initial_sequence, str)
+            else random_amino_acid_sequence(
                 length=initial_sequence, corpus=self.mutation_residue_types
             )
         )
@@ -131,19 +135,18 @@ def substitute_one_amino_acid(sequence: str, corpus: List[str]) -> str:
     return "".join(sequence)
 
 
-def random_sequence(length: int, corpus: List[str]) -> str:
-    "Generate a random sequence using amino acids in corpus."
-
+def random_amino_acid_sequence(length: int, corpus: List[str]) -> str:
     return "".join([np.random.choice(corpus) for _ in range(length)])
 
 
-def sequence_from_atomarray(atoms: AtomArray) -> str:
+def amino_acid_sequence_from_atomarray(atoms: AtomArray) -> str:
     return "".join(
-        [RESIDUE_TYPES_3to1[aa] for aa in atoms[atoms.atom_name == "CA"].res_name]
+        [AMINO_ACID_TYPES_3to1[aa] for aa in atoms[atoms.atom_name == "CA"].res_name]
     )
 
 
-class VariableLengthSequenceSegment(SequenceSegmentFactory):
+class VariableLengthAminoAcidSequence(AminoAcidSequenceSegmentFactory):
+    
     def __init__(
         self,
         initial_sequence: Union[str, int],
@@ -156,15 +159,15 @@ class VariableLengthSequenceSegment(SequenceSegmentFactory):
     ) -> None:
         super().__init__()
         self.mutation_residue_types = (
-            RESIDUE_TYPES_WITHOUT_CYSTEINE
+            AMINO_ACID_TYPES_WITHOUT_CYSTEINE
             if disallow_mutations_to_cysteine
-            else ALL_RESIDUE_TYPES
+            else AMINO_ACID_TYPES
         )
 
         self.sequence = (
             initial_sequence
-            if type(initial_sequence) == str
-            else random_sequence(
+            if isinstance(initial_sequence, str)
+            else random_amino_acid_sequence(
                 length=initial_sequence, corpus=self.mutation_residue_types
             )
         )
@@ -186,15 +189,16 @@ class VariableLengthSequenceSegment(SequenceSegmentFactory):
         )
         mutation_operation()
 
-    def _mutate_substitution(self) -> str:
+    def _mutate_substitution(self) -> None:
         self.sequence = substitute_one_amino_acid(
             self.sequence, self.mutation_residue_types
         )
 
-    def _mutate_deletion(self) -> str:
-        self.sequence = delete_one_amino_acid(self.sequence)
+    def _mutate_deletion(self) -> None:
+        if len(self.sequence) > 1:  # Prevent empty sequences
+            self.sequence = delete_one_amino_acid(self.sequence)
 
-    def _mutate_insertion(self) -> str:
+    def _mutate_insertion(self) -> None:
         self.sequence = insert_one_amino_acid(
             self.sequence, self.mutation_residue_types
         )

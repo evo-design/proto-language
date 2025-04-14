@@ -4,13 +4,18 @@
 # LICENSE file in the root directory of this source tree.
 
 from functools import partial
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
+import pandas as pd
 
 from language.energy import EnergyTerm
-from language.folding_callbacks import FoldingResult
-from language.sequence import SequenceSegmentFactory
+# from language.folding_callbacks import FoldingResult
+from language.amino_acid_sequence import AminoAcidSequenceSegmentFactory
+from language.nucleotide_sequence import NucleotideSequenceSegmentFactory
+
+# A combined type for both amino acid and nucleotide sequence factories
+SequenceSegmentFactory = Union[AminoAcidSequenceSegmentFactory, NucleotideSequenceSegmentFactory]
 
 MULTIMER_RESIDUE_INDEX_SKIP_LENGTH: int = 1000
 
@@ -83,7 +88,7 @@ class ProgramNode:
 
     def get_energy_term_functions(
         self, name_prefix: str = ""
-    ) -> List[Tuple[str, float, Callable[[FoldingResult], float]]]:
+    ) -> List[Tuple[str, float, Callable[[pd.DataFrame], float]]]:
         name_prefix = name_prefix if name_prefix else "root"
 
         terms = [

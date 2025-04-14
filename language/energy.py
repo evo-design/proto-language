@@ -545,6 +545,13 @@ class TetranucleotideUsage(EnergyTerm):
 #     return float(np.sqrt(((dp - dq) ** 2).mean()))
 
 
+# def pairwise_distances(coordinates: np.ndarray) -> np.ndarray:
+#     assert _is_Nx3(coordinates), "Coordinates must be Nx3."
+#     m = coordinates[:, np.newaxis, :] - coordinates[np.newaxis, :, :]
+#     distance_matrix = np.linalg.norm(m, axis=-1)
+#     return distance_matrix[np.triu_indices(distance_matrix.shape[0], k=1)]
+
+
 # class MatchSecondaryStructure(EnergyTerm):
 #     def __init__(self, secondary_structure_element: str) -> None:
 #         super().__init__()
