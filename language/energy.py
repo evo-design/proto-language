@@ -8,6 +8,7 @@ from typing import List, Optional
 import itertools
 import re
 import numpy as np
+import pandas as pd
 # from biotite.structure import annotate_sse, AtomArray, rmsd, sasa, superimpose
 # from language.folding_callbacks import FoldingResult
 # from language.utilities import get_atomarray_in_residue_range
@@ -18,7 +19,7 @@ class EnergyTerm(ABC):
         pass
 
     @abstractmethod
-    def compute(self, node, sequence: str) -> float:
+    def compute(self, node, df: pd.DataFrame) -> float:
         pass
 
 ############################
@@ -29,12 +30,16 @@ class ValidNucleotideCharacters(EnergyTerm):
     def __init__(self) -> None:
         super().__init__()
 
-    def compute(self, node, sequence: str) -> float:
+    def compute(self, node, df: pd.DataFrame) -> float:
         del node
 
+        # Add information about invalid nucleotides to the dataframe
+        has_invalid = bool(re.search(r'[^ACGTacgt]', df['sequence']))
+        df['valid_nucleotides'] = not has_invalid
+        
         # return 1.0 if sequence only contains valid nucleotides (A,C,G,T), otherwise 0.0
-        if re.search(r'[^ACGTacgt]', sequence):
-            return 1.0 
+        if has_invalid:
+            return 1.0
         return 0.0
 
 class GenomeLength(EnergyTerm):
@@ -42,13 +47,23 @@ class GenomeLength(EnergyTerm):
         super().__init__()
         self.target_length = target_length
 
-    def compute(self, node, sequence: str) -> float:
+    def compute(self, node, df: pd.DataFrame) -> float:
         del node
         
-        # return 1.0 if sequence length matches target length, otherwise 0.0
-        if len(sequence) == self.target_length:
-            return 0.0 
-        return 1.0
+        genome_length = len(df['sequence'])
+        # Add genome_length to the dataframe
+        df['genome_length'] = genome_length
+        
+        # Calculate deviation from target length
+        if genome_length == self.target_length:
+            return 0.0
+        
+        # Calculate normalized deviation (similar to other energy terms)
+        # Scale between 0.0 and 1.0 based on how far we are from target
+        deviation = abs(genome_length - self.target_length) / self.target_length
+        
+        # Cap at 1.0 for large deviations
+        return min(1.0, deviation)
 
 class GCContent(EnergyTerm):
     def __init__(self, target_range: tuple = (30, 60)) -> None:
@@ -60,14 +75,15 @@ class GCContent(EnergyTerm):
         if self.min_gc < 0 or self.max_gc > 100:
             raise ValueError("GC content range must be between 0 and 100 percent.")
 
-    def compute(self, node, sequence: str) -> float:
+    def compute(self, node, df: pd.DataFrame) -> float:
         del node
         
-        seq = sequence.upper()
+        seq = df['sequence'].upper()
         seq_len = len(seq)
         
         # edge case
         if seq_len == 0:
+            df['gc_content'] = 0.0
             return 1.0
             
         # Count G and C nucleotides directly in one pass
@@ -76,18 +92,21 @@ class GCContent(EnergyTerm):
             if nt in 'GC':
                 gc_count += 1
                 
-        # Calculate GC percentage
-        gc_percentage = (gc_count / seq_len) * 100
+        # Calculate GC content
+        gc_content = (gc_count / seq_len) * 100
+        
+        # Add gc_content to the dataframe
+        df['gc_content'] = gc_content
         
         # return 0.0 if GC content is within the desired range
-        if self.min_gc <= gc_percentage <= self.max_gc:
+        if self.min_gc <= gc_content <= self.max_gc:
             return 0.0
         else:
             # return a normalized score based on distance from acceptable range
-            if gc_percentage < self.min_gc:
-                deviation = (self.min_gc - gc_percentage) / self.min_gc
+            if gc_content < self.min_gc:
+                deviation = (self.min_gc - gc_content) / self.min_gc
             else:
-                deviation = (gc_percentage - self.max_gc) / (100 - self.max_gc)
+                deviation = (gc_content - self.max_gc) / (100 - self.max_gc)
             
             # Return a score that approaches 1 as deviation increases -- does this scoring make sense?
             return min(1.0, deviation)
@@ -97,10 +116,10 @@ class NucleotideHomopolymer(EnergyTerm):
         super().__init__()
         self.max_length = max_length
 
-    def compute(self, node, sequence: str) -> float:
+    def compute(self, node, df: pd.DataFrame) -> float:
         del node
         
-        sequence = sequence.upper()
+        sequence = df['sequence'].upper()
         
         # Use a single regex pattern to find all homopolymers of any nucleotide
         # This matches any consecutive repeated nucleotide (A, C, G, or T)
@@ -108,6 +127,9 @@ class NucleotideHomopolymer(EnergyTerm):
         
         # Find the length of the longest homopolymer
         longest_homopolymer = max((len(match) for match in matches), default=0)
+        
+        # Add homopolymer info to the dataframe
+        df['longest_homopolymer_length'] = longest_homopolymer
         
         # Return 0.0 if the longest homopolymer is within acceptable range
         if longest_homopolymer <= self.max_length:
@@ -131,17 +153,18 @@ class DinucleotideFrequency(EnergyTerm):
         # Precompute all dinucleotides
         self.dinucleotides = [''.join(pair) for pair in itertools.product('ACGT', repeat=2)]
         
-    def compute(self, node, sequence: str) -> float:
+    def compute(self, node, df: pd.DataFrame) -> float:
         del node
         
-        seq = sequence.upper()
+        seq = df['sequence'].upper()
         seq_len = len(seq)
         
         # Edge case
         if seq_len < 2:
+            # Add empty dinucleotide frequencies to the dataframe
+            df['dinucleotide_freqs'] = {}
             return 1.0
         
-
         dinucleotide_counts = {}
         total_count = 0
         for i in range(seq_len - 1):
@@ -152,15 +175,18 @@ class DinucleotideFrequency(EnergyTerm):
         
         # If no valid dinucleotides found
         if total_count == 0:
+            df['dinucleotide_freqs'] = {}
             return 1.0
             
         # Calculate frequencies and check if they're in range
         max_deviation = 0.0
+        dinucleotide_freqs = {}
         
         # Score based on deviation from target dinucleotide frequencies
         # Should we add deviations per dinucleotide instead?
         for dinuc in self.dinucleotides:
             freq = dinucleotide_counts.get(dinuc, 0) / total_count
+            dinucleotide_freqs[dinuc] = freq
             
             # Calculate deviation if outside acceptable range
             if freq < self.min_freq:
@@ -169,6 +195,9 @@ class DinucleotideFrequency(EnergyTerm):
             elif freq > self.max_freq:
                 deviation = (freq - self.max_freq) / (1.0 - self.max_freq)
                 max_deviation = max(max_deviation, deviation)
+        
+        # Add dinucleotide frequencies to the dataframe
+        df['dinucleotide_freqs'] = dinucleotide_freqs
         
         # Return max deviation
         return min(1.0, max_deviation)
@@ -184,15 +213,16 @@ class TetranucleotideUsage(EnergyTerm):
         if len(self.tetranucleotide) != 4:
             raise ValueError("Tetranucleotide must be a 4-base DNA sequence.")
     
-    def compute(self, node, sequence: str) -> float:
+    def compute(self, node, df: pd.DataFrame) -> float:
         del node
         
-        seq = sequence.upper()
+        seq = df['sequence'].upper()
         tetra = self.tetranucleotide
         
         # edge case
         total_bases = len(seq)
         if total_bases < 4:
+            df['tetra_tud'] = 0.0
             return 1.0
         
         # Calculate frequencies of each nucleotide in the whole sequence
@@ -222,6 +252,9 @@ class TetranucleotideUsage(EnergyTerm):
         # Calculate TUD
         tetra_tud = tetra_count / tetra_expected_freq if tetra_expected_freq != 0 else 0
         
+        # Add tetranucleotide usage data to the dataframe
+        df['tetra_tud'] = tetra_tud
+        
         # Score based on TUD range
         if self.min_tud <= tetra_tud <= self.max_tud:
             return 0.0
@@ -232,7 +265,6 @@ class TetranucleotideUsage(EnergyTerm):
             else:
                 deviation = (tetra_tud - self.max_tud) / self.max_tud
             
-
             # For all the above functions, should we take the min to ensure score is max 1.0?
             return min(1.0, deviation)
         
@@ -511,13 +543,6 @@ class TetranucleotideUsage(EnergyTerm):
 #     dq = pairwise_distances(atom_array_b.coord)
 
 #     return float(np.sqrt(((dp - dq) ** 2).mean()))
-
-
-# def pairwise_distances(coordinates: np.ndarray) -> np.ndarray:
-#     assert _is_Nx3(coordinates), "Coordinates must be Nx3."
-#     m = coordinates[:, np.newaxis, :] - coordinates[np.newaxis, :, :]
-#     distance_matrix = np.linalg.norm(m, axis=-1)
-#     return distance_matrix[np.triu_indices(distance_matrix.shape[0], k=1)]
 
 
 # class MatchSecondaryStructure(EnergyTerm):
