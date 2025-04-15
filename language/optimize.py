@@ -10,10 +10,10 @@ from functools import partial
 
 import numpy as np
 import pandas as pd
-from rich.live import Live
-from rich.table import Table
+# from rich.live import Live
+# from rich.table import Table
 
-from language.folding_callbacks import FoldingCallback
+# from language.folding_callbacks import FoldingCallback
 from language.program import ProgramNode
 
 
