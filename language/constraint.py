@@ -8,25 +8,64 @@ import re
 import itertools
 import warnings
 
+
 class ProgramConstraint(ABC):
+    """
+    Abstract base class for constraints or scoring functions applied to sequences.
+
+    Subclasses must implement the 'evaluate' method.
+    """
     def __init__(self, **kwargs: Any) -> None:
+        """
+        Initializes the constraint, potentially with configuration parameters.
+
+        Args:
+            **kwargs (Any): Arbitrary keyword arguments for configuration.
+        """
         self.config: Dict[str, Any] = kwargs
 
     @abstractmethod
     def evaluate(self, sequences: ProgramSequence | List[ProgramSequence]) -> float:
+        """
+        Evaluates a list of ProgramSequence instances against the constraint.
+
+        Args:
+            sequences (List[ProgramSequence]): The sequences to evaluate.
+
+        Returns:
+            float: A score representing how well the sequences satisfy the
+                   constraint. Implementations should aim for a score in the
+                   interval [0.0, 1.0].
+        """
         raise NotImplementedError("Subclasses must implement the evaluate method.")
 
     def __call__(self, sequences: ProgramSequence | List[ProgramSequence]) -> float:
+        """
+        Allows calling the constraint object directly like a function.
+
+        Args:
+            sequences (List[ProgramSequence]): The sequences to evaluate.
+
+        Returns:
+            float: The score from the evaluate method.
+        """
         return self.evaluate(sequences)
-    
+
+
 class ValidCharactersConstraint(ProgramConstraint):
     def __init__(self) -> None:
         super().__init__()
         self.valid_chars = {
-            ProgramDNASequence: {'A', 'C', 'G', 'T'},
-            ProgramRNASequence: {'A', 'U', 'G', 'C'},
-            ProgramProteinSequence: {'A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 
-                                    'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y'}
+            ProgramDNASequence: {
+                'A', 'C', 'G', 'T',
+            },
+            ProgramRNASequence: {
+                'A', 'U', 'G', 'C',
+            },
+            ProgramProteinSequence: {
+                'A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 
+                'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
+            }
         }
 
     def evaluate(self, sequences: ProgramSequence | List[ProgramSequence]) -> float:
