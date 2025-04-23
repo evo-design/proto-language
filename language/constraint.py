@@ -107,7 +107,7 @@ class SequenceLengthConstraint(ProgramConstraint):
             seq._metadata['length'] = len(seq)
         
         # Calculate deviation based on total length
-        full_length = len(''.join(sequences))
+        full_length = len(''.join(str(seq) for seq in sequences))
         if full_length == self.target_length:
             return 0.0
         
@@ -137,7 +137,7 @@ class GCContentConstraint(ProgramConstraint):
 
         # Count G and C nucleotides directly in one pass
         gc_count = 0
-        for nt in sequences:
+        for nt in str(sequences):
             if nt in 'GC':
                 gc_count += 1
                     
@@ -171,7 +171,7 @@ class MaxHomopolymerConstraint(ProgramConstraint):
             longest_homopolymer = len(sequences)
         else:
             # Find length of each homopolymer
-            homopolymer_lengths = [len(list(group)) for _, group in itertools.groupby(sequences)]
+            homopolymer_lengths = [len(list(group)) for _, group in itertools.groupby(str(sequences))]
             longest_homopolymer = max(homopolymer_lengths)
 
         sequences._metadata['max_homopolymer_length'] = longest_homopolymer
@@ -211,7 +211,7 @@ class DinucleotideFrequencyConstraint(ProgramConstraint):
         dinucleotide_counts = {}
         total_count = 0
         for i in range(len(sequences) - 1):
-            dinuc = sequences[i:i+2]
+            dinuc = str(sequences)[i:i+2]
             if all(nt in valid_nucleotides for nt in dinuc):
                 dinucleotide_counts[dinuc] = dinucleotide_counts.get(dinuc, 0) + 1
                 total_count += 1
@@ -269,12 +269,12 @@ class TetranucleotideUsageConstraint(ProgramConstraint):
         nucleotide_freqs = {}
         seq_length = len(sequences)
         for nt in nucleotide_keys:
-            nucleotide_freqs[nt] = sequences.count(nt) / seq_length
+            nucleotide_freqs[nt] = str(sequences).count(nt) / seq_length
 
         # Count occurrences of tetranucleotide
         tetra_count = 0
         for i in range(len(sequences) - 3):
-            if sequences[i:i+4] == self.tetranucleotide:
+            if str(sequences)[i:i+4] == self.tetranucleotide:
                 tetra_count += 1
         
         # Calculate expected frequency using zero-order Markov model

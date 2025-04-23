@@ -1,10 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Any, List, Dict, Set
-from Bio.Alphabet.IUPAC import ExtendedIUPACDNA, IUPACAmbiguousRNA, ExtendedIUPACProtein
-
+from Bio.Data import IUPACData
 
 class ProgramSequence:
-    def __init__(self, sequence: str) -> None:
+    def __init__(self, sequence: str    ) -> None:
         """
         Initializes the ProgramSequence object.
 
@@ -91,7 +90,8 @@ class ProgramDNASequence(ProgramSequence):
         Args:
             sequence (str): The DNA sequence as a string.
         """
-        self._validate_sequence(sequence, set(ExtendedIUPACDNA))
+        valid_chars = set(IUPACData.ambiguous_dna_letters + '-')
+        self._validate_sequence(sequence, valid_chars)
         super().__init__(sequence)
 
 
@@ -106,7 +106,8 @@ class ProgramRNASequence(ProgramSequence):
         Args:
             sequence (str): The RNA sequence as a string.
         """
-        self._validate_sequence(sequence, set(IUPACAmbiguousRNA))
+        valid_chars = set(IUPACData.ambiguous_rna_letters + '-')
+        self._validate_sequence(sequence, valid_chars)
         super().__init__(sequence)
 
 
@@ -121,5 +122,6 @@ class ProgramProteinSequence(ProgramSequence):
         Args:
             sequence (str): The protein sequence as a string.
         """
-        self._validate_sequence(sequence, set(ExtendedIUPACProtein))
+        valid_chars = set(IUPACData.protein_letters_1to3.keys() + '*-')
+        self._validate_sequence(sequence, valid_chars)
         super().__init__(sequence)
