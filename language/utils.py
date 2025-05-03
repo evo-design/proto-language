@@ -22,3 +22,29 @@ def get_atomarray_in_residue_range(atoms: AtomArray, start: int, end: int) -> At
 def read_fasta_file(fasta_path: str) -> List[str]:
     with open(fasta_path, 'r') as file:
         return [line.strip() for line in file if not line.startswith('>')]
+
+def load_fasta_sequences_phix(fasta_file):
+    """
+    Simple function to load FASTA sequences - removes +~ and truncates at non-ACGT.
+    """
+    sequences = {}
+    current_id = None
+    
+    with open(fasta_file, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+                
+            if line.startswith('>'):
+                current_id = line[1:].strip()
+                sequences[current_id] = ""
+            else:
+                line = line[2:].upper()
+                truncation_index = len(line)
+                for i, char in enumerate(line):
+                    if char not in 'ACGT':
+                        truncation_index = i
+                        break
+                sequences[current_id] = line[:truncation_index]
+    return sequences

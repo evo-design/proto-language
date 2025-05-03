@@ -2,45 +2,77 @@ from copy import deepcopy
 from typing import Dict, List, Tuple, Union, Any, Optional
 import numpy as np
 import pandas as pd
-from language.sequence import ProgramSequence, ProgramDNASequence, ProgramRNASequence, ProgramProteinSequence
-from language.constraint import ProgramConstraint
+from .base import ProgramSequence, ProgramGenerator, ProgramConstraint
+from .sequence import ProgramDNASequence, ProgramRNASequence, ProgramProteinSequence
+import random
+import math
 
-
-def calculate_energy_score(
-    program: Dict[ProgramSequence, List[ProgramConstraint]],
-    weights: Dict[ProgramConstraint, float] = {}
-) -> Tuple[float, Dict[ProgramSequence, Dict[str, Any]]]:
+class Program:
     """
-    Calculate the energy score for a program with multiple sequences and constraints.
-    
-    Args:
-        program: Dictionary mapping sequences to lists of constraints
-        weights: Dictionary mapping constraints to their weights (default is 1.0)
-        
-    Returns:
-        Tuple of (total_energy_score, results_dict) where results_dict maps sequences to their metadata
+    Toy Metropolis-Hastings MCMC example using:
+      - generator: list of ProgramGenerator instances (proposals)
+      - constraints: list of ProgramConstraint instances (energies)
     """
-    
-    total_energy = 0.0
-    results = {}
-    
-    # Process each sequence and its constraints
-    for sequence, constraints in program.items():
-        sequence_energy = 0.0
-        
-        # Apply each constraint to the sequence
-        for constraint in constraints:
-            weight = weights.get(constraint, 1.0)
-            constraint_score = constraint(sequence)
-            sequence_energy += weight * constraint_score
-            
-            # Store constraint details in sequence metadata
-            constraint_name = type(constraint).__name__
-            sequence._metadata[f"{constraint_name}_score"] = constraint_score
-            sequence._metadata[f"{constraint_name}_weight"] = weight
+    def __init__(self,
+                 generators: List[ProgramGenerator],
+                 constraints: List[ProgramConstraint],
+                 **kwargs: Any,
+    ) -> None:
+        self.generators: List[ProgramGenerator] = generators
+        self.constraints: List[ProgramConstraint] = constraints
+        self.config: Dict[str, Any] = kwargs
 
-        sequence._metadata["energy_score"] = sequence_energy
-        total_energy += sequence_energy
-        results[sequence] = deepcopy(sequence._metadata)
-    
-    return total_energy, results
+
+    def score_energy(self) -> float:
+        """
+        Multiplicative energy
+        """
+        energy = 1.0
+        for c in self.constraints:
+            energy *= c.evaluate()
+        return energy
+
+
+    def sample(self,
+               num_steps: int) -> List[ProgramSequence]:
+        """
+        Metropolis-Hastings MCMC algorithm
+        """
+
+        # register all generators and initialize their ProgramSequence outputs
+        for g in self.generators:
+            if not g._is_initialized:
+                g.register()
+
+        # calculate initial energy
+        old_energy = self.score_energy()
+
+        # MCMC optimization algorithm
+        for t in range(num_steps):
+
+            # 1. pick pick a generator
+            generator = random.choice(self.generators)
+            # track old sequences x(t)
+            old_seqs = [s.sequence for s in generator.get_outputs()]
+
+            # 2. sample x' from generator
+            generator.sample()
+            # evaluate new energy for x'
+            new_energy = self.score_energy()
+
+            # 3. compute acceptance probability g(x') / g(x(t))
+            alpha = new_energy / (old_energy + 1e-12)
+            alpha = min(1.0, alpha)
+
+            # 4. accept/reject according to random number [0.0, 1.0)
+            if random.random() > alpha:
+                old_energy = new_energy
+            else:
+                for seq_obj, old in zip(generator.get_outputs(), old_seqs):
+                    seq_obj.sequence = old
+        # return the final sequences
+        final_sequences = []
+        for g in self.generators:
+            final_sequences.extend(g.get_outputs())
+        return final_sequences
+

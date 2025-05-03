@@ -1,127 +1,105 @@
-from abc import ABC, abstractmethod
-from typing import Any, List, Dict, Set
 from Bio.Data import IUPACData
+from abc import ABC, abstractmethod
+from typing import Any, List, Dict, Optional, Set
 
-class ProgramSequence:
-    def __init__(self, sequence: str    ) -> None:
-        """
-        Initializes the ProgramSequence object.
-
-        Args:
-            sequence (str): The biological sequence as a string.
-        """
-        self._sequence: str = sequence.upper()
-        self._metadata: Dict[str, Any] = {}
-    
-    def _validate_sequence(self, sequence: str, valid_chars: Set[str]) -> None:
-        """
-        Checks if the sequence consists of valid characters.
-
-        Args:
-            sequence (str): The biological sequence.
-            valid_chars (Set[str]): A set of valid characters.
-        """
-        invalid_chars = set(sequence) - valid_chars
-        if invalid_chars:
-            raise ValueError(f"Invalid characters found: {', '.join(invalid_chars)}. "
-                            f"Valid characters are: {', '.join(sorted(valid_chars))}")
-
-    @property
-    def sequence(self) -> str:
-        """
-        Returns the underlying sequence string.
-
-        Returns:
-            str: The sequence.
-        """
-        return self._sequence
-
-    def __len__(self) -> int:
-        """
-        Returns the length of the sequence.
-
-        Returns:
-            int: The length of the sequence string.
-        """
-        return len(self._sequence)
-
-    def __str__(self) -> str:
-        """
-        Provides a user-friendly string representation (the sequence itself).
-
-        Returns:
-            str: The sequence string.
-        """
-        return self._sequence
-
-    def __eq__(self, other: object) -> bool:
-        """
-        Checks equality based on the sequence string.
-
-        Args:
-            other (object): The object to compare against.
-
-        Returns:
-            bool: True if the other object is a ProgramSequence with the same
-                  sequence string, False otherwise.
-        """
-        if not isinstance(other, ProgramSequence):
-            return NotImplemented
-        return self._sequence == other._sequence
-
-    def __hash__(self) -> int:
-        """
-        Computes hash based on the sequence string for use in sets/dicts.
-
-        Returns:
-            int: The hash value.
-        """
-        return hash(self._sequence)
+from .base import ProgramSequence, ProgramGenerator
 
 
 class ProgramDNASequence(ProgramSequence):
     """
     A version of ProgramSequence for DNA sequences.
     """
-    def __init__(self, sequence: str) -> None:
+    def __init__(
+        self,
+        generator: ProgramGenerator,
+        generator_output_idx: int,
+        sequence: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        valid_chars: Optional[Set[str]] = None
+    ) -> None:
         """
         Initializes the ProgramDNASequence object.
 
         Args:
-            sequence (str): The DNA sequence as a string.
+            generator (ProgramGenerator): The generator that updates `sequence.`
+            generator_output_idx (int): The index into the generator's output list.
+            sequence (Optional[str]): The value of the DNA sequence string.
+            metadata (Optional[Dict[str, Any]]): Metadata for the sequence.
+            valid_chars (Optional[Set[str]]): A set of valid characters that the sequence
+                                              can take on.
         """
-        valid_chars = set(IUPACData.ambiguous_dna_letters + '-')
-        self._validate_sequence(sequence, valid_chars)
-        super().__init__(sequence)
+        if valid_chars is None:
+            valid_chars = set(IUPACData.ambiguous_dna_letters + '-')
+        super().__init__(
+            generator,
+            generator_output_idx,
+            sequence,
+            metadata,
+            valid_chars,
+        )
 
 
 class ProgramRNASequence(ProgramSequence):
     """
     A version of ProgramSequence for RNA sequences.
     """
-    def __init__(self, sequence: str) -> None:
+    def __init__(
+        self,
+        generator: ProgramGenerator,
+        generator_output_idx: int,
+        sequence: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        valid_chars: Optional[Set[str]] = None
+    ) -> None:
         """
         Initializes the ProgramRNASequence object.
 
         Args:
-            sequence (str): The RNA sequence as a string.
+            generator (ProgramGenerator): The generator that updates `sequence.`
+            generator_output_idx (int): The index into the generator's output list.
+            sequence (Optional[str]): The value of the RNA sequence string.
+            valid_chars (Optional[Set[str]]): A set of valid characters that the sequence
+                                              can take on.
         """
-        valid_chars = set(IUPACData.ambiguous_rna_letters + '-')
-        self._validate_sequence(sequence, valid_chars)
-        super().__init__(sequence)
+        if valid_chars is None:
+            valid_chars = set(IUPACData.ambiguous_rna_letters + '-')
+        super().__init__(
+            generator,
+            generator_output_idx,
+            sequence,
+            metadata,
+            valid_chars,
+        )
 
 
 class ProgramProteinSequence(ProgramSequence):
     """
     A version of ProgramSequence for protein sequences.
     """
-    def __init__(self, sequence: str) -> None:
+    def __init__(
+        self,
+        generator: ProgramGenerator,
+        generator_output_idx: int,
+        sequence: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        valid_chars: Optional[Set[str]] = None
+    ) -> None:
         """
         Initializes the ProgramProteinSequence object.
 
         Args:
-            sequence (str): The protein sequence as a string.
+            generator (ProgramGenerator): The generator that updates `sequence.`
+            generator_output_idx (int): The index into the generator's output list.
+            sequence (Optional[str]): The value of the protein sequence string.
+            valid_chars (Optional[Set[str]]): A set of valid characters that the sequence
+                                              can take on.
         """
-        valid_chars = set(IUPACData.protein_letters_1to3.keys() + '*-')
-        self._validate_sequence(sequence, valid_chars)
-        super().__init__(sequence)
+        if valid_chars is None:
+            valid_chars = set(IUPACData.protein_letters_1to3.keys() + '*-')
+        super().__init__(
+            generator,
+            generator_output_idx,
+            sequence,
+            metadata,
+            valid_chars,
+        )

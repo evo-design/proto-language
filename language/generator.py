@@ -1,85 +1,152 @@
 from abc import ABC, abstractmethod
-from language.sequence import ProgramSequence
-from typing import Any, List, Dict
+import random
+from typing import Any, List, Dict, Optional, Tuple
+
+from .base import ProgramGenerator, ProgramSequence, ProgramConstraint
+from .sequence import ProgramDNASequence, ProgramRNASequence, ProgramProteinSequence
 
 
-class ProgramGenerator(ABC):
+class UniformMutationGenerator(ProgramGenerator):
     """
-    Abstract base class for program generation algorithms (samplers).
+    A uniform proposal over DNA, RNA, or protein sequences.
 
-    Defines the interface for initializing and sampling sequences.
-    Subclasses implement specific generation strategies (e.g., MCMC, autoregressive decoding).
-
-    Subclasses must implement both initialize() and sample().
+    Initializes with a random sequence and samples a point mutation on each call to `sample()`.
     """
-    def __init__(self, **hyperparameters: Any) -> None:
+    def __init__(
+        self,
+        sequence_length: int,
+        sequence_type: str = 'dna',
+    ) -> None:
         """
-        Initializes the generator with specific hyperparameters.
+        Initializes the uniform proposal.
 
         Args:
-            **hyperparameters (Any): Keyword arguments representing the
-                                     configuration and hyperparameters for the
-                                     specific generator implementation.
-        """
-        self.hyperparameters: Dict[str, Any] = hyperparameters
-        self._is_initialized: bool = False
-
-    @abstractmethod
-    def initialize(self) -> None:
-        """
-        Initializes the internal state of the generator's sampler.
-
-        This method should be distinguished from the constructor `__init__()` as the place
-        to do compute-intensive initialization of sampling state. Simple hyperparameter state
-        can be saved in the constructor.
-        """
-        self._is_initialized = True
-        raise NotImplementedError("Subclasses must implement the initialize method.")
-
-    @abstractmethod
-    def sample(self) -> List[ProgramSequence]:
-        """
-        Generates and returns a list of ProgramSequence instances based on the
-        generator's internal state and hyperparameters.
-
-        Returns:
-            List[ProgramSequence]: A list of newly generated sequences.
+            sequence_length (int): The length of the random sequence.
+            sequence_type (str): The type of sequence ('dna', 'rna', or 'protein').
 
         Raises:
-            RuntimeError: If called before initialize().
+            ValueError: If the provided sequence type is not supported.
+        """
+        super().__init__()
+        self.sequence_length = sequence_length
+        self.sequence_type = sequence_type.lower()
+
+        if self.sequence_type == 'dna':
+            self.vocab = 'ACGT'
+            self.sequence_class = ProgramDNASequence
+        elif self.sequence_type == 'rna':
+            self.vocab = 'ACGU'
+            self.sequence_class = ProgramRNASequence
+        elif self.sequence_type == 'protein':
+            self.vocab = 'ACDEFGHIKLMNPQRSTVWY'
+            self.sequence_class = ProgramProteinSequence
+        else:
+            raise ValueError(
+                f'Sequence type must "dna", "rna", or "protein", found {self.sequence_type}'
+            )
+
+    def register(
+        self,
+        outputs: Optional[Tuple[ProgramSequence]] = None,
+    ) -> Tuple[ProgramSequence]:
+        """
+        Initialize a random sequence.
+
+        outputs (Optional[Tuple[ProgramSequence]]): Optional initialization of output
+                                                   variables.
+        Returns:
+            Tuple[ProgramSequence]: Output sequence variables. These variables get updated
+                                    in-place throughout generation.
+        """
+        self._is_initialized = True
+
+        if outputs is None:
+            random_sequence = ''.join(random.choices(self.vocab, k=self.sequence_length))
+            self.outputs = ( self.sequence_class(self, 0, random_sequence), )
+        else:
+            if len(outputs) != 1:
+                raise ValueError('Provided outputs must have one entry')
+            if not isinstance(outputs[0], ProgramSequence):
+                raise ValueError('Must provide a ProgramSequence')
+            self.outputs = outputs
+        
+        return self.outputs
+
+    def sample(self) -> None:
+        """
+        Introduces a mutation at a random position in the sequence.
         """
         if not self._is_initialized:
-            raise RuntimeError(f"Generator {self.__class__.__name__} has not been initialized. Call initialize() first.")
-        raise NotImplementedError("Subclasses must implement the sample method.")
+            self.register()
+
+        mutated_index = random.randint(0, self.sequence_length - 1)
+        current_sequence = self.outputs[0].sequence
+        current_char = current_sequence[mutated_index]
+        
+        # Make sure the mutated character is different from the current one
+        possible_mutations = [c for c in self.vocab if c != current_char]
+        mutated_char = random.choice(possible_mutations)
+        
+        self.outputs[0].sequence = (
+            current_sequence[:mutated_index] +
+            mutated_char +
+            current_sequence[mutated_index + 1:]
+        )
 
 
-class MCMCGenerator(ProgramGenerator):
-    def __init__(self, **hyperparameters: Any) -> None:
+class ProgramMCMCGenerator(ProgramGenerator):
+    def __init__(
+        self,
+        generators: List[ProgramGenerator],
+        constraints: List[ProgramConstraint],
+        **hyperparameters: Any,
+    ) -> None:
         super().__init__(**hyperparameters)
+        self.generators = generators
+        self.constraints = constraints
         self.temperature: float = hyperparameters.get("temperature", 1.0)
         self.num_steps: int = hyperparameters.get("num_steps", 1000)
         self.num_samples: int = hyperparameters.get("num_samples", 100)
+
+    def register(self) -> Tuple[ProgramSequence]:
+        self.outputs = ( ProgramDNASequence(self, 0), )
+        return self.outputs
+    
+    def sample(self) -> None:
+        pass
 
 
 class Evo2Generator(ProgramGenerator):
     def __init__(self, **hyperparameters: Any) -> None:
         super().__init__(**hyperparameters)
-        self.num_generations: int = hyperparameters.get("num_generations", 100)
-        self.population_size: int = hyperparameters.get("population_size", 100)
-        self.mutation_rate: float = hyperparameters.get("mutation_rate", 0.1)
+
+    def register(self) -> Tuple[ProgramSequence]:
+        self.outputs = ( ProgramDNASequence(self, 0), )
+        return self.outputs
+    
+    def sample(self) -> None:
+        pass
         
 
 class SemanticMiningGenerator(ProgramGenerator):
     def __init__(self, **hyperparameters: Any) -> None:
         super().__init__(**hyperparameters)
-        self.num_steps: int = hyperparameters.get("num_steps", 1000)
-        self.num_samples: int = hyperparameters.get("num_samples", 100)
-        self.temperature: float = hyperparameters.get("temperature", 1.0)
-        
-        
+
+    def register(self) -> Tuple[ProgramSequence]:
+        self.outputs = ( ProgramDNASequence(self, 0), )
+        return self.outputs
+    
+    def sample(self) -> None:
+        pass
+
+
 class BindCraftGenerator(ProgramGenerator):
     def __init__(self, **hyperparameters: Any) -> None:
         super().__init__(**hyperparameters)
-        self.num_steps: int = hyperparameters.get("num_steps", 1000)
-        self.num_samples: int = hyperparameters.get("num_samples", 100)
-        self.temperature: float = hyperparameters.get("temperature", 1.0)
+
+    def register(self) -> Tuple[ProgramSequence]:
+        self.outputs = ( ProgramProteinSequence(self, 0), )
+        return self.outputs
+    
+    def sample(self) -> None:
+        pass
