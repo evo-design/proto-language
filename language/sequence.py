@@ -1,4 +1,3 @@
-from Bio.Data import IUPACData
 from abc import ABC, abstractmethod
 from typing import Any, List, Dict, Optional, Set
 
@@ -29,7 +28,7 @@ class ProgramDNASequence(ProgramSequence):
                                               can take on.
         """
         if valid_chars is None:
-            valid_chars = set(IUPACData.ambiguous_dna_letters + '-')
+            valid_chars = set('ACGT-')
         super().__init__(
             generator,
             generator_output_idx,
@@ -37,6 +36,7 @@ class ProgramDNASequence(ProgramSequence):
             metadata,
             valid_chars,
         )
+        self._validate_sequence(sequence)
 
 
 class ProgramRNASequence(ProgramSequence):
@@ -63,7 +63,7 @@ class ProgramRNASequence(ProgramSequence):
                                               can take on.
         """
         if valid_chars is None:
-            valid_chars = set(IUPACData.ambiguous_rna_letters + '-')
+            valid_chars = set('ACGU-')
         super().__init__(
             generator,
             generator_output_idx,
@@ -71,6 +71,7 @@ class ProgramRNASequence(ProgramSequence):
             metadata,
             valid_chars,
         )
+        self._validate_sequence(sequence)
 
 
 class ProgramProteinSequence(ProgramSequence):
@@ -97,7 +98,7 @@ class ProgramProteinSequence(ProgramSequence):
                                               can take on.
         """
         if valid_chars is None:
-            valid_chars = set(IUPACData.protein_letters_1to3.keys() + '*-')
+            valid_chars = set('ACDEFGHIKLMNPQRSTVWY*-')
         super().__init__(
             generator,
             generator_output_idx,
@@ -105,3 +106,4 @@ class ProgramProteinSequence(ProgramSequence):
             metadata,
             valid_chars,
         )
+        self._validate_sequence(sequence)

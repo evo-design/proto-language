@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 
-from .base import ProgramEnergyBasedModel
+from .base import ProgramEnergyBasedModel, ProgramSequence
 
 
 class Program:
@@ -48,7 +48,7 @@ class Program:
         final_sequence = self.ebm.get_outputs()[0]
 
         print(f"Final sequence: {final_sequence}")
-        print(f"Final energy: {self.ebm..score_energy():.4f}")
+        print(f"Final energy: {self.ebm.score_energy():.4f}")
 
 
 

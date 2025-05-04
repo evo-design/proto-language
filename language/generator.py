@@ -67,7 +67,7 @@ class UniformMutationGenerator(ProgramGenerator):
 
         if outputs is None:
             random_sequence = ''.join(random.choices(self.vocab, k=self.sequence_length))
-            self.outputs = ( self.sequence_class(self, 0, random_sequence), )
+            self.outputs = (self.sequence_class(self, 0, random_sequence),)
         else:
             if len(outputs) != 1:
                 raise ValueError('Provided outputs must have one entry')
@@ -214,9 +214,10 @@ class ProgramMCMCGenerator(ProgramEnergyBasedModel):
         """
         self._is_initialized = True
 
-        self.outputs = tuple(sum([
-            list(generator.get_outputs()) for generator in self.generators
-        ]))
+        self.outputs = []
+        for generator in self.generators:
+            self.outputs += list(generator.get_outputs())
+        self.outputs = tuple(self.outputs)
 
         return self.outputs
 

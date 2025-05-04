@@ -11,52 +11,6 @@ from .base import ProgramConstraint, ProgramSequence
 from .sequence import ProgramDNASequence, ProgramRNASequence, ProgramProteinSequence
 
 
-class ValidCharactersConstraint(ProgramConstraint):
-    def __init__(
-        self, 
-        inputs: ProgramSequence | List[ProgramSequence],
-    ) -> None:
-        """
-        Initializes the constraint on valid characters.
-
-        Args:
-            inputs (ProgramSequence | List[ProgramSequence]): The input variables.
-        """
-        self.valid_chars: Dict[str, Set[str]] = {
-            'dna': {
-                'A', 'C', 'G', 'T',
-            },
-            'rna': {
-                'A', 'U', 'G', 'C',
-            },
-            'protein': {
-                'A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 
-                'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
-            }
-        }
-        def _scoring_function(inputs: List[ProgramSequence]) -> float:
-            score = 1.0
-            for seq in inputs:
-                if isinstance(seq, ProgramDNASequence):
-                    valid_chars = self.valid_chars['dna']
-                elif isinstance(seq, ProgramRNASequence):
-                    valid_chars = self.valid_chars['rna']
-                elif isinstance(seq, ProgramProteinSequence):
-                    valid_chars = self.valid_chars['protein']
-                else:
-                    raise ValueError(f"Unknown sequence type: {type(seq)}")
-
-                has_invalid = bool(re.search(f'[^{"".join(valid_chars)}]', seq))
-
-                # Add metadata for individual sequences.
-                seq._metadata['valid_characters'] = not has_invalid
-                if has_invalid:
-                    score = 0.0
-            return score
-
-        super().__init__(inputs, _scoring_function)
-
-
 class SequenceLengthConstraint(ProgramConstraint):
     def __init__(
         self, 
@@ -122,7 +76,9 @@ class GCContentConstraint(ProgramConstraint):
 
             # Calculate GC content.
             gc_content = 100.0 * sum(nt in "GC" for nt in sequence.upper()) / max(len(sequence), 1)
-            sequence._metadata['gc_content'] = gc_content
+
+            if len(inputs) == 1:
+                inputs[0]._metadata['gc_content'] = gc_content
             
             # Return 0.0 if GC content is within the range.
             if self.min_gc <= gc_content <= self.max_gc:
@@ -164,7 +120,8 @@ class MaxHomopolymerConstraint(ProgramConstraint):
                 homopolymer_lengths = [len(list(group)) for _, group in itertools.groupby(sequence)]
                 longest_homopolymer = max(homopolymer_lengths)
 
-            sequence._metadata['max_homopolymer_length'] = longest_homopolymer
+            if len(inputs) == 1:
+                inputs[0]._metadata['max_homopolymer_length'] = longest_homopolymer
 
             # Return 0.0 if longest homopolymer is within range.
             if longest_homopolymer <= self.max_length:
@@ -200,7 +157,7 @@ class DinucleotideFrequencyConstraint(ProgramConstraint):
 
             # Edge case.
             if len(sequence) < 2:
-                sequence._metadata['dinucleotide_freqs'] = {}
+                inputs[0]._metadata['dinucleotide_freqs'] = {}
                 return 1.0
 
             # Determine valid nucleotides.
@@ -213,14 +170,14 @@ class DinucleotideFrequencyConstraint(ProgramConstraint):
             dinucleotide_counts = {}
             total_count = 0
             for i in range(len(sequence) - 1):
-                dinuc = str(sequence)[i:i+2]
+                dinuc = str(sequence)[i : i + 2]
                 if all(nt in valid_nucleotides for nt in dinuc):
                     dinucleotide_counts[dinuc] = dinucleotide_counts.get(dinuc, 0) + 1
                     total_count += 1
 
             # If no valid dinucleotides found.
             if total_count == 0:
-                sequence._metadata['dinucleotide_freqs'] = {}
+                inputs[0]._metadata['dinucleotide_freqs'] = {}
                 return 1.0
 
             # Calculate frequencies and check if they are in range.
@@ -240,7 +197,7 @@ class DinucleotideFrequencyConstraint(ProgramConstraint):
                     deviation = (freq - self.max_freq) / (1.0 - self.max_freq)
                     max_deviation = max(max_deviation, deviation)
 
-            sequence._metadata['dinucleotide_freqs'] = dinucleotide_freqs
+            inputs[0]._metadata['dinucleotide_freqs'] = dinucleotide_freqs
             return min(1.0, max_deviation)
 
         super().__init__(inputs, _scoring_function)
@@ -279,7 +236,7 @@ class TetranucleotideUsageConstraint(ProgramConstraint):
 
             # Edge case.
             if len(sequence) < 4:
-                sequence._metadata[self.tetranucleotide + '_tud'] = 0.0
+                inputs[0]._metadata[self.tetranucleotide + '_tud'] = 0.0
                 return 0.0
 
             # Calculate nucleotide frequencies.
@@ -307,7 +264,7 @@ class TetranucleotideUsageConstraint(ProgramConstraint):
             # Calculate expected occurrences and TUD.
             expected_occurrences = tetra_expected_freq * (seq_length - 3)
             tetra_tud = tetra_count / expected_occurrences if expected_occurrences > 0 else 0
-            sequence._metadata[self.tetranucleotide + '_tud'] = tetra_tud
+            inputs[0]._metadata[self.tetranucleotide + '_tud'] = tetra_tud
         
             # Score based on TUD range.
             if self.min_tud <= tetra_tud <= self.max_tud:

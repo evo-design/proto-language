@@ -64,7 +64,7 @@ class ProgramSequence:
         invalid_chars = set(sequence) - self._valid_chars
         if invalid_chars:
             raise ValueError(f"Invalid characters found: {', '.join(invalid_chars)}. "
-                            f"Valid characters are: {', '.join(sorted(self._valid_chars))}")
+                             f"Valid characters are: {', '.join(sorted(self._valid_chars))}")
 
     @property
     def sequence(self) -> str:
