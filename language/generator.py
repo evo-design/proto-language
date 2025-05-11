@@ -183,7 +183,6 @@ class ProgramMCMCGenerator(ProgramEnergyBasedModel):
             [1.] * len(constraints),
         )
         self.temperature: float = hyperparameters.get("temperature", 1.0) # TODO: Implement temperature
-        self.num_steps: int = hyperparameters.get("num_steps", 1000)
 
         if len(self.constraints) != len(self.constraint_weights):
             raise ValueError("Constraint weights must match number of constraints.")
@@ -230,26 +229,25 @@ class ProgramMCMCGenerator(ProgramEnergyBasedModel):
         # calculate initial energy
         old_energy = self.score_energy()
 
-        # MCMC optimization loop.
-        for t in range(self.num_steps):
+        # Execute one MCMC optimization step
+        
+        # 1. Pick pick a generator.
+        generator = random.choice(self.generators)
+        # Track old sequences x(t).
+        old_seqs = [s.sequence for s in generator.get_outputs()]
 
-            # 1. Pick pick a generator.
-            generator = random.choice(self.generators)
-            # Track old sequences x(t).
-            old_seqs = [s.sequence for s in generator.get_outputs()]
+        # 2. Sample x' from generator.
+        generator.sample()
+        # Evaluate new energy for x'.
+        new_energy = self.score_energy()
 
-            # 2. Sample x' from generator.
-            generator.sample()
-            # Evaluate new energy for x'.
-            new_energy = self.score_energy()
+        # 3. Compute acceptance probability g(x') / g(x(t)).
+        alpha = new_energy / (old_energy + 1e-12)
+        alpha = min(1.0, alpha)
 
-            # 3. Compute acceptance probability g(x') / g(x(t)).
-            alpha = new_energy / (old_energy + 1e-12)
-            alpha = min(1.0, alpha)
-
-            # 4. Accept/reject according to random number [0.0, 1.0).
-            if random.random() > alpha:
-                old_energy = new_energy
-            else:
-                for seq_obj, old in zip(generator.get_outputs(), old_seqs):
-                    seq_obj.sequence = old
+        # 4. Accept/reject according to random number [0.0, 1.0).
+        if random.random() > alpha:
+            old_energy = new_energy
+        else:
+            for seq_obj, old in zip(generator.get_outputs(), old_seqs):
+                seq_obj.sequence = old
