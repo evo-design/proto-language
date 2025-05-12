@@ -129,7 +129,9 @@ class ProgramConstraint(ABC):
         Args:
             inputs (ProgramSequence | List[ProgramSequence]): The input variables.
             scoring_function (Callable[[List[ProgramSequence], Dict[str, Any]], float]):
-                The scoring function to call on the inputs.
+                The scoring function to call on the inputs. 
+                - List[ProgramSequence]: The sequences to score
+                - Dict[str, Any]: Config parameters from kwargs
             **kwargs (Any): Arbitrary keyword arguments for configuration.
         """
         self.inputs: List[ProgramSequence] = inputs if isinstance(inputs, ProgramSequence) else [inputs]
