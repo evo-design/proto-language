@@ -7,7 +7,7 @@ ProgramConstraint: The constraint scoring functions.
 
 ProgramGenerator: The generative models and samplers.
 
-ProgramEnergyBasedModel: A special generative model that implements an energy function.
+ProgramIterativeGenerator: A special generative model that implements iterative generation with an energy function
 """
 from abc import ABC, abstractmethod
 import collections
@@ -249,17 +249,17 @@ class ProgramGenerator(ABC):
         raise NotImplementedError("Subclasses must implement the sample method.")
 
 
-class ProgramEnergyBasedModel(ProgramGenerator):
+class ProgramIterativeGenerator(ProgramGenerator):
     """
-    Special generative model that defines an energy function as a (weighted) combination
-    of constraint functions.
+    Special generative model that implements iterative generation with an energy function
+    as a (weighted) combination of constraint functions.
     """
     def _check_constraint_attributes(self) -> None:
         """
         Class must have a list of constraints.
         """
         if not hasattr(self, 'constraints'):
-            raise ValueError("ProgramEnergyBasedModel objects must have constraints.")
+            raise ValueError("ProgramIterativeGenerator objects must have constraints.")
 
         for constraint in self.constraints:
             if not isinstance(constraint, ProgramConstraint):
@@ -299,3 +299,23 @@ class ProgramEnergyBasedModel(ProgramGenerator):
         for constraint, weight in zip(self.constraints, self.constraint_weights):
             energy += weight * constraint.evaluate()
         return energy
+
+    @abstractmethod
+    def sample(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
+        """
+        Generates sequences based on the generator's internal state and hyperparameters.
+        Unlike the base ProgramGenerator.sample() which returns None, this method returns
+        a dictionary containing the tracked state of the generation process.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing tracked state information from the generation process.
+
+        Raises:
+            RuntimeError: If called before initialize().
+        """
+        if not self._is_initialized or self.outputs is None:
+            raise RuntimeError(
+                f"Generator {self.__class__.__name__} has not been initialized. "
+                "Call initialize() first."
+            )
+        raise NotImplementedError("Subclasses must implement the sample method.")

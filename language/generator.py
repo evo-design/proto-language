@@ -182,7 +182,9 @@ class ProgramMCMCGenerator(ProgramEnergyBasedModel):
             "constraint_weights",
             [1.] * len(constraints),
         )
-        self.temperature: float = hyperparameters.get("temperature", 1.0) # TODO: Implement temperature
+        self.num_steps: int = hyperparameters.get("num_steps", 1)
+        self.temperature: float = hyperparameters.get("temperature", 1.0)
+        self.track_step_size: int = hyperparameters.get("track_step_size", 10)
 
         if len(self.constraints) != len(self.constraint_weights):
             raise ValueError("Constraint weights must match number of constraints.")
@@ -220,34 +222,64 @@ class ProgramMCMCGenerator(ProgramEnergyBasedModel):
 
         return self.outputs
 
-    def sample(self) -> None:
+    def sample(self) -> Dict[str, Any]:
         """
-        Runs the MCMC sampling loop.
-
-        TODO(@brianhie): Beef up the docstring here.
+        Runs the MCMC sampling loop to update sequences in-place.
+        
+        Performs Metropolis-Hastings sampling by proposing changes from a randomly 
+        selected generator and accepting or rejecting based on the energy ratio.
+        
+        The temperature parameter controls the acceptance probability:
+        - Higher temperature (>1.0): More likely to accept worse solutions (more exploration)
+        - Lower temperature (<1.0): Less likely to accept worse solutions (more exploitation)
+        - Temperature = 1.0: Standard Metropolis-Hastings behavior
+        
+        Returns:
+            Dict[str, Any]: A dictionary containing tracked state information:
+                - 'sequence_history': List of sequence tuples at tracked steps
+                - 'energy_history': List of energies at tracked steps
+                - 'steps_history': List of step numbers that were tracked
         """
         # calculate initial energy
         old_energy = self.score_energy()
+        
+        # Initialize history tracking
+        sequence_history = [tuple(output.sequence for output in self.outputs)]
+        energy_history = [old_energy]
+        steps_history = [0]
 
         # Execute one MCMC optimization step
+        for step in range(1, self.num_steps + 1):
+            # 1. Pick a generator.
+            generator = random.choice(self.generators)
+            # Track old sequences x(t).
+            old_seqs = [s.sequence for s in generator.get_outputs()]
+
+            # 2. Sample x' from generator.
+            generator.sample()
+            # Evaluate new energy for x'.
+            new_energy = self.score_energy()
+
+            # 3. Compute acceptance probability g(x') / g(x(t)) with temperature.
+            alpha = (new_energy / (old_energy + 1e-12)) ** (self.temperature)
+            alpha = min(1.0, alpha)
+
+            # 4. Accept/reject according to random number [0.0, 1.0).
+            if random.random() > alpha:
+                old_energy = new_energy
+            else:
+                for seq_obj, old in zip(generator.get_outputs(), old_seqs):
+                    seq_obj.sequence = old
+            
+            # Track sequence and energy periodically
+            if step % self.track_step_size == 0:
+                sequence_history.append(tuple(output.sequence for output in self.outputs))
+                energy_history.append(old_energy)
+                steps_history.append(step)
         
-        # 1. Pick pick a generator.
-        generator = random.choice(self.generators)
-        # Track old sequences x(t).
-        old_seqs = [s.sequence for s in generator.get_outputs()]
-
-        # 2. Sample x' from generator.
-        generator.sample()
-        # Evaluate new energy for x'.
-        new_energy = self.score_energy()
-
-        # 3. Compute acceptance probability g(x') / g(x(t)).
-        alpha = new_energy / (old_energy + 1e-12)
-        alpha = min(1.0, alpha)
-
-        # 4. Accept/reject according to random number [0.0, 1.0).
-        if random.random() > alpha:
-            old_energy = new_energy
-        else:
-            for seq_obj, old in zip(generator.get_outputs(), old_seqs):
-                seq_obj.sequence = old
+        # Return a dictionary with the tracked state information
+        return {
+            'sequence_history': sequence_history,
+            'energy_history': energy_history,
+            'steps_history': steps_history
+        }
