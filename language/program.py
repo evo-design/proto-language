@@ -53,9 +53,12 @@ class Program:
                 if id(input_) not in variable_ids:
                     raise ValueError("Found a constraint not tied to a given generator.")
 
-    def run(self) -> Dict[str, Any]:
+    def run(self) -> List[Tuple[ProgramSequence]]:
         """
         Run MCMC on an EBM generator while keeping track of state.
+
+        Returns:
+            List[Tuple[ProgramSequence]]: A list of ProgramSequence tuple outputs at tracked steps with metadata stored in the ProgramSequence objects.
         """
         self._validate_ebm()
 
@@ -69,8 +72,6 @@ class Program:
         # Run MCMC
         data = self.ebm.sample()
         sequence_history = data["sequence_history"]
-        energy_history = data["energy_history"]
-        steps_history = data["steps_history"]
 
         # Get the final sequence.
         final_sequences = tuple(output.sequence for output in self.ebm.get_outputs())
@@ -80,7 +81,5 @@ class Program:
 
         return {
             "sequence_history": sequence_history,
-            "energy_history": energy_history,
-            "steps_history": steps_history,
         }
 

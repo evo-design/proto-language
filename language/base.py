@@ -303,14 +303,14 @@ class ProgramIterativeGenerator(ProgramGenerator):
         return energy
 
     @abstractmethod
-    def sample(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
+    def sample(self, *args: Any, **kwargs: Any) -> List[Tuple[ProgramSequence]]:
         """
         Generates sequences based on the generator's internal state and hyperparameters.
         Unlike the base ProgramGenerator.sample() which returns None, this method returns
-        a dictionary containing the tracked state of the generation process.
+        a list of ProgramSequence tuple outputs at tracked steps with metadata stored in the ProgramSequence objects.
 
         Returns:
-            Dict[str, Any]: A dictionary containing tracked state information from the generation process.
+            List[Tuple[ProgramSequence]]: A list of ProgramSequence tuple outputs at tracked steps with metadata stored in the ProgramSequence objects.
 
         Raises:
             RuntimeError: If called before initialize().

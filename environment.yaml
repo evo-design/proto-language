@@ -1,0 +1,14 @@
+name: proto-language
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.10
+  - numpy>=1.24.0
+  - pandas>=2.0.0
+  - pytest>=8.0.0
+  - pip
+  - pip:
+      - fastapi>=0.95.0
+      - uvicorn>=0.22.0
+      - pydantic>=2.0.0

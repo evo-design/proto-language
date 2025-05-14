@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import random
 from typing import Any, List, Dict, Optional, Tuple
+import copy
 
 from .base import (
     ProgramGenerator,
@@ -223,7 +224,7 @@ class ProgramMCMCGenerator(ProgramIterativeGenerator):
 
         return self.outputs
 
-    def sample(self) -> Dict[str, Any]:
+    def sample(self) -> List[Tuple[ProgramSequence]]:
         """
         Runs the MCMC sampling loop to update sequences in-place.
         
@@ -236,18 +237,17 @@ class ProgramMCMCGenerator(ProgramIterativeGenerator):
         - Temperature = 1.0: Standard Metropolis-Hastings behavior
         
         Returns:
-            Dict[str, Any]: A dictionary containing tracked state information:
-                - 'sequence_history': List of sequence tuples at tracked steps
-                - 'energy_history': List of energies at tracked steps
-                - 'steps_history': List of step numbers that were tracked
+            List[Tuple[ProgramSequence]]: A list of ProgramSequence tuple outputs at tracked steps with metadata stored in the ProgramSequence objects.
         """
-        # calculate initial energy
+        # Calculate and store initial energy score
         old_energy = self.score_energy()
-        
+        for output in self.outputs:
+            output._metadata['energy_score'] = old_energy
+            output._metadata['num_step'] = 0
+
         # Initialize history tracking
-        sequence_history = [tuple(output.sequence for output in self.outputs)]
-        energy_history = [old_energy]
-        steps_history = [0]
+        sequence_snapshot = tuple(copy.deepcopy(output) for output in self.outputs)
+        sequence_history = [sequence_snapshot]
 
         # Execute one MCMC optimization step
         for step in range(1, self.num_steps + 1):
@@ -274,13 +274,15 @@ class ProgramMCMCGenerator(ProgramIterativeGenerator):
             
             # Track sequence and energy periodically
             if step % self.track_step_size == 0:
-                sequence_history.append(tuple(output.sequence for output in self.outputs))
-                energy_history.append(old_energy)
-                steps_history.append(step)
-        
+                # Store the energy score
+                for output in self.outputs:
+                    output._metadata['energy_score'] = old_energy
+                    output._metadata['num_step'] = step
+                # Create deep copies of the sequence objects
+                sequence_snapshot = tuple(copy.deepcopy(output) for output in self.outputs)
+                sequence_history.append(sequence_snapshot)
+
         # Return a dictionary with the tracked state information
         return {
             'sequence_history': sequence_history,
-            'energy_history': energy_history,
-            'steps_history': steps_history
         }
