@@ -70,16 +70,12 @@ class Program:
         print(f"Initial energy: {initial_energy:.4f}")
 
         # Run MCMC
-        data = self.ebm.sample()
-        sequence_history = data["sequence_history"]
-
+        sequence_history = self.ebm.sample()
         # Get the final sequence.
         final_sequences = tuple(output.sequence for output in self.ebm.get_outputs())
 
         print(f"Final sequence: {final_sequences}")
         print(f"Final energy: {self.ebm.score_energy():.4f}")
 
-        return {
-            "sequence_history": sequence_history,
-        }
+        return sequence_history
 

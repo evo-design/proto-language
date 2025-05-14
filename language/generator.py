@@ -283,6 +283,4 @@ class ProgramMCMCGenerator(ProgramIterativeGenerator):
                 sequence_history.append(sequence_snapshot)
 
         # Return a dictionary with the tracked state information
-        return {
-            'sequence_history': sequence_history,
-        }
+        return sequence_history
