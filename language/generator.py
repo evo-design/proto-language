@@ -165,8 +165,9 @@ class ProgramMCMCGenerator(ProgramIterativeGenerator):
                                                    generator registration.
             constraint_weights (Optional[List[float]]): Weights to use for each constraint. Must be the
                                                         same length as the `constraints` list.
-            temperature (Optional[float]): The Metropolis-Hastings sampling temperature.
             num_steps (Optional[int]): The number of steps to run on each call of `sample()`.
+            temperature (Optional[float]): The Metropolis-Hastings sampling temperature.
+            track_step_size (Optional[int]): The number of steps between tracking the sequence and energy.
             **hyperparameters (Any): Keyword arguments representing the
                                      configuration and hyperparameters for the
                                      specific generator implementation.
