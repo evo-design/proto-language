@@ -1,17 +1,37 @@
-name: proto-language
-channels:
-  - defaults
-  - conda-forge
-dependencies:
-  - python=3.10
-  - numpy>=1.24.0
-  - pandas>=2.0.0
-  - pytest>=8.0.0
-  - pip
-  - requests>=2.28.0
-  - pip:
-      - fastapi>=0.95.0
-      - uvicorn>=0.22.0
-      - pydantic>=2.0.0
+name: proto-language-temp
 
-  - python-dotenv
+channels:
+  - pytorch          # provides pytorch-cuda metapackage
+  - nvidia           # provides real CUDA libraries if ever needed
+  - conda-forge
+  - defaults
+  - bioconda
+
+dependencies:
+  # ─ core interpreter ─
+  - python=3.11
+  - pip
+
+  # ─ GPU runtime that meets Evo2 + TE 1.13.0 demands ─
+  # (CUDA 12.x, cuDNN ≥8.9, PyTorch 2.6.1)
+  - cudnn>=8.9
+  - pytorch=2.6.0
+  - pytorch-cuda=12.4   # or =12.0 if you’re targeting CUDA 12.0
+  - cuda-toolkit=12.4    # must match pytorch-cuda
+  - pip
+    # ─ light utilities you said you needed ─
+  - numpy
+  - pandas
+  - requests
+  - biopython
+  - huggingface_hub
+  - matplotlib
+  - seaborn
+  - scikit-learn
+  - scipy
+  - ipykernel
+  - ipywidgets
+
+  - pip:
+      - transformer_engine[pytorch]==1.13.0
+      - evo2 @

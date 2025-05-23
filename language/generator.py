@@ -113,7 +113,8 @@ class Evo2Generator(ProgramGenerator):
     def __init__(
         self,
         prompt_seqs: List[str],
-        evo2_type: str = "evo2_7b",
+        evo2_type: str = 'evo2_7b',
+        evo2_local_path: str = None,
         n_tokens: int = 500,
         temperature: float = 1.0,
         top_k: int = 4,
@@ -136,6 +137,7 @@ class Evo2Generator(ProgramGenerator):
 
         self.prompt_seqs = prompt_seqs
         self.evo2_type = evo2_type
+        self.evo2_local_path = evo2_local_path
         self.n_tokens = n_tokens
         self.temperature = temperature
         self.top_k = top_k
@@ -157,7 +159,10 @@ class Evo2Generator(ProgramGenerator):
 
         from evo2 import Evo2  # Lazily import Evo 2.
 
-        self.evo2_model = Evo2(self.evo2_type)
+        self.evo2_model = Evo2(
+            model_name=self.evo2_type,
+            local_path=self.evo2_local_path,
+        )
 
         outputs: List[ProgramSequence] = []
         for _ in range(len(self.prompt_seqs)):
@@ -173,7 +178,14 @@ class Evo2Generator(ProgramGenerator):
         if not self._is_initialized:
             self.register()
 
-        output = self.evo2_model.generate(
+        from evo2 import Evo2  # Lazily import Evo 2.
+
+        evo2_model = Evo2(
+            model_name=self.evo2_type,
+            local_path=self.evo2_local_path,
+        )
+
+        output = evo2_model.generate(
             prompt_seqs=self.prompt_seqs,
             n_tokens=self.n_tokens,
             temperature=self.temperature,
@@ -202,7 +214,7 @@ class BindCraftGenerator(ProgramGenerator):
         super().__init__(**hyperparameters)
 
     def register(self) -> Tuple[ProgramSequence]:
-        self.outputs = (ProgramProteinSequence(self, 0),)
+        self.outputs = ( ProgramSequence(sequence_type='protein'), )
         return self.outputs
 
     def sample(self) -> None:

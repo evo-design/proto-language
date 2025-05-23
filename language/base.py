@@ -10,8 +10,6 @@ ProgramGenerator: The generative models and samplers.
 ProgramIterativeGenerator: A special generative model that implements iterative generation with an energy function
 """
 from abc import ABC, abstractmethod
-import collections
-from dataclasses import dataclass
 from typing import (
     Callable, List, Tuple, Dict, Any, Set, Optional,
 )
@@ -28,7 +26,6 @@ class ProgramSequence:
         self,
         sequence: Optional[str] = None,
         sequence_type: Optional[str] = None,
-        valid_chars: Optional[Set[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
@@ -53,11 +50,11 @@ class ProgramSequence:
             
         self._valid_chars: Optional[Set[str]]
         if self.sequence_type == 'dna':
-            self._valid_chars = set('ACGT-')
+            self._valid_chars = set('ACGT- ')
         elif self.sequence_type == 'rna':
-            self._valid_chars = set('ACGU-')
+            self._valid_chars = set('ACGU- ')
         elif self.sequence_type == 'protein':
-            self._valid_chars = set('ACDEFGHIKLMNPQRSTVWY*-:')
+            self._valid_chars = set('ACDEFGHIKLMNPQRSTVWY*-: ')
         else:
             self._valid_chars = None
 
@@ -293,6 +290,9 @@ class ProgramIterativeGenerator(ProgramGenerator):
         self._check_constraint_attributes()
 
         assert len(self.constraints) == len(self.constraint_weights)
+
+        if any(output.sequence is None for output in self.outputs):
+            return float('inf')
 
         energy = 1.
         for constraint, weight in zip(self.constraints, self.constraint_weights):
