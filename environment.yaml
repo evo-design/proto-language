@@ -31,7 +31,13 @@ dependencies:
   - scipy
   - ipykernel
   - ipywidgets
+  - transformers
+  - pytest
+  - biotite
+  - biopython
+  - ipymol
+  - py3Dmol
 
   - pip:
       - transformer_engine[pytorch]==1.13.0
-      - evo2 @
+      - evo2 @ https://github.com/ArcInstitute/evo2/tree/easy_install

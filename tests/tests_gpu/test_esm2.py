@@ -17,7 +17,7 @@ def test_esm2_entropy_sampling():
 
     esm2_generator.sample()
 
-    assert esm2_outputs[0].sequence is not None
+    assert esm2_outputs[0][0].sequence is not None
 
 
 def test_esm2_max_logit_sampling():
@@ -34,7 +34,7 @@ def test_esm2_max_logit_sampling():
 
     esm2_generator.sample()
 
-    assert esm2_outputs[0].sequence is not None
+    assert esm2_outputs[0][0].sequence is not None
 
 
 def test_esm2_random_sampling():
@@ -51,4 +51,4 @@ def test_esm2_random_sampling():
 
     esm2_generator.sample()
 
-    assert esm2_outputs[0].sequence is not None
+    assert esm2_outputs[0][0].sequence is not None
