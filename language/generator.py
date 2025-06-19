@@ -1,8 +1,12 @@
-import numpy as np
-import random
-from typing import Any, List, Optional, Tuple, Callable
 import copy
+import os
+import random
 import sys
+import json
+from typing import Any, List, Optional, Tuple, Callable
+
+import numpy as np
+import requests
 
 from .base import *
 
@@ -372,6 +376,219 @@ class Evo2Generator(ProgramGenerator):
         for idx, sequence in enumerate(output.sequences):
             if self.prepend_prompt:
                 prompt = prompts[idx].lstrip(''.join(c for c in prompts[idx] if c not in valid_chars))
+                final_sequence = prompt + sequence
+            else:
+                # Use generated sequence without prompt
+                final_sequence = sequence
+            self._generator_outputs[0][idx].sequence = final_sequence
+
+
+class NimEvo2Generator(ProgramGenerator):
+    """
+    A sequence generator that uses the Nvidia NIM Evo2 API for DNA sequence generation.
+    
+    Users must provide a NVIDIA API key for authentication or set it in the NV_API_KEY environment variable.
+    
+    Examples:
+        >>> gen = NimEvo2Generator(
+        ...     prompt_seqs=["+~GA"],
+        ...     api_key="your_api_key",
+        ...     n_tokens=1000,
+        ...     temperature=0.8
+        ... )
+        >>> gen.register()
+        >>> gen.sample()
+    """
+
+    def __init__(
+        self,
+        prompt_seqs: List[str],
+        nim_api_url: str = "https://health.api.nvidia.com/v1/biology/arc/evo2-40b/generate",
+        api_key: Optional[str] = None,
+        n_tokens: int = 500,
+        temperature: float = 1.0,
+        top_k: int = 4,
+        top_p: float = 1.0,
+        enable_sampled_probs: bool = False,
+        verbose: int = 1,
+        batch_size: int = 1,
+        prepend_prompt: bool = False,
+        timeout: float = 120.0,
+        **kwargs,
+    ) -> None:
+        """
+        Initialize the NIM Evo2 generator with API configuration and sampling parameters.
+
+        Args:
+            prompt_seqs: List of prompt sequences to start generation from.
+                        Single prompt gets replicated batch_size times, or provide
+                        one prompt per batch element.
+            nim_api_url: Full URL for the Nvidia NIM API endpoint.
+            api_key: API key for authentication. If None, will try to get from NV_API_KEY environment variable.
+            n_tokens: Number of tokens to generate after each prompt.
+            temperature: Sampling temperature for nucleus sampling.
+            top_k: Top-k parameter for sampling.
+            top_p: Top-p (nucleus) parameter for sampling.
+            enable_sampled_probs: Whether to enable sampled probabilities in API response.
+            verbose: Verbosity level for generation logging.
+            batch_size: Number of sequences to generate simultaneously.
+            prepend_prompt: Whether to prepend the prompt to generated sequences. Default: False.
+            timeout: Request timeout in seconds. Default: 120.0.
+            **kwargs: Additional arguments passed to parent class.
+
+        Note:
+            The API key can be provided directly or set in the NV_API_KEY environment variable.
+        """
+        super().__init__(batch_size=batch_size, **kwargs)
+
+        # Handle batch_size: replicate single prompt or validate multiple prompts
+        if len(prompt_seqs) == 1:
+            self.prompt_seqs = prompt_seqs * batch_size
+        else:
+            assert len(prompt_seqs) == batch_size, f"Multiple prompts ({len(prompt_seqs)}) must equal batch_size ({batch_size})"
+            self.prompt_seqs = prompt_seqs
+
+        self.batch_size = batch_size
+        self.api_endpoint = nim_api_url
+        self.api_key = api_key or self._get_api_key_from_env()
+        self.n_tokens = n_tokens
+        self.temperature = temperature
+        self.top_k = top_k
+        self.top_p = top_p
+        self.enable_sampled_probs = enable_sampled_probs
+        self.verbose = verbose
+        self.prepend_prompt = prepend_prompt
+        self.timeout = timeout
+
+    def _get_api_key_from_env(self) -> Optional[str]:
+        """
+        Get API key from environment variables.
+        
+        Returns:
+            API key from NV_API_KEY environment variable, or None if not set.
+        """
+        return os.getenv('NV_API_KEY') or input("Paste the Run Key: ")
+
+    def register(
+        self, 
+        outputs: Optional[Tuple[BatchedProgramSequence]] = None,
+        valid_chars: Optional[Set[str]] = None,
+    ) -> Tuple[BatchedProgramSequence]:
+        """
+        Initialize empty DNA sequences for NIM API generation.
+
+        Creates BatchedProgramSequence objects that will be populated by sample().
+        No model loading is required since generation happens via API calls.
+
+        Args:
+            outputs: Optional pre-initialized BatchedProgramSequence objects.
+                    If None, empty sequences will be created.
+            valid_chars: Optional custom set of valid characters for sequence validation.
+            
+        Returns:
+            Tuple containing a single BatchedProgramSequence with empty DNA sequences
+            that will be filled during sampling.
+
+        Raises:
+            ValueError: If outputs is provided but has incorrect structure.
+        """
+        self._is_initialized = True
+
+        if outputs is None:
+            # Create one BatchedProgramSequence containing all prompt sequences
+            sequence_batch = BatchedProgramSequence(
+                ProgramSequence(sequence_type=SequenceType.DNA, valid_chars=valid_chars) 
+                for _ in range(self.batch_size)
+            )
+            self._generator_outputs = (sequence_batch,)
+        else:
+            if len(outputs) != 1:
+                raise ValueError("Provided outputs must have one entry")
+            if not isinstance(outputs[0], BatchedProgramSequence):
+                raise ValueError("Must provide a BatchedProgramSequence")
+            self._generator_outputs = outputs
+
+        return self._generator_outputs
+
+    def _make_api_request(self, prompt_seq: str) -> str:
+        """Make API request to generate a sequence."""
+        payload = {
+            "sequence": prompt_seq,
+            "num_tokens": self.n_tokens,
+            "top_k": self.top_k,
+            "enable_sampled_probs": self.enable_sampled_probs,
+            "temperature": self.temperature,
+            "top_p": self.top_p,
+        }
+        
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        try:
+            response = requests.post(
+                self.api_endpoint, 
+                json=payload, 
+                headers=headers, 
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+            
+            result = response.json()
+            if self.verbose >= 1:
+                print(f"API response: {result}")
+                
+            return result["sequence"]
+            
+        except requests.RequestException as e:
+            raise RuntimeError(f"API request failed: {e}")
+        except (KeyError, json.JSONDecodeError) as e:
+            raise RuntimeError(f"Failed to parse API response: {e}")
+
+    def sample(self, prompt_seqs: Optional[List[str]] = None, *args: Any, **kwargs: Any) -> None:
+        """
+        Generate sequences using the NIM Evo2 API and update _generator_outputs.
+
+        Uses the NIM API to generate continuations from the provided prompt sequences
+        or the default prompt sequences, updating the sequences in the BatchedProgramSequence in-place.
+
+        Args:
+            prompt_seqs: Optional list of prompt sequences to use instead of self.prompt_seqs.
+                        Useful for chaining generators where each uses the output of the previous.
+            *args: Unused positional arguments for compatibility.
+            **kwargs: Unused keyword arguments for compatibility.
+
+        Raises:
+            RuntimeError: If called before register() or if API requests fail.
+        """
+        if not self._is_initialized:
+            self.register()
+
+        # Use provided prompts or fall back to the default prompt
+        prompts = prompt_seqs if prompt_seqs is not None else self.prompt_seqs
+
+        if self.verbose >= 1:
+            print(f"Generating {len(prompts)} sequences via NIM API...")
+
+        # Generate sequences for each prompt
+        generated_sequences = []
+        for i, prompt in enumerate(prompts):
+            if self.verbose >= 1:
+                print(f"Generating sequence {i+1}/{len(prompts)}")
+            
+            try:
+                generated_seq = self._make_api_request(prompt)
+                generated_sequences.append(generated_seq)
+            except Exception as e:
+                print(f"Failed to generate sequence {i+1}: {e}")
+                # Use empty string as fallback
+                generated_sequences.append("")
+
+        # Update sequences in the BatchedProgramSequence
+        valid_chars = self._generator_outputs[0].valid_chars
+        for idx, sequence in enumerate(generated_sequences):
+            if self.prepend_prompt:
+                prompt = prompts[idx].lstrip(''.join(c for c in prompts[idx] if c not in (valid_chars or set())))
                 final_sequence = prompt + sequence
             else:
                 # Use generated sequence without prompt
