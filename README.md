@@ -6,13 +6,14 @@ A framework for designing biological sequences (DNA, RNA, proteins) with constra
 
 1. Create a virtual environment:
    ```bash
-   python -m venv venv
-   source venv/bin/activate  
+   conda create --name proto-language-local python=3.10 -y
+   conda activate proto-language-local
    ```
 
 2. Install dependencies:
    ```bash
-   pip install -r requirements_local.txt
+   pip install uv
+   uv pip install -r requirements_local.txt
    ```
 
    [MMseqs2](https://github.com/soedinglab/MMseqs2?tab=readme-ov-file#installation) is also needed to run unit tests

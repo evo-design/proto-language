@@ -23,7 +23,7 @@ import os, shutil
 from .base import *
 from .tools.orf_prediction import run_orfipy, parse_orfipy_results_to_df
 from .tools.mmseqs import run_mmseqs_search_proteins, run_mmseqs_search_genomes, run_mmseqs_clustering, extract_mmseqs_cluster_representatives
-from .tools.structure_prediction import esmfold_protein_sequence, chai1_fold_protein_sequence
+from .tools.structure_prediction import predict_structure_esmfold
 
 # Constants
 DEFAULT_ORFIPY_PARAMS = {
@@ -414,9 +414,12 @@ def _run_esmfold(input_sequence: ProgramSequence, n_replications: int = 1,
     if ("esmfolded_sequence" not in input_sequence._metadata or 
         esmfolded_sequence != input_sequence._metadata["esmfolded_sequence"] or
         not all(key in input_sequence._metadata for key in ["avg_plddt", "ptm", "pdb_output"])):
-        
-        folding_output = esmfold_protein_sequence(esmfolded_sequence, **esmfold_kwargs)
-        input_sequence._metadata.update(folding_output)
+
+        folding_output = predict_structure_esmfold(
+            sequences=esmfolded_sequence, **esmfold_kwargs
+        )
+        input_sequence._metadata.update(folding_output.metrics)
+        input_sequence._metadata["pdb_output"] = folding_output.structure_pdb_output
         input_sequence._metadata["esmfolded_sequence"] = esmfolded_sequence
 
 

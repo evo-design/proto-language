@@ -46,10 +46,8 @@ from .tools import (
     run_orfipy,
     parse_orfipy_results_to_df,
     # Structure prediction tools
-    get_protein_sequences_from_pdb,
-    allow_tf32,
-    relabel_chains,
-    esmfold_protein_sequence,
-    write_fasta_for_sequences,
-    chai1_fold_protein_sequence,
+    predict_structure_boltz2,
+    predict_structure_chai1,
+    predict_structure_esmfold,
+    predict_structure_esm3,
 )
