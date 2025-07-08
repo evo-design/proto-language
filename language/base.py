@@ -2,15 +2,16 @@
 Defines the base classes for the high-level programming language framework.
 
 This module provides the core abstractions for sequence programming:
-- ProgramSequence: Individual sequence variables with validation and metadata
-- BatchedProgramSequence: Collections of sequences for batch processing  
-- ProgramConstraint: Scoring functions that evaluate sequence quality
-- ProgramGenerator: Base class for sequence generation algorithms
-- ProgramIterativeGenerator: Specialized generator for iterative optimization
+- ConstructSegment: Individual sequence variables with validation and metadata
+- Construct: Fully-defined biological construct consisting of a collection of ConstructSegment objects
+- Constraint: Scoring functions that evaluate sequence quality
+- Generator: Base class for sequence generation algorithms
+- IterativeGenerator: Specialized generator for iterative optimization
 
 These classes work together to enable flexible, constraint-driven sequence design
 using various generation strategies like MCMC, autoregressive models, etc.
 """
+
 from abc import ABC, abstractmethod
 from typing import (
     Callable, List, Tuple, Dict, Any, Set, Optional, Iterator, Iterable
@@ -18,6 +19,7 @@ from typing import (
 from enum import Enum
 from itertools import zip_longest
 import numpy as np
+import copy
 
 class SequenceType(Enum):
     """Enumeration of supported biological sequence types."""
@@ -30,82 +32,56 @@ class ConstraintType(Enum):
     CONTIGUOUS = "contiguous"  # Concatenate sequences before evaluation
     DISJOINT = "disjoint"      # Evaluate sequences separately as a group
 
-class ProgramSequence:
+
+class Sequence:
     """
-    A biological sequence variable with type validation and metadata tracking.
+    Internal data structure for the basic unit of the programming language.
     
-    This is the fundamental unit for sequence programming, representing a single
-    DNA, RNA, or protein sequence with automatic validation and rich metadata
-    support. Sequences can be empty initially and filled by generators.
-    
-    The class enforces sequence type constraints and maintains metadata that
-    gets automatically updated when the sequence changes.
-    
-    Examples:
-        Creating a DNA sequence:
-        >>> seq = ProgramSequence("ATCG", SequenceType.DNA)
-        >>> print(len(seq))  # 4
-        >>> print(str(seq))  # "ATCG"
-        
-        Creating an empty sequence to be filled later:
-        >>> seq = ProgramSequence(sequence_type=SequenceType.PROTEIN)
-        >>> seq.sequence = "MVLSPADKTNVK"
+    Represents a single DNA, RNA, or protein sequence. The class enforces sequence type 
+    constraints and maintains metadata that gets updated when the sequence changes.
     """
     
     def __init__(
         self,
-        sequence: Optional[str] = None,
-        sequence_type: Optional[SequenceType] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        sequence: str = "",
+        sequence_type: SequenceType = SequenceType.DNA,
         valid_chars: Optional[Set[str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
-        Initialize a ProgramSequence with optional sequence data and metadata.
+        Initialize a Sequence with sequence data and metadata.
 
         Args:
-            sequence: The biological sequence string. Can be None for empty sequences.
-            sequence_type: Type of biological sequence (SequenceType.DNA, SequenceType.RNA, or SequenceType.PROTEIN).
-                          Required for validation if sequence is provided.
-            metadata: Additional data to associate with this sequence. Will be 
-                     automatically updated to track the current sequence value.
+            sequence: The biological sequence string. Defaults to empty string.
+            sequence_type: Type of biological sequence (SequenceType.DNA, SequenceType.RNA, or SequenceType.PROTEIN). Defaults to DNA.
             valid_chars: Optional custom set of valid characters for sequence validation.
-                        If provided, overrides the default character set for the sequence_type.
-
-        Raises:
-            ValueError: If sequence_type is not one of the valid SequenceType values.
+                If provided, overrides the default character set for the sequence_type.
+            metadata: Additional data associated with this sequence.
         """
-        if sequence_type and sequence_type not in [SequenceType.DNA, SequenceType.RNA, SequenceType.PROTEIN]:
-                raise ValueError(f"sequence_type must be one of {[SequenceType.DNA, SequenceType.RNA, SequenceType.PROTEIN]}, got {sequence_type}")
-
-        self.sequence_type: Optional[SequenceType] = sequence_type
-            
+        self.sequence_type: SequenceType = sequence_type
         # Set up character validation based on sequence type or custom valid_chars
-        if valid_chars is not None:
+        if valid_chars:
             self._valid_chars: Optional[Set[str]] = valid_chars
         elif self.sequence_type == SequenceType.DNA:
-            self._valid_chars = set('ACGT- ')
+            self._valid_chars = set('ACGT')
         elif self.sequence_type == SequenceType.RNA:
-            self._valid_chars = set('ACGU- ')
+            self._valid_chars = set('ACGU')
         elif self.sequence_type == SequenceType.PROTEIN:
-            self._valid_chars = set('ACDEFGHIKLMNPQRSTVWY*-: ')
+            self._valid_chars = set('ACDEFGHIKLMNPQRSTVWY')
         else:
-            self._valid_chars = None
-
-        # Truncate sequence at the first space character (EOS/space token) if present
-        if sequence is not None:
-            space_index = sequence.find(' ')
-            if space_index != -1:
-                sequence = sequence[:space_index]
-
+            raise ValueError(f"Unsupported sequence_type: {self.sequence_type}")
+        
         self._validate_sequence(sequence)
-        self._sequence: Optional[str] = sequence
-
-        if metadata is not None:
-            self._metadata: Dict[str, Any] = metadata.copy()
-        else:
-            self._metadata: Dict[str, Any] = {}
-        self._metadata['sequence'] = sequence
-        self._metadata['sequence_length'] = len(sequence) if sequence is not None else 0
+        self._sequence: str = sequence
+        self._metadata: Dict[str, Any] = {
+            'sequence': sequence,
+            'sequence_length': len(sequence),
+            'energy_score': "N/A",
+            'time_step': "N/A",
+        }
+        # Update metadata with any input metadata
+        if metadata:
+            self._metadata.update(metadata)
 
     def _validate_sequence(self, sequence: str) -> None:
         """
@@ -117,32 +93,25 @@ class ProgramSequence:
         Raises:
             ValueError: If sequence contains invalid characters for this sequence type.
         """
-        if self._valid_chars is None or sequence is None:
-            return
-
         invalid_chars = set(sequence) - self._valid_chars
         if invalid_chars:
             raise ValueError(f"Invalid characters found: {', '.join(invalid_chars)}. "
                              f"Valid characters are: {', '.join(sorted(self._valid_chars))}")
 
     @property
-    def sequence(self) -> Optional[str]:
+    def sequence(self) -> str:
         """
         Get the current sequence string.
 
         Returns:
-            The sequence string, or None if no sequence has been set.
+            The sequence string.
         """
         return self._sequence
 
     @sequence.setter
     def sequence(self, new_sequence: str) -> None:
         """
-        Set a new sequence string with automatic validation and metadata updates.
-        
-        Automatically truncates the sequence at the first space character (" ") if present,
-        removing everything from the first space onwards. This handles EOS/space tokens
-        that may be generated by language models.
+        Set a new sequence string with validation and metadata updates.
 
         Args:
             new_sequence: The new sequence string to set.
@@ -150,27 +119,24 @@ class ProgramSequence:
         Raises:
             ValueError: If the new sequence contains invalid characters.
         """
-        if new_sequence is not None:
-            # Truncate at the first space character (EOS/space token)
-            space_index = new_sequence.find(' ')
-            if space_index != -1:
-                new_sequence = new_sequence[:space_index]
+        # TODO: REVISIT THIS TRUNCATION
+        # # Truncate at the first space character (EOS/space token)
+        # space_index = new_sequence.find(' ')
+        # if space_index != -1:
+        #     new_sequence = new_sequence[:space_index]
         
         self._validate_sequence(new_sequence)
         self._sequence = new_sequence
-        # Always keep metadata in sync with the actual sequence
         self._metadata["sequence"] = new_sequence
-        self._metadata["sequence_length"] = len(new_sequence) if new_sequence is not None else 0
+        self._metadata["sequence_length"] = len(new_sequence)
 
     def __len__(self) -> int:
         """
         Get the length of the sequence.
 
         Returns:
-            Number of characters in the sequence, or 0 if sequence is None.
+            Number of characters in the sequence.
         """
-        if self._sequence is None:
-            return 0
         return len(self._sequence)
 
     def __str__(self) -> str:
@@ -178,137 +144,190 @@ class ProgramSequence:
         Get the sequence as a string.
 
         Returns:
-            The sequence string, or empty string if sequence is None.
+            The sequence string.
         """
-        if self._sequence is None:
-            return ""
         return self._sequence
     
 
-class BatchedProgramSequence:
+class ConstructSegment:
     """
-    A collection of ProgramSequence objects representing multiple sequence variants.
+    External class that represents the building blocks for a Construct.
     
-    This is the primary data structure that generators work with internally.
-    Each generator produces one or more BatchedProgramSequence objects, where
-    each contains multiple sequence samples/variants that can be evaluated
-    and compared during optimization.
+    This is the most modular user-facing unit for the programming language.
     
     Examples:
-        Creating a batch of DNA sequences:
-        >>> sequences = [
-        ...     ProgramSequence(seq, SequenceType.DNA) 
-        ...     for seq in ["ATCG", "GCTA", "TTAA"]
-        ... ]
-        >>> batch = BatchedProgramSequence(sequences)
-        >>> print(len(batch))  # 3
-        >>> print(batch[0].sequence)  # "ATCG"
-    """
-    
-    def __init__(self, sequences: Iterable[ProgramSequence]) -> None:
-        """
-        Initialize a batch with a collection of ProgramSequence objects.
-
-        Args:
-            sequences: An iterable of ProgramSequence objects. All sequences must
-                      have the same sequence_type and valid_chars for consistency.
-                      
-        Raises:
-            ValueError: If sequences have inconsistent sequence_type or valid_chars values.
-        """
-        self.sequences: Tuple[ProgramSequence] = tuple(sequences)
-        self.sequence_type: Optional[SequenceType] = None
-        self.valid_chars: Optional[Set[str]] = None
-        
-        if self.sequences:
-            self.sequence_type: SequenceType = self.sequences[0].sequence_type
-            self.valid_chars: Optional[Set[str]] = self.sequences[0]._valid_chars
-            self._validate_sequences()
-
-    def _validate_sequences(self) -> None:
-        """
-        Validate that all sequences in the batch have consistent properties.
-        
-        Raises:
-            ValueError: If sequences have inconsistent sequence_type or valid_chars values.
-        """
-        # Validate consistent sequence_type
-        if not all(seq.sequence_type == self.sequence_type for seq in self.sequences):
-            all_types = {seq.sequence_type for seq in self.sequences}
-            raise ValueError(f"All sequences in a batch must have the same sequence_type. Found: {all_types}")
-        
-        # Validate consistent valid_chars
-        if not all(seq._valid_chars == self.valid_chars for seq in self.sequences):
-            raise ValueError(f"All sequences in a batch must have the same valid_chars.")
-    
-    def __len__(self) -> int:
-        """
-        Get the number of sequences in this batch.
-
-        Returns:
-            Number of ProgramSequence objects in the batch.
-        """
-        return len(self.sequences)
-    
-    def __getitem__(self, index: int) -> ProgramSequence:
-        """
-        Get a specific sequence from the batch by index.
-
-        Args:
-            index: Zero-based index of the sequence to retrieve.
-
-        Returns:
-            The ProgramSequence at the specified index.
-        """
-        return self.sequences[index]
-    
-    def __iter__(self) -> Iterator[ProgramSequence]:
-        """
-        Iterate over all sequences in the batch.
-
-        Returns:
-            Iterator over ProgramSequence objects in this batch.
-        """
-        return iter(self.sequences)
-    
-
-class ProgramConstraint:
-    """
-    A constraint function that evaluates sequence quality.
-    
-    Constraints define the objective function for sequence optimization by
-    scoring how well sequences satisfy biological or design requirements.
-    They can operate on single sequences or multiple sequences simultaneously,
-    with different combination strategies.
-    
-    The constraint evaluates BatchedProgramSequence inputs and returns scores
-    where lower values indicate better satisfaction of the constraint.
-    
-    Examples:
-        Creating a simple length constraint:
-        >>> def length_constraint(seq, config):
-        ...     target = config['target_length']
-        ...     return abs(len(seq) - target) / target
-        >>> 
-        >>> constraint = ProgramConstraint(
-        ...     inputs=(sequence_batch,),
-        ...     scoring_function=length_constraint,
-        ...     scoring_function_config={'target_length': 100}
-        ... )
-        
-        Creating a constraint with a unique name to avoid metadata collisions:
-        >>> gc_constraint1 = ProgramConstraint(
-        ...     inputs=(sequence_batch1,),
-        ...     name="gc_constraint1",
-        ...     scoring_function=gc_content_constraint,
-        ...     scoring_function_config={'min_gc': 40, 'max_gc': 60}
-        ... )
+        Creating a ConstructSegment:
+        >>> segment = ConstructSegment(sequence="ATCG", sequence_type=SequenceType.DNA)
+        >>> segment.batch_sequences  # [Sequence(sequence="ATCG", sequence_type=SequenceType.DNA)]
     """
     
     def __init__(
         self,
-        inputs: Tuple[BatchedProgramSequence],
-        scoring_function: Callable[[ProgramSequence | Tuple[ProgramSequence], Dict[str, Any]], float],
+        sequence: str = "",
+        sequence_type: SequenceType = SequenceType.DNA,
+        valid_chars: Optional[Set[str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """
+        Initialize a ConstructSegment with a single sequence.
+
+        Args:
+            sequence: The biological sequence string. Defaults to empty string.
+            sequence_type: Type of biological sequence (DNA, RNA, or PROTEIN). Defaults to DNA.
+            valid_chars: Optional custom set of valid characters for sequence validation.
+            metadata: Additional data associated with this sequence.
+        """
+        seq = Sequence(sequence=sequence, sequence_type=sequence_type, metadata=metadata, valid_chars=valid_chars)
+        self.batch_sequences: List[Sequence] = [seq]
+        self.sequence_type: SequenceType = seq.sequence_type
+        self._valid_chars: Optional[Set[str]] = seq._valid_chars
+        self._is_assigned: bool = False
+
+    def create_batch(self, batch_size: int) -> None:
+        """
+        Set the batch size by replicating the first sequence across the batch.
+        
+        Args:
+            batch_size: The desired batch size.
+        """
+        self.batch_sequences = [copy.deepcopy(self.batch_sequences[0]) for _ in range(batch_size)]
+    
+    def __len__(self) -> int:
+        """
+        Get the batch size of the ConstructSegment.
+
+        Returns:
+            Number of Sequence objects in the ConstructSegment.
+        """
+        return len(self.batch_sequences)
+    
+    def __iter__(self) -> Iterator[Sequence]:
+        """
+        Iterate over all Sequence objects in the ConstructSegment.
+        
+        Returns:
+            Iterator over Sequence objects.
+        """
+        return iter(self.batch_sequences)
+
+    def __getitem__(self, index: int) -> Sequence:
+        """
+        Get a specific sequence from the batch by index.
+        
+        Args:
+            index: The index of the sequence to retrieve.
+            
+        Returns:
+            The Sequence object at the specified index.
+        """
+        return self.batch_sequences[index]
+
+
+class Construct:
+    """
+    External class that represents a full biological construct.
+    
+    Consists of multiple ConstructSegment objects that are concatenated together.
+    
+    Examples:
+        Creating a construct from multiple segments:
+        >>> seg1 = ConstructSegment("ATG", SequenceType.DNA)  # Start codon
+        >>> seg2 = ConstructSegment("GCTAGC", SequenceType.DNA)  # Coding region
+        >>> seg3 = ConstructSegment("TAG", SequenceType.DNA)  # Stop codon
+        >>> construct = Construct([seg1, seg2, seg3])
+        >>> construct.batch_sequences  # [Sequence("ATGGCTAGCTAG", SequenceType.DNA)]
+    """
+    
+    def __init__(
+        self,
+        segments: Iterable[ConstructSegment],
+    ) -> None:
+        """
+        Initialize a Construct with ConstructSegment objects.
+
+        Args:
+            segments: An iterable of ConstructSegment objects in order.
+            
+        Raises:
+            ValueError: If construct contains no segments, segments have different 
+                sequence types, or segments have different valid characters.
+        """
+        # Convert to tuple for validation and storage
+        self.segments: Tuple[ConstructSegment, ...] = tuple(segments)
+        
+        # Ensure segments are valid
+        if not self.segments:
+            raise ValueError("Construct must contain at least one segment")
+        if not all(segment.sequence_type == self.segments[0].sequence_type for segment in self.segments):
+            all_types = set(segment.sequence_type for segment in self.segments)
+            raise ValueError(f"All segments in a construct must have the same sequence_type. Found: {all_types}")
+        if not all(segment._valid_chars == self.segments[0]._valid_chars for segment in self.segments):
+            raise ValueError(f"All segments in a construct must have the same valid_chars.")
+    
+        self.sequence_type: SequenceType = self.segments[0].sequence_type
+        self._valid_chars: Optional[Set[str]] = self.segments[0]._valid_chars
+
+    @property
+    def batch_sequences(self) -> Tuple[Sequence, ...]:
+        """
+        Get the concatenated Sequence objects batch that represent one user-facing Construct.
+        
+        Returns:
+            Tuple of concatenated Sequence objects where each element represents
+            the concatenation of the i-th sequence from each segment in order.
+            The final batch size is equal to the smallest batch size of the segments.
+        """
+        sequences = []
+        segment_sequences = [segment.batch_sequences for segment in self.segments]
+        for corresponding_seqs in zip(*segment_sequences):
+            concatenated_seq = ''.join(seq.sequence for seq in corresponding_seqs if seq is not None)
+            
+            # TODO: REVISIT THIS TO AVOID METADATA COLLISION
+            # Merge metadata from all corresponding sequences
+            merged_metadata = {}
+            for seq in corresponding_seqs:
+                if seq is not None:
+                    merged_metadata.update(seq._metadata)
+            
+            # Create new Sequence object with concatenated sequence and merged metadata
+            sequence_obj = Sequence(
+                sequence=concatenated_seq,
+                sequence_type=self.sequence_type,
+                metadata=merged_metadata,
+                valid_chars=self._valid_chars
+            )
+            sequences.append(sequence_obj)
+        return tuple(sequences)
+
+
+class Constraint:
+    """
+    Constraints define the objective function for construct optimization.
+    
+    Constraints score how well segments satisfy biological or design requirements by 
+    taking in ConstructSegment objects and returning scores where lower values 
+    indicate better satisfaction of the constraint.
+    
+    Examples:
+        Creating a length constraint:
+        >>> def length_constraint(sequence, config):
+        ...     target = config['target_length']
+        ...     return abs(len(sequence) - target) / target
+        >>> segment = ConstructSegment("ATCG", SequenceType.DNA)
+        >>> constraint = Constraint(
+        ...     inputs=[segment],
+        ...     scoring_function=length_constraint,
+        ...     scoring_function_config={'target_length': 4},
+        ...     constraint_type=ConstraintType.CONTIGUOUS,
+        ...     name='length_constraint'
+        ... )
+        >>> constraint.evaluate()  # [0.0]
+    """
+    
+    def __init__(
+        self,
+        inputs: Iterable[ConstructSegment],
+        scoring_function: Callable[[Sequence | Tuple[Sequence], Dict[str, Any]], float],
         scoring_function_config: Dict[str, Any] = {},
         constraint_type: ConstraintType = ConstraintType.CONTIGUOUS,
         name: Optional[str] = None,
@@ -317,63 +336,73 @@ class ProgramConstraint:
         Initialize a constraint with its inputs and scoring function.
 
         Args:
-            inputs: The BatchedProgramSequence objects this constraint evaluates.
-                   These should be outputs from registered generators. Sequences
-                   are evaluated by corresponding batch indices (inputs[0][i] 
-                   with inputs[1][i], etc.). If batches have different sizes,
-                   all sequences that have corresponding elements are evaluated.
-            scoring_function: Function that scores sequences. Takes either a single
-                            ProgramSequence (CONTIGUOUS) or tuple of ProgramSequences
-                            (DISJOINT) plus config dict, returns a float score.
+            inputs: The ConstructSegment object(s) this constraint evaluates.
+                Can be a single ConstructSegment or an iterable of ConstructSegment objects.
+            scoring_function: Function that scores sequences. 
+                Inputs are single sequence for contiguous constraints or tuple of sequences for disjoint constraints.
+                Outputs are a float score between 0.0 and 1.0. Lower values are better.
             scoring_function_config: Configuration parameters passed to scoring_function.
             constraint_type: How to process multiple inputs:
-                           - CONTIGUOUS: Concatenate sequences before evaluation
-                           - DISJOINT: Evaluate sequences separately as a group
-            name: Optional unique name for this constraint. If provided, metadata keys
-                  will be prefixed with this name to avoid collisions when multiple
-                  constraints of the same type are used (e.g., "gc_content1_gc_content").
-
-        Note:
-            The scoring_function should return values where lower is better within the range [0.0, 1.0].
+                - CONTIGUOUS: Concatenate sequences before evaluation
+                - DISJOINT: Evaluate sequences separately as a group
+            name: Optional unique name for this constraint. Metadata keys will be prefixed with this name to avoid collisions.
         """
-        
-        self.scoring_function: Callable[[ProgramSequence | Tuple[ProgramSequence], Dict[str, Any]], float] = scoring_function
+        self.inputs: Tuple[ConstructSegment] = tuple(inputs)
+        self.scoring_function: Callable[[Sequence | Tuple[Sequence], Dict[str, Any]], float] = scoring_function
         self.scoring_function_config: Dict[str, Any] = scoring_function_config
-        self.inputs: Tuple[BatchedProgramSequence] = inputs
         self.constraint_type: ConstraintType = constraint_type
         self.name: Optional[str] = name
-
-    def _process_inputs(self, inputs: Tuple[BatchedProgramSequence], constraint_type: ConstraintType) -> List[ProgramSequence] | List[Tuple[ProgramSequence]]:
-        """
-        Transform batched inputs into the format expected by the scoring function.
         
-        Processes sequences by corresponding indices across batches. If batches have
-        different sizes, evaluates all positions where at least one batch has a sequence.
+    def _process_inputs(
+            self, 
+            inputs: Tuple[ConstructSegment], 
+            constraint_type: ConstraintType
+        ) -> List[Sequence] | List[Tuple[Sequence, ...]]:
+        """
+        Transform batched ConstructSegment inputs into the format expected by the scoring function.
+        
+        Processes segments by corresponding indices across batches. If ConstructSegment inputs have 
+        different batch sizes, the missing segments are padded with None. # TODO: REVIEW THIS APPROACH
         
         Args:
-            inputs: Tuple of BatchedProgramSequence objects to process.
+            inputs: Tuple of ConstructSegment objects to process.
             constraint_type: Strategy for combining inputs:
-                           - CONTIGUOUS: Concatenate corresponding sequences
-                           - DISJOINT: Group corresponding sequences as tuples
+                - CONTIGUOUS: Concatenate corresponding segments
+                - DISJOINT: Group corresponding segments as tuples
             
         Returns:
-            For CONTIGUOUS: List of ProgramSequence objects with concatenated sequences.
-            For DISJOINT: List of tuples, each containing corresponding sequences.
+            For CONTIGUOUS: List of Sequence objects with concatenated sequences.
+            For DISJOINT: List of tuples, each containing corresponding Sequence objects.
             
         Raises:
-            ValueError: If constraint_type is not recognized.
+            ValueError: Inconsistent sequence_type or valid_chars between inputs in CONTIGUOUS case.
         """
-        if constraint_type == ConstraintType.CONTIGUOUS:
-            sequence_type = inputs[0].sequence_type if inputs else None
-            valid_chars = inputs[0].valid_chars if inputs else None
+        if constraint_type == ConstraintType.CONTIGUOUS:                     
+            # Ensure sequence_type and valid_chars consistency across all inputs
+            if not all(input_batch.sequence_type == inputs[0].sequence_type for input_batch in inputs):
+                all_types = {input_batch.sequence_type for input_batch in inputs}
+                raise ValueError(f"Inconsistent sequence_type across inputs. Found: {all_types}")
+            if not all(input_batch._valid_chars == inputs[0]._valid_chars for input_batch in inputs):
+                raise ValueError(f"Inconsistent valid_chars across inputs.")
+
+            # Get sequence_type and valid_chars from the first input
+            sequence_type = inputs[0].sequence_type
+            valid_chars = inputs[0]._valid_chars
             
+            # Concatenate sequences by corresponding indices across batches
             result = []
-            for group in zip_longest(*inputs, fillvalue=None):
-                concatenated_sequence = ''.join(seq.sequence or '' for seq in group if seq is not None)
-                #TODO: weird behavior if two sequences have same metadata keys but different values
-                merged_metadata = {k: v for seq in group if seq is not None for k, v in seq._metadata.items()}
+            segment_sequences = [input_batch.batch_sequences for input_batch in inputs]
+            for corresponding_idx_seqs in zip_longest(*segment_sequences, fillvalue=None):
+                concatenated_sequence = ''.join(
+                    seq.sequence for seq in corresponding_idx_seqs if seq is not None
+                )
+                # Merge metadata from all corresponding sequences
+                merged_metadata = {}
+                for seq in corresponding_idx_seqs:
+                    if seq is not None:
+                        merged_metadata.update(seq._metadata)
                 
-                result.append(ProgramSequence(
+                result.append(Sequence(
                     sequence=concatenated_sequence,
                     sequence_type=sequence_type,
                     metadata=merged_metadata,
@@ -382,90 +411,54 @@ class ProgramConstraint:
             return result
         
         elif constraint_type == ConstraintType.DISJOINT:
-            return [tuple(group) for group in zip_longest(*inputs, fillvalue=None)]
-        else:
-            raise ValueError(f"Invalid constraint type: {constraint_type}")
-
+            # Extract sequences from each ConstructSegment and group by corresponding indices
+            result = []
+            segment_sequences = [input_batch.batch_sequences for input_batch in inputs]
+            for corresponding_idx_seqs in zip_longest(*segment_sequences, fillvalue=None):
+                result.append(tuple(corresponding_idx_seqs))
+            return result
+        
     def evaluate(self) -> List[float]:
         """
-        Evaluate this constraint on all sequences in the input batches.
-
-        The constraint is applied to each corresponding set of sequences across
-        all input batches, producing one score per batch element.
-
+        Evaluate each Sequence object in the ConstructSegment batch.
+        
         Returns:
-            List of constraint scores, one per batch element. Lower scores
-            indicate better constraint satisfaction. Returns float('inf')
-            for invalid/None sequences.
-            
-        Note:
-            The length of the returned list equals the batch size of the input
-            BatchedProgramSequence objects.
+            List of scores between 0.0 and 1.0, one per Sequence object in the batch.
+            Returns float('inf') for invalid sequences.
         """
+        # Preprocess inputs depending on the constraint type
         scoring_function_inputs = self._process_inputs(self.inputs, self.constraint_type)
         
+        # TODO: REFACTOR METADATA
         scores = []
         for i, input in enumerate(scoring_function_inputs):
             # Check for invalid input scenarios
-            if  ((isinstance(input, tuple) and None in input) or
-                (isinstance(input, tuple) and any(isinstance(seq, ProgramSequence) and seq.sequence is None for seq in input))):
+            if isinstance(input, tuple) and None in input:
                 scores.append(float('inf'))
             else:
-                # Store original metadata to identify new keys added by the scoring function
-                if isinstance(input, ProgramSequence):
-                    original_metadata_keys = set(input._metadata.keys())
-                
                 scores.append(self.scoring_function(input, self.scoring_function_config))
-                
-                # Copy only newly added metadata back to original sequences
-                if isinstance(input, ProgramSequence):
+                if isinstance(input, Sequence):
+                    # Propagate metadata back to all input sequences at index i
                     for batch in self.inputs:
-                        original_seq = batch[i]
-                        # Find keys that were added by the scoring function
-                        new_keys = set(input._metadata.keys()) - original_metadata_keys
-                        for key in new_keys:
-                            if key != "sequence":  # Don't overwrite original sequence content
-                                value = input._metadata[key]
-                                # Prefix metadata key with constraint name if provided
-                                prefixed_key = f"{self.name}_{key}" if self.name else key
-                                original_seq._metadata[prefixed_key] = value
-        
+                        original_seq = batch.batch_sequences[i]
+                        if original_seq is not None:
+                            for key in input._metadata.keys():
+                                if key != "sequence":  # Don't overwrite original sequence content
+                                    value = input._metadata[key]
+                                    # Prefix metadata key with constraint name if provided
+                                    prefixed_key = f"{self.name}_{key}" if self.name else key
+                                    original_seq._metadata[prefixed_key] = value
+                elif isinstance(input, tuple):
+                    raise NotImplementedError("Handle DISJOINT case where input is a Tuple.")
         return scores
 
 
-class ProgramGenerator(ABC):
+class Generator(ABC):
     """
-    Abstract base class for sequence generation algorithms and samplers.
-
-    Generators are responsible for creating and modifying sequences during
-    the optimization process. They can implement various strategies like
-    random mutations, autoregressive language models, or other sampling methods.
-
-    Key concepts:
-    - _generator_outputs: Internal BatchedProgramSequence objects that algorithms modify
-    - Batch processing: Generate multiple sequence variants simultaneously
-    - In-place updates: Sequences are modified directly for efficiency
-
-    Subclasses must implement register() to initialize sequences and sample()
-    to propose new sequence variants.
+    Generator base class that creates/modifies sequences during optimization.
     
-    Note: 
-        - sample() must contain logic to update self._generator_outputs with the new sequences.
-          see UniformMutationGenerator.sample() for an example.
-          
-    Examples:
-        Implementing a simple random mutation generator:
-        >>> class RandomMutator(ProgramGenerator):
-        ...     def register(self):
-        ...         sequences = [ProgramSequence("ATCG", SequenceType.DNA) 
-        ...                     for _ in range(self.batch_size)]
-        ...         self._generator_outputs = (BatchedProgramSequence(sequences),)
-        ...         self._is_initialized = True
-        ...         return self._generator_outputs
-        ...     
-        ...     def sample(self):
-        ...         # Modify sequences in self._generator_outputs
-        ...         pass
+    Subclasses must implement assign() to assign sequences to generators and 
+    sample() to propose modified sequences.
     """
     
     def __init__(
@@ -479,224 +472,336 @@ class ProgramGenerator(ABC):
         Args:
             batch_size: Number of sequence variants to generate simultaneously.
             **hyperparameters: Additional configuration specific to the generator type.
-                              These are stored and can be accessed by subclasses.
+                These are stored and can be accessed by subclasses.
         """
         self.batch_size: int = batch_size
         self.hyperparameters: Dict[str, Any] = hyperparameters
         self._is_initialized: bool = False
-        self._generator_outputs: Optional[Tuple[BatchedProgramSequence]] = None
+        
+        # Support both single output (common) and multiple outputs (less common)
+        self._generator_output: Optional[ConstructSegment] = None
+        self._generator_outputs: Optional[Tuple[ConstructSegment, ...]] = None
+
+    def _validate_generator(self) -> None:
+        """
+        Validate that the generator has been assigned and outputs are properly initialized.
+        
+        Raises:
+            RuntimeError: If generator hasn't been assigned or outputs aren't initialized.
+        """
+        if not self._is_initialized:
+            raise RuntimeError(
+                f"Generator {self.__class__.__name__} has not been assigned. "
+                "Call assign() first."
+            )
+        
+        if self._generator_output is None and self._generator_outputs is None:
+            raise RuntimeError(
+                f"Generator {self.__class__.__name__} must initialize either "
+                "_generator_output (for single output) or _generator_outputs (for multiple outputs) "
+                "in the assign() method."
+            )
 
     @abstractmethod
-    def register(
-        self,
-        *args: Any,
-        **kwargs: Any,
-    ) -> Tuple[BatchedProgramSequence]:
+    def assign(self, assigned_segments: ConstructSegment | Iterable[ConstructSegment]) -> None:
         """
-        Create and initialize the _generator_outputs.
-
-        This method creates the internal BatchedProgramSequence objects that
-        the generator will modify during sampling. These _generator_outputs
-        are what optimization algorithms operate on directly.
+        Assign ConstructSegment objects to the generator and initialize the generator.
+        The generator will modify these ConstructSegment objects internally during sampling.
 
         Args:
-            *args: Positional arguments for registration (subclass-specific).
-            **kwargs: Keyword arguments for registration (subclass-specific).
+            assigned_segments: Either a single ConstructSegment or an iterable of ConstructSegment objects.
 
-        Returns:
-            Tuple of BatchedProgramSequence objects that will be modified in-place throughout generation.
+        Raises:
+            NotImplementedError: If not implemented by subclass.
             
         Note:
-            This method must set self._is_initialized = True and store the
-            created sequences in self._generator_outputs.
+            This method must set self._is_initialized = True and initialize either:
+            - self._generator_output: ConstructSegment (for single output - most common)
+            - self._generator_outputs: Iterable[ConstructSegment] (for multiple outputs)
+            
+            Most generators should use _generator_output for simplicity.
+            Use _generator_outputs only when the generator manages multiple distinct outputs.
         """
         raise NotImplementedError(
-            f"Subclass {self.__class__.__name__} must implement the register method."
+            f"Subclass {self.__class__.__name__} must implement the assign method."
         )
-
-    def __len__(self) -> int:
-        """
-        Get the number of _generator_outputs managed by this generator.
-
-        Returns:
-            Number of BatchedProgramSequence objects this generator manages.
-
-        Raises:
-            RuntimeError: If called before register() has been called.
-        """
-        if not self._is_initialized or self._generator_outputs is None:
-            raise RuntimeError(
-                f"Generator {self.__class__.__name__} has not been initialized. "
-                "Call register() first."
-            )
-        return len(self._generator_outputs)
-
-    def get_generator_outputs(self) -> Tuple[BatchedProgramSequence]:
-        """
-        Access the internal _generator_outputs that algorithms modify in-place.
-        
-        These are the raw sequence objects that generators manipulate directly.
-        For user-facing outputs with metadata and concatenation, use the
-        user_sequences property on ProgramIterativeGenerator instead.
-
-        Returns:
-            Tuple of BatchedProgramSequence objects that are modified during sampling.
-
-        Raises:
-            RuntimeError: If called before register() has been called.
-        """
-        if not self._is_initialized or self._generator_outputs is None:
-            raise RuntimeError(
-                f"Generator {self.__class__.__name__} has not been initialized. "
-                "Call register() first."
-            )
-        return self._generator_outputs
-
+    
     @abstractmethod
-    def sample(self, *args: Any, **kwargs: Any) -> None:
+    def sample(self, **kwargs: Any) -> Optional[List[Tuple[Construct, ...]]]:
         """
-        Sample new sequences by modifying _generator_outputs in-place.
-
-        This is where the core generation logic happens. Implementations
-        should directly modify the sequences within self._generator_outputs
-        rather than creating new objects.
+        Sample new sequences by modifying generator outputs in-place.
 
         Args:
-            *args: Positional arguments for sampling (subclass-specific).
             **kwargs: Keyword arguments for sampling (subclass-specific).
 
+        Returns:
+            None if the generator is not an IterativeGenerator.
+            List of snapshots of user_sequences if the generator is an IterativeGenerator.
+            
         Raises:
-            RuntimeError: If called before register() has been called.
+            RuntimeError: If called before assign() has been called.
+            NotImplementedError: If not implemented by subclass.
             
         Note:
             This method should modify sequences in-place for efficiency.
             It does not return anything - the changes are reflected in
-            the _generator_outputs accessed via get_generator_outputs().
+            self._generator_output or self._generator_outputs.
         """
-        if not self._is_initialized or self._generator_outputs is None:
-            raise RuntimeError(
-                f"Generator {self.__class__.__name__} has not been initialized. "
-                "Call register() first."
-            )
         raise NotImplementedError("Subclasses must implement the sample method.")
 
+    def get_generator_outputs(self) -> Tuple[ConstructSegment, ...]:
+        """
+        Access the internal _generator_output or _generator_outputs as a tuple.
 
-class ProgramIterativeGenerator(ProgramGenerator):
+        Returns:
+            Tuple of ConstructSegment objects that are modified during sampling.
+            For single outputs, returns a tuple with one element.
+            For multiple outputs, returns the tuple directly.
+
+        Raises:
+            RuntimeError: If called before assign() or if neither output is initialized.
+        """
+        # Ensure generator is properly initialized
+        self._validate_generator()
+        
+        # Return the appropriate outputs as a tuple
+        return self._generator_outputs or (self._generator_output,)
+    
+    def __len__(self) -> int:
+        """
+        Get the number of ConstructSegments managed by this generator.
+
+        Returns:
+            Number of ConstructSegment objects (1 for single output, N for multiple outputs).
+
+        Raises:
+            RuntimeError: If called before assign() has been called.
+        """
+        return len(self.get_generator_outputs())
+    
+
+class IterativeGenerator(Generator):
     """
     Specialized generator for iterative optimization with energy-based evaluation.
     
-    This class extends ProgramGenerator to support iterative algorithms like MCMC
-    that require energy evaluation and state tracking. It bridges the gap between
-    internal algorithm operations and user-facing results by providing:
-    
-    - Energy scoring via constraint combination
-    - User-friendly sequence access with metadata
-    - Automatic tracking of optimization progress
-    - Flexible sequence concatenation for complex designs
-    
-    The class works with multiple sub-generators and constraints to implement
-    sophisticated optimization strategies while maintaining clean interfaces.
-    
-    Examples:
-        Using in MCMC optimization:
-        >>> mcmc = ProgramMCMCGenerator(
-        ...     generators=[mutation_gen, crossover_gen],
-        ...     constraints=[gc_constraint, length_constraint],
-        ...     sequence_order=((batch1, batch2), (batch3,))
-        ... )
-        >>> history = mcmc.sample()  # Returns optimization history
-        >>> final_seqs = mcmc.user_sequences  # Clean user-facing results
+    Extends Generator to support iterative algorithms like MCMC that require 
+    energy evaluation and state tracking. The class works with multiple 
+    sub-generators and constraints.
     """
     
-    def _check_constraint_attributes(self) -> None:
+    def __init__(
+        self,
+        constructs: List[Construct],
+        generators: List[Generator],
+        constraints: List[Constraint],
+        constraint_weights: Optional[List[float]] = None,
+        **hyperparameters: Any,
+    ) -> None:
         """
-        Validate that required constraint attributes are properly configured.
+        Initialize the IterativeGenerator.
+        
+        Args:
+            constructs: List of Construct objects to optimize.
+            generators: List of Generator objects for sequence modification.
+            constraints: List of Constraint objects for evaluation.
+            constraint_weights: Optional weights for constraints. If None, all weights are 1.0.
+            **hyperparameters: Additional configuration parameters.
+        """
+        super().__init__(**hyperparameters)
+        self.constructs = constructs
+        self.generators = generators
+        self.constraints = constraints
+        self.constraint_weights = constraint_weights or [1.0] * len(constraints)
+        self.current_step = 0
+
+        # Set self._generator_outputs to be a flat tuple of all ConstructSegment objects from all sub-generators
+        self._generator_outputs = tuple(seq for gen in self.generators for seq in gen.get_generator_outputs()) # Unused
+        self._is_initialized = True
+
+    @property
+    def user_sequences(self) -> Tuple[Construct, ...]:
+        """
+        Get all user-facing construct objects.
+        
+        Returns:
+            Tuple of Construct objects representing the current state.
+        """
+        return tuple(self.constructs)
+
+    def _validate_generator(self) -> None:
+        """
+        Validate that constructs, generators, constraints are properly configured.
+        Must be called in final subclass __init__ to ensure all attributes are set.
         
         Raises:
-            ValueError: If constraints are missing or improperly configured.
-        """
-        if not hasattr(self, 'constraints'):
-            raise ValueError("ProgramIterativeGenerator objects must have constraints.")
-
-        for constraint in self.constraints:
-            if not isinstance(constraint, ProgramConstraint):
-                raise ValueError(f"Found type {type(constraint)}, expected a ProgramConstraint")
-
-        if not hasattr(self, 'constraint_weights'):
-            self.constraint_weights = [1.] * len(self.constraints)
-
-    def _validate_init(self) -> None:
-        """
-        Validate that generators, constraints, and sequence order are properly configured.
-        
-        Raises:
+            RuntimeError: If called before assign() has been called.
             ValueError: If any validation checks fail.
         """
-        # Check that all required attributes exist
-        if not hasattr(self, 'generators'):
-            raise ValueError("ProgramIterativeGenerator must have 'generators' attribute")
-        if not hasattr(self, 'constraints'):
-            raise ValueError("ProgramIterativeGenerator must have 'constraints' attribute")
-        if not hasattr(self, 'sequence_order'):
-            raise ValueError("ProgramIterativeGenerator must have 'sequence_order' attribute")
-        if not hasattr(self, 'constraint_weights'):
-            raise ValueError("ProgramIterativeGenerator must have 'constraint_weights' attribute")
+        # Ensure basic generator validation
+        super()._validate_generator()
         
+        # Ensure constructs, generators, and constraints are non-empty lists
+        if not self.constructs:
+            raise ValueError("Constructs list cannot be empty")
+        if not self.generators:
+            raise ValueError("Generators list cannot be empty")
+        if not self.constraints:
+            raise ValueError("Constraints list cannot be empty")
+        
+        # Ensure constraint_weights are positive and finite
+        invalid_weights = [w for w in self.constraint_weights if w <= 0 or not np.isfinite(w)]
+        if invalid_weights:
+            raise ValueError(f"Constraint weights must be positive and finite. Found invalid weights: {invalid_weights}")
+        
+        # Ensure constraint count matches weight count
         if len(self.constraints) != len(self.constraint_weights):
-            raise ValueError("Constraint weights must match number of constraints.")
-
-        # Generators must already be registered, since their variables are hooked up to constraints.
-        variable_ids = set()
-        for generator in self.generators:
-            if not generator._is_initialized:
-                raise ValueError("Not all generators have been registered.")
-            generator_outputs = generator.get_generator_outputs()
-            for sequence_batch in generator_outputs:
-                variable_ids.add(id(sequence_batch))
-
-        # All constraint inputs must be the same as generator outputs.
-        for constraint in self.constraints:
-            for input_ in constraint.inputs:
-                if id(input_) not in variable_ids:
-                    raise ValueError(
-                        "Found a constraint not tied to a given generator."
-                    )
-
-        # Validate that all BatchedProgramSequence objects in sequence_order exist in generator outputs
-        all_generator_outputs = {id(seq) for gen in self.generators for seq in gen.get_generator_outputs()}
-        all_sequence_order_ids = {id(seq) for group in self.sequence_order for seq in group}
+            raise ValueError(f"Constraint count ({len(self.constraints)}) must match weight count ({len(self.constraint_weights)})")
         
-        if all_sequence_order_ids != all_generator_outputs:
-            raise ValueError("sequence_order must contain exactly the same BatchedProgramSequence objects as generator outputs")
+        # Ensure types for all constructs, generators, and constraints are correct
+        for i, construct in enumerate(self.constructs):
+            if not isinstance(construct, Construct):
+                raise ValueError(f"Construct {i} has type {type(construct)}, expected Construct")
+        
+        for i, generator in enumerate(self.generators):
+            if not isinstance(generator, Generator):
+                raise ValueError(f"Generator {i} has type {type(generator)}, expected Generator")
+        
+        for i, constraint in enumerate(self.constraints):
+            if not isinstance(constraint, Constraint):
+                raise ValueError(f"Constraint {i} has type {type(constraint)}, expected Constraint")
+
+        # Ensure all generators are assigned construct segments
+        if not all(generator._is_initialized for generator in self.generators):
+            raise ValueError("Not all generators have been initialized.")
+
+        # Ensure all construct segments are assigned to a generator
+        unassigned_segments = [
+            segment for construct in self.constructs 
+            for segment in construct.segments 
+            if not segment._is_assigned
+        ]
+        if unassigned_segments:
+            raise ValueError(
+                f"Found {len(unassigned_segments)} construct segments not assigned to any generator."
+            )
+
+        # Ensure all constraints have at least one generator-assigned input ConstructSegment
+        generator_segment_ids = set(
+            id(segment) for generator in self.generators 
+            for segment in generator.get_generator_outputs()
+        )
+        for i, constraint in enumerate(self.constraints):
+            if not constraint.inputs:
+                raise ValueError(f"Constraint {i} has no inputs assigned")
+            if not any(id(inp) in generator_segment_ids for inp in constraint.inputs):
+                raise ValueError(f"Constraint {i} has no generator-connected inputs")
+
+    def _replicate_best_sequence(self, best_idx: int) -> None:
+        """
+        Copy the best sequence to all positions within each ConstructSegment.
+        
+        This helper method ensures that when a proposal is accepted, the sequence
+        with the best energy is propagated to all positions within each batch.
+        This is essential for maintaining consistency in user_sequences access.
+        
+        Args:
+            best_idx: Index of the best sequence to propagate across all batches.
+            
+        Raises:
+            RuntimeError: If called before assign() has been called.
+            ValueError: If any batch has fewer sequences than best_idx.
+            
+        Note:
+            This method modifies sequences in-place for all generator outputs.
+        """
+        # Get generator outputs (works with both single and multiple outputs)
+        generator_outputs = self.get_generator_outputs()
+            
+        for construct_segment in generator_outputs:
+            if len(construct_segment.batch_sequences) <= best_idx:
+                raise ValueError(
+                    f"ConstructSegment has only {len(construct_segment.batch_sequences)} sequences, "
+                    f"cannot propagate best sequence at index {best_idx}"
+                )
+            
+            best_sequence = construct_segment.batch_sequences[best_idx]
+            # Propagate the best sequence to all positions in this ConstructSegment
+            # TODO: Check if this propagation makes sense for top_k impelemenetation
+            for sequence in construct_segment.batch_sequences:
+                sequence.sequence = best_sequence.sequence
+                sequence._metadata = best_sequence._metadata.copy()
+
+    @abstractmethod
+    def sample(self, **kwargs: Any) -> Optional[List[Tuple[Construct, ...]]]:
+        """
+        Run iterative generation and return optimization history.
+        
+        Unlike the base Generator.sample() which returns None, this method
+        returns a history of user_sequences (Tuple[Construct, ...]) snapshots taken 
+        at tracked intervals during the optimization process.
+
+        Args:
+            **kwargs: Keyword arguments for sampling (subclass-specific).
+
+        Returns:
+            List of user_sequences snapshots taken at tracked steps. Each element
+            is a tuple of Construct objects with energy and time metadata.
+
+        Raises:
+            RuntimeError: If called before assign() has been called.
+            NotImplementedError: If not implemented by subclass.
+            
+        Note:
+            The returned history allows tracking optimization progress over time.
+            The final state is also accessible via the user_sequences property.
+        """
+        raise NotImplementedError("Subclasses must implement the sample method.")
+        
+    def assign(self, assigned_segments: ConstructSegment | Iterable[ConstructSegment]) -> None:
+        """
+        IterativeGenerator doesn't support manual assignment.
+        
+        Raises:
+            NotImplementedError: Always, as IterativeGenerator auto-initializes from pre-assigned generators.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} auto-initializes from pre-assigned generators. "
+            "Manual assignment is not supported. Ensure all sub-generators are assigned before "
+            "creating the IterativeGenerator."
+        )
 
     def score_energy(self, operation: str = 'add') -> List[float]:
         """
-        Compute energy scores by combining constraint evaluation scores.
+        Compute energy scores by combining constraint evaluation scores and store them in metadata.
 
         The energy function is computed as a weighted combination of all
         constraint scores. Lower energy values indicate better solutions.
+        Results are automatically stored in sequence metadata.
 
         Args:
             operation: How to combine constraint scores across constraints:
-                      - 'add': Sum weighted constraint scores (default)
-                      - 'multiply': Multiply weighted constraint scores
+                - 'add': Sum weighted constraint scores (default)
+                - 'multiply': Multiply weighted constraint scores
 
         Returns:
             List of energy values, one per batch element. Lower values indicate
             better constraint satisfaction.
             
         Raises:
-            ValueError: If operation is not 'add' or 'multiply'.
+            ValueError: If generator is not properly initialized or operation is not 'add' or 'multiply'.
+            RuntimeError: If called before assign() has been called.
             
         Note:
             The returned list length equals the batch size of the sequences.
             Energy computation uses current sequence values, so it reflects
             the most recent state after any sampling operations.
+            Energy scores and time steps are automatically stored in metadata.
         """
-        self._check_constraint_attributes()
-        assert len(self.constraints) == len(self.constraint_weights)
-
+        # Ensure generator is properly initialized
+        self._validate_generator()
+        
         # Get weighted scores from all constraints: shape (n_constraints, n_samples)
+        # TODO: REVISIT HOW THIS BEHAVES WHEN SEGMENTS HAVE DIFFERENT BATCH SIZES
         constraint_scores = np.array([
             np.array(constraint.evaluate()) * weight
             for constraint, weight in zip(self.constraints, self.constraint_weights)
@@ -710,66 +815,16 @@ class ProgramIterativeGenerator(ProgramGenerator):
         else:
             raise ValueError(f"Operation must be 'multiply' or 'add', got {operation}")
 
-        return energies.tolist()
-
-    def _propagate_best_sequence(self, best_idx: int) -> None:
-        """
-        Copy the best sequence to all positions within each BatchedProgramSequence.
+        # Store energy scores in metadata for all sequences
+        energies_list = energies.tolist()
+        best_energy = min(energies_list) if energies_list else float('inf')
         
-        This helper method ensures that when a proposal is accepted, the sequence
-        with the best energy is propagated to all positions within each batch.
-        This is essential for maintaining consistency in user_sequences access.
-        
-        Args:
-            best_idx: Index of the best sequence to propagate across all batches.
-            
-        Raises:
-            ValueError: If any batch has fewer sequences than best_idx.
-            
-        Note:
-            This method modifies sequences in-place for all _generator_outputs.
-        """
-        for sequence_batch in self._generator_outputs:
-            if len(sequence_batch) > best_idx:
-                best_sequence = sequence_batch[best_idx].sequence
-                for program_seq in sequence_batch:
-                    program_seq.sequence = best_sequence
-            else:
-                raise ValueError(f"Batch has only {len(sequence_batch)} sequences, cannot propagate best sequence at index {best_idx}")
+        for construct in self.constructs:
+            for segment in construct.segments:
+                for sequence in segment.batch_sequences:
+                    sequence._metadata.update({
+                        "energy_score": best_energy,
+                        "time_step": self.current_step
+                })
 
-    @property
-    @abstractmethod
-    def user_sequences(self) -> Tuple[ProgramSequence]:
-        """Get user-facing sequences with appropriate metadata and proper concatenation."""
-        raise NotImplementedError("Child classes must implement user_sequences property")
-
-    @abstractmethod
-    def sample(self, *args: Any, **kwargs: Any) -> List[Tuple[ProgramSequence]]:
-        """
-        Run iterative generation and return optimization history.
-        
-        Unlike the base ProgramGenerator.sample() which returns None, this method
-        returns a history of user_sequences snapshots taken at tracked intervals
-        during the optimization process.
-
-        Args:
-            *args: Positional arguments for sampling (subclass-specific).
-            **kwargs: Keyword arguments for sampling (subclass-specific).
-
-        Returns:
-            List of user_sequences snapshots taken at tracked steps. Each element
-            is a tuple of ProgramSequence objects with energy and time metadata.
-
-        Raises:
-            RuntimeError: If called before register() has been called.
-            
-        Note:
-            The returned history allows tracking optimization progress over time.
-            The final state is also accessible via the user_sequences property.
-        """
-        if not self._is_initialized or self._generator_outputs is None:
-            raise RuntimeError(
-                f"Generator {self.__class__.__name__} has not been initialized. "
-                "Call register() first."
-            )
-        raise NotImplementedError("Subclasses must implement the sample method.")
+        return energies_list

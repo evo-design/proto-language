@@ -5,7 +5,7 @@ import copy
 
 import sys
 sys.path.append(".")
-from language.base import ProgramSequence, ProgramConstraint, SequenceType, BatchedProgramSequence
+from language.base import ProgramSequence, ProgramConstraint, SequenceType, BatchedProgramSequence, ProgramOrder
 from language.constraint import gc_content_constraint, sequence_length_constraint, max_homopolymer_constraint
 from language.generator import ProgramMCMCGenerator, UniformMutationGenerator
 
@@ -275,7 +275,7 @@ def _setup_mcmc_components(
     mcmc_gen = ProgramMCMCGenerator(
         generators=[proposal_gen],
         constraints=[constraint],
-        sequence_order=((sequence_batch,),),
+        program_order=ProgramOrder([sequence_batch]),
         num_steps=num_mcmc_steps,  # Number of MCMC steps per sample() call.
         verbose=False,
     )
@@ -311,11 +311,15 @@ def test_program_mcmc_generator_init_and_register():
     unregistered_gen = UniformMutationGenerator(
         sequence_length=seq_len, sequence_type=SequenceType.DNA
     )
+    # Create dummy batch for the program_order since it can't be empty
+    dummy_sequences = [ProgramSequence("ATCG", SequenceType.DNA) for _ in range(1)]
+    dummy_batch = BatchedProgramSequence(dummy_sequences)
+    
     with pytest.raises(ValueError) as excinfo:
         ProgramMCMCGenerator(
             generators=[unregistered_gen], 
             constraints=[],
-            sequence_order=(),
+            program_order=ProgramOrder([dummy_batch]),
         )  # No constraint needed here.
     assert "Not all generators have been registered" in str(excinfo.value)
 
@@ -327,7 +331,7 @@ def test_program_mcmc_generator_init_and_register():
         ProgramMCMCGenerator(
             generators=[proposal_gen],
             constraints=[constraint],
-            sequence_order=((sequence_batch,),),
+            program_order=ProgramOrder([sequence_batch]),
             constraint_weights=[1.0, 0.5],  # 2 weights, 1 constraint.
         )
     assert "Constraint weights must match number of constraints" in str(excinfo.value)
@@ -478,7 +482,7 @@ def test_program_mcmc_generator_multiple_constraints():
     mcmc_gen = ProgramMCMCGenerator(
         generators=[proposal_gen],
         constraints=[gc_constraint, length_constraint, homopoly_constraint],
-        sequence_order=((sequence_batch,),),
+        program_order=ProgramOrder([sequence_batch]),
         constraint_weights=[1.0, 2.0, 0.5],  # Different weights
         num_steps=20,
         verbose=False,
@@ -518,7 +522,7 @@ def test_program_mcmc_generator_no_constraints_and_convergence():
     mcmc_gen = ProgramMCMCGenerator(
         generators=[proposal_gen],
         constraints=[],
-        sequence_order=((sequence_batch,),),
+        program_order=ProgramOrder([sequence_batch]),
         num_steps=10,
         verbose=False,
     )
@@ -563,7 +567,7 @@ def test_program_mcmc_generator_no_constraints_and_convergence():
     mcmc_gen2 = ProgramMCMCGenerator(
         generators=[proposal_gen2],
         constraints=[gc_constraint],
-        sequence_order=((sequence_batch2,),),
+        program_order=ProgramOrder([sequence_batch2]),
         num_steps=100,  # Many steps
         verbose=False,
     )
@@ -599,27 +603,21 @@ def test_program_mcmc_generator_error_handling_and_state():
         scoring_function_config={'min_gc': 40.0, 'max_gc': 60.0},
     )
     
-    # Based on test failure, empty sequence_order may not raise ValueError
-    # Test if it actually validates this
-    try:
+    with pytest.raises(ValueError) as excinfo:
         mcmc_gen = ProgramMCMCGenerator(
             generators=[proposal_gen],
             constraints=[constraint],
-            sequence_order=(),  # Empty sequence order
+            program_order=ProgramOrder([]),  # Empty program order
             num_steps=10,
         )
-        # If no error, this is the actual behavior
-        assert len(mcmc_gen.sequence_order) == 0
-    except ValueError:
-        # If it does validate, that's also valid
-        pass
+    assert "ProgramOrder must contain at least one group" in str(excinfo.value)
     
     # Test with invalid num_steps - based on actual implementation behavior
     try:
         mcmc_gen = ProgramMCMCGenerator(
             generators=[proposal_gen],
             constraints=[constraint],
-            sequence_order=((sequence_batch,),),
+            program_order=ProgramOrder([sequence_batch]),
             num_steps=0,  # May not be invalid
         )
         # If no error, this is acceptable
@@ -632,7 +630,7 @@ def test_program_mcmc_generator_error_handling_and_state():
         mcmc_gen = ProgramMCMCGenerator(
             generators=[proposal_gen],
             constraints=[constraint],
-            sequence_order=((sequence_batch,),),
+            program_order=ProgramOrder([sequence_batch]),
             num_steps=-1,  # May not be invalid
         )
         # If no error, this is acceptable
@@ -693,7 +691,7 @@ def test_program_mcmc_generator_large_scale_and_reproducibility():
     mcmc_gen = ProgramMCMCGenerator(
         generators=[proposal_gen],
         constraints=constraints,
-        sequence_order=((sequence_batch,),),
+        program_order=ProgramOrder([sequence_batch]),
         constraint_weights=[1.0, 0.5, 2.0],
         num_steps=50,
         verbose=False,

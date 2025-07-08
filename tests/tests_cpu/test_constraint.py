@@ -14,7 +14,7 @@ from language.constraint import (
     orfipy_mmseqs_gene_homology_constraint,
     _pseudo_circularize_sequence,
 )
-from language.base import ProgramConstraint, ProgramSequence, BatchedProgramSequence, SequenceType, ConstraintType
+from language.base import ProgramConstraint, ProgramSequence, BatchedProgramSequence, SequenceType, ConstraintType, ProgramOrder
 
 
 def create_batched_seq(seq_type: SequenceType, sequence_str: str):
@@ -1413,7 +1413,7 @@ def test_caching_with_mcmc():
     }
     
     constraint = ProgramConstraint((sequence_batch,), orfipy_mmseqs_gene_hit_count_constraint, config)
-    mcmc_gen = ProgramMCMCGenerator([mutation_gen], [constraint], ((sequence_batch,),), 
+    mcmc_gen = ProgramMCMCGenerator([mutation_gen], [constraint], ProgramOrder([sequence_batch]), 
                                    num_steps=2, temperature=0.5, verbose=False)
     mcmc_gen.register()
     

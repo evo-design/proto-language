@@ -1,4 +1,4 @@
-from .base import ProgramSequence, BatchedProgramSequence, ProgramConstraint, ProgramGenerator, ProgramIterativeGenerator, SequenceType, ConstraintType
+from .base import Sequence, ConstructSegment, Construct, Constraint, Generator, IterativeGenerator, SequenceType, ConstraintType
 from .constraint import (
     sequence_length_constraint,
     gc_content_constraint,
@@ -17,8 +17,8 @@ from .generator import (
     Evo2Generator,
     BindCraftGenerator,
     ESM2Generator,
-    ProgramMCMCGenerator,
-    ProgramSequentialGenerator,
+    MCMCGenerator,
+    SequentialGenerator,
 )
 from .program import Program
 from .tools import (

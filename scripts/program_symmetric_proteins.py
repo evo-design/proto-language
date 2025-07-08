@@ -3,16 +3,16 @@ from typing import Tuple
 import sys
 sys.path.append('.')
 import language
-
-from language.base import ProgramConstraint, ProgramSequence
+from language.base import Constraint, Construct, ConstructSegment, Sequence, SequenceType
 from language.constraint import (
     esmfold_plddt_constraint,
     esmfold_ptm_constraint,
     protein_globularity_constraint,
     protein_symmetry_ring_constraint,
 )
-from language.generator import ProgramMCMCGenerator, UniformMutationGenerator
+from language.generator import MCMCGenerator, UniformMutationGenerator
 from language.program import Program
+
 
 
 MONOMER_LENGTH = 30
@@ -20,39 +20,50 @@ N_SYMMETRIC_UNITS = 4
 N_STEPS = 10_000
 
 
+#######################
+## ConstructSegments ##
+#######################
+
+protomer = ConstructSegment(
+    sequence_type=SequenceType.PROTEIN,
+    valid_chars=set('ACDEFGHIKLMNPQRSTVWY'),
+)
+
+################
+## Constructs ##
+################
+
+protomer_construct = Construct([protomer])
+
 ################
 ## Generators ##
 ################
 
-uniform_generator = UniformMutationGenerator(
+uniform_gen = UniformMutationGenerator(
+    batch_size=1,
     sequence_length=MONOMER_LENGTH,
-    sequence_type='protein',
 )
 
-#############
-## Outputs ##
-#############
-
-esm2_outputs = uniform_generator.register()
+uniform_gen.assign(protomer)
 
 #################
 ## Constraints ##
 #################
 
-esmfold_plddt = ProgramConstraint(
-    inputs=list(esm2_outputs),
+esmfold_plddt = Constraint(
+    inputs=[protomer],
     scoring_function=esmfold_plddt_constraint,
     scoring_function_config={'n_replications': N_SYMMETRIC_UNITS},
 )
 
-esmfold_ptm = ProgramConstraint(
-    inputs=list(esm2_outputs),
+esmfold_ptm = Constraint(
+    inputs=[protomer],
     scoring_function=esmfold_ptm_constraint,
     scoring_function_config={'n_replications': N_SYMMETRIC_UNITS},
 )
 
-symmetry = ProgramConstraint(
-    inputs=list(esm2_outputs),
+symmetry = Constraint(
+    inputs=[protomer],
     scoring_function=protein_symmetry_ring_constraint,
     scoring_function_config={
         'n_replications': N_SYMMETRIC_UNITS,
@@ -60,8 +71,8 @@ symmetry = ProgramConstraint(
     },
 )
 
-globularity = ProgramConstraint(
-    inputs=list(esm2_outputs),
+globularity = Constraint(
+    inputs=[protomer],
     scoring_function=protein_symmetry_ring_constraint,
     scoring_function_config={'n_replications': N_SYMMETRIC_UNITS},
 )
@@ -70,17 +81,20 @@ globularity = ProgramConstraint(
 ## Program ##
 #############
 
-def custom_logging(step: int, outputs: Tuple[ProgramSequence]) -> None:
-    output = outputs[0]
+def custom_logging(step: int, outputs: Tuple[ConstructSegment]) -> None:
+    output_sequence: Sequence = outputs[0].batch_sequences[0]
     print(
         f"Iteration {step} | "
-        f"sequence: {output._metadata['esmfolded_sequence']}, "
-        f"pLDDT: {output._metadata['avg_plddt']}, "
-        f"pTM: {output._metadata['ptm']}"
+        f"sequence (real): {output_sequence._sequence}, "
+        f"sequence: {output_sequence._metadata['esmfolded_sequence']}, "
+        f"pLDDT: {output_sequence._metadata['avg_plddt']}, "
+        f"pTM: {output_sequence._metadata['ptm']}"
     )
 
 program = Program(
-    ebm_class=ProgramMCMCGenerator,
+    iterative_generator_type=MCMCGenerator,
+    constructs=[protomer_construct],
+    generators=[uniform_gen],
     constraints=[
         esmfold_plddt,
         esmfold_ptm,
@@ -88,7 +102,6 @@ program = Program(
         globularity,
     ],
     constraint_weights=[20., 20., 1., 1.,],
-    generators=[uniform_generator],
     num_steps=N_STEPS,
     track_step_size=1,
     temperature=2.,
@@ -98,4 +111,8 @@ program = Program(
 sequence_history = program.run()
 
 with open('design.pdb', 'w') as f:
-    f.write(sequence_history[-1][0]._metadata['pdb_output'] + '\n')
+    last_snapshot: Tuple[Construct, ...] = sequence_history[-1]
+    last_construct: Construct = last_snapshot[0]
+    last_sequence_batch: Tuple[Sequence, ...] = last_construct.batch_sequences
+    last_sequence: Sequence = last_sequence_batch[0]
+    f.write(last_sequence._metadata['pdb_output'] + '\n')

@@ -16,7 +16,7 @@ import itertools
 import tempfile
 from io import StringIO
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 import numpy as np
 import pandas as pd
 import os, shutil
@@ -145,7 +145,7 @@ def _calculate_percentage_range_deviation(actual: float, min_val: float, max_val
         return min(MAX_ENERGY, (actual - max_val) / max(100 - max_val, 1))
 
 
-def sequence_length_constraint(input_sequence: ProgramSequence, config: Dict[str, Any]) -> float:
+def sequence_length_constraint(input_sequence: Sequence, config: Dict[str, Any]) -> float:
     """
     Evaluate how well a sequence matches a target length.
     
@@ -161,7 +161,7 @@ def sequence_length_constraint(input_sequence: ProgramSequence, config: Dict[str
     Examples:
         Evaluating length constraint:
         
-        >>> seq = ProgramSequence("ATCGATCG", SequenceType.DNA)
+        >>> seq = Sequence("ATCGATCG", SequenceType.DNA)
         >>> config = {"target_length": 8}
         >>> score = sequence_length_constraint(seq, config)
         >>> print(score)  # 0.0 (perfect match)
@@ -173,7 +173,7 @@ def sequence_length_constraint(input_sequence: ProgramSequence, config: Dict[str
     return _calculate_normalized_deviation(len(input_sequence), target_length)
 
 
-def gc_content_constraint(input_sequence: ProgramSequence, config: Dict[str, Any]) -> float:
+def gc_content_constraint(input_sequence: Sequence, config: Dict[str, Any]) -> float:
     """
     Evaluate whether a sequence's GC content falls within a target range.
     
@@ -194,7 +194,7 @@ def gc_content_constraint(input_sequence: ProgramSequence, config: Dict[str, Any
     Examples:
         Evaluating GC content constraint:
         
-        >>> seq = ProgramSequence("ATCGATCG", SequenceType.DNA)
+        >>> seq = Sequence("ATCGATCG", SequenceType.DNA)
         >>> config = {"min_gc": 40.0, "max_gc": 60.0}
         >>> score = gc_content_constraint(seq, config)
         >>> print(score)  # 0.0 (50% GC content is within acceptable range)
@@ -214,7 +214,7 @@ def gc_content_constraint(input_sequence: ProgramSequence, config: Dict[str, Any
     return _calculate_percentage_range_deviation(gc_content, min_gc, max_gc)
 
 
-def max_homopolymer_constraint(input_sequence: ProgramSequence, config: Dict[str, Any]) -> float:
+def max_homopolymer_constraint(input_sequence: Sequence, config: Dict[str, Any]) -> float:
     """
     Penalize sequences containing homopolymers longer than a specified maximum.
     
@@ -230,7 +230,7 @@ def max_homopolymer_constraint(input_sequence: ProgramSequence, config: Dict[str
     Examples:
         Evaluating homopolymer constraint:
         
-        >>> seq = ProgramSequence("ATCGATCG", SequenceType.DNA)
+        >>> seq = Sequence("ATCGATCG", SequenceType.DNA)
         >>> config = {"max_length": 3}
         >>> score = max_homopolymer_constraint(seq, config)
         >>> print(score)  # 0.0 (no long homopolymers)
@@ -260,7 +260,7 @@ def max_homopolymer_constraint(input_sequence: ProgramSequence, config: Dict[str
     return min(MAX_ENERGY, log_ratio)
 
 
-def dinucleotide_frequency_constraint(input_sequence: ProgramSequence, config: Dict[str, Any]) -> float:
+def dinucleotide_frequency_constraint(input_sequence: Sequence, config: Dict[str, Any]) -> float:
     """
     Evaluate whether dinucleotide frequencies fall within acceptable ranges.
     
@@ -280,7 +280,7 @@ def dinucleotide_frequency_constraint(input_sequence: ProgramSequence, config: D
     Examples:
         Evaluating dinucleotide frequency constraint:
         
-        >>> seq = ProgramSequence("ATCGATCG", SequenceType.DNA)
+        >>> seq = Sequence("ATCGATCG", SequenceType.DNA)
         >>> config = {"min_freq": 0.0, "max_freq": 0.3}
         >>> score = dinucleotide_frequency_constraint(seq, config)
     """
@@ -322,7 +322,7 @@ def dinucleotide_frequency_constraint(input_sequence: ProgramSequence, config: D
     return min(MAX_ENERGY, max_deviation)
 
 
-def tetranucleotide_usage_constraint(input_sequence: ProgramSequence, config: Dict[str, Any]) -> float:
+def tetranucleotide_usage_constraint(input_sequence: Sequence, config: Dict[str, Any]) -> float:
     """
     Evaluate tetranucleotide usage deviation (TUD) for a specific 4-base motif.
     
@@ -344,7 +344,7 @@ def tetranucleotide_usage_constraint(input_sequence: ProgramSequence, config: Di
     Examples:
         Evaluating tetranucleotide usage constraint:
         
-        >>> seq = ProgramSequence("ATCGATCGATCG", SequenceType.DNA)
+        >>> seq = Sequence("ATCGATCGATCG", SequenceType.DNA)
         >>> config = {"tetranucleotide": "ATCG", "min_tud": 0.5, "max_tud": 2.0}
         >>> score = tetranucleotide_usage_constraint(seq, config)
     """
@@ -387,7 +387,7 @@ def tetranucleotide_usage_constraint(input_sequence: ProgramSequence, config: Di
     return _calculate_range_deviation(tetra_tud, min_tud, max_tud)
 
 
-def _run_esmfold(input_sequence: ProgramSequence, n_replications: int = 1, 
+def _run_esmfold(input_sequence: Sequence, n_replications: int = 1, 
                 esmfold_kwargs: Dict[str, Any] = {}) -> None:
     """
     Execute ESMFold protein structure prediction on a sequence.
@@ -423,7 +423,7 @@ def _run_esmfold(input_sequence: ProgramSequence, n_replications: int = 1,
         input_sequence._metadata["esmfolded_sequence"] = esmfolded_sequence
 
 
-def esmfold_plddt_constraint(input_sequence: ProgramSequence, config: Dict[str, Any]) -> float:
+def esmfold_plddt_constraint(input_sequence: Sequence, config: Dict[str, Any]) -> float:
     """
     Evaluate protein structure quality using ESMFold's predicted LDDT (pLDDT) score.
     
@@ -440,7 +440,7 @@ def esmfold_plddt_constraint(input_sequence: ProgramSequence, config: Dict[str, 
     Examples:
         Evaluating protein structure confidence:
         
-        >>> seq = ProgramSequence("MVLSPADKTNVK", SequenceType.PROTEIN)
+        >>> seq = Sequence("MVLSPADKTNVK", SequenceType.PROTEIN)
         >>> config = {"n_replications": 1}
         >>> score = esmfold_plddt_constraint(seq, config)
     """
@@ -450,7 +450,7 @@ def esmfold_plddt_constraint(input_sequence: ProgramSequence, config: Dict[str, 
     return 1.0 - input_sequence._metadata["avg_plddt"]
 
 
-def esmfold_ptm_constraint(input_sequence: ProgramSequence, config: Dict[str, Any]) -> float:
+def esmfold_ptm_constraint(input_sequence: Sequence, config: Dict[str, Any]) -> float:
     """
     Evaluate protein structure quality using ESMFold's predicted TM-score (pTM).
     
@@ -467,7 +467,7 @@ def esmfold_ptm_constraint(input_sequence: ProgramSequence, config: Dict[str, An
     Examples:
         Evaluating protein structure quality:
         
-        >>> seq = ProgramSequence("MVLSPADKTNVK", SequenceType.PROTEIN)
+        >>> seq = Sequence("MVLSPADKTNVK", SequenceType.PROTEIN)
         >>> config = {"n_replications": 1}
         >>> score = esmfold_ptm_constraint(seq, config)
     """
@@ -477,7 +477,7 @@ def esmfold_ptm_constraint(input_sequence: ProgramSequence, config: Dict[str, An
     return 1.0 - input_sequence._metadata["ptm"]
 
 
-def protein_symmetry_ring_constraint(input_sequence: ProgramSequence, config: Dict[str, Any]) -> float:
+def protein_symmetry_ring_constraint(input_sequence: Sequence, config: Dict[str, Any]) -> float:
     """
     Constrain a protein to form a symmetric ring-like multimeric structure.
     
@@ -495,7 +495,7 @@ def protein_symmetry_ring_constraint(input_sequence: ProgramSequence, config: Di
     Examples:
         Evaluating ring symmetry:
         
-        >>> seq = ProgramSequence("MVLSPADKTNVK", SequenceType.PROTEIN)
+        >>> seq = Sequence("MVLSPADKTNVK", SequenceType.PROTEIN)
         >>> config = {"n_replications": 6}  # Hexameric ring
         >>> score = protein_symmetry_ring_constraint(seq, config)
     """
@@ -520,7 +520,7 @@ def protein_symmetry_ring_constraint(input_sequence: ProgramSequence, config: Di
     return float(np.std(distance_func(centroids)))
 
 
-def protein_globularity_constraint(input_sequence: ProgramSequence, config: Dict[str, Any]) -> float:
+def protein_globularity_constraint(input_sequence: Sequence, config: Dict[str, Any]) -> float:
     """
     Encourage compact, globular protein structures.
     
@@ -537,7 +537,7 @@ def protein_globularity_constraint(input_sequence: ProgramSequence, config: Dict
     Examples:
         Evaluating protein globularity:
         
-        >>> seq = ProgramSequence("MVLSPADKTNVK", SequenceType.PROTEIN)
+        >>> seq = Sequence("MVLSPADKTNVK", SequenceType.PROTEIN)
         >>> config = {"n_replications": 1}
         >>> score = protein_globularity_constraint(seq, config)
     """
@@ -586,7 +586,7 @@ def _pseudo_circularize_sequence(sequence: str) -> str:
     return sequence + sequence[:last_stop]
 
 
-def _run_orfipy_mmseqs_pipeline(input_sequence: ProgramSequence, config: Dict[str, Any]) -> None:
+def _run_orfipy_mmseqs_pipeline(input_sequence: Sequence, config: Dict[str, Any]) -> None:
     """
     Run the ORFipy + MMseqs pipeline for sequence analysis.
     
@@ -672,7 +672,7 @@ def _run_orfipy_mmseqs_pipeline(input_sequence: ProgramSequence, config: Dict[st
             input_sequence._metadata["analyzed_sequence"] = analyzed_sequence_key
 
 
-def orfipy_mmseqs_gene_hit_count_constraint(input_sequence: ProgramSequence, config: Dict[str, Any]) -> float:
+def orfipy_mmseqs_gene_hit_count_constraint(input_sequence: Sequence, config: Dict[str, Any]) -> float:
     """
     Evaluate whether the number of unique ORFs with hits falls within a target range.
     
@@ -692,13 +692,13 @@ def orfipy_mmseqs_gene_hit_count_constraint(input_sequence: ProgramSequence, con
     Examples:
         Evaluating ORF hit count constraint:
         
-        >>> seq = ProgramSequence("ATGTCGATCGATGTAG", SequenceType.DNA)
+        >>> seq = Sequence("ATGTCGATCGATGTAG", SequenceType.DNA)
         >>> config = {
         ...     "min_hits": 1, 
         ...     "max_hits": 5,
         ...     "mmseqs_kwargs": {"database": "/path/to/protein_db"}
         ... }
-        >>> score = orfipy_mmseqs_hit_count_constraint(seq, config)
+        >>> score = orfipy_mmseqs_gene_hit_count_constraint(seq, config)
     """
     _validate_required_config(config, ["min_hits", "max_hits"])
     min_hits, max_hits = config["min_hits"], config["max_hits"]
@@ -713,7 +713,7 @@ def orfipy_mmseqs_gene_hit_count_constraint(input_sequence: ProgramSequence, con
     return _calculate_range_deviation(unique_orfs_with_hits, min_hits, max_hits)
 
 
-def orfipy_mmseqs_gene_homology_constraint(input_sequence: ProgramSequence, config: Dict[str, Any]) -> float:
+def orfipy_mmseqs_gene_homology_constraint(input_sequence: Sequence, config: Dict[str, Any]) -> float:
     """
     Evaluate the homology (percent identity) of each individual ORF hit.
     
@@ -733,7 +733,7 @@ def orfipy_mmseqs_gene_homology_constraint(input_sequence: ProgramSequence, conf
     Examples:
         Evaluating ORF homology constraint:
         
-        >>> seq = ProgramSequence("ATGTCGATCGATGTAG", SequenceType.DNA)
+        >>> seq = Sequence("ATGTCGATCGATGTAG", SequenceType.DNA)
         >>> config = {
         ...     "min_homology": 50.0, 
         ...     "max_homology": 90.0,
