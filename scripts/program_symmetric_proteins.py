@@ -15,9 +15,9 @@ from language.program import Program
 
 
 
-MONOMER_LENGTH = 30
-N_SYMMETRIC_UNITS = 4
-N_STEPS = 10_000
+MONOMER_LENGTH = 150
+N_SYMMETRIC_UNITS = 3
+N_STEPS = 30_000
 
 
 #######################

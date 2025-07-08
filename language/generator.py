@@ -1042,18 +1042,17 @@ class MCMCGenerator(IterativeGenerator):
             best_idx: Index of best sequence.
             cur_temp: Current temperature.
         """
+        print(
+            f"Iteration {step} | "
+            f"old best energy: {old_energy:.4f}, "
+            f"new best energy: {new_energy:.4f}, "
+            f"alpha: {alpha:.4f}, "
+            f"temperature: {cur_temp:.6f}, "
+            f"accept: {accept}, "
+            f"best_idx: {best_idx}"
+        )
         if self.custom_logging:
             self.custom_logging(step, self.get_generator_outputs())
-        else:
-            print(
-                f"Iteration {step} | "
-                f"old best energy: {old_energy:.4f}, "
-                f"new best energy: {new_energy:.4f}, "
-                f"alpha: {alpha:.4f}, "
-                f"temperature: {cur_temp:.6f}, "
-                f"accept: {accept}, "
-                f"best_idx: {best_idx}"
-            )
         sys.stdout.flush()
 
 
@@ -1329,15 +1328,14 @@ class SequentialGenerator(IterativeGenerator):
             accept: Whether proposal was accepted.
             cur_temp: Current temperature.
         """
+        print(
+            f"Iteration {step} | "
+            f"old best energy: {old_energy:.4f}, "
+            f"new best energy: {new_energy:.4f}, "
+            f"alpha: {alpha:.4f}, "
+            f"temperature: {cur_temp:.6f}, "
+            f"accept: {accept}"
+        )
         if self.custom_logging:
             self.custom_logging(step, self.get_generator_outputs())
-        else:
-            print(
-                f"Iteration {step} | "
-                f"old best energy: {old_energy:.4f}, "
-                f"new best energy: {new_energy:.4f}, "
-                f"alpha: {alpha:.4f}, "
-                f"temperature: {cur_temp:.6f}, "
-                f"accept: {accept}"
-            )
         sys.stdout.flush()
