@@ -50,7 +50,9 @@ class UniformMutationGenerator(Generator):
         super().__init__(batch_size=batch_size)
         self.sequence_length = sequence_length
 
-    def assign(self, assigned_segments: ConstructSegment | Iterable[ConstructSegment]) -> None:
+    def assign(
+        self, assigned_segments: ConstructSegment | Iterable[ConstructSegment]
+    ) -> None:
         """
         Assign a ConstructSegment to this generator.
 
@@ -62,17 +64,21 @@ class UniformMutationGenerator(Generator):
         """
         # Ensure single ConstructSegment assignment
         if not isinstance(assigned_segments, ConstructSegment):
-            raise ValueError("UniformMutationGenerator must be assigned exactly one ConstructSegment")
-        
+            raise ValueError(
+                "UniformMutationGenerator must be assigned exactly one ConstructSegment"
+            )
+
         # Initialize _generator_output (singular) and create batch
         self._generator_output = assigned_segments
         self._generator_output._is_assigned = True
-        
+
         initial_sequence = self._generator_output.batch_sequences[0].sequence
         valid_chars = self._generator_output._valid_chars - set(" ")
         valid_chars_list = list(valid_chars)
         if initial_sequence == "":
-            self._generator_output.batch_sequences[0].sequence = "".join(random.choice(valid_chars_list) for _ in range(self.sequence_length))
+            self._generator_output.batch_sequences[0].sequence = "".join(
+                random.choice(valid_chars_list) for _ in range(self.sequence_length)
+            )
         else:
             assert len(initial_sequence) == self.sequence_length, (
                 f"Provided sequence length ({len(initial_sequence)}) must match "
@@ -102,12 +108,14 @@ class UniformMutationGenerator(Generator):
             current_char = current_sequence[mutated_index]
 
             # Make sure the mutated character is different from the current one
-            possible_mutations = [c for c in self._generator_output._valid_chars if c != current_char]
+            possible_mutations = [
+                c for c in self._generator_output._valid_chars if c != current_char
+            ]
             mutated_char = random.choice(possible_mutations)
             sequence.sequence = (
                 current_sequence[:mutated_index]
                 + mutated_char
-                + current_sequence[mutated_index + 1:]
+                + current_sequence[mutated_index + 1 :]
             )
 
 
@@ -115,12 +123,12 @@ class UniformMutationGenerator(Generator):
 class Evo2Generator(Generator):
     """
     A sequence generator that uses the Evo2 genome language model for DNA sequence generation.
-    
+
     This generator wraps the Evo2 model to provide autoregressive sequence generation
-    from prompt sequences. The generator can handle single prompts (replicated across batch) 
-    or multiple prompts (one per batch element), with automatic model instance sharing 
+    from prompt sequences. The generator can handle single prompts (replicated across batch)
+    or multiple prompts (one per batch element), with automatic model instance sharing
     between generators that use the same model configuration.
-    
+
     Examples:
         Basic DNA generation:
         >>> segment = ConstructSegment(sequence="", sequence_type=SequenceType.DNA)
@@ -133,7 +141,7 @@ class Evo2Generator(Generator):
         ... )
         >>> gen.assign(segment)
         >>> gen.sample()  # Generates sequences from prompts
-        
+
         Custom model with local weights:
         >>> gen = Evo2Generator(
         ...     prompt_seqs=["+~GA", "+~GC"],
@@ -144,14 +152,14 @@ class Evo2Generator(Generator):
         >>> gen.assign(segment)
         >>> gen.sample()  # Uses local model weights
     """
-    
+
     # Class-level cache for sharing model instances
     _model_cache = {}
 
     def __init__(
         self,
         prompt_seqs: List[str],
-        evo2_type: str = 'evo2_7b',
+        evo2_type: str = "evo2_7b",
         evo2_local_path: Optional[str] = None,
         sequence_length: int = 500,
         temperature: float = 1.0,
@@ -199,8 +207,12 @@ class Evo2Generator(Generator):
         if len(prompt_seqs) == 1:
             self.prompt_seqs = prompt_seqs * batch_size
         else:
-            assert len(prompt_seqs) == batch_size, f"Multiple prompts ({len(prompt_seqs)}) must equal batch_size ({batch_size})"
-            assert len(set(len(seq) for seq in prompt_seqs)) == 1, f"All prompts must have same length, got: {[len(seq) for seq in prompt_seqs]}"
+            assert (
+                len(prompt_seqs) == batch_size
+            ), f"Multiple prompts ({len(prompt_seqs)}) must equal batch_size ({batch_size})"
+            assert (
+                len(set(len(seq) for seq in prompt_seqs)) == 1
+            ), f"All prompts must have same length, got: {[len(seq) for seq in prompt_seqs]}"
             self.prompt_seqs = prompt_seqs
 
         self.batch_size = batch_size
@@ -220,13 +232,15 @@ class Evo2Generator(Generator):
     def _get_model_key(self) -> str:
         """
         Generate a unique key for model caching based on configuration.
-        
+
         Returns:
             String key uniquely identifying this model configuration.
         """
         return f"{self.evo2_type}:{self.evo2_local_path}"
 
-    def assign(self, assigned_segments: ConstructSegment | Iterable[ConstructSegment]) -> None:
+    def assign(
+        self, assigned_segments: ConstructSegment | Iterable[ConstructSegment]
+    ) -> None:
         """
         Assign a ConstructSegment to this generator.
 
@@ -235,20 +249,26 @@ class Evo2Generator(Generator):
 
         Raises:
             ValueError: If more than one segment is provided.
-            
+
         Warning:
-            Any existing sequences in the assigned segment will be overwritten when sample() 
+            Any existing sequences in the assigned segment will be overwritten when sample()
             is called, as Evo2 performs autoregressive generation from prompt sequences.
         """
         # Ensure single ConstructSegment assignment
         if not isinstance(assigned_segments, ConstructSegment):
-            raise ValueError("Evo2Generator must be assigned exactly one ConstructSegment")
+            raise ValueError(
+                "Evo2Generator must be assigned exactly one ConstructSegment"
+            )
 
         # Warn user if existing sequences will be overwritten
-        existing_sequences = [seq.sequence for seq in assigned_segments.batch_sequences if seq.sequence]
+        existing_sequences = [
+            seq.sequence for seq in assigned_segments.batch_sequences if seq.sequence
+        ]
         if existing_sequences:
-            print(f"Warning: Evo2Generator will overwrite {len(existing_sequences)} existing sequence(s) "
-                  f"when sample() is called due to autoregressive generation.")
+            print(
+                f"Warning: Evo2Generator will overwrite {len(existing_sequences)} existing sequence(s) "
+                f"when sample() is called due to autoregressive generation."
+            )
 
         # Initialize _generator_output (singular) and create batch
         self._generator_output = assigned_segments
@@ -276,7 +296,7 @@ class Evo2Generator(Generator):
     # def clear_model_cache(cls):
     #     """
     #     Clear the model cache to free GPU memory.
-        
+
     #     Call this method to force reloading of models if you need to free memory
     #     or switch to different model configurations.
     #     """
@@ -286,7 +306,7 @@ class Evo2Generator(Generator):
     # def get_cached_models(cls):
     #     """
     #     Get information about currently cached models.
-        
+
     #     Returns:
     #         List of model keys currently stored in the cache.
     #     """
@@ -322,7 +342,7 @@ class Evo2Generator(Generator):
             cached_generation=self.cached_generation,
             verbose=self.verbose,
             force_prompt_threshold=self.force_prompt_threshold,
-            **self.sampling_kwargs
+            **self.sampling_kwargs,
         )
 
         # Update sequences in the ConstructSegment
@@ -336,9 +356,9 @@ class Evo2Generator(Generator):
 class NimEvo2Generator(Generator):
     """
     A sequence generator that uses the Nvidia NIM Evo2 API for DNA sequence generation.
-    
+
     Users must provide a NVIDIA API key for authentication or set it in the NV_API_KEY environment variable.
-    
+
     Examples:
         >>> segment = ConstructSegment(sequence="", sequence_type=SequenceType.DNA)
         >>> gen = NimEvo2Generator(
@@ -395,7 +415,9 @@ class NimEvo2Generator(Generator):
         if len(prompt_seqs) == 1:
             self.prompt_seqs = prompt_seqs * batch_size
         else:
-            assert len(prompt_seqs) == batch_size, f"Multiple prompts ({len(prompt_seqs)}) must equal batch_size ({batch_size})"
+            assert (
+                len(prompt_seqs) == batch_size
+            ), f"Multiple prompts ({len(prompt_seqs)}) must equal batch_size ({batch_size})"
             self.prompt_seqs = prompt_seqs
 
         self.batch_size = batch_size
@@ -413,13 +435,15 @@ class NimEvo2Generator(Generator):
     def _get_api_key_from_env(self) -> Optional[str]:
         """
         Get API key from environment variables.
-        
+
         Returns:
             API key from NV_API_KEY environment variable, or None if not set.
         """
-        return os.getenv('NV_API_KEY') or input("Paste the Run Key: ")
+        return os.getenv("NV_API_KEY") or input("Paste the Run Key: ")
 
-    def assign(self, assigned_segments: ConstructSegment | Iterable[ConstructSegment]) -> None:
+    def assign(
+        self, assigned_segments: ConstructSegment | Iterable[ConstructSegment]
+    ) -> None:
         """
         Assign a ConstructSegment to this generator.
 
@@ -428,21 +452,27 @@ class NimEvo2Generator(Generator):
 
         Raises:
             ValueError: If more than one segment is provided.
-            
+
         Warning:
-            Any existing sequences in the assigned segment will be overwritten when sample() 
+            Any existing sequences in the assigned segment will be overwritten when sample()
             is called, as NIM Evo2 performs autoregressive generation from prompt sequences.
         """
         # Ensure single ConstructSegment assignment
         if not isinstance(assigned_segments, ConstructSegment):
-            raise ValueError("NimEvo2Generator must be assigned exactly one ConstructSegment")
-        
+            raise ValueError(
+                "NimEvo2Generator must be assigned exactly one ConstructSegment"
+            )
+
         # Warn user if existing sequences will be overwritten
-        existing_sequences = [seq.sequence for seq in assigned_segments.batch_sequences if seq.sequence]
+        existing_sequences = [
+            seq.sequence for seq in assigned_segments.batch_sequences if seq.sequence
+        ]
         if existing_sequences:
-            print(f"Warning: NimEvo2Generator will overwrite {len(existing_sequences)} existing sequence(s) "
-                  f"when sample() is called due to autoregressive generation.")
-        
+            print(
+                f"Warning: NimEvo2Generator will overwrite {len(existing_sequences)} existing sequence(s) "
+                f"when sample() is called due to autoregressive generation."
+            )
+
         # Initialize _generator_output (singular) and create batch
         self._generator_output = assigned_segments
         self._generator_output._is_assigned = True
@@ -454,13 +484,13 @@ class NimEvo2Generator(Generator):
     def _make_api_request(self, prompt_seq: str) -> str:
         """
         Make API request to generate a sequence.
-        
+
         Args:
             prompt_seq: The prompt sequence to generate from.
-            
+
         Returns:
             Generated sequence from the API.
-            
+
         Raises:
             RuntimeError: If API request fails or response cannot be parsed.
         """
@@ -472,26 +502,23 @@ class NimEvo2Generator(Generator):
             "temperature": self.temperature,
             "top_p": self.top_p,
         }
-        
+
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
         try:
             response = requests.post(
-                self.api_endpoint, 
-                json=payload, 
-                headers=headers, 
-                timeout=self.timeout
+                self.api_endpoint, json=payload, headers=headers, timeout=self.timeout
             )
             response.raise_for_status()
-            
+
             result = response.json()
             if self.verbose >= 1:
                 print(f"API response: {result}")
-                
+
             return result["sequence"]
-            
+
         except requests.RequestException as e:
             raise RuntimeError(f"API request failed: {e}")
         except (KeyError, json.JSONDecodeError) as e:
@@ -524,7 +551,7 @@ class NimEvo2Generator(Generator):
         for i, prompt in enumerate(prompts):
             if self.verbose >= 1:
                 print(f"Generating sequence {i+1}/{len(prompts)}")
-            
+
             try:
                 generated_seq = self._make_api_request(prompt)
                 generated_sequences.append(generated_seq)
@@ -543,13 +570,14 @@ class NimEvo2Generator(Generator):
 class BindCraftGenerator(Generator):
     """
     A placeholder generator for the BindCraft protein design method.
-    
+
     This generator is currently a stub implementation and needs to be completed
     with the actual BindCraft integration. It will be used for protein sequence
     generation with binding specificity constraints.
-    
+
     TODO: Consult John to implement this generator. This generator will have multiple outputs.
     """
+
     pass
 
 
@@ -616,10 +644,10 @@ class ESM2Generator(Generator):
             def _decoding_func(logits: np.ndarray) -> np.ndarray:
                 """
                 Calculate per-position entropy for position selection.
-                
+
                 Args:
                     logits: Model logits of shape (seq_len, vocab_size).
-                    
+
                 Returns:
                     Per-position entropy values (higher = more uncertain).
                 """
@@ -638,10 +666,10 @@ class ESM2Generator(Generator):
             def _decoding_func(logits: np.ndarray) -> np.ndarray:
                 """
                 Calculate negative max logits for position selection.
-                
+
                 Args:
                     logits: Model logits of shape (seq_len, vocab_size).
-                    
+
                 Returns:
                     Negative max logit values (prioritizes uncertain positions).
                 """
@@ -654,10 +682,10 @@ class ESM2Generator(Generator):
             def _decoding_func(logits: np.ndarray) -> np.ndarray:
                 """
                 Generate random scores for position selection.
-                
+
                 Args:
                     logits: Model logits (unused for random selection).
-                    
+
                 Returns:
                     Random scores for each position (uniform random values).
                 """
@@ -721,7 +749,9 @@ class ESM2Generator(Generator):
 
         return sampled_aa
 
-    def assign(self, assigned_segments: ConstructSegment | Iterable[ConstructSegment]) -> None:
+    def assign(
+        self, assigned_segments: ConstructSegment | Iterable[ConstructSegment]
+    ) -> None:
         """
         Assign a ConstructSegment to this generator.
 
@@ -740,8 +770,10 @@ class ESM2Generator(Generator):
 
         # Ensure single ConstructSegment assignment
         if not isinstance(assigned_segments, ConstructSegment):
-            raise ValueError("ESM2Generator must be assigned exactly one ConstructSegment")
-        
+            raise ValueError(
+                "ESM2Generator must be assigned exactly one ConstructSegment"
+            )
+
         # Initialize _generator_output (singular)
         self._generator_output = assigned_segments
         self._generator_output._is_assigned = True
@@ -763,7 +795,7 @@ class ESM2Generator(Generator):
             initial_sequence = "".join(
                 [self._sample_logit(logits, pos) for pos in range(self.sequence_length)]
             )
-            
+
             # Set the generated sequence on the first batch element
             self._generator_output.batch_sequences[0].sequence = initial_sequence
         else:
@@ -781,8 +813,8 @@ class ESM2Generator(Generator):
         """
         Sample new amino acids at selected high-uncertainty positions for all sequences in the batch.
 
-        For each sequence in the batch, uses the current sequence to compute ESM-2 logits, 
-        selects top-k positions based on the decoding method, and samples new amino acids 
+        For each sequence in the batch, uses the current sequence to compute ESM-2 logits,
+        selects top-k positions based on the decoding method, and samples new amino acids
         at those positions.
 
         Raises:
@@ -801,7 +833,9 @@ class ESM2Generator(Generator):
 
             for idx in sample_k_weighted_no_replacement(position_scores, self.top_k):
                 sequence = (
-                    sequence[:idx] + self._sample_logit(logits, idx) + sequence[idx + 1 :]
+                    sequence[:idx]
+                    + self._sample_logit(logits, idx)
+                    + sequence[idx + 1 :]
                 )
 
             self._generator_output.batch_sequences[i].sequence = sequence
@@ -867,12 +901,19 @@ class MCMCGenerator(IterativeGenerator):
         Raises:
             ValueError: If any validation checks fail.
         """
-        super().__init__(constructs=constructs, generators=generators, constraints=constraints, constraint_weights=constraint_weights)
+        super().__init__(
+            constructs=constructs,
+            generators=generators,
+            constraints=constraints,
+            constraint_weights=constraint_weights,
+        )
         self.num_steps: int = num_steps
         self.temperature: float = temperature
         self.temperature_min: float = temperature_min
         self.track_step_size: int = track_step_size
-        self.custom_logging: Optional[Callable[[int, Tuple[ConstructSegment, ...]], None]] = custom_logging
+        self.custom_logging: Optional[
+            Callable[[int, Tuple[ConstructSegment, ...]], None]
+        ] = custom_logging
         self.verbose: bool = verbose
 
         self._validate_generator()
@@ -880,7 +921,7 @@ class MCMCGenerator(IterativeGenerator):
     def _validate_generator(self) -> None:
         """
         Validate configuration for MCMCGenerator.
-        
+
         Raises:
             ValueError: If temperature parameters are invalid.
         """
@@ -890,9 +931,13 @@ class MCMCGenerator(IterativeGenerator):
         if self.temperature <= 0:
             raise ValueError(f"temperature must be positive, got {self.temperature}")
         if self.temperature_min <= 0:
-            raise ValueError(f"temperature_min must be positive, got {self.temperature_min}")
+            raise ValueError(
+                f"temperature_min must be positive, got {self.temperature_min}"
+            )
         if self.temperature_min >= self.temperature:
-            raise ValueError(f"temperature_min ({self.temperature_min}) must be less than temperature ({self.temperature}) for annealing to work properly")
+            raise ValueError(
+                f"temperature_min ({self.temperature_min}) must be less than temperature ({self.temperature}) for annealing to work properly"
+            )
 
     def sample(self) -> Optional[List[Tuple[Construct, ...]]]:
         """
@@ -922,10 +967,14 @@ class MCMCGenerator(IterativeGenerator):
         # Execute MCMC optimization steps
         for step in range(1, self.num_steps + 1):
             self.current_step = step
-            cur_temp = (self.temperature_min / self.temperature) ** (step / self.num_steps)
+            cur_temp = (self.temperature_min / self.temperature) ** (
+                step / self.num_steps
+            )
 
             # Execute single MCMC step
-            current_best_energy, current_best_idx = self._execute_mcmc_step(step, cur_temp, current_best_energy, current_best_idx)
+            current_best_energy, current_best_idx = self._execute_mcmc_step(
+                step, cur_temp, current_best_energy, current_best_idx
+            )
 
             # Track progress periodically
             if step % self.track_step_size == 0:
@@ -933,17 +982,22 @@ class MCMCGenerator(IterativeGenerator):
 
         return sequence_history
 
-    def _execute_mcmc_step(self, step: int, cur_temp: float, 
-                          current_best_energy: float, current_best_idx: int) -> Tuple[float, int]:
+    def _execute_mcmc_step(
+        self,
+        step: int,
+        cur_temp: float,
+        current_best_energy: float,
+        current_best_idx: int,
+    ) -> Tuple[float, int]:
         """
         Execute a single MCMC step including proposal, evaluation, and acceptance decision.
-        
+
         Args:
             step: Current step number.
             cur_temp: Current temperature for this step.
             current_best_energy: Current best energy value.
             current_best_idx: Index of current best sequence.
-            
+
         Returns:
             Tuple of (updated_best_energy, updated_best_idx).
         """
@@ -959,43 +1013,45 @@ class MCMCGenerator(IterativeGenerator):
 
         # 3. Accept or reject proposal according to Metropolis-Hastings algorithm
         original_best_energy = current_best_energy  # Save original for logging
-        current_best_energy, current_best_idx, accept, alpha = self._accept_or_reject_proposal(
-            current_best_energy, 
-            current_best_idx, 
-            new_best_energy, 
-            new_best_idx,
-            cur_temp, 
-            generator, 
-            old_generator_outputs
+        current_best_energy, current_best_idx, accept, alpha = (
+            self._accept_or_reject_proposal(
+                current_best_energy,
+                current_best_idx,
+                new_best_energy,
+                new_best_idx,
+                cur_temp,
+                generator,
+                old_generator_outputs,
+            )
         )
 
         # 4. Log progress
         if self.verbose and step % self.track_step_size == 0:
             self._log_step(
-                step, 
+                step,
                 original_best_energy,
-                new_best_energy, 
-                alpha, 
-                accept, 
-                current_best_idx, 
-                cur_temp
+                new_best_energy,
+                alpha,
+                accept,
+                current_best_idx,
+                cur_temp,
             )
 
         return current_best_energy, current_best_idx
 
     def _accept_or_reject_proposal(
-            self, 
-            current_best_energy: float, 
-            current_best_idx: int,
-            new_best_energy: float, 
-            new_best_idx: int, 
-            cur_temp: float,
-            generator: Generator, 
-            old_generator_outputs: Tuple[ConstructSegment, ...]
-        ) -> Tuple[float, int, bool, float]:
+        self,
+        current_best_energy: float,
+        current_best_idx: int,
+        new_best_energy: float,
+        new_best_idx: int,
+        cur_temp: float,
+        generator: Generator,
+        old_generator_outputs: Tuple[ConstructSegment, ...],
+    ) -> Tuple[float, int, bool, float]:
         """
         Compute Metropolis-Hastings acceptance probability and execute the decision.
-        
+
         Args:
             current_best_energy: Energy of current best sequence.
             current_best_idx: Index of current best sequence.
@@ -1004,7 +1060,7 @@ class MCMCGenerator(IterativeGenerator):
             cur_temp: Current temperature for acceptance calculation.
             generator: The generator that made the proposal.
             old_generator_outputs: Backup of sequences before proposal.
-            
+
         Returns:
             Tuple of (final_best_energy, final_best_idx, accept, alpha).
         """
@@ -1024,15 +1080,27 @@ class MCMCGenerator(IterativeGenerator):
             # Reject: revert the sampled generator's sequences and metadata
             for i, sequence_batch in enumerate(generator.get_generator_outputs()):
                 for j, program_seq in enumerate(sequence_batch):
-                    program_seq.sequence = old_generator_outputs[i].batch_sequences[j].sequence
-                    program_seq._metadata = old_generator_outputs[i].batch_sequences[j]._metadata.copy()
+                    program_seq.sequence = (
+                        old_generator_outputs[i].batch_sequences[j].sequence
+                    )
+                    program_seq._metadata = (
+                        old_generator_outputs[i].batch_sequences[j]._metadata.copy()
+                    )
             return current_best_energy, current_best_idx, accept, alpha
 
-    def _log_step(self, step: int, old_energy: float, new_energy: float, 
-                  alpha: float, accept: bool, best_idx: int, cur_temp: float) -> None:
+    def _log_step(
+        self,
+        step: int,
+        old_energy: float,
+        new_energy: float,
+        alpha: float,
+        accept: bool,
+        best_idx: int,
+        cur_temp: float,
+    ) -> None:
         """
         Log information about the current MCMC step.
-        
+
         Args:
             step: Current step number.
             old_energy: Energy before proposal.
@@ -1117,12 +1185,19 @@ class SequentialGenerator(IterativeGenerator):
             custom_logging: Custom logging function that takes (step, sequences) arguments.
             verbose: Whether to print progress information.
         """
-        super().__init__(constructs=constructs, generators=generators, constraints=constraints, constraint_weights=constraint_weights)
+        super().__init__(
+            constructs=constructs,
+            generators=generators,
+            constraints=constraints,
+            constraint_weights=constraint_weights,
+        )
         self.num_steps: int = num_steps
         self.temperature: float = temperature
         self.temperature_min: float = temperature_min
         self.track_step_size: int = track_step_size
-        self.custom_logging: Optional[Callable[[int, Tuple[ConstructSegment, ...]], None]] = custom_logging
+        self.custom_logging: Optional[
+            Callable[[int, Tuple[ConstructSegment, ...]], None]
+        ] = custom_logging
         self.verbose: bool = verbose
 
         self._validate_generator()
@@ -1130,31 +1205,37 @@ class SequentialGenerator(IterativeGenerator):
     def _validate_generator(self) -> None:
         """
         Validate configuration for SequentialGenerator.
-        
+
         Raises:
             ValueError: If generators have different batch sizes or temperature parameters are invalid.
         """
         super()._validate_generator()
-            
+
         # Check that all batch sizes are the same
         batch_sizes = [gen.batch_size for gen in self.generators]
         if len(set(batch_sizes)) > 1:
-            raise ValueError(f"All generators must have the same batch_size. Found: {batch_sizes}")
+            raise ValueError(
+                f"All generators must have the same batch_size. Found: {batch_sizes}"
+            )
 
         # Validate temperature parameters
         if self.temperature <= 0:
             raise ValueError(f"temperature must be positive, got {self.temperature}")
         if self.temperature_min <= 0:
-            raise ValueError(f"temperature_min must be positive, got {self.temperature_min}")
+            raise ValueError(
+                f"temperature_min must be positive, got {self.temperature_min}"
+            )
         if self.temperature_min >= self.temperature:
-            raise ValueError(f"temperature_min ({self.temperature_min}) must be less than temperature ({self.temperature}) for annealing to work properly")
+            raise ValueError(
+                f"temperature_min ({self.temperature_min}) must be less than temperature ({self.temperature}) for annealing to work properly"
+            )
 
     def sample(self) -> List[Tuple[Construct, ...]]:
         """
         Execute sequential sampling with chained autoregressive generators.
 
-        Each step: (1) applies all generators sequentially with chaining, 
-        (2) evaluates energy change, (3) accepts/rejects based on Metropolis-Hastings 
+        Each step: (1) applies all generators sequentially with chaining,
+        (2) evaluates energy change, (3) accepts/rejects based on Metropolis-Hastings
         with temperature annealing.
 
         Returns:
@@ -1169,26 +1250,31 @@ class SequentialGenerator(IterativeGenerator):
         # Execute sequential optimization steps
         for step in range(1, self.num_steps + 1):
             self.current_step = step
-            cur_temp = (self.temperature_min / self.temperature) ** (step / self.num_steps)
+            cur_temp = (self.temperature_min / self.temperature) ** (
+                step / self.num_steps
+            )
 
             # Execute single sequential step
-            current_best_energy = self._execute_sequential_step(step, cur_temp, current_best_energy)
-            
+            current_best_energy = self._execute_sequential_step(
+                step, cur_temp, current_best_energy
+            )
+
             # Track progress periodically
             if step % self.track_step_size == 0:
                 sequence_history.append(self.user_sequences)
         return sequence_history
 
-    def _execute_sequential_step(self, step: int, cur_temp: float, 
-                                current_best_energy: float) -> float:
+    def _execute_sequential_step(
+        self, step: int, cur_temp: float, current_best_energy: float
+    ) -> float:
         """
         Execute a single sequential step including chaining, evaluation, and acceptance decision.
-        
+
         Args:
             step: Current step number.
             cur_temp: Current temperature for this step.
             current_best_energy: Current best energy value.
-            
+
         Returns:
             Updated best energy value.
         """
@@ -1197,7 +1283,7 @@ class SequentialGenerator(IterativeGenerator):
 
         # 2. Apply all generators sequentially with chaining
         self._sample_sequential_generators()
-        
+
         # 3. Evaluate new energy
         new_energies = self.score_energy()
         new_best_energy = np.min(new_energies)
@@ -1205,23 +1291,25 @@ class SequentialGenerator(IterativeGenerator):
         # 4. Accept or reject proposal according to Metropolis-Hastings algorithm
         original_best_energy = current_best_energy  # Save original for logging
         current_best_energy, accept, alpha = self._accept_or_reject_proposal(
-            current_best_energy, 
-            new_best_energy, 
-            cur_temp, 
+            current_best_energy,
+            new_best_energy,
+            cur_temp,
             old_sequences_by_gen,
-            new_energies
+            new_energies,
         )
 
         # 5. Log progress
         if self.verbose and step % self.track_step_size == 0:
-                self._log_step(step, original_best_energy, new_best_energy, alpha, accept, cur_temp)
+            self._log_step(
+                step, original_best_energy, new_best_energy, alpha, accept, cur_temp
+            )
 
         return current_best_energy
 
     def _backup_sequences(self) -> List[List[Any]]:
         """
         Create backup copies of all sequences from all generators.
-        
+
         Returns:
             List of backed up sequences organized by generator.
         """
@@ -1237,57 +1325,61 @@ class SequentialGenerator(IterativeGenerator):
     def _sample_sequential_generators(self) -> None:
         """
         Apply all generators sequentially, chaining outputs between them.
-        
+
         Each generator uses the accumulated output from previous generators
         as prompts for its own generation.
         """
-        #TODO: FIX THIS TEMPORARY SOLUTION
+        # TODO: FIX THIS TEMPORARY SOLUTION
         first_gen = self.generators[0]
-        
+
         # Start with original prompts to preserve prefix tokens
         running_prompts = first_gen.prompt_seqs.copy()
-        
+
         # Sample from each generator in sequence, chaining outputs
         for i, generator in enumerate(self.generators):
             prompt_seqs = running_prompts if i > 0 else None
             generator.sample(prompt_seqs=prompt_seqs)
-            
+
             # Accumulate this generator's output
             outputs = generator.get_generator_outputs()
-            assert len(outputs) == 1, f"Generator {i} must output exactly one ConstructSegment for chaining"
+            assert (
+                len(outputs) == 1
+            ), f"Generator {i} must output exactly one ConstructSegment for chaining"
             batch = outputs[0]
-            
+
             for batch_idx in range(len(batch)):
-                if i == 0 and getattr(generator, 'prepend_prompt', False):
+                if i == 0 and getattr(generator, "prepend_prompt", False):
                     # First generator with prepend_prompt: output already includes prompt content,
                     # just add back the prefix tokens that were stripped
                     original_prompt = first_gen.prompt_seqs[batch_idx]
                     generated = batch[batch_idx].sequence
                     valid_chars = batch._valid_chars or set()
-                    prefix_tokens = ''.join(c for c in original_prompt if c not in valid_chars)
+                    prefix_tokens = "".join(
+                        c for c in original_prompt if c not in valid_chars
+                    )
                     running_prompts[batch_idx] = prefix_tokens + generated
                 else:
                     # Normal case: accumulate output to running prompts
                     running_prompts[batch_idx] += batch[batch_idx].sequence
 
     def _accept_or_reject_proposal(
-            self, 
-            current_best_energy: float, 
-            new_best_energy: float, 
-            cur_temp: float,
-            old_sequences_by_gen: List[List[Any]],
-            new_energies: List[float]
-        ) -> Tuple[float, bool, float]:
+        self,
+        current_best_energy: float,
+        new_best_energy: float,
+        cur_temp: float,
+        old_sequences_by_gen: List[List[Any]],
+        new_energies: List[float],
+    ) -> Tuple[float, bool, float]:
         """
         Compute Metropolis-Hastings acceptance probability and make decision.
-        
+
         Args:
             current_best_energy: Energy of current best sequence.
             new_best_energy: Energy of proposed sequence.
             cur_temp: Current temperature for acceptance calculation.
             old_sequences_by_gen: Backup of sequences before proposal.
             new_energies: All energy values for the new sequences.
-            
+
         Returns:
             Tuple of (updated_best_energy, accept, alpha).
         """
@@ -1311,15 +1403,24 @@ class SequentialGenerator(IterativeGenerator):
                 for sequence_batch in generator.get_generator_outputs():
                     for program_seq in sequence_batch:
                         program_seq.sequence = old_sequences_by_gen[i][seq_idx].sequence
-                        program_seq._metadata = old_sequences_by_gen[i][seq_idx]._metadata.copy()
+                        program_seq._metadata = old_sequences_by_gen[i][
+                            seq_idx
+                        ]._metadata.copy()
                         seq_idx += 1
             return current_best_energy, accept, alpha
 
-    def _log_step(self, step: int, old_energy: float, new_energy: float, 
-                  alpha: float, accept: bool, cur_temp: float) -> None:
+    def _log_step(
+        self,
+        step: int,
+        old_energy: float,
+        new_energy: float,
+        alpha: float,
+        accept: bool,
+        cur_temp: float,
+    ) -> None:
         """
         Log information about the current sequential generation step.
-        
+
         Args:
             step: Current step number.
             old_energy: Energy before proposal.

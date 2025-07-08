@@ -1,4 +1,13 @@
-from .base import Sequence, ConstructSegment, Construct, Constraint, Generator, IterativeGenerator, SequenceType, ConstraintType
+from .base import (
+    Sequence,
+    ConstructSegment,
+    Construct,
+    Constraint,
+    Generator,
+    IterativeGenerator,
+    SequenceType,
+    ConstraintType,
+)
 from .constraint import (
     sequence_length_constraint,
     gc_content_constraint,

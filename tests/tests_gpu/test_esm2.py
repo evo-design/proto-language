@@ -1,5 +1,6 @@
 import sys
-sys.path.append('.')
+
+sys.path.append(".")
 from language.generator import ESM2Generator
 
 
@@ -7,7 +8,7 @@ def test_esm2_entropy_sampling():
     esm2_generator = ESM2Generator(
         esm2_type="esm2_t33_650M_UR50D",
         sequence_length=20,
-        temperature=1.,
+        temperature=1.0,
         decoding_method="entropy",
         top_k=5,
     )
@@ -24,7 +25,7 @@ def test_esm2_max_logit_sampling():
     esm2_generator = ESM2Generator(
         esm2_type="esm2_t33_650M_UR50D",
         sequence_length=20,
-        temperature=1.,
+        temperature=1.0,
         decoding_method="max_logit",
         top_k=5,
     )
@@ -41,7 +42,7 @@ def test_esm2_random_sampling():
     esm2_generator = ESM2Generator(
         esm2_type="esm2_t33_650M_UR50D",
         sequence_length=20,
-        temperature=1.,
+        temperature=1.0,
         decoding_method="random",
         top_k=5,
     )

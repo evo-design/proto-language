@@ -1,10 +1,10 @@
-from biotite.structure import AtomArray, get_chains, chain_iter
-from biotite.structure.atoms import AtomArray, stack
+from biotite.structure import AtomArray
+from biotite.structure.atoms import AtomArray
 from biotite.structure.io.pdb import PDBFile
 from io import StringIO
 import numpy as np
 from scipy.special import softmax
-from typing import Dict, List, Union
+from typing import Union
 
 
 def pdb_file_to_atomarray(pdb_path: Union[str, StringIO]) -> AtomArray:
