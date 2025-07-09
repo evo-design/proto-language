@@ -33,16 +33,6 @@ uniform_gen.assign(seq1)
 
 
 # Contraint
-def analyze_gc_content(sequence: str) -> float:
-    """Calculate the GC content of a DNA sequence."""
-    gc_count = 0
-    for nucleotide in sequence:
-        if nucleotide in "GC":
-            gc_count += 1
-
-    return (gc_count / len(sequence)) * 100 if len(sequence) > 0 else 0.0
-
-
 gc_constraint = Constraint(
     inputs=[seq1],
     scoring_function=gc_content_constraint,
