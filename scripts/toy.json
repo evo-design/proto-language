@@ -2,16 +2,16 @@
   "name": "uniform_mutation_single_construct_gc_constraint",
   "description": "Generate a single DNA sequence with uniform mutation and GC content constraint",
   "version": "1.0",
+  "optimization": {
+    "method": "mcmc",
+    "steps": 100,
+    "track_step_size": 1,
+    "temperature": 2.0
+  },  
   "constructs": [
     {
       "id": "construct1",
       "type": "dna",
-      "optimization": {
-        "method": "mcmc",
-        "steps": 100,
-        "track_step_size": 1,
-        "temperature": 2.0
-      },
       "segments": [
         {
           "id": "construct1-segment1"
