@@ -1,6 +1,7 @@
 import json
 import sys
-sys.path.append('.')
+
+sys.path.append(".")
 from api.parser import GPLParser
 
 
