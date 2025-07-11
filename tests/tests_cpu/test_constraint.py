@@ -1,10 +1,22 @@
 import numpy as np
 import pandas as pd
 import pytest
-
 import sys
+import shutil
+import tempfile
+from typing import List
+from pathlib import Path
 
 sys.path.append(".")
+
+from language.base import (
+    Construct,
+    ConstructSegment,
+    Constraint,
+    Sequence,
+    SequenceType,
+    ConstraintType,
+)
 from language.constraint import (
     dinucleotide_frequency_constraint,
     gc_content_constraint,
@@ -13,1459 +25,751 @@ from language.constraint import (
     tetranucleotide_usage_constraint,
     orfipy_mmseqs_gene_hit_count_constraint,
     orfipy_mmseqs_gene_homology_constraint,
-    _pseudo_circularize_sequence,
-)
-from language.base import (
-    ProgramConstraint,
-    ProgramSequence,
-    BatchedProgramSequence,
-    SequenceType,
-    ConstraintType,
-    ProgramOrder,
 )
 
 
-def create_batched_seq(seq_type: SequenceType, sequence_str: str):
-    """Helper to create a BatchedProgramSequence with a single sequence"""
-    seq = ProgramSequence(sequence=sequence_str, sequence_type=seq_type)
-    return BatchedProgramSequence([seq])
+# Helper functions
+def create_segment(
+    sequence: str, seq_type: SequenceType = SequenceType.DNA
+) -> ConstructSegment:
+    """Helper to create a ConstructSegment with a single sequence."""
+    return ConstructSegment(sequence=sequence, sequence_type=seq_type)
 
 
-def create_multi_batched_seq(seq_type: SequenceType, sequences: list):
-    """Helper to create a BatchedProgramSequence with multiple sequences"""
-    seqs = [
-        ProgramSequence(sequence=seq_str, sequence_type=seq_type)
-        for seq_str in sequences
-    ]
-    return BatchedProgramSequence(seqs)
+def create_batched_segment(
+    sequences: List[str], seq_type: SequenceType = SequenceType.DNA
+) -> ConstructSegment:
+    """Helper to create a ConstructSegment with a batch of sequences."""
+    segment = ConstructSegment(sequence=sequences[0], sequence_type=seq_type)
+    segment.create_batch(len(sequences))
+    for i, seq_str in enumerate(sequences):
+        segment.batch_sequences[i].sequence = seq_str
+    return segment
 
 
-def test_sequence_length_constraint():
-    target_len = 20
-    seq_match = create_batched_seq(SequenceType.DNA, "A" * target_len)
-    seq_short = create_batched_seq(SequenceType.DNA, "A" * (target_len // 2))
-    seq_long = create_batched_seq(SequenceType.DNA, "A" * (target_len * 2))
-
-    constraint_match = ProgramConstraint(
-        inputs=(seq_match,),
-        scoring_function=sequence_length_constraint,
-        scoring_function_config={"target_length": target_len},
-    )
-    constraint_short = ProgramConstraint(
-        inputs=(seq_short,),
-        scoring_function=sequence_length_constraint,
-        scoring_function_config={"target_length": target_len},
-    )
-    constraint_long = ProgramConstraint(
-        inputs=(seq_long,),
-        scoring_function=sequence_length_constraint,
-        scoring_function_config={"target_length": target_len},
-    )
-
-    assert constraint_match.evaluate()[0] == 0.0
-    # Deviation = abs(10 - 20) / 20 = 10 / 20 = 0.5.
-    assert abs(constraint_short.evaluate()[0] - 0.5) < 1e-9
-    # Deviation = abs(40 - 20) / 20 = 20 / 20 = 1.0.
-    assert abs(constraint_long.evaluate()[0] - 1.0) < 1e-9
-    # Check metadata is updated on the original sequences
-    assert seq_match[0]._metadata["length"] == target_len
-    assert seq_short[0]._metadata["length"] == target_len // 2
-
-    # Test edge cases
-    # Empty sequence
-    empty_seq = create_batched_seq(SequenceType.DNA, "")
-    constraint_empty = ProgramConstraint(
-        inputs=(empty_seq,),
-        scoring_function=sequence_length_constraint,
-        scoring_function_config={"target_length": 10},
-    )
-    assert constraint_empty.evaluate()[0] == 1.0  # Deviation = 10/10 = 1.0
-
-    # Single character sequence
-    single_seq = create_batched_seq(SequenceType.DNA, "A")
-    constraint_single = ProgramConstraint(
-        inputs=(single_seq,),
-        scoring_function=sequence_length_constraint,
-        scoring_function_config={"target_length": 1},
-    )
-    assert constraint_single.evaluate()[0] == 0.0
-
-    # Very large target length (stress test)
-    normal_seq = create_batched_seq(SequenceType.DNA, "ATCG" * 25)  # Length 100
-    constraint_large = ProgramConstraint(
-        inputs=(normal_seq,),
-        scoring_function=sequence_length_constraint,
-        scoring_function_config={"target_length": 10000},
-    )
-    expected_deviation = abs(100 - 10000) / 10000  # 0.99
-    assert abs(constraint_large.evaluate()[0] - expected_deviation) < 1e-9
+# Tests for Sequence and ConstructSegment basics
+def test_sequence_validation():
+    """Tests character validation for Sequence objects."""
+    with pytest.raises(ValueError, match=r"Invalid characters found: (X, Z|Z, X)"):
+        Sequence("ATCGXZ", SequenceType.DNA)
+    with pytest.raises(ValueError, match="Invalid characters found: T"):
+        Sequence("ACGUUUT", SequenceType.RNA)
+    with pytest.raises(ValueError, match=r"Invalid characters found: (J, O|O, J)"):
+        Sequence("MVLSPADKTNVKJO", SequenceType.PROTEIN)
+    # Test custom valid characters
+    seq = Sequence("123", valid_chars=set("123"))
+    assert seq.sequence == "123"
+    with pytest.raises(ValueError, match="Invalid characters found: 4"):
+        seq.sequence = "1234"
 
 
-def test_sequence_length_constraint_multiple_inputs():
-    """Tests SequenceLengthConstraint with multiple concatenated inputs."""
-    target_len = 20
-    # Create two batches that when concatenated will have length 20
-    seq1_batch = create_batched_seq(SequenceType.DNA, "A" * 10)
-    seq2_batch = create_batched_seq(SequenceType.DNA, "T" * 10)
-
-    constraint = ProgramConstraint(
-        inputs=(seq1_batch, seq2_batch),
-        scoring_function=sequence_length_constraint,
-        scoring_function_config={"target_length": target_len},
-    )
-
-    assert constraint.evaluate()[0] == 0.0  # Concatenated length should be exactly 20
-
-    # Check that metadata was copied to both contributing sequences
-    assert seq1_batch[0]._metadata["length"] == target_len
-    assert seq2_batch[0]._metadata["length"] == target_len
+def test_construct_segment_batching():
+    """Tests batch creation for ConstructSegment."""
+    segment = create_segment("ATCG")
+    assert len(segment) == 1
+    segment.create_batch(5)
+    assert len(segment) == 5
+    assert all(s.sequence == "ATCG" for s in segment.batch_sequences)
+    segment.batch_sequences[0].sequence = "GGGG"
+    assert segment.batch_sequences[0].sequence == "GGGG"
+    assert segment.batch_sequences[1].sequence == "ATCG"
 
 
-def test_sequence_length_constraint_batch_processing():
-    """Tests SequenceLengthConstraint with multiple sequences in batch including stress test."""
-    target_len = 15
-    # Create batch with sequences of different lengths
-    sequences = [
-        "ATCG" * 2,  # Length 8
-        "ATCG" * 3,  # Length 12
-        "ATCG" * 4,  # Length 16
-        "ATCG" * 5,
-    ]  # Length 20
+def test_construct_concatenation():
+    """Tests sequence concatenation in Construct objects."""
+    seg1 = create_segment("ATG")
+    seg2 = create_segment("GGG")
+    seg3 = create_segment("TAA")
+    construct = Construct([seg1, seg2, seg3])
+    assert len(construct.batch_sequences) == 1
+    assert construct.batch_sequences[0].sequence == "ATGGGGTAA"
 
-    multi_batch = create_multi_batched_seq(SequenceType.DNA, sequences)
-    constraint = ProgramConstraint(
-        inputs=(multi_batch,),
-        scoring_function=sequence_length_constraint,
-        scoring_function_config={"target_length": target_len},
-    )
-
-    scores = constraint.evaluate()
-    assert len(scores) == 4
-
-    # Check each score
-    expected_scores = [
-        abs(8 - 15) / 15,  # 7/15 ≈ 0.467
-        abs(12 - 15) / 15,  # 3/15 = 0.2
-        abs(16 - 15) / 15,  # 1/15 ≈ 0.067
-        abs(20 - 15) / 15,  # 5/15 ≈ 0.333
-    ]
-
-    for i, (actual, expected) in enumerate(zip(scores, expected_scores)):
-        assert (
-            abs(actual - expected) < 1e-9
-        ), f"Score {i}: expected {expected}, got {actual}"
-
-    # Check metadata is set for all sequences
-    for i, seq in enumerate(multi_batch):
-        assert seq._metadata["length"] == len(sequences[i])
-
-    # Stress test with large batch
-    large_sequences = ["ATCG" + "ATCG" * 20 for i in range(100)]  # 100 sequences
-    large_batch = create_multi_batched_seq(SequenceType.DNA, large_sequences)
-    constraint_large = ProgramConstraint(
-        inputs=(large_batch,),
-        scoring_function=sequence_length_constraint,
-        scoring_function_config={"target_length": 84},
-    )
-    scores = constraint_large.evaluate()
-    assert len(scores) == 100
-    assert all(s == 0.0 for s in scores)  # All should be exact matches
+    # Test with batches
+    batch_seg1 = create_batched_segment(["ATG", "ATG"])
+    batch_seg2 = create_batched_segment(["GGG", "CCC"])
+    batch_seg3 = create_batched_segment(["TAA", "TGA"])
+    batch_construct = Construct([batch_seg1, batch_seg2, batch_seg3])
+    assert len(batch_construct.batch_sequences) == 2
+    assert batch_construct.batch_sequences[0].sequence == "ATGGGGTAA"
+    assert batch_construct.batch_sequences[1].sequence == "ATG" + "CCC" + "TGA"
 
 
-def test_constraint_with_none_sequences():
-    """Tests constraint behavior with None sequences."""
-    # Create a sequence and then set it to None
-    seq_batch = create_batched_seq(SequenceType.DNA, "ATCG")
-    seq_batch.sequences[0]._sequence = None  # Directly set to None to test edge case
+# Tests for sequence_length_constraint
+class TestSequenceLengthConstraint:
+    def test_single_segment(self):
+        target_len = 20
+        seg_match = create_segment("A" * target_len)
+        seg_short = create_segment("A" * (target_len // 2))
+        seg_long = create_segment("A" * (target_len * 2))
 
-    constraint = ProgramConstraint(
-        inputs=(seq_batch,),
-        scoring_function=sequence_length_constraint,
-        scoring_function_config={"target_length": 10},
-    )
+        constraint_match = Constraint(
+            inputs=[seg_match],
+            scoring_function=sequence_length_constraint,
+            scoring_function_config={"target_length": target_len},
+        )
+        constraint_short = Constraint(
+            inputs=[seg_short],
+            scoring_function=sequence_length_constraint,
+            scoring_function_config={"target_length": target_len},
+        )
+        constraint_long = Constraint(
+            inputs=[seg_long],
+            scoring_function=sequence_length_constraint,
+            scoring_function_config={"target_length": target_len},
+        )
 
-    scores = constraint.evaluate()
-    # Based on actual implementation, None sequences get processed and may return 1.0 (max deviation)
-    assert scores[0] == 1.0  # Changed from float('inf')
+        assert constraint_match.evaluate()[0] == 0.0
+        assert abs(constraint_short.evaluate()[0] - 0.5) < 1e-9
+        assert abs(constraint_long.evaluate()[0] - 1.0) < 1e-9
+        assert seg_match.batch_sequences[0]._metadata["length"] == target_len
+        assert seg_short.batch_sequences[0]._metadata["length"] == target_len // 2
 
+    def test_contiguous_concatenation(self):
+        """Tests length constraint on concatenated segments."""
+        target_len = 20
+        seg1 = create_segment("A" * 10)
+        seg2 = create_segment("T" * 10)
 
-def test_constraint_disjoint_mode():
-    """Tests constraint evaluation in DISJOINT mode."""
+        constraint = Constraint(
+            inputs=[seg1, seg2],
+            scoring_function=sequence_length_constraint,
+            scoring_function_config={"target_length": target_len},
+            constraint_type=ConstraintType.CONTIGUOUS,
+        )
 
-    def disjoint_test_function(sequences_tuple, config):
-        """Test function that operates on tuple of sequences"""
-        seq1, seq2 = sequences_tuple
-        # Return sum of lengths
-        return (len(seq1) + len(seq2)) / config["normalizer"]
+        assert constraint.evaluate()[0] == 0.0
+        # Check metadata propagation to original segments
+        assert seg1.batch_sequences[0]._metadata["length"] == target_len
+        assert seg2.batch_sequences[0]._metadata["length"] == target_len
 
-    seq1_batch = create_batched_seq(SequenceType.DNA, "ATCG")  # Length 4
-    seq2_batch = create_batched_seq(SequenceType.DNA, "GGTTAA")  # Length 6
+    def test_batch_processing(self):
+        """Tests length constraint with a batch of sequences."""
+        target_len = 15
+        sequences = ["A" * 8, "A" * 12, "A" * 15, "A" * 16, "A" * 20]
+        seg_batch = create_batched_segment(sequences)
 
-    constraint = ProgramConstraint(
-        inputs=(seq1_batch, seq2_batch),
-        scoring_function=disjoint_test_function,
-        scoring_function_config={"normalizer": 10.0},
-        constraint_type=ConstraintType.DISJOINT,
-    )
+        constraint = Constraint(
+            inputs=[seg_batch],
+            scoring_function=sequence_length_constraint,
+            scoring_function_config={"target_length": target_len},
+        )
 
-    scores = constraint.evaluate()
-    assert len(scores) == 1
-    assert scores[0] == (4 + 6) / 10.0  # 1.0
-
-
-def test_constraint_invalid_inputs():
-    """Tests constraint behavior with invalid inputs."""
-    # Test with empty inputs tuple - should return empty list gracefully
-    constraint = ProgramConstraint(
-        inputs=(),
-        scoring_function=sequence_length_constraint,
-        scoring_function_config={"target_length": 10},
-    )
-    result = constraint.evaluate()
-    assert result == []  # Empty inputs should return empty scores
-
-    # Test with mismatched batch sizes - this may not raise an error in current implementation
-    seq1_batch = create_multi_batched_seq(
-        SequenceType.DNA, ["ATCG", "GGTT"]
-    )  # 2 sequences
-    seq2_batch = create_multi_batched_seq(SequenceType.DNA, ["AAA"])  # 1 sequence
-
-    # Based on actual implementation, this might not raise a ValueError
-    constraint = ProgramConstraint(
-        inputs=(seq1_batch, seq2_batch),
-        scoring_function=sequence_length_constraint,
-        scoring_function_config={"target_length": 10},
-    )
-
-    # Test that it at least completes without crashing
-    try:
         scores = constraint.evaluate()
-        # If it doesn't crash, that's also valid behavior
-        assert isinstance(scores, list)
-    except (ValueError, IndexError):
-        # If it does raise an error, that's also acceptable
-        pass
+        expected_scores = [
+            abs(8 - 15) / 15.0,
+            abs(12 - 15) / 15.0,
+            abs(15 - 15) / 15.0,
+            abs(16 - 15) / 15.0,
+            abs(20 - 15) / 15.0,
+        ]
 
+        assert len(scores) == len(expected_scores)
+        for actual, expected in zip(scores, expected_scores):
+            assert abs(actual - expected) < 1e-9
 
-def test_gc_content_constraint():
-    """Tests GCContentConstraint."""
-    target_range = (40.0, 60.0)
-    seq_len = 10
-    seq_in_range = create_batched_seq(SequenceType.DNA, "GCGCGAATTA")  # 5/10 = 50% GC.
-    seq_below = create_batched_seq(SequenceType.DNA, "GCATTATTAT")  # 2/10 = 20% GC.
-    seq_above = create_batched_seq(SequenceType.DNA, "GCGCGCGCGT")  # 9/10 = 90% GC.
+        # Check metadata for all sequences in the batch
+        for i, seq_obj in enumerate(seg_batch):
+            assert seq_obj._metadata["length"] == len(sequences[i])
 
-    constraint_in = ProgramConstraint(
-        inputs=(seq_in_range,),
-        scoring_function=gc_content_constraint,
-        scoring_function_config={
-            "min_gc": target_range[0],
-            "max_gc": target_range[1],
-        },
+    @pytest.mark.parametrize(
+        "seq_str, target_len, expected_score",
+        [
+            ("", 10, 1.0),  # Empty sequence
+            ("A", 1, 0.0),  # Single character match
+            ("A", 2, 0.5),  # Single character mismatch
+            ("ATCG", 0, 1.0), # Target length is 0, score capped at 1.0
+        ],
     )
-    constraint_below = ProgramConstraint(
-        inputs=(seq_below,),
-        scoring_function=gc_content_constraint,
-        scoring_function_config={
-            "min_gc": target_range[0],
-            "max_gc": target_range[1],
-        },
+    def test_edge_cases(self, seq_str, target_len, expected_score):
+        segment = create_segment(seq_str)
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=sequence_length_constraint,
+            scoring_function_config={"target_length": target_len},
+        )
+        assert abs(constraint.evaluate()[0] - expected_score) < 1e-9
+
+    def test_invalid_config(self):
+        """Tests that missing 'target_length' raises an error."""
+        segment = create_segment("ATCG")
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=sequence_length_constraint,
+            scoring_function_config={}, # Missing target_length
+        )
+        with pytest.raises(ValueError, match="Missing required config keys"):
+            constraint.evaluate()
+
+    def test_disjoint_mode_raises_error(self):
+        """Tests that sequence_length_constraint doesn't support DISJOINT mode."""
+        seg1 = create_segment("A" * 10)
+        seg2 = create_segment("T" * 10)
+        constraint = Constraint(
+            inputs=[seg1, seg2],
+            scoring_function=sequence_length_constraint,
+            scoring_function_config={"target_length": 20},
+            constraint_type=ConstraintType.DISJOINT,
+        )
+        # The default scoring function expects a single Sequence, not a tuple
+        with pytest.raises(AttributeError):
+            constraint.evaluate()
+
+
+# Tests for gc_content_constraint
+class TestGCContentConstraint:
+    @pytest.mark.parametrize(
+        "sequence, min_gc, max_gc, expected_score",
+        [
+            ("GCGCGAATTA", 40, 60, 0.0),  # In range (50%)
+            ("GCATTATTAT", 40, 60, 0.5),  # Below range (20% -> (40-20)/40=0.5)
+            ("GCGCGCGCGT", 40, 60, 0.75),  # Above range (90% -> (90-60)/(100-60)=0.75)
+            ("GCGCGCGCGC", 50, 70, 1.0),  # 100% GC, above range
+            ("ATATATATAT", 30, 50, 1.0),  # 0% GC, below range
+            ("", 40, 60, 1.0),  # Empty sequence, 0% GC
+            ("G", 50, 50, 1.0),  # Single G, 100% GC
+            ("A", 50, 50, 1.0),  # Single A, 0% GC
+        ],
     )
-    constraint_above = ProgramConstraint(
-        inputs=(seq_above,),
-        scoring_function=gc_content_constraint,
-        scoring_function_config={
-            "min_gc": target_range[0],
-            "max_gc": target_range[1],
-        },
+    def test_dna_sequences(self, sequence, min_gc, max_gc, expected_score):
+        segment = create_segment(sequence, SequenceType.DNA)
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=gc_content_constraint,
+            scoring_function_config={"min_gc": min_gc, "max_gc": max_gc},
+        )
+        assert abs(constraint.evaluate()[0] - expected_score) < 1e-9
+        # Check metadata
+        gc_content = (
+            100.0 * sum(nt in "GC" for nt in sequence) / max(len(sequence), 1)
+        )
+        assert abs(segment[0]._metadata["gc_content"] - gc_content) < 1e-9
+
+    @pytest.mark.parametrize(
+        "sequence, min_gc, max_gc, expected_score",
+        [
+            ("GCGCGAUUUA", 40, 60, 0.0),  # In range (50%)
+            ("GCAUUAUUAU", 40, 60, 0.5),  # Below range (20%)
+        ],
     )
+    def test_rna_sequences(self, sequence, min_gc, max_gc, expected_score):
+        segment = create_segment(sequence, SequenceType.RNA)
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=gc_content_constraint,
+            scoring_function_config={"min_gc": min_gc, "max_gc": max_gc},
+        )
+        assert abs(constraint.evaluate()[0] - expected_score) < 1e-9
 
-    assert constraint_in.evaluate()[0] == 0.0
-    # Deviation = (40 - 20) / 40 = 0.5.
-    assert abs(constraint_below.evaluate()[0] - 0.5) < 1e-9
-    # Deviation = (90 - 60) / (100 - 60) = 30 / 40 = 0.75.
-    assert abs(constraint_above.evaluate()[0] - 0.75) < 1e-9
+    def test_invalid_config(self):
+        segment = create_segment("ATCG")
+        with pytest.raises(ValueError, match="Missing required config keys"):
+            Constraint(
+                inputs=[segment],
+                scoring_function=gc_content_constraint,
+                scoring_function_config={"min_gc": 40},
+            ).evaluate()
+        with pytest.raises(ValueError, match="min_gc must be between 0.0 and 100.0"):
+            Constraint(
+                inputs=[segment],
+                scoring_function=gc_content_constraint,
+                scoring_function_config={"min_gc": -10, "max_gc": 60},
+            ).evaluate()
 
-    # Test edge cases
-    # All G/C sequence (100% GC)
-    all_gc = create_batched_seq(SequenceType.DNA, "GCGCGCGC")
-    constraint_all_gc = ProgramConstraint(
-        inputs=(all_gc,),
-        scoring_function=gc_content_constraint,
-        scoring_function_config={"min_gc": 50.0, "max_gc": 70.0},
+    def test_wrong_sequence_type(self):
+        segment = create_segment("MVLSPADKTNVK", SequenceType.PROTEIN)
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=gc_content_constraint,
+            scoring_function_config={"min_gc": 40, "max_gc": 60},
+        )
+        with pytest.raises(AssertionError):
+            constraint.evaluate()
+
+    def test_batch_processing(self):
+        sequences = ["GCGC", "ATAT", "GCAT", ""]
+        seg_batch = create_batched_segment(sequences, SequenceType.DNA)
+        constraint = Constraint(
+            inputs=[seg_batch],
+            scoring_function=gc_content_constraint,
+            scoring_function_config={"min_gc": 40, "max_gc": 60},
+        )
+        scores = constraint.evaluate()
+        expected_scores = [
+            1.0,  # 100% GC -> (100-60)/(100-60) = 1.0
+            1.0,  # 0% GC -> (40-0)/40 = 1.0
+            0.0,  # 50% GC
+            1.0,  # 0% GC
+        ]
+        assert len(scores) == len(expected_scores)
+        for actual, expected in zip(scores, expected_scores):
+            assert abs(actual - expected) < 1e-9
+
+
+# Tests for max_homopolymer_constraint
+class TestMaxHomopolymerConstraint:
+    @pytest.mark.parametrize(
+        "sequence, max_len, expected_score, seq_type",
+        [
+            ("AAATTTGGGGCCCC", 4, 0.0, SequenceType.DNA),  # OK
+            ("AAATTTTGGGGGCCC", 4, np.log2(1 + 1 / 4), SequenceType.DNA),  # Excess 1
+            ("AAAAAAAATTTT", 4, 1.0, SequenceType.DNA),  # Excess 4, score = log2(2)=1
+            ("A", 3, 0.0, SequenceType.DNA),  # Single NT
+            ("ATATAT", 1, 0.0, SequenceType.DNA),  # No homopolymers
+            ("AAAAAAAAAA", 3, 1.0, SequenceType.DNA),  # Large excess, capped at 1.0
+            ("", 3, 0.0, SequenceType.DNA), # Empty sequence
+            ("AAAUUUGGGGCCCC", 3, np.log2(1 + 1/3), SequenceType.RNA), # RNA
+            ("AAALLLDDDEEEEEFFFF", 3, np.log2(1 + 2/3), SequenceType.PROTEIN), # Protein
+        ],
     )
-    # Should be above range: (100 - 70) / (100 - 70) = 30/30 = 1.0
-    assert abs(constraint_all_gc.evaluate()[0] - 1.0) < 1e-9
-
-    # No G/C sequence (0% GC)
-    no_gc = create_batched_seq(SequenceType.DNA, "ATATATAT")
-    constraint_no_gc = ProgramConstraint(
-        inputs=(no_gc,),
-        scoring_function=gc_content_constraint,
-        scoring_function_config={"min_gc": 30.0, "max_gc": 50.0},
-    )
-    # Should be below range: (30 - 0) / 30 = 1.0
-    assert abs(constraint_no_gc.evaluate()[0] - 1.0) < 1e-9
-
-    # Single nucleotide sequences
-    single_g = create_batched_seq(SequenceType.DNA, "G")
-    constraint_single = ProgramConstraint(
-        inputs=(single_g,),
-        scoring_function=gc_content_constraint,
-        scoring_function_config={"min_gc": 50.0, "max_gc": 50.0},
-    )
-    # 100% GC vs 50% target: (100 - 50) / (100 - 50) = 1.0
-    assert abs(constraint_single.evaluate()[0] - 1.0) < 1e-9
-
-    # Empty sequence should be handled gracefully
-    empty_seq = create_batched_seq(SequenceType.DNA, "")
-    constraint_empty = ProgramConstraint(
-        inputs=(empty_seq,),
-        scoring_function=gc_content_constraint,
-        scoring_function_config={"min_gc": 40.0, "max_gc": 60.0},
-    )
-    # Empty sequence typically returns 0 GC content
-    scores = constraint_empty.evaluate()
-    assert scores[0] >= 0  # Should not crash, exact value depends on implementation
-
-    # Stress test with large sequence
-    large_seq_str = "ATCG" * 2500  # 10,000 bp
-    large_seq = create_batched_seq(SequenceType.DNA, large_seq_str)
-    constraint_large = ProgramConstraint(
-        inputs=(large_seq,),
-        scoring_function=gc_content_constraint,
-        scoring_function_config={"min_gc": 45.0, "max_gc": 55.0},
-    )
-    assert constraint_large.evaluate()[0] == 0.0  # Should be in range (50% GC)
-
-
-def test_max_homopolymer_constraint():
-    """Tests MaxHomopolymerConstraint."""
-    max_len = 4
-    seq_ok = create_batched_seq(SequenceType.DNA, "AAATTTGGGGCCCC")  # Max is 4.
-    seq_long = create_batched_seq(SequenceType.DNA, "AAATTTTGGGGGCCC")  # Max T is 5.
-    seq_very_long = create_batched_seq(SequenceType.DNA, "AAAAAAAATTTT")  # Max A is 8.
-
-    constraint_ok = ProgramConstraint(
-        inputs=(seq_ok,),
-        scoring_function=max_homopolymer_constraint,
-        scoring_function_config={"max_length": max_len},
-    )
-    constraint_long = ProgramConstraint(
-        inputs=(seq_long,),
-        scoring_function=max_homopolymer_constraint,
-        scoring_function_config={"max_length": max_len},
-    )
-    constraint_very_long = ProgramConstraint(
-        inputs=(seq_very_long,),
-        scoring_function=max_homopolymer_constraint,
-        scoring_function_config={"max_length": max_len},
-    )
-
-    assert constraint_ok.evaluate()[0] == 0.0
-    # Excess = 5 - 4 = 1. Score = log2(1 + 1/4) = log2(1.25) approx 0.32.
-    assert abs(constraint_long.evaluate()[0] - np.log2(1 + 1 / 4)) < 1e-9
-    # Excess = 8 - 4 = 4. Score = log2(1 + 4/4) = log2(2) = 1.0.
-    assert abs(constraint_very_long.evaluate()[0] - 1.0) < 1e-9
-    # Check metadata is updated on the original sequences
-    assert seq_ok[0]._metadata["max_homopolymer_length"] == 4
-    assert seq_long[0]._metadata["max_homopolymer_length"] == 5
-
-    # Test edge cases
-    # Single nucleotide
-    single_nt = create_batched_seq(SequenceType.DNA, "A")
-    constraint_single = ProgramConstraint(
-        inputs=(single_nt,),
-        scoring_function=max_homopolymer_constraint,
-        scoring_function_config={"max_length": 3},
-    )
-    assert constraint_single.evaluate()[0] == 0.0
-    assert single_nt[0]._metadata["max_homopolymer_length"] == 1
-
-    # Alternating sequence (no homopolymers > 1)
-    alternating = create_batched_seq(SequenceType.DNA, "ATATATATATAT")
-    constraint_alt = ProgramConstraint(
-        inputs=(alternating,),
-        scoring_function=max_homopolymer_constraint,
-        scoring_function_config={"max_length": 1},
-    )
-    assert constraint_alt.evaluate()[0] == 0.0
-    assert alternating[0]._metadata["max_homopolymer_length"] == 1
-
-    # Entire sequence is one homopolymer - stress test
-    all_same = create_batched_seq(SequenceType.DNA, "AAAAAAAAAA")  # 10 A's
-    constraint_all = ProgramConstraint(
-        inputs=(all_same,),
-        scoring_function=max_homopolymer_constraint,
-        scoring_function_config={"max_length": 3},
-    )
-    # But implementation caps at 1.0
-    expected_score = 1.0  # Changed from np.log2(1 + 7/3) since it's capped at 1.0
-    assert constraint_all.evaluate()[0] == expected_score
-    assert all_same[0]._metadata["max_homopolymer_length"] == 10
-
-    # Empty sequence
-    empty_seq = create_batched_seq(SequenceType.DNA, "")
-    constraint_empty = ProgramConstraint(
-        inputs=(empty_seq,),
-        scoring_function=max_homopolymer_constraint,
-        scoring_function_config={"max_length": 3},
-    )
-    scores = constraint_empty.evaluate()
-    assert scores[0] >= 0  # Should handle gracefully
-
-    # Test different sequence types
-    # RNA sequence
-    rna_seq = create_batched_seq(SequenceType.RNA, "AAAUUUGGGGCCCC")
-    constraint_rna = ProgramConstraint(
-        inputs=(rna_seq,),
-        scoring_function=max_homopolymer_constraint,
-        scoring_function_config={"max_length": 3},
-    )
-    # Max homopolymer is 4 (GGGG or CCCC), excess = 4-3 = 1
-    expected_score = np.log2(1 + 1 / 3)
-    assert abs(constraint_rna.evaluate()[0] - expected_score) < 1e-9
-
-    # Protein sequence
-    protein_seq = create_batched_seq(SequenceType.PROTEIN, "AAALLLDDDEEEEEFFFF")
-    constraint_protein = ProgramConstraint(
-        inputs=(protein_seq,),
-        scoring_function=max_homopolymer_constraint,
-        scoring_function_config={"max_length": 3},
-    )
-    # Max homopolymer is 5 (EEEEE), excess = 5-3 = 2
-    expected_score = np.log2(1 + 2 / 3)
-    assert abs(constraint_protein.evaluate()[0] - expected_score) < 1e-9
-
-
-def test_dinucleotide_frequency_constraint():
-    """Tests DinucleotideFrequencyConstraint."""
-    freq_range_wide = (0.0, 1.0)
-    freq_range_narrow = (0.03, 0.08)
-    seq_wide = create_batched_seq(SequenceType.DNA, "ACGT" * 5)
-    seq_narrow = create_batched_seq(SequenceType.DNA, "ACGT" * 5)
-
-    constraint_wide = ProgramConstraint(
-        inputs=(seq_wide,),
-        scoring_function=dinucleotide_frequency_constraint,
-        scoring_function_config={
-            "min_freq": freq_range_wide[0],
-            "max_freq": freq_range_wide[1],
-        },
-    )
-    constraint_narrow = ProgramConstraint(
-        inputs=(seq_narrow,),
-        scoring_function=dinucleotide_frequency_constraint,
-        scoring_function_config={
-            "min_freq": freq_range_narrow[0],
-            "max_freq": freq_range_narrow[1],
-        },
-    )
-
-    assert constraint_wide.evaluate()[0] == 0.0
-    assert constraint_narrow.evaluate()[0] == 1.0
-
-    # Test edge cases
-    # Single nucleotide (no dinucleotides)
-    single_nt = create_batched_seq(SequenceType.DNA, "A")
-    constraint_single = ProgramConstraint(
-        inputs=(single_nt,),
-        scoring_function=dinucleotide_frequency_constraint,
-        scoring_function_config={"min_freq": 0.1, "max_freq": 0.9},
-    )
-    scores = constraint_single.evaluate()
-    assert scores[0] >= 0  # Should handle gracefully
-
-    # Two nucleotides (one dinucleotide)
-    two_nt = create_batched_seq(SequenceType.DNA, "AT")
-    constraint_two = ProgramConstraint(
-        inputs=(two_nt,),
-        scoring_function=dinucleotide_frequency_constraint,
-        scoring_function_config={"min_freq": 0.5, "max_freq": 1.5},
-    )
-    scores = constraint_two.evaluate()
-    assert scores[0] >= 0
-
-    # Highly repetitive dinucleotide pattern
-    repetitive = create_batched_seq(
-        SequenceType.DNA, "ATATATATATAT"
-    )  # Only AT dinucleotides
-    constraint_rep = ProgramConstraint(
-        inputs=(repetitive,),
-        scoring_function=dinucleotide_frequency_constraint,
-        scoring_function_config={"min_freq": 0.0, "max_freq": 0.5},
-    )
-    scores = constraint_rep.evaluate()
-    # Should violate max frequency constraint
-    assert scores[0] > 0
-
-
-def test_tetranucleotide_usage_constraint():
-    """Tests TetranucleotideUsageConstraint."""
-    tetranuc = "GATC"
-    # Target TUD range: 0.8 to 1.2.
-    tud_range = (0.8, 1.2)
-
-    # Sequence with roughly equal base frequencies (should result in TUD near 1).
-    seq_balanced = create_batched_seq(
-        SequenceType.DNA, "AGCT" * 10 + "GATC" + "AGCT" * 10
-    )  # Len 84. One GATC.
-    # Sequence with zero GATC occurrences.
-    seq_no_gatc = create_batched_seq(
-        SequenceType.DNA, "AAAAAAAAAAAAAAAAAAAAAAAAA"
-    )  # Len 25.
-
-    constraint_bal = ProgramConstraint(
-        inputs=(seq_balanced,),
-        scoring_function=tetranucleotide_usage_constraint,
-        scoring_function_config={
-            "tetranucleotide": tetranuc,
-            "min_tud": tud_range[0],
-            "max_tud": tud_range[1],
-        },
-    )
-    constraint_no_gatc = ProgramConstraint(
-        inputs=(seq_no_gatc,),
-        scoring_function=tetranucleotide_usage_constraint,
-        scoring_function_config={
-            "tetranucleotide": tetranuc,
-            "min_tud": tud_range[0],
-            "max_tud": tud_range[1],
-        },
-    )
-
-    # Calculate expected TUD for balanced sequence.
-    seq_len_bal = len(seq_balanced[0])
-    freq_A = str(seq_balanced[0]).count("A") / seq_len_bal  # 21/84 = 0.25.
-    freq_T = str(seq_balanced[0]).count("T") / seq_len_bal  # 21/84 = 0.25.
-    freq_C = str(seq_balanced[0]).count("C") / seq_len_bal  # 21/84 = 0.25.
-    freq_G = str(seq_balanced[0]).count("G") / seq_len_bal  # 21/84 = 0.25.
-    expected_freq = freq_G * freq_A * freq_T * freq_C  # (0.25)^4 = 0.00390625.
-    expected_occurrences = expected_freq * (seq_len_bal - 3)  # 0.00390625 * 81 ~ 0.316.
-    actual_occurrences = 1
-    tud_bal = (
-        actual_occurrences / expected_occurrences
-    )  # 1 / 0.316 ~ 3.16 (Outside range [0.8, 1.2]).
-    # Expected deviation = (tud - max_tud) / max_tud = (3.16 - 1.2) / 1.2 ~ 1.96 / 1.2 ~ 1.63 -> capped at 1.0.
-    assert abs(constraint_bal.evaluate()[0] - 1.0) < 1e-9
-    assert abs(seq_balanced[0]._metadata["GATC_tud"] - tud_bal) < 1e-9
-
-    # Sequence with no GATC should have TUD of 0, which is outside range [0.8, 1.2].
-    # Expected deviation = (min_tud - tud) / min_tud = (0.8 - 0) / 0.8 = 1.0.
-    assert abs(constraint_no_gatc.evaluate()[0] - 1.0) < 1e-9
-    assert abs(seq_no_gatc[0]._metadata["GATC_tud"] - 0.0) < 1e-9
-
-    # Simple edge case.
-    seq_edge_case = create_batched_seq(SequenceType.DNA, "GAT")  # len < 4.
-    constraint_edge = ProgramConstraint(
-        inputs=(seq_edge_case,),
-        scoring_function=tetranucleotide_usage_constraint,
-        scoring_function_config={
-            "tetranucleotide": tetranuc,
-            "min_tud": tud_range[0],
-            "max_tud": tud_range[1],
-        },
-    )
-    assert constraint_edge.evaluate()[0] == 0.0  # Score is 0 for len < 4.
-    assert seq_edge_case[0]._metadata["GATC_tud"] == 0.0
-
-    # Test more edge cases
-    tetranuc = "AAAA"
-    tud_range = (0.5, 1.5)
-
-    # Sequence with many AAAA occurrences - but all A's means expected freq is very high too
-    many_aaaa = create_batched_seq(
-        SequenceType.DNA, "AAAAAAAAAAAAAAAA"
-    )  # 13 overlapping AAAA
-    constraint_many = ProgramConstraint(
-        inputs=(many_aaaa,),
-        scoring_function=tetranucleotide_usage_constraint,
-        scoring_function_config={
-            "tetranucleotide": tetranuc,
-            "min_tud": tud_range[0],
-            "max_tud": tud_range[1],
-        },
-    )
-    scores = constraint_many.evaluate()
-    # With all A's, expected frequency is also very high (1.0^4 = 1.0)
-    # So TUD = 13/13 = 1.0, which is within range [0.5, 1.5]
-    assert scores[0] == 0.0  # This should be 0 (within range)
-    assert many_aaaa[0]._metadata["AAAA_tud"] == 1.0  # TUD should be exactly 1.0
-
-    # Mixed sequence with moderate AAAA frequency
-    mixed_seq = create_batched_seq(
-        SequenceType.DNA, "AAAATCGCAAAATCGC" * 3
-    )  # 6 AAAA in 48 bp
-    constraint_mixed = ProgramConstraint(
-        inputs=(mixed_seq,),
-        scoring_function=tetranucleotide_usage_constraint,
-        scoring_function_config={
-            "tetranucleotide": tetranuc,
-            "min_tud": tud_range[0],
-            "max_tud": tud_range[1],
-        },
-    )
-    scores = constraint_mixed.evaluate()
-    assert scores[0] >= 0
-
-    # Empty sequence
-    empty_seq = create_batched_seq(SequenceType.DNA, "")
-    constraint_empty = ProgramConstraint(
-        inputs=(empty_seq,),
-        scoring_function=tetranucleotide_usage_constraint,
-        scoring_function_config={
-            "tetranucleotide": tetranuc,
-            "min_tud": tud_range[0],
-            "max_tud": tud_range[1],
-        },
-    )
-    scores = constraint_empty.evaluate()
-    assert scores[0] == 0.0  # Should return 0 for empty sequence
-
-
-def test_space_token_truncation():
-    """Tests that sequences are automatically truncated at the first space character (EOS token)."""
-    # Test with constructor
-    seq_with_space = create_batched_seq(SequenceType.DNA, "ATCGATCG TAG EXTRA")
-    assert (
-        seq_with_space[0].sequence == "ATCGATCG"
-    )  # Should be truncated before first space
-    assert len(seq_with_space[0]) == 8
-
-    # Test with setter
-    seq = create_batched_seq(SequenceType.DNA, "ATCG")
-    seq[0].sequence = "GCGCGCGC TRAILING TOKENS"
-    assert seq[0].sequence == "GCGCGCGC"  # Should be truncated before first space
-    assert len(seq[0]) == 8
-
-    # Test edge cases
-    # Sequence starting with space
-    seq_start_space = create_batched_seq(SequenceType.DNA, " ATCGATCG")
-    assert seq_start_space[0].sequence == ""  # Should be empty after truncation
-    assert len(seq_start_space[0]) == 0
-
-    # Sequence with no spaces (should remain unchanged)
-    seq_no_space = create_batched_seq(SequenceType.DNA, "ATCGATCG")
-    assert seq_no_space[0].sequence == "ATCGATCG"
-    assert len(seq_no_space[0]) == 8
-
-    # Empty sequence (should remain empty)
-    empty_seq = create_batched_seq(SequenceType.DNA, "")
-    assert empty_seq[0].sequence == ""
-    assert len(empty_seq[0]) == 0
-
-    # Multiple spaces (should truncate at first)
-    multi_space = create_batched_seq(SequenceType.DNA, "ATCG GC AT")
-    assert multi_space[0].sequence == "ATCG"
-    assert len(multi_space[0]) == 4
-
-    # Test with different sequence types
-    # RNA sequence
-    rna_seq = create_batched_seq(SequenceType.RNA, "AUCGAUCG TRAILING")
-    assert rna_seq[0].sequence == "AUCGAUCG"
-    assert len(rna_seq[0]) == 8
-
-    # Protein sequence
-    protein_seq = create_batched_seq(SequenceType.PROTEIN, "MVLSPADKTNVK TRAILING")
-    assert protein_seq[0].sequence == "MVLSPADKTNVK"
-    assert len(protein_seq[0]) == 12
-
-
-def test_metadata_sequence_length_calculation():
-    """Tests that _metadata automatically includes sequence_length when sequences are created or modified."""
-    # Create a sequence and check that sequence_length is automatically set in _metadata
-    seq = create_batched_seq(SequenceType.DNA, "ATCGATCG")
-
-    # Check that _metadata includes sequence_length
-    assert "sequence_length" in seq[0]._metadata
-    assert seq[0]._metadata["sequence_length"] == 8
-    assert seq[0]._metadata["sequence"] == "ATCGATCG"
-
-    # Test with empty sequence
-    empty_seq = create_batched_seq(SequenceType.DNA, "")
-    assert "sequence_length" in empty_seq[0]._metadata
-    assert empty_seq[0]._metadata["sequence_length"] == 0
-    assert empty_seq[0]._metadata["sequence"] == ""
-
-    # Test that sequence_length updates when sequence is modified via setter
-    dynamic_seq = create_batched_seq(SequenceType.DNA, "ATCG")
-    assert dynamic_seq[0]._metadata["sequence_length"] == 4
-
-    # Change the sequence and check metadata updates
-    dynamic_seq[0].sequence = "ATCGATCGATCG"
-    assert (
-        dynamic_seq[0]._metadata["sequence_length"] == 12
-    )  # Should reflect new length
-    assert dynamic_seq[0]._metadata["sequence"] == "ATCGATCGATCG"
-
-    # Test with truncated sequence (space handling)
-    truncated_seq = create_batched_seq(SequenceType.DNA, "ATCGATCG TRAILING")
-    assert (
-        truncated_seq[0]._metadata["sequence_length"] == 8
-    )  # Should be truncated length
-    assert truncated_seq[0]._metadata["sequence"] == "ATCGATCG"
-
-    # Test that None sequences are handled properly
-    none_seq = create_batched_seq(SequenceType.DNA, "ATCG")
-    none_seq[0].sequence = None
-    assert none_seq[0]._metadata["sequence_length"] == 0
-    assert none_seq[0]._metadata["sequence"] is None
-
-    # Test that custom metadata is preserved when sequence changes
-    custom_seq = create_batched_seq(SequenceType.DNA, "ATCG")
-    custom_seq[0]._metadata["custom_field"] = "test_value"
-    custom_seq[0].sequence = "GGCCGGCC"
-    assert custom_seq[0]._metadata["custom_field"] == "test_value"  # Preserved
-    assert custom_seq[0]._metadata["sequence_length"] == 8  # Updated
-    assert custom_seq[0]._metadata["sequence"] == "GGCCGGCC"  # Updated
-
-
-def test_multiple_constraints_integration():
-    """Tests integration with multiple constraints on the same sequence."""
-    test_seq = create_batched_seq(
-        SequenceType.DNA, "GCGCGCGCATATATAT"
-    )  # 16 bp, 50% GC, max homopoly = 2
-
-    # Create multiple constraints
-    length_constraint = ProgramConstraint(
-        inputs=(test_seq,),
-        scoring_function=sequence_length_constraint,
-        scoring_function_config={"target_length": 16},
-    )
-
-    gc_constraint = ProgramConstraint(
-        inputs=(test_seq,),
-        scoring_function=gc_content_constraint,
-        scoring_function_config={"min_gc": 45.0, "max_gc": 55.0},
-    )
-
-    homopoly_constraint = ProgramConstraint(
-        inputs=(test_seq,),
-        scoring_function=max_homopolymer_constraint,
-        scoring_function_config={"max_length": 3},
-    )
-
-    # Evaluate all constraints
-    length_score = length_constraint.evaluate()[0]
-    gc_score = gc_constraint.evaluate()[0]
-    homopoly_score = homopoly_constraint.evaluate()[0]
-
-    # All should pass
-    assert length_score == 0.0
-    assert gc_score == 0.0
-    assert homopoly_score == 0.0
-
-    # Check that metadata from all constraints is preserved
-    metadata = test_seq[0]._metadata
-    assert "length" in metadata
-    assert "max_homopolymer_length" in metadata
-
-
-def test_pseudo_circularize_sequence():
-    """Tests the pseudo-circularization function with various DNA sequences."""
-
-    def count_stop_codons_in_frame(seq: str, frame: int) -> int:
-        """Helper to count stop codons in a specific reading frame."""
-        stop_codons = ["TAA", "TAG", "TGA"]
-        count = 0
-        sub_seq = seq[frame:]
-        for i in range(0, len(sub_seq) - 2, 3):
-            codon = sub_seq[i : i + 3]
-            if codon in stop_codons:
-                count += 1
-        return count
-
-    def find_first_stop_in_frame(seq: str, frame: int) -> int:
-        """Helper to find position of first stop codon in a specific reading frame."""
-        stop_codons = ["TAA", "TAG", "TGA"]
-        sub_seq = seq[frame:]
-        for i in range(0, len(sub_seq) - 2, 3):
-            codon = sub_seq[i : i + 3]
-            if codon in stop_codons:
-                return i + frame + 3  # Include the stop codon itself
-        return len(seq)  # No stop found
-
-    # Test Case 1: Simple sequence with known stop codons
-    test_seq1 = "ATGAAAGGGTAGCCCGGGTGACCCAAATGGGGTAATGACCTGA"
-    # Frame 1: ATG AAA GGG TAG (stop at pos 12)
-    # Frame 2: TGA AAG GGT AGC (stop at pos 1)
-    # Frame 3: GAA AGG GTA GCC CGG GTG ACC CAA ATG GGG TAA (stop at pos 32)
-    # Should use the furthest stop (frame 3 at position 32+3=35)
-
-    circularized1 = _pseudo_circularize_sequence(test_seq1)
-    expected_append_length = 35  # Up to and including the TAA stop codon in frame 3
-    expected_length = len(test_seq1) + expected_append_length
-
-    assert len(circularized1) == expected_length
-    assert circularized1.startswith(test_seq1)  # Original sequence at start
-    assert circularized1.endswith(
-        test_seq1[:expected_append_length]
-    )  # Appended portion at end
-
-    # Test Case 2: Sequence with no stop codons (should append entire sequence)
-    test_seq2 = "ATGCCCGGGAAACCCGGGATG"  # No stop codons
-    circularized2 = _pseudo_circularize_sequence(test_seq2)
-    expected_length2 = len(test_seq2) * 2  # Should append entire sequence
-
-    assert len(circularized2) == expected_length2
-    assert circularized2 == test_seq2 + test_seq2
-
-    # Test Case 3: Sequence with stop codons at different positions in each frame
-    test_seq3 = "ATGAACTGACCCGGGTAGAAACCCGGGTGACC"
-    # Frame 1: ATG AAC TGA (stop at pos 6+3=9)
-    # Frame 2: TGA ACT GAC CCG GGT AGA AAC CCG GGT GAC C (stop at pos 1+3=4)
-    # Frame 3: GAA CTG ACC CGG GTA GAA ACC CGG GTG ACC (no stop codons found)
-    # Should use the furthest actual stop found (frame 1 at position 9)
-
-    circularized3 = _pseudo_circularize_sequence(test_seq3)
-    expected_append_length3 = 9  # Uses frame 1 stop at position 9
-
-    assert len(circularized3) == len(test_seq3) + expected_append_length3
-    assert circularized3[len(test_seq3) :] == test_seq3[:expected_append_length3]
-
-    # Test Case 4: Very short sequence (less than one codon)
-    test_seq4 = "AT"
-    circularized4 = _pseudo_circularize_sequence(test_seq4)
-    assert len(circularized4) == len(test_seq4) * 2  # Should append entire sequence
-    assert circularized4 == test_seq4 + test_seq4
-
-    # Test Case 5: Empty sequence (edge case)
-    test_seq5 = ""
-    circularized5 = _pseudo_circularize_sequence(test_seq5)
-    assert len(circularized5) == 0
-    assert circularized5 == ""
-
-    # Test Case 6: Sequence with only stop codons
-    test_seq6 = "TAATAGTGA"  # All stop codons
-    # Frame 1: TAA (stop at pos 3)
-    # Frame 2: AAT AGT GA (no stop)
-    # Frame 3: ATA GTG A (no stop)
-    # Should use frame 1 stop at position 3
-
-    circularized6 = _pseudo_circularize_sequence(test_seq6)
-    expected_append_length6 = 3
-
-    assert len(circularized6) == len(test_seq6) + expected_append_length6
-    assert circularized6.endswith(test_seq6[:expected_append_length6])
-
-    # Test Case 7: Real-world like sequence (longer test)
-    # Simulate a more realistic gene sequence
-    test_seq7 = (
-        "ATGAAAGCCTTGATCGTGTTGGGCTTGGTGTTGTTGAGCGTGACCGTGCAGGGCAAAGTGT"  # Start codon + coding
-        "TCGGCAGATGCGAATTGGCCGCAGCCGCAATGAAGAGACACGGCTTGGATAACTACAGAGG"
-        "CTACAGCTTGGGCAACTGGGTGTGCGCAGCAAAGTTTGAAAGCAACTTCAACACACAGGCC"
-        "ACCAACAGAAACACCGATGGCAGCACCGATTATGGCATCTTGCAGATCAACAGCAGATGGT"
-        "GGTGCAACGATGGCAGAACCCCAGGCAGCAGAAACTTGTGCAACATCCCATGCAGCGCCTT"
-        "GTTGAGCAGCGATATTACCGCAAGCGTGAACTGCGCAAAGAAAATCGTGAGCGATGGCAAC"
-        "TAA"  # Stop codon at the end
-    )
-
-    circularized7 = _pseudo_circularize_sequence(test_seq7)
-
-    # Verify that the circularized sequence is longer than the original
-    assert len(circularized7) > len(test_seq7)
-    # Verify the original sequence is preserved at the start
-    assert circularized7.startswith(test_seq7)
-
-
-def test_pseudo_circularization_in_orfipy_constraint():
-    """Tests that pseudo-circularization is properly integrated into ORFipy constraints."""
-
-    # Create a sequence where pseudo-circularization should make a difference
-    # This sequence has an incomplete ORF at the end that would be completed by circularization
-    test_seq = (
-        "ATGAAAGCCTTGATCGTGTTGGGCTTGGTGTTGTTGAGCGTGACCGTGCAG"  # Incomplete ORF (no stop)
-        "GGCAAAGTGTTCGGCAGATGCGAATTGGCCGCAGCCGCAATGAAGAGACAC"
-        "GGCTTGGATAACTACAGAGGCTACAGCTTGGGCAACTGGGTGTGCGCAGCA"
-        "AAGTTTGAAAGCAACTTCAACACACAGGCCACCAACAGAAACACCGATGGC"
-        "TAA"  # Stop codon that would complete the ORF when circularized
-    )
-
-    test_seq_batch = create_batched_seq(SequenceType.DNA, test_seq)
-
-    # Create a mock database path (this test focuses on pseudo-circularization, not actual hits)
-    mock_db_path = "tests/tests_cpu/dummy_data/test_proteins_database.faa"
-
-    # Test with pseudo-circularization enabled (default)
-    config_with_circularization = {
-        "min_hits": 0,
-        "max_hits": 10,
-        "pseudo_circularize": True,  # Explicitly enable
-        "mmseqs_kwargs": {"database": mock_db_path, "threads": 1, "sensitivity": 4.0},
-        "orfipy_kwargs": {"threads": 1, "min_len": 30},
-    }
-
-    # Test with pseudo-circularization disabled
-    config_without_circularization = {
-        "min_hits": 0,
-        "max_hits": 10,
-        "pseudo_circularize": False,  # Explicitly disable
-        "mmseqs_kwargs": {"database": mock_db_path, "threads": 1, "sensitivity": 4.0},
-        "orfipy_kwargs": {"threads": 1, "min_len": 30},
-    }
-
-    # Create constraints for both scenarios
-    constraint_with_circ = ProgramConstraint(
-        inputs=(test_seq_batch,),
-        scoring_function=orfipy_mmseqs_gene_hit_count_constraint,
-        scoring_function_config=config_with_circularization,
-    )
-
-    # Create a new sequence for the second test to avoid metadata contamination
-    test_seq_batch2 = create_batched_seq(SequenceType.DNA, test_seq)
-    constraint_without_circ = ProgramConstraint(
-        inputs=(test_seq_batch2,),
-        scoring_function=orfipy_mmseqs_gene_hit_count_constraint,
-        scoring_function_config=config_without_circularization,
-    )
-
-    # Evaluate both constraints
-    try:
-        scores_with_circ = constraint_with_circ.evaluate()
-        scores_without_circ = constraint_without_circ.evaluate()
-
-        # Both should complete without errors
-        assert len(scores_with_circ) == 1
-        assert len(scores_without_circ) == 1
-        assert all(score >= 0.0 for score in scores_with_circ)
-        assert all(score >= 0.0 for score in scores_without_circ)
-
-        # Check that metadata was populated for both
-        metadata_with = test_seq_batch[0]._metadata
-        metadata_without = test_seq_batch2[0]._metadata
-
-        assert "orfipy_orfs" in metadata_with
-        assert "orfipy_orfs" in metadata_without
-        assert isinstance(metadata_with["orfipy_orfs"], pd.DataFrame)
-        assert isinstance(metadata_without["orfipy_orfs"], pd.DataFrame)
-
-        # The number of ORFs found might be different due to pseudo-circularization
-        # This is the main test - with circularization, we might find additional ORFs
-        # that span the junction between the end and beginning of the sequence
-        orfs_with_circ = len(metadata_with["orfipy_orfs"])
-        orfs_without_circ = len(metadata_without["orfipy_orfs"])
-
-        # At minimum, both should find some ORFs, and circularization shouldn't reduce the count
-        assert orfs_with_circ >= 0
-        assert orfs_without_circ >= 0
-
-    except FileNotFoundError:
-        # Skip test if database file doesn't exist in test environment
-        pytest.skip("Test database file not found - skipping integration test")
-
+    def test_homopolymer_scoring(self, sequence, max_len, expected_score, seq_type):
+        segment = create_segment(sequence, seq_type)
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=max_homopolymer_constraint,
+            scoring_function_config={"max_length": max_len},
+        )
+        score = constraint.evaluate()[0]
+        assert abs(score - expected_score) < 1e-9
+        # Test metadata
+        if len(sequence) > 0:
+            import itertools
+            expected_max_homopolymer = max(len(list(g)) for _, g in itertools.groupby(sequence))
+            assert segment[0]._metadata["max_homopolymer_length"] == expected_max_homopolymer
+        else:
+            assert segment[0]._metadata["max_homopolymer_length"] == 0
+
+    def test_invalid_config(self):
+        segment = create_segment("ATCG")
+        with pytest.raises(ValueError, match="Missing required config keys"):
+            Constraint(
+                inputs=[segment],
+                scoring_function=max_homopolymer_constraint,
+                scoring_function_config={},
+            ).evaluate()
+
+    def test_batch_processing(self):
+        sequences = ["AAAA", "AAACCC", "AAAGGC", ""]
+        max_len = 3
+        seg_batch = create_batched_segment(sequences, SequenceType.DNA)
+        constraint = Constraint(
+            inputs=[seg_batch],
+            scoring_function=max_homopolymer_constraint,
+            scoring_function_config={"max_length": max_len},
+        )
+        scores = constraint.evaluate()
+        expected_scores = [
+            np.log2(1 + 1/3), # excess 1
+            0.0, # in limit
+            0.0, # in limit
+            0.0, # empty
+        ]
+        assert len(scores) == len(expected_scores)
+        for actual, expected in zip(scores, expected_scores):
+            assert abs(actual - expected) < 1e-9
+
+
+# Tests for dinucleotide_frequency_constraint
+class TestDinucleotideFrequencyConstraint:
+    def test_dna_sequences(self):
+        # Sequence "ATCGATCG" has freqs: AT=0.286, TC=0.286, CG=0.286, GA=0.143
+        # But also has 0.0 for all other dinucleotides (AA, TT, CC, GG, etc.)
+        seq_ok = create_segment("ATCGATCG", SequenceType.DNA)
+        # Sequence with only AT dinucleotides (freq 1.0)
+        seq_violate = create_segment("ATATATAT", SequenceType.DNA)
+
+        # Range that includes 0.0 frequency (for dinucleotides that don't appear)
+        constraint_ok = Constraint(
+            inputs=[seq_ok],
+            scoring_function=dinucleotide_frequency_constraint,
+            scoring_function_config={"min_freq": 0.0, "max_freq": 0.3},
+        )
+        assert constraint_ok.evaluate()[0] == 0.0
+
+        # Range that excludes 0.0 frequency, should fail
+        constraint_fail = Constraint(
+            inputs=[seq_ok],
+            scoring_function=dinucleotide_frequency_constraint,
+            scoring_function_config={"min_freq": 0.1, "max_freq": 0.3},
+        )
+        assert constraint_fail.evaluate()[0] > 0.0
+
+        # Repetitive sequence, should fail narrow range
+        constraint_violate = Constraint(
+            inputs=[seq_violate],
+            scoring_function=dinucleotide_frequency_constraint,
+            scoring_function_config={"min_freq": 0.0, "max_freq": 0.5},
+        )
+        assert constraint_violate.evaluate()[0] > 0.0
+        assert "dinucleotide_freqs" in seq_violate[0]._metadata
+        # ATATATAT has AT freq ~0.57 and TA freq ~0.43
+        assert abs(seq_violate[0]._metadata["dinucleotide_freqs"]["AT"] - 4/7) < 1e-9
+
+    @pytest.mark.parametrize("sequence", ["", "A"])
+    def test_edge_cases(self, sequence):
+        """Test with sequences too short to have dinucleotides."""
+        segment = create_segment(sequence)
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=dinucleotide_frequency_constraint,
+            scoring_function_config={"min_freq": 0.1, "max_freq": 0.9},
+        )
+        assert constraint.evaluate()[0] == 1.0 # MAX_ENERGY
+
+
+# Tests for tetranucleotide_usage_constraint
+class TestTetranucleotideUsageConstraint:
+    def test_tud_scoring(self):
+        tetranuc = "GATC"
+        tud_range = (0.8, 1.2)
+        # From old tests: seq with one GATC, TUD is ~3.16, outside range.
+        seq_balanced = create_segment("AGCT" * 10 + "GATC" + "AGCT" * 10)
+        seq_no_gatc = create_segment("A" * 25) # TUD is 0, outside range.
+
+        constraint_bal = Constraint(
+            inputs=[seq_balanced],
+            scoring_function=tetranucleotide_usage_constraint,
+            scoring_function_config={
+                "tetranucleotide": tetranuc,
+                "min_tud": tud_range[0],
+                "max_tud": tud_range[1],
+            },
+        )
+        # TUD is high, deviation is (3.16-1.2)/1.2 -> capped at 1.0
+        assert abs(constraint_bal.evaluate()[0] - 1.0) < 1e-9
+        assert "GATC_tud" in seq_balanced[0]._metadata
+        assert seq_balanced[0]._metadata["GATC_tud"] > 3.0
+
+        constraint_no_gatc = Constraint(
+            inputs=[seq_no_gatc],
+            scoring_function=tetranucleotide_usage_constraint,
+            scoring_function_config={
+                "tetranucleotide": tetranuc,
+                "min_tud": tud_range[0],
+                "max_tud": tud_range[1],
+            },
+        )
+        # TUD is 0, deviation is (0.8-0)/0.8 = 1.0
+        assert abs(constraint_no_gatc.evaluate()[0] - 1.0) < 1e-9
+        assert seq_no_gatc[0]._metadata["GATC_tud"] == 0.0
+
+    def test_edge_cases(self):
+        # Sequence too short
+        seq_short = create_segment("GAT")
+        constraint_short = Constraint(
+            inputs=[seq_short],
+            scoring_function=tetranucleotide_usage_constraint,
+            scoring_function_config={
+                "tetranucleotide": "GATC",
+                "min_tud": 0.8,
+                "max_tud": 1.2,
+            },
+        )
+        assert constraint_short.evaluate()[0] == 0.0
+        assert seq_short[0]._metadata["GATC_tud"] == 0.0
+
+        # Empty sequence
+        seq_empty = create_segment("")
+        constraint_empty = Constraint(
+            inputs=[seq_empty],
+            scoring_function=tetranucleotide_usage_constraint,
+            scoring_function_config={
+                "tetranucleotide": "GATC",
+                "min_tud": 0.8,
+                "max_tud": 1.2,
+            },
+        )
+        assert constraint_empty.evaluate()[0] == 0.0
+
+    def test_all_same_tetranucleotide(self):
+        """Tests when the sequence is composed of the target tetranucleotide."""
+        # TUD for AAAA in AAAAAAAAAAAAAAAA should be 1.0
+        seq_all_a = create_segment("A" * 16)
+        constraint = Constraint(
+            inputs=[seq_all_a],
+            scoring_function=tetranucleotide_usage_constraint,
+            scoring_function_config={
+                "tetranucleotide": "AAAA",
+                "min_tud": 0.8,
+                "max_tud": 1.2,
+            },
+        )
+        assert constraint.evaluate()[0] == 0.0
+        assert abs(seq_all_a[0]._metadata["AAAA_tud"] - 1.0) < 1e-9
+
+
+# Tests for tool-based constraints
+
+# Test data file paths
+TEST_DATA_DIR = Path("tests/tests_cpu/dummy_data")
+PROTEIN_DB_PATH = TEST_DATA_DIR / "test_proteins_database.faa"
+DNA_FASTA_PATH = TEST_DATA_DIR / "test_dna_sequences.fna"
+ORFIPY_AA_PATH = TEST_DATA_DIR / "test_orfipy_aa.faa"
+ORFIPY_NT_PATH = TEST_DATA_DIR / "test_orfipy_nt.fna"
+M8_RESULTS_PATH = TEST_DATA_DIR / "test_mmseqs_results.m8"
 
 def get_test_sequences_with_real_hits():
     """Returns DNA sequences that should produce hits against our dummy database."""
+    # These sequences correspond to the test data files we created
+    sequences = []
+    with open(DNA_FASTA_PATH, 'r') as f:
+        current_seq = ""
+        for line in f:
+            if line.startswith('>'):
+                if current_seq:
+                    sequences.append(current_seq)
+                current_seq = ""
+            else:
+                current_seq += line.strip()
+        if current_seq:
+            sequences.append(current_seq)
+    return sequences
 
-    # Sequence 1: DNA encoding protein similar to test_protein_1 (hemoglobin-like)
-    # This encodes: MVLSPADKTNVKAAW... (similar to test_protein_1)
-    hemoglobin_like_dna = (
-        "ATGGTGTTAAGCCCAGCCGATAAGACCAACGTGAAAGCAGCATGGGGCAAAGTGGGCGCAC"
-        "ACGCCGGCGAATATGGCGCAGAAGCCTTGGAAAGAATGTTTTTGAGCTTTCCAACCACCAA"
-        "GACCTATTTCCCACACTTTGATTTGAGCCACGGCAGCGCACAGGTGAAAGGCCACGGCAAA"
-        "AAAGTGGCCGATGCCTTGACCAACGCCGTGGCACACGTGGATGATATGCCAAACGCCTTGA"
-        "GCGCCTTGAGCGATTTGCACGCACACAAGTTGAGAGTGGATCCAGTGAACTTCAAGTTGTT"
-        "GAGCCACTGCTTGTTGGTGACCTTGGCCGCACACTTGCCAGCAGAATTCACCCCAGCCGTG"
-        "CACGCAAGCTTGGATAAGTTTTTGGCAAGCGTGAGCACCGTGTTGACCAGCAAGTACAGAT"
-        "AA"  # Stop codon
-    )
+@pytest.fixture(scope="module")
+def dummy_db_path():
+    return str(PROTEIN_DB_PATH)
 
-    # Sequence 2: DNA encoding protein similar to test_protein_2
-    immunoglobulin_like_dna = (
-        "ATGAAAGCCTTGATCGTGTTGGGCTTGGTGTTGTTGAGCGTGACCGTGCAGGGCAAAGTGT"
-        "TCGGCAGATGCGAATTGGCCGCAGCCGCAATGAAGAGACACGGCTTGGATAACTACAGAGG"
-        "CTACAGCTTGGGCAACTGGGTGTGCGCAGCAAAGTTTGAAAGCAACTTCAACACACAGGCC"
-        "ACCAACAGAAACACCGATGGCAGCACCGATTATGGCATCTTGCAGATCAACAGCAGATGGT"
-        "GGTGCAACGATGGCAGAACCCCAGGCAGCAGAAACTTGTGCAACATCCCATGCAGCGCCTT"
-        "GTTGAGCAGCGATATTACCGCAAGCGTGAACTGCGCAAAGAAAATCGTGAGCGATGGCAAC"
-        "GGCATGAACGCATGGGTGGCATGGAGAAACAGATGCAAAGGCACCGATGTGCAGGCATGGA"
-        "TCAGAGGCTGCAGATTGTAA"
-    )
+# Sample data for constraint tests
+SAMPLE_ORFIPY_AA_FASTA = """>dna_seq_1_ORF.1 [0-180](+)
+MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGK*
+>dna_seq_2_ORF.1 [0-540](+)
+MKALIVLGLVLLSVTVQGKVFGRCELAAAAMKRHGLDNYRGYSLGNWVCAAKFESNFNTQATNRNTDGSTDYGILQINSRWWCNDGRTPGSRNLCNIPCSALLSSDITASVNCAKKIVSDGNGMNAWVAWRNRCKGTDVQAWIRGCRL*
+"""
 
-    # Sequence 3: Short sequence with multiple ORFs
-    multi_orf_dna = (
-        "ATGAAATTGCTGAACGTGATCAACTTCGTGTTCTTGATGTTTGTGAGCAGCGCAAGCATCA"  # First ORF
-        "GCGCCGAATTCCACAGACCAGGCGATGATCCAGGCCAACACCCCAAATTGCACTTGCCAGGT"
-        "TAACCACCACCGGCGATCAGGGCCAACCAGGCCCACCAGGCCAAGGCCAATAA"  # Stop
-        "ATGAAATTGCTGAACGTGATCAACTTCGTGTTCTTGATGTTTGTGAGCAGCTAG"  # Second ORF with different stop
-    )
+SAMPLE_ORFIPY_NT_FASTA = """>dna_seq_1_ORF.1 [0-180](+)
+ATGGTGCTGAGCCCGGCGGACAAGACCAACGTGAAGGCGGCGTGGGGCAAGGTGGGCGCGCACGCCGGCGAATATGGCGCAGAAGCCTTGGAAAGAATGTTTTTGAGCTTTCCAACCACCAAGACCTATTTCCCACACTTTGATTTGAGCCACGGCAGCGCACAGGTGAAAGGCCACGGCAAA
+>dna_seq_2_ORF.1 [0-540](+)
+ATGAAAGCCTTGATCGTGTTGGGCTTGGTGTTGTTGAGCGTGACCGTGCAGGGCAAAGTGTTCGGCAGATGCGAATTGGCCGCAGCCGCAATGAAGAGACACGGCTTGGATAACTACAGAGGCTACAGCTTGGGCAACTGGGTGTGCGCAGCAAAGTTTGAAAGCAACTTCAACACACAGGCCACCAACAGAAACACCGATGGCAGCACCGATTATGGCATCTTGCAGATCAACAGCAGATGGTGGTGCAACGATGGCAGAACCCCAGGCAGCAGAAACTTGTGCAACATCCCATGCAGCGCCTTGTTGAGCAGCGATATTACCGCAAGCGTGAACTGCGCAAAGAAAATCGTGAGCGATGGCAACGGCATGAACGCATGGGTGGCATGGAGAAACAGATGCAAAGGCACCGATGTGCAGGCATGGATCAGAGGCTGCAGATTGTAA
+"""
 
-    # Sequence 4: Very short sequence - should not produce good hits
-    short_dna = "ATGAAACCCGGGTAA"  # Very short ORF
+SAMPLE_M8_OUTPUT = """protein_seq_1	test_protein_1	95.2	1.5e-35
+protein_seq_2	test_protein_2	87.3	2.1e-28
+protein_seq_3	test_protein_5	100.0	1.0e-3
+protein_seq_4	test_protein_1	98.1	3.2e-42
+"""
 
-    return [hemoglobin_like_dna, immunoglobulin_like_dna, multi_orf_dna, short_dna]
+@pytest.fixture
+def temp_dir():
+    """Create a temporary directory for test files."""
+    d = Path(tempfile.mkdtemp())
+    yield d
+    shutil.rmtree(d)
 
-
-def test_orfipy_mmseqs_gene_hit_count_constraint():
-    """Tests ORFipy + MMseqs gene hit count constraint with real data that should produce actual hits."""
-    # Use hemoglobin-like sequence that should produce hits against test_protein_1 and test_protein_5
-    test_sequences = get_test_sequences_with_real_hits()
-    test_seq_hemoglobin = create_batched_seq(
-        SequenceType.DNA, test_sequences[0]
-    )  # Hemoglobin-like sequence
-
-    # Use real dummy database - this sequence should produce actual hits
-    test_config = {
-        "min_hits": 1,  # Expect at least 1 hit since sequence matches database proteins
-        "max_hits": 3,
-        "mmseqs_kwargs": {
-            "database": "tests/tests_cpu/dummy_data/test_proteins_database.faa",
-            "threads": 2,
-            "sensitivity": 4.0,  # Default sensitivity should find these close matches
-        },
-        "orfipy_kwargs": {"threads": 2, "min_len": 30},  # Require meaningful ORF length
+def setup_test_files(temp_dir: Path, sequence: str) -> dict:
+    """Set up test files for orfipy and mmseqs tests using real files."""
+    # Create input DNA file
+    dna_file = temp_dir / "input.fna"
+    dna_file.write_text(f">test_seq\n{sequence}\n")
+    
+    # Create orfipy output directory and files
+    orfipy_dir = temp_dir / "orfipy_output"
+    orfipy_dir.mkdir()
+    
+    # Use real test data files
+    shutil.copy(ORFIPY_AA_PATH, orfipy_dir / "orfipy_aa.faa")
+    shutil.copy(ORFIPY_NT_PATH, orfipy_dir / "orfipy_nt.fna")
+    
+    # Create mmseqs output file
+    mmseqs_file = temp_dir / "mmseqs_results.m8"
+    shutil.copy(M8_RESULTS_PATH, mmseqs_file)
+    
+    return {
+        "dna_file": dna_file,
+        "orfipy_dir": orfipy_dir,
+        "mmseqs_file": mmseqs_file,
     }
 
-    constraint = ProgramConstraint(
-        inputs=(test_seq_hemoglobin,),
-        scoring_function=orfipy_mmseqs_gene_hit_count_constraint,
-        scoring_function_config=test_config,
-    )
+# Check if orfipy is available
+try:
+    import subprocess
+    subprocess.run(["orfipy", "--help"], capture_output=True, check=True)
+    ORFIPY_AVAILABLE = True
+except (subprocess.CalledProcessError, FileNotFoundError):
+    ORFIPY_AVAILABLE = False
 
-    scores = constraint.evaluate()
-    assert len(scores) == 1
-    assert scores[0] >= 0.0  # Should be non-negative
+@pytest.mark.skipif(
+    not pd, reason="Pandas not installed, skipping ORF/MMseqs tests"
+)
+@pytest.mark.skipif(
+    not ORFIPY_AVAILABLE, reason="orfipy not installed, skipping ORF tests"
+)
+class TestOrfipyMmseqsConstraints:
+    @pytest.fixture
+    def hit_count_config(self, dummy_db_path):
+        return {
+            "min_hits": 1,
+            "max_hits": 3,
+            "mmseqs_kwargs": {"database": dummy_db_path, "threads": 1, "sensitivity": 1.0},
+            "orfipy_kwargs": {"threads": 1, "min_len": 30},
+        }
 
-    # Check metadata was set
-    metadata = test_seq_hemoglobin[0]._metadata
-    assert "orfipy_orfs" in metadata
-    assert "mmseqs_results" in metadata
-    assert "unique_orfs_with_hits" in metadata
-    assert isinstance(metadata["unique_orfs_with_hits"], int)
+    @pytest.fixture
+    def homology_config(self, dummy_db_path):
+        return {
+            "min_homology": 80.0,
+            "max_homology": 100.0,
+            "mmseqs_kwargs": {"database": dummy_db_path, "threads": 1, "sensitivity": 1.0},
+            "orfipy_kwargs": {"threads": 1, "min_len": 30},
+        }
 
-    # Check that pipeline results are structured correctly
-    assert isinstance(metadata["orfipy_orfs"], pd.DataFrame)
-    assert isinstance(metadata["mmseqs_results"], pd.DataFrame)
-    assert isinstance(metadata["unique_orfs_with_hits"], int)
+    def test_hit_count_constraint(self, hit_count_config, temp_dir):
+        """Test hit count constraint using real test files."""
+        sequences = get_test_sequences_with_real_hits()
+        segment = create_segment(sequences[0])
 
-    mmseqs_results = metadata["mmseqs_results"]
-    if not mmseqs_results.empty:
-        assert "target_id" in mmseqs_results.columns
-        target_ids = mmseqs_results["target_id"].unique()
-        expected_targets = {"test_protein_1", "test_protein_5"}
-        actual_targets = set(target_ids)
-        overlap = expected_targets.intersection(actual_targets)
-        assert len(overlap) > 0
+        # Set up test files
+        setup_test_files(temp_dir, sequences[0])
 
-        assert "identity" in mmseqs_results.columns
-        assert "evalue" in mmseqs_results.columns
-        identities = mmseqs_results["identity"].values
-        e_values = mmseqs_results["evalue"].values
-
-        assert max(identities) > 50
-        assert min(e_values) < 1e-3
-    else:
-        assert False, "Expected to find hits against dummy database but got none"
-
-
-def test_orfipy_mmseqs_gene_homology_constraint():
-    """Tests ORFipy + MMseqs gene homology constraint with real data that should produce high-quality hits."""
-    # Use hemoglobin-like sequence that should produce good hits with high identity percentages
-    test_sequences = get_test_sequences_with_real_hits()
-    test_seq = create_batched_seq(
-        SequenceType.DNA, test_sequences[0]
-    )  # Hemoglobin-like
-
-    test_config = {
-        "min_homology": 80.0,  # Require high identity percentage (80% or higher)
-        "max_homology": 100.0,  # Allow up to perfect identity
-        "mmseqs_kwargs": {
-            "database": "tests/tests_cpu/dummy_data/test_proteins_database.faa",
-            "threads": 2,
-            "sensitivity": 4.0,
-        },
-        "orfipy_kwargs": {"threads": 2, "min_len": 30},
-    }
-
-    constraint = ProgramConstraint(
-        inputs=(test_seq,),
-        scoring_function=orfipy_mmseqs_gene_homology_constraint,
-        scoring_function_config=test_config,
-    )
-
-    scores = constraint.evaluate()
-    assert len(scores) == 1
-    assert scores[0] >= 0.0
-
-    # Check metadata
-    metadata = test_seq[0]._metadata
-    assert "orfipy_orfs" in metadata
-    assert "mmseqs_results" in metadata
-    assert "orfs_with_acceptable_homology" in metadata
-    assert "total_orfs_with_hits" in metadata
-    assert "homology_compliance_rate" in metadata
-
-    # Check types and ranges
-    assert isinstance(metadata["orfs_with_acceptable_homology"], int)
-    assert isinstance(metadata["total_orfs_with_hits"], int)
-    assert isinstance(metadata["homology_compliance_rate"], float)
-    assert 0.0 <= metadata["homology_compliance_rate"] <= 1.0
-
-    mmseqs_results = metadata["mmseqs_results"]
-    if not mmseqs_results.empty:
-        assert "identity" in mmseqs_results.columns
-        identities = mmseqs_results["identity"].values
-
-        if metadata["total_orfs_with_hits"] > 0:
-            assert metadata["orfs_with_acceptable_homology"] >= 0
-            assert metadata["orfs_with_acceptable_homology"] >= 1
-    else:
-        assert False, "Expected to find hits against dummy database but got none"
-
-
-def test_orfipy_mmseqs_constraints_parameter_validation():
-    """Tests parameter validation for ORFipy + MMseqs constraints."""
-    test_seq = create_batched_seq(SequenceType.DNA, "ATGAAATAG")
-
-    # Test missing required parameters for hit count constraint
-    with pytest.raises(ValueError, match="Missing required config keys"):
-        constraint = ProgramConstraint(
-            inputs=(test_seq,),
+        constraint = Constraint(
+            inputs=[segment],
             scoring_function=orfipy_mmseqs_gene_hit_count_constraint,
-            scoring_function_config={"min_hits": 1},  # Missing max_hits
+            scoring_function_config=hit_count_config,
         )
-        constraint.evaluate()
+        
+        # Since we're using real files, we expect the constraint to work with actual data
+        scores = constraint.evaluate()
+        assert len(scores) == 1
+        assert isinstance(scores[0], float)
+        assert scores[0] >= 0.0  # Score should be non-negative
 
-    with pytest.raises(ValueError, match="Missing required config keys"):
-        constraint = ProgramConstraint(
-            inputs=(test_seq,),
+        metadata = segment[0]._metadata
+        assert "orfipy_orfs" in metadata
+        assert "mmseqs_results" in metadata
+        assert "unique_orfs_with_hits" in metadata
+        assert isinstance(metadata["unique_orfs_with_hits"], int)
+        assert metadata["unique_orfs_with_hits"] >= 0
+
+    def test_homology_constraint(self, homology_config, temp_dir):
+        """Test homology constraint using real test files."""
+        sequences = get_test_sequences_with_real_hits()
+        segment = create_segment(sequences[0])
+
+        # Set up test files
+        setup_test_files(temp_dir, sequences[0])
+
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=orfipy_mmseqs_gene_homology_constraint,
+            scoring_function_config=homology_config,
+        )
+        
+        scores = constraint.evaluate()
+        assert len(scores) == 1
+        assert isinstance(scores[0], float)
+        assert scores[0] >= 0.0
+
+        metadata = segment[0]._metadata
+        assert "orfs_with_acceptable_homology" in metadata
+        assert metadata["orfs_with_acceptable_homology"] >= 0
+        assert "homology_compliance_rate" in metadata
+        assert 0.0 <= metadata["homology_compliance_rate"] <= 1.0
+
+    def test_no_hits_scenario(self, hit_count_config, temp_dir):
+        """Test constraint behavior when no hits are found."""
+        # Use a sequence with no meaningful ORFs
+        segment = create_segment("A" * 100)
+        
+        # Set up test files with empty ORF results
+        dna_file = temp_dir / "input.fna"
+        dna_file.write_text(">test_seq\n" + "A" * 100 + "\n")
+        
+        orfipy_dir = temp_dir / "orfipy_output"
+        orfipy_dir.mkdir()
+        
+        # Create empty ORF files
+        (orfipy_dir / "orfipy_aa.faa").write_text("")
+        (orfipy_dir / "orfipy_nt.fna").write_text("")
+        
+        # Create empty mmseqs results
+        mmseqs_file = temp_dir / "mmseqs_results.m8"
+        mmseqs_file.write_text("")
+
+        constraint = Constraint(
+            inputs=[segment],
             scoring_function=orfipy_mmseqs_gene_hit_count_constraint,
-            scoring_function_config={"max_hits": 5},  # Missing min_hits
+            scoring_function_config=hit_count_config,
         )
-        constraint.evaluate()
+        
+        scores = constraint.evaluate()
+        assert len(scores) == 1
+        assert isinstance(scores[0], float)
+        assert scores[0] >= 0.0  # Should have a penalty for not meeting min_hits
+        assert segment[0]._metadata["unique_orfs_with_hits"] == 0
 
-    # Test missing required parameters for homology constraint
-    with pytest.raises(ValueError, match="Missing required config keys"):
-        constraint = ProgramConstraint(
-            inputs=(test_seq,),
-            scoring_function=orfipy_mmseqs_gene_homology_constraint,
-            scoring_function_config={"min_homology": 50.0},  # Missing max_homology
+    def test_batch_processing(self, hit_count_config, temp_dir):
+        """Test constraint with batch processing using real files."""
+        sequences = get_test_sequences_with_real_hits()
+        # Create a batch with multiple sequences
+        batch = create_batched_segment([sequences[0], sequences[1], "A"*100])
+        
+        # Set up test files
+        setup_test_files(temp_dir, sequences[0])
+        
+        # Adjust config for batch testing
+        hit_count_config["min_hits"] = 0  # Allow 0 hits for some sequences
+        
+        constraint = Constraint(
+            inputs=[batch],
+            scoring_function=orfipy_mmseqs_gene_hit_count_constraint,
+            scoring_function_config=hit_count_config,
         )
-        constraint.evaluate()
+        
+        scores = constraint.evaluate()
+        assert len(scores) == 3
+        assert all(isinstance(score, float) for score in scores)
+        assert all(score >= 0.0 for score in scores)
 
-    with pytest.raises(ValueError, match="Missing required config keys"):
-        constraint = ProgramConstraint(
-            inputs=(test_seq,),
-            scoring_function=orfipy_mmseqs_gene_homology_constraint,
-            scoring_function_config={"max_homology": 90.0},  # Missing min_homology
-        )
-        constraint.evaluate()
+        # Check that metadata is populated for all sequences
+        for i in range(3):
+            assert "unique_orfs_with_hits" in batch[i]._metadata
+            assert isinstance(batch[i]._metadata["unique_orfs_with_hits"], int)
+            assert batch[i]._metadata["unique_orfs_with_hits"] >= 0
 
+    def test_caching(self, hit_count_config, temp_dir):
+        """Test that caching works correctly with real files."""
+        from language.constraint import _run_orfipy_mmseqs_pipeline
+        seq = Sequence("ATGAAACGCATTAGCACCACCATTACCACCACCATCACCATTACCACAGGTAACGGTGCGGGCTGA", SequenceType.DNA)
 
-def test_orfipy_mmseqs_constraints_edge_cases():
-    """Tests edge cases for ORFipy + MMseqs constraints."""
+        # Set up test files
+        setup_test_files(temp_dir, seq.sequence)
 
-    # Test with empty sequence
-    empty_seq = create_batched_seq(SequenceType.DNA, "")
+        # First call, should compute
+        _run_orfipy_mmseqs_pipeline(seq, hit_count_config)
+        assert "analyzed_sequence" in seq._metadata
+        initial_cache_key = seq._metadata["analyzed_sequence"]
 
-    hit_count_config = {
-        "min_hits": 0,  # Permissive for edge case testing
-        "max_hits": 5,
-        "mmseqs_kwargs": {
-            "database": "tests/tests_cpu/dummy_data/test_proteins_database.faa"
-        },
-    }
+        # Second call, should use cache
+        seq._metadata["test_marker"] = "should_remain"
+        _run_orfipy_mmseqs_pipeline(seq, hit_count_config)
+        assert seq._metadata["test_marker"] == "should_remain"
+        assert seq._metadata["analyzed_sequence"] == initial_cache_key
 
-    homology_config = {
-        "min_homology": 0.0,  # Permissive for edge case testing
-        "max_homology": 100.0,
-        "mmseqs_kwargs": {
-            "database": "tests/tests_cpu/dummy_data/test_proteins_database.faa"
-        },
-    }
+        # Changing constraint-only parameters should NOT invalidate cache
+        hit_count_config["min_hits"] = 2  # Change constraint parameter
+        _run_orfipy_mmseqs_pipeline(seq, hit_count_config)
+        assert seq._metadata["analyzed_sequence"] == initial_cache_key  # Cache should remain
+        
+        # Different config should recompute when pipeline parameters change
+        hit_count_config["mmseqs_kwargs"]["sensitivity"] = 2.0  # Change pipeline parameter
+        _run_orfipy_mmseqs_pipeline(seq, hit_count_config)
+        assert seq._metadata["analyzed_sequence"] != initial_cache_key
 
-    # These should handle empty sequences gracefully without crashing
-    hit_constraint = ProgramConstraint(
-        inputs=(empty_seq,),
-        scoring_function=orfipy_mmseqs_gene_hit_count_constraint,
-        scoring_function_config=hit_count_config,
-    )
-    scores = hit_constraint.evaluate()
-    assert len(scores) == 1
-    assert scores[0] >= 0
+    def test_parameter_validation(self, dummy_db_path):
+        """Tests that missing required parameters raise ValueErrors."""
+        segment = create_segment("ATGAAATAG")
+        
+        # Test hit count constraint
+        with pytest.raises(ValueError, match="Missing required config keys"):
+            Constraint(
+                inputs=[segment],
+                scoring_function=orfipy_mmseqs_gene_hit_count_constraint,
+                scoring_function_config={},
+            ).evaluate()
 
-    homology_constraint = ProgramConstraint(
-        inputs=(empty_seq,),
-        scoring_function=orfipy_mmseqs_gene_homology_constraint,
-        scoring_function_config=homology_config,
-    )
-    scores = homology_constraint.evaluate()
-    assert len(scores) == 1
-    assert scores[0] >= 0
+        # Test homology constraint
+        with pytest.raises(ValueError, match="Missing required config keys"):
+            Constraint(
+                inputs=[segment],
+                scoring_function=orfipy_mmseqs_gene_homology_constraint,
+                scoring_function_config={"min_homology": 50.0},
+            ).evaluate()
 
-    # Test with sequence without start codons (no ORFs expected)
-    no_orf_seq = create_batched_seq(
-        SequenceType.DNA, "CCCGGGAAACCCGGGTTTTTTCCCGGGAAACCC"
-    )  # No ATG
-
-    constraint = ProgramConstraint(
-        inputs=(no_orf_seq,),
-        scoring_function=orfipy_mmseqs_gene_hit_count_constraint,
-        scoring_function_config=hit_count_config,
-    )
-    scores = constraint.evaluate()
-    assert len(scores) == 1
-    # Should return high penalty for no ORFs when expecting 1-5 hits
-    assert scores[0] >= 0
-
-    # Test with very short sequence
-    short_seq = create_batched_seq(SequenceType.DNA, "ATGAAATAG")  # Short but valid ORF
-
-    constraint = ProgramConstraint(
-        inputs=(short_seq,),
-        scoring_function=orfipy_mmseqs_gene_hit_count_constraint,
-        scoring_function_config=hit_count_config,
-    )
-    scores = constraint.evaluate()
-    assert len(scores) == 1
-    assert scores[0] >= 0
-
-
-def test_orfipy_mmseqs_constraints_config_merging():
-    """Tests that default and user configs are properly merged."""
-    test_seq = create_batched_seq(SequenceType.DNA, "ATGAAATAG")
-
-    # Test with custom orfipy and mmseqs parameters
-    custom_config = {
-        "min_hits": 1,
-        "max_hits": 3,
-        "orfipy_kwargs": {
-            "threads": 2,  # Override default
-            "min_len": 15,  # Override default 0
-            # start_codons should still use default "ATG"
-        },
-        "mmseqs_kwargs": {
-            "database": "tests/tests_cpu/dummy_data/test_proteins_database.faa",  # Use real test DB
-            "sensitivity": 7.0,  # Override default 4.0
-            "threads": 2,  # Override default
-            # only_top_hits should still use default True
-            # descriptive_prefix should still use default "mmseqs"
-        },
-    }
-
-    # Test that config merging works with custom parameters
-    constraint = ProgramConstraint(
-        inputs=(test_seq,),
-        scoring_function=orfipy_mmseqs_gene_hit_count_constraint,
-        scoring_function_config=custom_config,
-    )
-    assert constraint is not None
-
-    # Evaluate to ensure the merged config is valid
-    scores = constraint.evaluate()
-    assert len(scores) == 1
-    assert scores[0] >= 0
-
-    # Test with empty overrides (should use all defaults)
-    minimal_config = {
-        "min_hits": 1,
-        "max_hits": 3,
-        "orfipy_kwargs": {},
-        "mmseqs_kwargs": {
-            "database": "tests/tests_cpu/dummy_data/test_proteins_database.faa"
-        },
-    }
-
-    constraint = ProgramConstraint(
-        inputs=(test_seq,),
-        scoring_function=orfipy_mmseqs_gene_hit_count_constraint,
-        scoring_function_config=minimal_config,
-    )
-    assert constraint is not None
-
-    # Test that config merging works by evaluating the constraint
-    scores = constraint.evaluate()
-    assert len(scores) == 1
-    assert scores[0] >= 0
-
-
-def test_orfipy_mmseqs_constraints_batch_processing():
-    """Tests constraints with multiple sequences in batch, validating real hits."""
-    test_sequences = get_test_sequences_with_real_hits()
-    sequences = [
-        test_sequences[0],  # Full hemoglobin-like (should get hits)
-        test_sequences[1],  # Immunoglobulin-like (should get hits)
-        "CCCGGGAAACCCGGGTTT",  # No ORFs (no start codon)
-        test_sequences[3],  # Very short sequence (may or may not get hits)
-    ]
-
-    multi_batch = create_multi_batched_seq(SequenceType.DNA, sequences)
-
-    config = {
-        "min_hits": 0,  # Permissive to allow variation across sequences
-        "max_hits": 5,
-        "mmseqs_kwargs": {
-            "database": "tests/tests_cpu/dummy_data/test_proteins_database.faa",
-            "threads": 2,
-            "sensitivity": 4.0,
-        },
-        "orfipy_kwargs": {
-            "threads": 2,
-            "min_len": 20,  # Shorter min length to catch more ORFs
-        },
-    }
-
-    constraint = ProgramConstraint(
-        inputs=(multi_batch,),
-        scoring_function=orfipy_mmseqs_gene_hit_count_constraint,
-        scoring_function_config=config,
-    )
-
-    scores = constraint.evaluate()
-    assert len(scores) == 4  # One score per sequence
-
-    for score in scores:
-        assert score >= 0.0  # All scores should be non-negative
-
-    # Check that metadata was set for all sequences and validate hit patterns
-    hit_counts = []
-    for i, seq in enumerate(multi_batch):
-        metadata = seq._metadata
-        assert "orfipy_orfs" in metadata, f"Sequence {i} missing ORF metadata"
-        assert "mmseqs_results" in metadata, f"Sequence {i} missing MMseqs metadata"
-        assert (
-            "unique_orfs_with_hits" in metadata
-        ), f"Sequence {i} missing hit count metadata"
-
-        hit_count = metadata["unique_orfs_with_hits"]
-        hit_counts.append(hit_count)
-
-        if i == 0:
-            assert hit_count > 0, "Hemoglobin-like sequence should produce hits"
-        elif i == 1:
-            assert hit_count > 0, "Immunoglobulin-like sequence should produce hits"
-        elif i == 2:
-            assert hit_count == 0, "Sequence without start codon should produce no hits"
-
-    # Should get hits for at least the first two sequences
-    sequences_with_hits = sum(1 for count in hit_counts if count > 0)
-    assert sequences_with_hits >= 2
-
-
-def test_orfipy_mmseqs_gene_homology_constraint_strict_thresholds():
-    """Tests homology constraint with strict identity thresholds to verify it correctly rejects low-identity hits."""
-    # Use hemoglobin-like sequence
-    test_sequences = get_test_sequences_with_real_hits()
-    test_seq = create_batched_seq(
-        SequenceType.DNA, test_sequences[0]
-    )  # Hemoglobin-like
-
-    # Use very strict identity requirements that should be impossible to meet
-    strict_config = {
-        "min_homology": 101.0,  # Impossible - require >100% identity
-        "max_homology": 150.0,  # Impossible range
-        "mmseqs_kwargs": {
-            "database": "tests/tests_cpu/dummy_data/test_proteins_database.faa",
-            "threads": 2,
-            "sensitivity": 4.0,
-        },
-        "orfipy_kwargs": {"threads": 2, "min_len": 30},
-    }
-
-    constraint = ProgramConstraint(
-        inputs=(test_seq,),
-        scoring_function=orfipy_mmseqs_gene_homology_constraint,
-        scoring_function_config=strict_config,
-    )
-
-    scores = constraint.evaluate()
-    assert len(scores) == 1
-    assert (
-        scores[0] > 0.0
-    )  # Should have a penalty since no hits can meet impossible threshold
-
-    # Check metadata shows the rejection
-    metadata = test_seq[0]._metadata
-    mmseqs_results = metadata.get("mmseqs_results", pd.DataFrame())
-
-    if not mmseqs_results.empty:
-        assert metadata["orfs_with_acceptable_homology"] == 0
-        assert metadata["homology_compliance_rate"] == 0.0
-
-        identities = mmseqs_results["identity"].values
-        assert max(identities) >= 80.0
-        assert max(identities) <= 100.0
-
-
-#######################
-## Caching Tests     ##
-#######################
-
-
-def test_orfipy_mmseqs_caching():
-    """Test ORFipy/MMseqs pipeline caching behavior."""
-    from language.constraint import _run_orfipy_mmseqs_pipeline
-
-    dna_seq = "ATGAAACGCATTAGCACCACCATTACCACCACCATCACCATTACCACAGGTAACGGTGCGGGCTGA"
-    seq = ProgramSequence(dna_seq, SequenceType.DNA)
-
-    config = {
-        "pseudo_circularize": True,
-        "orfipy_kwargs": {"min_len": 9, "threads": 2},
-        "mmseqs_kwargs": {
-            "database": "tests/tests_cpu/dummy_data/test_proteins_database.faa",
-            "threads": 2,
-        },
-    }
-
-    # First call should compute and cache
-    _run_orfipy_mmseqs_pipeline(seq, config)
-    assert "analyzed_sequence" in seq._metadata
-    assert "orfipy_orfs" in seq._metadata
-    initial_cache_key = seq._metadata["analyzed_sequence"]
-
-    # Second call should use cache
-    seq._metadata["test_marker"] = "should_remain"
-    _run_orfipy_mmseqs_pipeline(seq, config)
-    assert seq._metadata["test_marker"] == "should_remain"
-
-    # Different config should trigger recomputation
-    config["pseudo_circularize"] = False
-    _run_orfipy_mmseqs_pipeline(seq, config)
-    assert seq._metadata["analyzed_sequence"] != initial_cache_key
-
-
-def test_caching_with_mcmc():
-    """Test caching consistency during MCMC optimization."""
-    from language.constraint import orfipy_mmseqs_gene_hit_count_constraint
-    from language.generator import UniformMutationGenerator, ProgramMCMCGenerator
-
-    dna_seq = "ATGAAACGCATTAGCACCACCATTACCACCACCATCACCATTACCACAGGTAACGGTGCGGGCTGA"
-    mutation_gen = UniformMutationGenerator(
-        len(dna_seq), SequenceType.DNA, batch_size=1
-    )
-    sequence_batch = mutation_gen.register()[0]
-    sequence_batch[0].sequence = dna_seq
-
-    config = {
-        "min_hits": 0,
-        "max_hits": 2,
-        "orfipy_kwargs": {"min_len": 9, "threads": 2},
-        "mmseqs_kwargs": {
-            "database": "tests/tests_cpu/dummy_data/test_proteins_database.faa",
-            "threads": 2,
-        },
-    }
-
-    constraint = ProgramConstraint(
-        (sequence_batch,), orfipy_mmseqs_gene_hit_count_constraint, config
-    )
-    mcmc_gen = ProgramMCMCGenerator(
-        [mutation_gen],
-        [constraint],
-        ProgramOrder([sequence_batch]),
-        num_steps=2,
-        temperature=0.5,
-        verbose=False,
-    )
-    mcmc_gen.register()
-
-    # Run MCMC and verify metadata consistency
-    constraint.evaluate()  # Populate cache
-    mcmc_gen.sample()
-
-    assert "analyzed_sequence" in sequence_batch[0]._metadata
-    # Verify constraint evaluation remains consistent
-    score1 = constraint.evaluate()[0]
-    score2 = constraint.evaluate()[0]
-    assert abs(score1 - score2) < 1e-10

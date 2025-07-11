@@ -1,18 +1,114 @@
+import pytest
 import sys
 
 sys.path.append(".")
+from language.base import ConstructSegment, SequenceType
 from language.generator import Evo2Generator
 
+# Check if Evo2 is available
+try:
+    import evo2
+    EVO2_AVAILABLE = True
+except ImportError:
+    EVO2_AVAILABLE = False
 
-def test_evo2_sampling():
-    prompts = ["ATCG", "AAAA"]
-    evo2_generator = Evo2Generator(prompt_seqs=prompts, n_tokens=100, batch_size=2)
 
-    evo2_outputs = evo2_generator.register()
-    assert len(evo2_outputs) == 1  # Generator returns one BatchedProgramSequence
+def create_segment(
+    sequence: str, seq_type: SequenceType = SequenceType.DNA
+) -> ConstructSegment:
+    """Helper to create a ConstructSegment with a single sequence."""
+    return ConstructSegment(sequence=sequence, sequence_type=seq_type)
 
-    evo2_generator.sample()
 
-    # Check that each individual sequence is not None
-    for i in range(len(prompts)):
-        assert evo2_outputs[0][i].sequence is not None
+@pytest.mark.skipif(
+    not EVO2_AVAILABLE, 
+    reason="Evo2 package required for Evo2 tests"
+)
+class TestEvo2Generator:
+    def test_evo2_single_prompt_sampling(self):
+        """Test Evo2 generator with a single prompt sequence."""
+        prompts = ["ATCG"]
+        evo2_generator = Evo2Generator(
+            prompt_seqs=prompts, 
+            sequence_length=100, 
+            batch_size=1
+        )
+
+        # Create segment and assign to generator
+        segment = create_segment("", seq_type=SequenceType.DNA)
+        evo2_generator.assign(segment)
+        
+        assert evo2_generator._is_initialized
+        assert evo2_generator._generator_output is segment
+        assert segment._is_assigned
+        assert len(segment) == 1
+
+        # Sample and check results
+        evo2_generator.sample()
+        
+        assert segment[0].sequence is not None
+        assert len(segment[0].sequence) > len(prompts[0])  # Should be longer than prompt
+        assert segment[0].sequence_type == SequenceType.DNA
+
+    def test_evo2_batch_sampling(self):
+        """Test Evo2 generator with multiple prompt sequences."""
+        prompts = ["ATCG", "AAAA"]
+        batch_size = len(prompts)
+        evo2_generator = Evo2Generator(
+            prompt_seqs=prompts, 
+            sequence_length=100, 
+            batch_size=batch_size
+        )
+
+        # Create segment and assign to generator
+        segment = create_segment("", seq_type=SequenceType.DNA)
+        evo2_generator.assign(segment)
+        
+        assert evo2_generator._is_initialized
+        assert evo2_generator._generator_output is segment
+        assert segment._is_assigned
+        assert len(segment) == batch_size
+
+        # Sample and check results
+        evo2_generator.sample()
+        
+        # Check that each individual sequence is not None
+        for i in range(batch_size):
+            assert segment[i].sequence is not None
+            assert len(segment[i].sequence) > len(prompts[i])  # Should be longer than prompt
+            assert segment[i].sequence_type == SequenceType.DNA
+
+    def test_evo2_assign_errors(self):
+        """Test error conditions for Evo2 generator assignment."""
+        prompts = ["ATCG"]
+        evo2_generator = Evo2Generator(prompt_seqs=prompts, sequence_length=100)
+        
+        # Should raise error if assigned multiple segments
+        with pytest.raises(ValueError):
+            evo2_generator.assign([create_segment(""), create_segment("")])
+
+    def test_evo2_custom_parameters(self):
+        """Test Evo2 generator with custom generation parameters."""
+        prompts = ["ATCGATCG"]
+        evo2_generator = Evo2Generator(
+            prompt_seqs=prompts,
+            sequence_length=50,
+            temperature=0.8,
+            top_k=10,
+            top_p=0.9,
+            batch_size=1
+        )
+
+        # Create segment and assign to generator
+        segment = create_segment("", seq_type=SequenceType.DNA)
+        evo2_generator.assign(segment)
+        
+        assert evo2_generator.temperature == 0.8
+        assert evo2_generator.top_k == 10
+        assert evo2_generator.top_p == 0.9
+
+        # Sample and check results
+        evo2_generator.sample()
+        
+        assert segment[0].sequence is not None
+        assert segment[0].sequence_type == SequenceType.DNA

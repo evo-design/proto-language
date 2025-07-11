@@ -609,46 +609,6 @@ def protein_globularity_constraint(
     return float(np.std(distances_to_centroid(backbone)))
 
 
-def _pseudo_circularize_sequence(sequence: str) -> str:
-    """
-    Finds the first stop codon but the last relative to the three reading frames in a sequence, and appends
-    the upstream portion before it to the end of the sequence. This process can be called 'pseudo-circularization'.
-
-    Args:
-        sequence: DNA sequence string to pseudo-circularize
-
-    Returns:
-        Pseudo-circularized sequence string
-    """
-
-    def find_last_frame_stop(seq: str) -> int:
-        """Find the first stop codon in each reading frame and return the furthest one (including the stop codon itself)."""
-        stop_codons = ["TAA", "TAG", "TGA"]
-        first_stops = []
-
-        # Check each of the three reading frames
-        for frame in range(3):
-            sub_seq = seq[frame:]  # Start from the current reading frame
-            for i in range(
-                0, len(sub_seq) - 3, 3
-            ):  # Iterate through the sequence in codon steps
-                codon = sub_seq[i : i + 3]
-                if codon in stop_codons:
-                    first_stops.append(i + frame + 3)  # Include the stop codon itself
-                    break  # Stop at the first stop codon in this frame
-
-        # Return the furthest stop codon position (including the stop codon)
-        return (
-            max(first_stops) if first_stops else len(seq)
-        )  # If no stop codon found, return full length
-
-    # Find the last relative stop codon
-    last_stop = find_last_frame_stop(sequence)
-
-    # Append the sequence upstream of the last stop codon to the end of the full sequence
-    return sequence + sequence[:last_stop]
-
-
 def _run_orfipy_mmseqs_pipeline(
     input_sequence: Sequence, config: Dict[str, Any]
 ) -> None:
@@ -660,7 +620,6 @@ def _run_orfipy_mmseqs_pipeline(
         config: Configuration dictionary containing:
             - orfipy_kwargs (dict, optional): Additional ORFipy parameters.
             - mmseqs_kwargs (dict, optional): Additional MMseqs parameters.
-            - pseudo_circularize (bool, optional): Whether to pseudo-circularize the sequence (default: False).
 
     Note:
         Results are cached in input_sequence._metadata to avoid redundant analysis.
@@ -669,17 +628,13 @@ def _run_orfipy_mmseqs_pipeline(
     # Extract ORFipy and MMseqs parameters
     orfipy_kwargs = {**DEFAULT_ORFIPY_PARAMS, **config.get("orfipy_kwargs", {})}
     mmseqs_kwargs = {**DEFAULT_MMSEQS_PARAMS, **config.get("mmseqs_kwargs", {})}
-    pseudo_circularize = config.get("pseudo_circularize", True)
 
     # Create cache key based on sequence and analysis parameters
     sequence_to_analyze = input_sequence.sequence
-    if pseudo_circularize:
-        sequence_to_analyze = _pseudo_circularize_sequence(input_sequence.sequence)
 
     # Create a deterministic cache key from config parameters
     cache_key_parts = [
         sequence_to_analyze,
-        str(pseudo_circularize),
         str(sorted(orfipy_kwargs.items())),
         str(sorted(mmseqs_kwargs.items())),
     ]
@@ -759,7 +714,6 @@ def orfipy_mmseqs_gene_hit_count_constraint(
             - max_hits (int): Maximum acceptable number of unique ORFs with hits.
             - orfipy_kwargs (dict, optional): Additional ORFipy parameters.
             - mmseqs_kwargs (dict, optional): Additional MMseqs parameters.
-            - pseudo_circularize (bool, optional): Whether to pseudo-circularize the sequence (default: False).
 
     Returns:
         Constraint score where 0.0 indicates the hit count is within acceptable range
@@ -802,7 +756,6 @@ def orfipy_mmseqs_gene_homology_constraint(
             - max_homology (float): Maximum acceptable percent identity (0-100) for each ORF.
             - orfipy_kwargs (dict, optional): Additional ORFipy parameters.
             - mmseqs_kwargs (dict, optional): Additional MMseqs parameters.
-            - pseudo_circularize (bool, optional): Whether to pseudo-circularize the sequence (default: True).
 
     Returns:
         Constraint score where 0.0 indicates all ORF homologies are within acceptable range

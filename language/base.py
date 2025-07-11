@@ -319,6 +319,9 @@ class Construct:
                 metadata=merged_metadata,
                 valid_chars=self._valid_chars,
             )
+            # Ensure metadata reflects the concatenated sequence
+            sequence_obj._metadata["sequence"] = concatenated_seq
+            sequence_obj._metadata["sequence_length"] = len(concatenated_seq)
             sequences.append(sequence_obj)
         return tuple(sequences)
 

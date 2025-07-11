@@ -11,7 +11,7 @@ sys.path.append(".")
 import glob
 import pytest
 from Bio import SeqIO
-from language.tools import (
+from language.tools.structure_prediction import (
     predict_structure_esmfold,
     predict_structure_chai1,
     predict_structure_boltz2,
@@ -30,10 +30,31 @@ STRUCTURE_PREDICTORS = {
     "esm3": predict_structure_esm3,
 }
 
+# Check for available dependencies
+def check_dependency(predictor):
+    """Check if dependencies for a predictor are available."""
+    try:
+        if predictor == "esmfold":
+            __import__("transformers")
+        elif predictor == "chai":
+            __import__("chai_lab")
+        elif predictor == "boltz":
+            import shutil
+            if shutil.which("boltz") is None:
+                return False
+        elif predictor == "esm3":
+            __import__("esm.models", fromlist=["esm3"])
+        return True
+    except (ImportError, AttributeError):
+        return False
+
 
 @pytest.mark.parametrize("sequence_file", SEQUENCE_FILES)
 @pytest.mark.parametrize("predictor", STRUCTURE_PREDICTORS.keys())
 def test_folding(sequence_file, predictor):
+    # Skip if dependencies are not available
+    if not check_dependency(predictor):
+        pytest.skip(f"Dependencies for {predictor} not available")
 
     # Read in the sequences in the fasta files as a list of strings
     sequences, entity_types = parse_fasta_examples(sequence_file)
