@@ -866,7 +866,7 @@ class MCMCGenerator(IterativeGenerator):
         ...     temperature=0.5,  # More greedy sampling
         ...     temperature_min=0.001
         ... )
-        >>> history = mcmc.sample()  # Returns optimization history
+        >>> mcmc.sample()
         >>> final_constructs = mcmc.constructs
     """
 
@@ -939,7 +939,7 @@ class MCMCGenerator(IterativeGenerator):
                 f"temperature_min ({self.temperature_min}) must be less than temperature ({self.temperature}) for annealing to work properly"
             )
 
-    def sample(self) -> Optional[List[Tuple[Construct, ...]]]:
+    def sample(self) -> None:
         """
         Execute Metropolis-Hastings MCMC sampling for sequence optimization.
 
@@ -950,26 +950,20 @@ class MCMCGenerator(IterativeGenerator):
         4. Accepts or rejects based on Metropolis-Hastings criterion
         5. Optionally logs progress and tracks state
 
-        Returns:
-            List of constructs snapshots taken at tracked intervals.
-            Each snapshot contains Construct objects with energy and step metadata.
-
         Note:
-            Temperature annealing is applied with the formula:
-            T(step) = (self.temperature_min / self.temperature) ^ (step / num_steps)
+            - Temperature annealing: T(step) = T_max * (T_min / T_max) ^ (step / num_steps)
+            - Snapshots of constructs at tracked timesteps are stored in self.history.
         """
         # Initialize MCMC states
         energies = self.score_energy()
         current_best_energy = np.min(energies)
         current_best_idx = np.argmin(energies)
-        sequence_history = [copy.deepcopy(self.constructs)]
+        self.history.append(copy.deepcopy(self.constructs))
 
         # Execute MCMC optimization steps
         for step in range(1, self.num_steps + 1):
             self.current_step = step
-            cur_temp = (self.temperature_min / self.temperature) ** (
-                step / self.num_steps
-            )
+            cur_temp = self.temperature * (self.temperature_min / self.temperature) ** (step / self.num_steps)
 
             # Execute single MCMC step
             current_best_energy, current_best_idx = self._execute_mcmc_step(
@@ -978,9 +972,11 @@ class MCMCGenerator(IterativeGenerator):
 
             # Track progress periodically
             if step % self.track_step_size == 0:
-                sequence_history.append(copy.deepcopy(self.constructs))
-
-        return sequence_history
+                self.history.append(copy.deepcopy(self.constructs))
+        
+        # Always store final state, even if not a tracked step
+        if self.num_steps % self.track_step_size != 0:
+            self.history.append(copy.deepcopy(self.constructs))
 
     def _execute_mcmc_step(
         self,
@@ -1149,12 +1145,12 @@ class SequentialGenerator(IterativeGenerator):
         ...     temperature=0.8,  # Accept/reject after all generators
         ...     temperature_min=0.001
         ... )
-        >>> history = sequential.sample()  # Returns optimization history
+        >>> sequential.sample()
         >>> final_sequences = sequential.constructs
 
     Notes:
         - Final sequences: initial_prompt + gen1_output + gen2_output + ...
-        - Temperature annealing: T(step) = (T_min / T_max) ^ (step / num_steps)
+        - Temperature annealing: T(step) = T_max * (T_min / T_max) ^ (step / num_steps)
     """
 
     def __init__(
@@ -1230,7 +1226,7 @@ class SequentialGenerator(IterativeGenerator):
                 f"temperature_min ({self.temperature_min}) must be less than temperature ({self.temperature}) for annealing to work properly"
             )
 
-    def sample(self) -> List[Tuple[Construct, ...]]:
+    def sample(self) -> None:
         """
         Execute sequential sampling with chained autoregressive generators.
 
@@ -1238,19 +1234,17 @@ class SequentialGenerator(IterativeGenerator):
         (2) evaluates energy change, (3) accepts/rejects based on Metropolis-Hastings
         with temperature annealing.
 
-        Returns:
-            List of constructs snapshots taken at tracked intervals.
-            Each snapshot contains Construct objects with energy and step metadata.
+        Snapshots of constructs at tracked timesteps are stored in self.history.
         """
         # Initialize sequential states
         old_energies = self.score_energy()
         current_best_energy = np.min(old_energies)
-        sequence_history = [copy.deepcopy(self.constructs)]
+        self.history.append(copy.deepcopy(self.constructs))
 
         # Execute sequential optimization steps
         for step in range(1, self.num_steps + 1):
             self.current_step = step
-            cur_temp = (self.temperature_min / self.temperature) ** (
+            cur_temp = self.temperature * (self.temperature_min / self.temperature) ** (
                 step / self.num_steps
             )
 
@@ -1261,8 +1255,11 @@ class SequentialGenerator(IterativeGenerator):
 
             # Track progress periodically
             if step % self.track_step_size == 0:
-                sequence_history.append(copy.deepcopy(self.constructs))
-        return sequence_history
+                self.history.append(copy.deepcopy(self.constructs))
+        
+        # Always capture final state if it wasn't already captured
+        if self.num_steps % self.track_step_size != 0:
+            self.history.append(copy.deepcopy(self.constructs))
 
     def _execute_sequential_step(
         self, step: int, cur_temp: float, current_best_energy: float

@@ -156,12 +156,11 @@ program = Program(
     track_step_size=TRACK_EVERY,
 )
 
-sequence_history = program.run()
+program.run()
 
 # Outputs
-last_sequence_history: Tuple[Construct, ...] = sequence_history[-1]
-last_construct: Construct = last_sequence_history[0]
-last_sequence_batch: Tuple[Sequence, ...] = last_construct.batch_sequences
-last_sequence: Sequence = last_sequence_batch[0]
+final_construct: Construct = program.constructs[0]
+final_sequence_batch: Tuple[Sequence, ...] = final_construct.batch_sequences
+final_sequence: Sequence = final_sequence_batch[0]
 print("---------FINAL SEQUENCE------------")
-print(last_sequence)
+print(final_sequence)

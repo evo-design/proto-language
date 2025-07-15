@@ -629,8 +629,8 @@ def _run_orfipy_mmseqs_pipeline(
     orfipy_kwargs = {**DEFAULT_ORFIPY_PARAMS, **config.get("orfipy_kwargs", {})}
     mmseqs_kwargs = {**DEFAULT_MMSEQS_PARAMS, **config.get("mmseqs_kwargs", {})}
 
-    # Create cache key based on sequence and analysis parameters
-    sequence_to_analyze = input_sequence.sequence
+    # Preprocess sequence by removing all characters that are not ACTG
+    sequence_to_analyze = ''.join(char for char in input_sequence.sequence.upper() if char in 'ACTG')
 
     # Create a deterministic cache key from config parameters
     cache_key_parts = [

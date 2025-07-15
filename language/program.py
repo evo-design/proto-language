@@ -24,7 +24,7 @@ class Program:
         ...     temperature=1.0,
         ...     temperature_min=0.001
         ... )
-        >>> history = program.run()  # Execute optimization
+        >>> program.run()  # Execute optimization
         >>> final_sequences = program.constructs
     """
 
@@ -57,6 +57,7 @@ class Program:
         self.generators = generators
         self.constraints = constraints
         self.constraint_weights = constraint_weights
+        self.history = []
         self.kwargs = kwargs
 
         # Validate before instantiation to catch errors early
@@ -93,44 +94,33 @@ class Program:
                 f"Available options include MCMCGenerator, SequentialGenerator."
             )
 
-    def run(self) -> List[Tuple[Construct, ...]]:
+    def run(self) -> None:
         """
-        Execute the sequence optimization process and return the optimization history.
+        Execute the sequence optimization process and stores the optimization history in self.history.
 
         Prints initial and final sequence states and energies for monitoring progress.
         The actual optimization is performed by the underlying IterativeGenerator.
-
-        Returns:
-            List of constructs snapshots taken at tracked intervals during optimization.
-            Each element represents the state at a specific step.
         """
 
-        # TODO: Update how we print batched sequences. Currently, we print the first sequence in the batch.
-        # Get initial state for printing
-        initial_sequences = [
-            construct.batch_sequences[0].sequence for construct in self.constructs
-        ]
-        initial_energies = [
-            construct.batch_sequences[0]._metadata["energy_score"]
-            for construct in self.constructs
-        ]
-
-        print(f"Initial sequences: {initial_sequences}")
-        print(f"Initial energies: {initial_energies}")
+        # Print initial sequences and energies for all batch elements
+        print("Initial constructs for all batch elements:")
+        for construct_idx, construct in enumerate(self.constructs):
+            print(f"  Construct {construct_idx}:")
+            for batch_idx, batch_sequence in enumerate(construct.batch_sequences):
+                sequence = batch_sequence.sequence
+                energy = batch_sequence._metadata["energy_score"]
+                print(f"    Batch {batch_idx}: {sequence} (energy: {energy})")
 
         # Run iterative generation
-        sequence_history = self.ebm.sample()
+        self.ebm.sample()
 
-        # Get the final sequences (constructs property will have updated automatically)
-        final_sequences = [
-            construct.batch_sequences[0].sequence for construct in self.constructs
-        ]
-        final_energies = [
-            construct.batch_sequences[0]._metadata["energy_score"]
-            for construct in self.constructs
-        ]
-
-        print(f"Final sequences: {final_sequences}")
-        print(f"Final energies: {final_energies}")
-
-        return sequence_history
+        # Print final sequences and energies for all batch elements
+        print("Final constructs for all batch elements:")
+        for construct_idx, construct in enumerate(self.constructs):
+            print(f"  Construct {construct_idx}:")
+            for batch_idx, batch_sequence in enumerate(construct.batch_sequences):
+                sequence = batch_sequence.sequence
+                energy = batch_sequence._metadata["energy_score"]
+                print(f"    Batch {batch_idx}: {sequence} (energy: {energy})")
+        
+        self.history = self.ebm.history

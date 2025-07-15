@@ -118,11 +118,11 @@ program = Program(
     custom_logging=custom_logging,
 )
 
-sequence_history = program.run()
+program.run()
 
 with open("design.pdb", "w") as f:
-    last_snapshot: Tuple[Construct, ...] = sequence_history[-1]
-    last_construct: Construct = last_snapshot[0]
-    last_sequence_batch: Tuple[Sequence, ...] = last_construct.batch_sequences
-    last_sequence: Sequence = last_sequence_batch[0]
-    f.write(last_sequence._metadata["pdb_output"] + "\n")
+    # Outputs
+    final_construct: Construct = program.constructs[0]
+    final_sequence_batch: Tuple[Sequence, ...] = final_construct.batch_sequences
+    final_sequence: Sequence = final_sequence_batch[0]
+    f.write(final_sequence._metadata["pdb_output"] + "\n")

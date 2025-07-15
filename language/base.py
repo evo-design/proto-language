@@ -579,16 +579,12 @@ class Generator(ABC):
         )
 
     @abstractmethod
-    def sample(self, **kwargs: Any) -> Optional[List[Tuple[Construct, ...]]]:
+    def sample(self, **kwargs: Any) -> None:
         """
         Sample new sequences by modifying generator outputs in-place.
 
         Args:
             **kwargs: Keyword arguments for sampling (subclass-specific).
-
-        Returns:
-            None if the generator is not an IterativeGenerator.
-            List of snapshots of constructs if the generator is an IterativeGenerator.
 
         Raises:
             RuntimeError: If called before assign() has been called.
@@ -596,8 +592,6 @@ class Generator(ABC):
 
         Note:
             This method should modify sequences in-place for efficiency.
-            It does not return anything - the changes are reflected in
-            self._generator_output or self._generator_outputs.
         """
         raise NotImplementedError("Subclasses must implement the sample method.")
 
@@ -665,6 +659,7 @@ class IterativeGenerator(Generator):
         self.constraints = constraints
         self.constraint_weights = constraint_weights or [1.0] * len(constraints)
         self.current_step = 0
+        self.history: List[Tuple[Construct, ...]] = []
 
         # Set self._generator_outputs to be a flat tuple of all ConstructSegment objects from all sub-generators
         self._generator_outputs = tuple(
@@ -790,28 +785,19 @@ class IterativeGenerator(Generator):
                 sequence._metadata = best_sequence._metadata.copy()
 
     @abstractmethod
-    def sample(self, **kwargs: Any) -> Optional[List[Tuple[Construct, ...]]]:
+    def sample(self, **kwargs: Any) -> None:
         """
-        Run iterative generation and return optimization history.
+        Run one or more steps of iterative generation.
 
-        Unlike the base Generator.sample() which returns None, this method
-        returns a history of constructs (Tuple[Construct, ...]) snapshots taken
-        at tracked intervals during the optimization process.
+        Subclasses should implement this method to run the generation process.
+        Implementations should modify generator outputs in-place and may store
+        snapshots of constructs in `self.history`.
 
         Args:
             **kwargs: Keyword arguments for sampling (subclass-specific).
 
-        Returns:
-            List of constructs snapshots taken at tracked steps. Each element
-            is a tuple of Construct objects with energy and time metadata.
-
         Raises:
-            RuntimeError: If called before assign() has been called.
             NotImplementedError: If not implemented by subclass.
-
-        Note:
-            The returned history allows tracking optimization progress over time.
-            The final state is also accessible via the constructs property.
         """
         raise NotImplementedError("Subclasses must implement the sample method.")
 

@@ -254,7 +254,7 @@ class TestMCMCGenerator:
         assert abs(energy_add - 0.5) < 1e-9
         assert abs(energy_mul - 0.5) < 1e-9
 
-    def test_sample_improves_score(self):
+    def test_sample_history(self):
         """Tests that sampling can improve the energy score over time."""
         # Use a restrictive constraint to guide optimization
         mcmc_gen, _, _, segment = _setup_mcmc_components(
@@ -269,11 +269,11 @@ class TestMCMCGenerator:
         assert initial_energy > 0.99 # Should be max penalty (1.0)
         
         # Sample and check for improvement
-        history = mcmc_gen.sample()
+        mcmc_gen.sample()
         final_energy = mcmc_gen.score_energy()[0]
         
         assert final_energy < initial_energy
-        assert len(history) > 1 # Check that history is being tracked
+        assert len(mcmc_gen.history) > 1 # Check that history is being tracked
 
     def test_multiple_constraints(self):
         """Tests the MCMC generator with multiple constraints and weights."""
