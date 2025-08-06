@@ -1,0 +1,48 @@
+{
+    "name": "evo2_single_construct_gc_constraint",
+    "description": "Generate a single DNA sequence with Evo2 generator and GC content constraint",
+    "version": "1.0",
+    "optimization": {
+        "method": "mcmc",
+        "steps": 10,
+        "track_step_size": 1,
+        "temperature": 1.0
+    },
+    "constructs": [
+      {
+        "id": "construct1",
+        "type": "dna",
+        "segments": [
+          {
+            "id": "construct1-segment1"
+          }
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "id": "gc_content_constraint",
+        "key": "gc-content",
+        "config": {
+          "min_gc": 90,
+          "max_gc": 100
+        },
+        "targets": ["construct1-segment1"]
+      }
+    ],
+    "generators": [
+      {
+        "id": "evo2_generator",
+        "key": "evo2",
+        "config": {
+          "prompt_seqs": ["ATCG"],
+          "evo2_type": "evo2_7b",
+          "sequence_length": 100,
+          "temperature": 0.8,
+          "batch_size": 1,
+          "prepend_prompt": true
+        },
+        "targets": ["construct1-segment1"]
+      }
+    ]
+  }
