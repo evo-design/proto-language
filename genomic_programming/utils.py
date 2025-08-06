@@ -130,7 +130,8 @@ def _is_cloud_available() -> bool:
         # Try creating a simple app to test authentication
         cloud.App('test-auth')
         return True
-    except (ImportError, Exception):
+    except (ImportError, Exception) as e:
+        print(f"cloud not available: {e}")
         return False
 
 

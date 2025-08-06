@@ -3,7 +3,7 @@ Test configuration and fixtures for the proto-language test suite.
 """
 
 import pytest
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import Mock, patch
 from uuid import uuid4
 
 
@@ -47,7 +47,7 @@ def mock_redis():
 def mock_database():
     """Mock database dependencies for tests."""
     # Mock the database session
-    mock_session = AsyncMock()
+    mock_session = Mock()
     
     # Mock SQLAlchemy text execution for health check
     mock_result = Mock()
@@ -68,15 +68,15 @@ def mock_database():
     mock_run.result = None
     mock_run.error_message = None
     
-    # Mock session dependency  
-    async def mock_get_session():
+    # Mock session dependency (generator function, not async)
+    def mock_get_session():
         yield mock_session
     
-    # Mock DatabaseManager methods
-    with patch("api.database.DatabaseManager.create_run", new_callable=AsyncMock, return_value=mock_run), \
-         patch("api.database.DatabaseManager.get_run", new_callable=AsyncMock, return_value=mock_run), \
-         patch("api.database.DatabaseManager.update_run", new_callable=AsyncMock, return_value=mock_run), \
-         patch("api.database.DatabaseManager.get_timepoints", new_callable=AsyncMock, return_value=[]), \
+    # Mock DatabaseManager methods (now sync, not async)
+    with patch("api.database.DatabaseManager.create_run", return_value=mock_run), \
+         patch("api.database.DatabaseManager.get_run", return_value=mock_run), \
+         patch("api.database.DatabaseManager.update_run", return_value=mock_run), \
+         patch("api.database.DatabaseManager.get_timepoints", return_value=[]), \
          patch("api.main.get_session", side_effect=mock_get_session), \
-         patch("api.main.create_db_and_tables", new_callable=AsyncMock):
+         patch("api.main.create_db_and_tables"):
         yield mock_session

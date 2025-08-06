@@ -27,7 +27,9 @@ dependencies = [
     "matplotlib>=3.7.0",
     "seaborn>=0.13.0",
     "requests>=2.31.0",
+    "httpx>=0.25.0",
     "huggingface_hub>=0.16.0",
+ 
     # API dependencies
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
@@ -56,7 +58,7 @@ gpu = [
     "boltz==0.4.1",
     "chai_lab==0.6.1",
     "esm @ git+https://github.com/facebookresearch/esm.git",
-]
+    ]
 
 # Development dependencies
 dev = [

@@ -8,12 +8,6 @@ from proto_language.generator import ESM2Generator
 # Check if GPU is available and required dependencies are installed
 from proto_language.utils import is_gpu_available
 
-try:
-    import biotite.structure
-    BIOTITE_AVAILABLE = True
-except ImportError:
-    BIOTITE_AVAILABLE = False
-
 
 def create_segment(
     sequence: str, seq_type: SequenceType = SequenceType.PROTEIN
@@ -23,8 +17,8 @@ def create_segment(
 
 
 @pytest.mark.skipif(
-    not is_gpu_available() or not BIOTITE_AVAILABLE, 
-    reason="GPU and biotite required for ESM2 tests"
+    not is_gpu_available(), 
+    reason="GPU required for ESM2 tests"
 )
 class TestESM2Generator:
     def test_esm2_entropy_sampling(self):
