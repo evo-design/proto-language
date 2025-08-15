@@ -26,18 +26,32 @@ class UniformMutationGenerator(Generator):
         >>> segment = ConstructSegment(sequence="ATCGG", sequence_type=SequenceType.DNA)
         >>> gen = UniformMutationGenerator(
         ...     batch_size=5,
-        ...     sequence_length=5
+        ...     sequence_length=5,
+        ...     num_mutations=2
         ... )
         >>> gen.assign(segment)
-        >>> gen.sample()  # Introduces random mutations
+        >>> gen.sample()  # Introduces 2 random mutations
         >>> outputs = gen.get_generator_outputs()
         >>> len(outputs[0])  # 5 (batch size)
+
+        Note: Using a mutation scheduler. Define a function that takes the iteration count 
+            and returns the number of mutations.
+        
+        >>> def mutation_scheduler(iteration: int) -> int:
+        ...     return max(1, 10 - iteration // 10)  # Decrease mutations over time
+        >>> gen = UniformMutationGenerator(
+        ...     batch_size=5,
+        ...     sequence_length=100,
+        ...     mutation_scheduler=mutation_scheduler
+        ... )
     """
 
     def __init__(
         self,
         batch_size: int = 1,
         sequence_length: int = 100,
+        num_mutations: int = 1,
+        mutation_scheduler: Optional[Callable[[int], int]] = None,
     ) -> None:
         """
         Initialize the uniform mutation generator.
@@ -45,9 +59,15 @@ class UniformMutationGenerator(Generator):
         Args:
             batch_size: Number of sequence variants to maintain simultaneously.
             sequence_length: Length of the sequence to generate.
+            num_mutations: Number of mutations to introduce per sequence per sample() call.
+                          Ignored if mutation_scheduler is provided.
+            mutation_scheduler: Optional callable that takes iteration count and returns
+                              number of mutations. If provided, overrides num_mutations.
         """
         super().__init__(batch_size=batch_size)
         self.sequence_length = sequence_length
+        self.num_mutations = num_mutations
+        self.mutation_scheduler = mutation_scheduler
 
     def assign(
         self, assigned_segments: ConstructSegment | Iterable[ConstructSegment]
@@ -90,32 +110,52 @@ class UniformMutationGenerator(Generator):
 
     def sample(self) -> None:
         """
-        Introduce a random point mutation in each sequence.
+        Introduce random point mutations in each sequence.
 
-        For each sequence in the batch, selects a random position and replaces
-        the character with a different random character from the vocabulary.
+        For each sequence in the batch, selects random positions and replaces
+        the characters with different random characters from the vocabulary.
 
         Raises:
             RuntimeError: If called before assign().
         """
         self._validate_generator()
 
-        # Sample mutation for each output in the segment batch
-        for sequence in self._generator_output.batch_sequences:
-            mutated_index = random.randint(0, len(sequence.sequence) - 1)
-            current_sequence = sequence.sequence
-            current_char = current_sequence[mutated_index]
+        # Determine number of mutations for this iteration
+        if self.mutation_scheduler is not None:
+            current_mutations = self.mutation_scheduler(self.iteration_count)
+        else:
+            current_mutations = self.num_mutations
 
-            # Make sure the mutated character is different from the current one
-            possible_mutations = [
-                c for c in self._generator_output._valid_chars if c != current_char
-            ]
-            mutated_char = random.choice(possible_mutations)
-            sequence.sequence = (
-                current_sequence[:mutated_index]
-                + mutated_char
-                + current_sequence[mutated_index + 1 :]
-            )
+        # Sample mutations for each output in the segment batch
+        for sequence in self._generator_output.batch_sequences:
+            current_sequence = sequence.sequence
+            sequence_length = len(current_sequence)
+            
+            # Ensure we don't try to mutate more positions than available
+            actual_mutations = min(current_mutations, sequence_length)
+            
+            # Select random positions to mutate (without replacement)
+            positions_to_mutate = random.sample(range(sequence_length), actual_mutations)
+            
+            # Apply mutations
+            for pos in positions_to_mutate:
+                current_char = current_sequence[pos]
+                
+                # Make sure the mutated character is different from the current one
+                possible_mutations = [
+                    c for c in self._generator_output._valid_chars if c != current_char
+                ]
+                mutated_char = random.choice(possible_mutations)
+                current_sequence = (
+                    current_sequence[:pos]
+                    + mutated_char
+                    + current_sequence[pos + 1 :]
+                )
+            
+            sequence.sequence = current_sequence
+
+        # Increment iteration count (shared helper on base class)
+        self._increment_iteration_count()
 
 
 @final

@@ -138,6 +138,96 @@ class TestUniformMutationGenerator:
         assert mutated_char in "CGT"
         assert mutated_char != initial_char
 
+    def test_num_mutations_parameter(self):
+        """Tests that specifying num_mutations produces exactly that many changes."""
+        seq_len = 30
+        num_mut = 5
+        gen = UniformMutationGenerator(sequence_length=seq_len, num_mutations=num_mut)
+        segment = create_segment("A" * seq_len, seq_type=SequenceType.DNA)
+        gen.assign(segment)
+
+        initial_sequence = segment[0].sequence
+        gen.sample()
+        mutated_sequence = segment[0].sequence
+
+        diff_count = sum(1 for a, b in zip(initial_sequence, mutated_sequence) if a != b)
+        assert diff_count == num_mut
+
+    def test_num_mutations_capped_by_sequence_length(self):
+        """Tests that num_mutations larger than length is capped to sequence length."""
+        seq_len = 3
+        num_mut = 10
+        gen = UniformMutationGenerator(sequence_length=seq_len, num_mutations=num_mut)
+        segment = create_segment("A" * seq_len, seq_type=SequenceType.DNA)
+        gen.assign(segment)
+
+        initial_sequence = segment[0].sequence
+        gen.sample()
+        mutated_sequence = segment[0].sequence
+
+        diff_count = sum(1 for a, b in zip(initial_sequence, mutated_sequence) if a != b)
+        assert diff_count == seq_len
+
+    def test_mutation_scheduler_decreasing(self):
+        """Tests that a scheduler can control mutations based on iteration count."""
+        seq_len = 20
+        def scheduler(iteration: int) -> int:
+            # 1st call: 3, 2nd: 2, 3rd+: 1
+            return max(1, 3 - iteration)
+
+        gen = UniformMutationGenerator(sequence_length=seq_len, mutation_scheduler=scheduler)
+        segment = create_segment("A" * seq_len, seq_type=SequenceType.DNA)
+        gen.assign(segment)
+
+        # Iteration 0 -> expect 3 mutations
+        initial_sequence = segment[0].sequence
+        gen.sample()
+        mutated_sequence = segment[0].sequence
+        diff_count = sum(1 for a, b in zip(initial_sequence, mutated_sequence) if a != b)
+        assert diff_count == 3
+        assert gen.get_iteration_count() == 1
+
+        # Iteration 1 -> expect 2 mutations
+        initial_sequence = segment[0].sequence
+        gen.sample()
+        mutated_sequence = segment[0].sequence
+        diff_count = sum(1 for a, b in zip(initial_sequence, mutated_sequence) if a != b)
+        assert diff_count == 2
+        assert gen.get_iteration_count() == 2
+
+        # Iteration 2 -> expect 1 mutation
+        initial_sequence = segment[0].sequence
+        gen.sample()
+        mutated_sequence = segment[0].sequence
+        diff_count = sum(1 for a, b in zip(initial_sequence, mutated_sequence) if a != b)
+        assert diff_count == 1
+        assert gen.get_iteration_count() == 3
+
+    def test_iteration_count_independent_instances(self):
+        """Tests iteration counters are per generator instance and resettable."""
+        seq_len = 10
+        g1 = UniformMutationGenerator(sequence_length=seq_len)
+        g2 = UniformMutationGenerator(sequence_length=seq_len)
+        s1 = create_segment("A" * seq_len, seq_type=SequenceType.DNA)
+        s2 = create_segment("A" * seq_len, seq_type=SequenceType.DNA)
+        g1.assign(s1)
+        g2.assign(s2)
+
+        assert g1.get_iteration_count() == 0
+        assert g2.get_iteration_count() == 0
+
+        g1.sample()
+        assert g1.get_iteration_count() == 1
+        assert g2.get_iteration_count() == 0
+
+        g2.sample()
+        g2.sample()
+        assert g1.get_iteration_count() == 1
+        assert g2.get_iteration_count() == 2
+
+        g1.reset_iteration_count()
+        assert g1.get_iteration_count() == 0
+
 
 def _setup_mcmc_components(
     seq_length: int = 10,
