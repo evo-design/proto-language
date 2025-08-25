@@ -121,8 +121,8 @@ class TestSequenceLengthConstraint:
         assert constraint_match.evaluate()[0] == 0.0
         assert abs(constraint_short.evaluate()[0] - 0.5) < 1e-9
         assert abs(constraint_long.evaluate()[0] - 1.0) < 1e-9
-        assert seg_match.batch_sequences[0]._metadata["length"] == target_len
-        assert seg_short.batch_sequences[0]._metadata["length"] == target_len // 2
+        assert seg_match.batch_sequences[0]._metadata["segment_0.sequence_length_constraint.length"] == target_len
+        assert seg_short.batch_sequences[0]._metadata["segment_0.sequence_length_constraint.length"] == target_len // 2
 
     def test_contiguous_concatenation(self):
         """Tests length constraint on concatenated segments."""
@@ -139,8 +139,8 @@ class TestSequenceLengthConstraint:
 
         assert constraint.evaluate()[0] == 0.0
         # Check metadata propagation to original segments
-        assert seg1.batch_sequences[0]._metadata["length"] == target_len
-        assert seg2.batch_sequences[0]._metadata["length"] == target_len
+        assert seg1.batch_sequences[0]._metadata["segment_0-segment_1.sequence_length_constraint.length"] == target_len
+        assert seg2.batch_sequences[0]._metadata["segment_0-segment_1.sequence_length_constraint.length"] == target_len
 
     def test_batch_processing(self):
         """Tests length constraint with a batch of sequences."""
@@ -169,7 +169,7 @@ class TestSequenceLengthConstraint:
 
         # Check metadata for all sequences in the batch
         for i, seq_obj in enumerate(seg_batch):
-            assert seq_obj._metadata["length"] == len(sequences[i])
+            assert seq_obj._metadata["segment_0.sequence_length_constraint.length"] == len(sequences[i])
 
     @pytest.mark.parametrize(
         "seq_str, target_len, expected_score",
@@ -242,7 +242,7 @@ class TestGCContentConstraint:
         gc_content = (
             100.0 * sum(nt in "GC" for nt in sequence) / max(len(sequence), 1)
         )
-        assert abs(segment[0]._metadata["gc_content"] - gc_content) < 1e-9
+        assert abs(segment[0]._metadata["segment_0.gc_content_constraint.gc_content"] - gc_content) < 1e-9
 
     @pytest.mark.parametrize(
         "sequence, min_gc, max_gc, expected_score",
@@ -334,9 +334,9 @@ class TestMaxHomopolymerConstraint:
         if len(sequence) > 0:
             import itertools
             expected_max_homopolymer = max(len(list(g)) for _, g in itertools.groupby(sequence))
-            assert segment[0]._metadata["max_homopolymer_length"] == expected_max_homopolymer
+            assert segment[0]._metadata["segment_0.max_homopolymer_constraint.max_homopolymer_length"] == expected_max_homopolymer
         else:
-            assert segment[0]._metadata["max_homopolymer_length"] == 0
+            assert segment[0]._metadata["segment_0.max_homopolymer_constraint.max_homopolymer_length"] == 0
 
     def test_invalid_config(self):
         segment = create_segment("ATCG")
@@ -400,9 +400,9 @@ class TestDinucleotideFrequencyConstraint:
             scoring_function_config={"min_freq": 0.0, "max_freq": 0.5},
         )
         assert constraint_violate.evaluate()[0] > 0.0
-        assert "dinucleotide_freqs" in seq_violate[0]._metadata
+        assert "segment_0.dinucleotide_frequency_constraint.dinucleotide_freqs" in seq_violate[0]._metadata
         # ATATATAT has AT freq ~0.57 and TA freq ~0.43
-        assert abs(seq_violate[0]._metadata["dinucleotide_freqs"]["AT"] - 4/7) < 1e-9
+        assert abs(seq_violate[0]._metadata["segment_0.dinucleotide_frequency_constraint.dinucleotide_freqs"]["AT"] - 4/7) < 1e-9
 
     @pytest.mark.parametrize("sequence", ["", "A"])
     def test_edge_cases(self, sequence):
@@ -436,8 +436,8 @@ class TestTetranucleotideUsageConstraint:
         )
         # TUD is high, deviation is (3.16-1.2)/1.2 -> capped at 1.0
         assert abs(constraint_bal.evaluate()[0] - 1.0) < 1e-9
-        assert "GATC_tud" in seq_balanced[0]._metadata
-        assert seq_balanced[0]._metadata["GATC_tud"] > 3.0
+        assert "segment_0.tetranucleotide_usage_constraint.GATC_tud" in seq_balanced[0]._metadata
+        assert seq_balanced[0]._metadata["segment_0.tetranucleotide_usage_constraint.GATC_tud"] > 3.0
 
         constraint_no_gatc = Constraint(
             inputs=[seq_no_gatc],
@@ -450,7 +450,7 @@ class TestTetranucleotideUsageConstraint:
         )
         # TUD is 0, deviation is (0.8-0)/0.8 = 1.0
         assert abs(constraint_no_gatc.evaluate()[0] - 1.0) < 1e-9
-        assert seq_no_gatc[0]._metadata["GATC_tud"] == 0.0
+        assert seq_no_gatc[0]._metadata["segment_0.tetranucleotide_usage_constraint.GATC_tud"] == 0.0
 
     def test_edge_cases(self):
         # Sequence too short
@@ -465,7 +465,7 @@ class TestTetranucleotideUsageConstraint:
             },
         )
         assert constraint_short.evaluate()[0] == 0.0
-        assert seq_short[0]._metadata["GATC_tud"] == 0.0
+        assert seq_short[0]._metadata["segment_0.tetranucleotide_usage_constraint.GATC_tud"] == 0.0
 
         # Empty sequence
         seq_empty = create_segment("")
@@ -494,7 +494,7 @@ class TestTetranucleotideUsageConstraint:
             },
         )
         assert constraint.evaluate()[0] == 0.0
-        assert abs(seq_all_a[0]._metadata["AAAA_tud"] - 1.0) < 1e-9
+        assert abs(seq_all_a[0]._metadata["segment_0.tetranucleotide_usage_constraint.AAAA_tud"] - 1.0) < 1e-9
 
 
 # Tests for tool-based constraints
@@ -632,11 +632,11 @@ class TestOrfipyMmseqsConstraints:
         assert scores[0] >= 0.0  # Score should be non-negative
 
         metadata = segment[0]._metadata
-        assert "orfipy_orfs" in metadata
-        assert "mmseqs_results" in metadata
-        assert "unique_orfs_with_hits" in metadata
-        assert isinstance(metadata["unique_orfs_with_hits"], int)
-        assert metadata["unique_orfs_with_hits"] >= 0
+        assert "segment_0.orfipy_mmseqs_gene_hit_count_constraint.orfipy_orfs" in metadata
+        assert "segment_0.orfipy_mmseqs_gene_hit_count_constraint.mmseqs_results" in metadata
+        assert "segment_0.orfipy_mmseqs_gene_hit_count_constraint.unique_orfs_with_hits" in metadata
+        assert isinstance(metadata["segment_0.orfipy_mmseqs_gene_hit_count_constraint.unique_orfs_with_hits"], int)
+        assert metadata["segment_0.orfipy_mmseqs_gene_hit_count_constraint.unique_orfs_with_hits"] >= 0
 
     def test_homology_constraint(self, homology_config, temp_dir):
         """Test homology constraint using real test files."""
@@ -658,10 +658,10 @@ class TestOrfipyMmseqsConstraints:
         assert scores[0] >= 0.0
 
         metadata = segment[0]._metadata
-        assert "orfs_with_acceptable_homology" in metadata
-        assert metadata["orfs_with_acceptable_homology"] >= 0
-        assert "homology_compliance_rate" in metadata
-        assert 0.0 <= metadata["homology_compliance_rate"] <= 1.0
+        assert "segment_0.orfipy_mmseqs_gene_homology_constraint.orfs_with_acceptable_homology" in metadata
+        assert metadata["segment_0.orfipy_mmseqs_gene_homology_constraint.orfs_with_acceptable_homology"] >= 0
+        assert "segment_0.orfipy_mmseqs_gene_homology_constraint.homology_compliance_rate" in metadata
+        assert 0.0 <= metadata["segment_0.orfipy_mmseqs_gene_homology_constraint.homology_compliance_rate"] <= 1.0
 
     def test_no_hits_scenario(self, hit_count_config, temp_dir):
         """Test constraint behavior when no hits are found."""
@@ -693,7 +693,7 @@ class TestOrfipyMmseqsConstraints:
         assert len(scores) == 1
         assert isinstance(scores[0], float)
         assert scores[0] >= 0.0  # Should have a penalty for not meeting min_hits
-        assert segment[0]._metadata["unique_orfs_with_hits"] == 0
+        assert segment[0]._metadata["segment_0.orfipy_mmseqs_gene_hit_count_constraint.unique_orfs_with_hits"] == 0
 
     def test_batch_processing(self, hit_count_config, temp_dir):
         """Test constraint with batch processing using real files."""
@@ -720,9 +720,9 @@ class TestOrfipyMmseqsConstraints:
 
         # Check that metadata is populated for all sequences
         for i in range(3):
-            assert "unique_orfs_with_hits" in batch[i]._metadata
-            assert isinstance(batch[i]._metadata["unique_orfs_with_hits"], int)
-            assert batch[i]._metadata["unique_orfs_with_hits"] >= 0
+            assert "segment_0.orfipy_mmseqs_gene_hit_count_constraint.unique_orfs_with_hits" in batch[i]._metadata
+            assert isinstance(batch[i]._metadata["segment_0.orfipy_mmseqs_gene_hit_count_constraint.unique_orfs_with_hits"], int)
+            assert batch[i]._metadata["segment_0.orfipy_mmseqs_gene_hit_count_constraint.unique_orfs_with_hits"] >= 0
 
     def test_caching(self, hit_count_config, temp_dir):
         """Test that caching works correctly with real files."""

@@ -156,15 +156,3 @@ class TestConstruct:
 
         with pytest.raises(ValueError, match="must have the same valid_chars"):
             Construct([seg1, seg2])
-
-    def test_concatenation_with_uneven_batches(self):
-        """Tests that concatenation truncates to the shortest batch."""
-        seg1 = ConstructSegment("A")
-        seg1.create_batch(3) # batch of 3
-        
-        seg2 = ConstructSegment("C")
-        seg2.create_batch(2) # batch of 2
-
-        construct = Construct([seg1, seg2])
-        final_sequences = construct.batch_sequences
-        assert len(final_sequences) == 2 # Should be truncated to 2

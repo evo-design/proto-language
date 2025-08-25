@@ -13,12 +13,32 @@ using various generation strategies like MCMC, autoregressive models, etc.
 """
 
 from abc import ABC, abstractmethod
-from typing import Callable, List, Tuple, Dict, Any, Set, Optional, Iterator, Iterable
+from typing import Callable, List, Tuple, Dict, Any, Set, Optional, Iterator, Iterable, final
 from enum import Enum
-from itertools import zip_longest
+import warnings
 import numpy as np
 import copy
 
+
+def _propagate_metadata(
+    source_metadata: Dict[str, Any], 
+    target_metadata: Dict[str, Any], 
+    prefix: Optional[str] = None
+) -> None:
+    """
+    Utility function to propagate metadata from source to target, filtering out system keys.
+    
+    Args:
+        source_metadata: Metadata from scored sequence
+        target_metadata: Target metadata dictionary to receive the metadata
+        prefix: Optional prefix for metadata keys (e.g. "promoter.esmfold_constraint")
+    """
+    # Sequence and sequence_length not be propagated since they are populated dynamically by the Sequence class
+    system_keys = {"sequence", "sequence_length"}
+    for key, value in source_metadata.items():
+        if key not in system_keys:
+            final_key = f"{prefix}.{key}" if prefix else key
+            target_metadata[final_key] = value
 
 class SequenceType(Enum):
     """Enumeration of supported biological sequence types."""
@@ -34,7 +54,7 @@ class ConstraintType(Enum):
     CONTIGUOUS = "contiguous"  # Concatenate sequences before evaluation
     DISJOINT = "disjoint"  # Evaluate sequences separately as a group
 
-
+@final
 class Sequence:
     """
     Internal data structure for the basic unit of the programming language.
@@ -75,15 +95,23 @@ class Sequence:
 
         self._validate_sequence(sequence)
         self._sequence: str = sequence
-        self._metadata: Dict[str, Any] = {
+        self._metadata = {}
+        protected_metadata = {
             "sequence": sequence,
             "sequence_length": len(sequence),
-            "energy_score": "N/A",
-            "time_step": "N/A",
         }
-        # Update metadata with any input metadata
+        
+        # Add user metadata, warning if they try to override protected keys
         if metadata:
+            conflicting_keys = [key for key in metadata if key in protected_metadata]
+            if conflicting_keys:
+                warnings.warn(
+                    f"System-managed metadata for {conflicting_keys} cannot be manually set and will be silently overridden",
+                    UserWarning,
+                    stacklevel=2
+                )
             self._metadata.update(metadata)
+        self._metadata.update(protected_metadata)
 
     def _validate_sequence(self, sequence: str) -> None:
         """
@@ -152,6 +180,60 @@ class Sequence:
         """
         return self._sequence
 
+    @staticmethod
+    def from_sequences(
+        subsequences: List['Sequence'],
+        propagate_metadata: bool = False
+    ) -> 'Sequence':
+        """
+        Create a sequence by joining subsequences with optional metadata propagation.
+        
+        This alternative constructor joins subsequences and optionally merges
+        their metadata with sequence label prefixing to avoid key collisions.
+        
+        Args:
+            subsequences: List of Sequence objects to join
+            propagate_metadata: If True, merge non-system metadata; if False, start clean
+            
+        Returns:
+            Single joined Sequence object with only system metadata (if propagate_metadata=False)
+            or with merged non-system metadata (if propagate_metadata=True)
+            
+        Example:
+            >>> sequences = [Seq("ATG"), Seq("CCC")]
+            >>> clean_seq = Sequence.from_sequences(sequences, propagate_metadata=False)
+            >>> # Returns Seq("ATGCCC") with only system metadata
+        """
+        combined_sequence_string = "".join(sequence.sequence for sequence in subsequences)
+        combined_metadata = {}
+        
+        if propagate_metadata:
+            for sequence in subsequences:
+                # Only propagate non-system metadata (no prefix needed)
+                _propagate_metadata(sequence._metadata, combined_metadata)
+        
+        return Sequence(
+            sequence=combined_sequence_string,
+            sequence_type=subsequences[0].sequence_type, # assumed to be the same for all subsequences
+            valid_chars=subsequences[0]._valid_chars, # assumed to be the same for all subsequences
+            metadata=combined_metadata
+        )
+
+    @property 
+    def metadata(self) -> Dict[str, Any]:
+        """
+        Get metadata dictionary with consistent ordering.
+        
+        Returns:
+            Dict with system keys first, then constraint keys in chronological order.
+        """
+        system_keys = ["sequence", "sequence_length"]
+        
+        return {
+            **{k: self._metadata[k] for k in system_keys if k in self._metadata},  # System keys first
+            **{k: v for k, v in self._metadata.items() if k not in set(system_keys)}    # Constraint keys
+        }
+
 
 class ConstructSegment:
     """
@@ -161,8 +243,8 @@ class ConstructSegment:
 
     Examples:
         Creating a ConstructSegment:
-        >>> segment = ConstructSegment(sequence="ATCG", sequence_type=SequenceType.DNA)
-        >>> segment.batch_sequences  # [Sequence(sequence="ATCG", sequence_type=SequenceType.DNA)]
+        >>> promoter = ConstructSegment(sequence="TATA", sequence_type=SequenceType.DNA, label="promoter")
+        >>> promoter.label  # "promoter"
     """
 
     def __init__(
@@ -170,6 +252,7 @@ class ConstructSegment:
         sequence: str = "",
         sequence_type: SequenceType = SequenceType.DNA,
         valid_chars: Optional[Set[str]] = None,
+        label: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
@@ -180,6 +263,7 @@ class ConstructSegment:
             sequence_type: Type of biological sequence (DNA, RNA, or PROTEIN). Defaults to DNA.
             valid_chars: Optional custom set of valid characters for sequence validation.
             metadata: Additional data associated with this sequence.
+            label: Optional label for this segment (e.g., "promoter", "coding_region").
         """
         seq = Sequence(
             sequence=sequence,
@@ -191,6 +275,7 @@ class ConstructSegment:
         self.sequence_type: SequenceType = seq.sequence_type
         self._valid_chars: Optional[Set[str]] = seq._valid_chars
         self._is_assigned: bool = False
+        self.label: Optional[str] = label
 
     def create_batch(self, batch_size: int) -> None:
         """
@@ -241,12 +326,12 @@ class Construct:
     Consists of multiple ConstructSegment objects that are concatenated together.
 
     Examples:
-        Creating a construct from multiple segments:
-        >>> seg1 = ConstructSegment("ATG", SequenceType.DNA)  # Start codon
-        >>> seg2 = ConstructSegment("GCTAGC", SequenceType.DNA)  # Coding region
-        >>> seg3 = ConstructSegment("TAG", SequenceType.DNA)  # Stop codon
-        >>> construct = Construct([seg1, seg2, seg3])
-        >>> construct.batch_sequences  # [Sequence("ATGGCTAGCTAG", SequenceType.DNA)]
+        Creating a construct from labeled segments:
+        >>> promoter = ConstructSegment("TATA", SequenceType.DNA, label="promoter")
+        >>> coding = ConstructSegment("ATGCCC", SequenceType.DNA, label="coding_region")
+        >>> terminator = ConstructSegment("TTTT", SequenceType.DNA, label="terminator")
+        >>> gene = Construct([promoter, coding, terminator])
+        >>> gene.batch_sequences  # [Sequence("TATAATGCCCTTTT", SequenceType.DNA)]
     """
 
     def __init__(
@@ -261,10 +346,17 @@ class Construct:
 
         Raises:
             ValueError: If construct contains no segments, segments have different
-                sequence types, or segments have different valid characters.
+                sequence types, segments have different valid characters, or segments have different batch sizes.
         """
         # Convert to tuple for validation and storage
-        self.segments: Tuple[ConstructSegment, ...] = tuple(segments)
+        self.segments: Tuple[ConstructSegment, ...] = tuple(segments) 
+        self.energy_scores: Optional[List[float]] = None
+        self.time_step: Optional[int] = None
+        
+        # TODO: REVISIT. Maybe we want to simply enforce that all segments have labels?
+        for i, segment in enumerate(self.segments):
+            if segment.label is None:
+                segment.label = f"segment_{i}"
 
         # Ensure segments are valid
         if not self.segments:
@@ -284,6 +376,14 @@ class Construct:
             raise ValueError(
                 "All segments in a construct must have the same valid_chars."
             )
+        
+        # Ensure consistent batch sizes across all segments
+        batch_sizes = [len(segment.batch_sequences) for segment in self.segments]
+        if not all(size == batch_sizes[0] for size in batch_sizes):
+            raise ValueError(
+                f"Inconsistent batch sizes across construct segments. Found: {batch_sizes}. "
+                f"All segments must have the same batch size."
+            )
 
         self.sequence_type: SequenceType = self.segments[0].sequence_type
         self._valid_chars: Optional[Set[str]] = self.segments[0]._valid_chars
@@ -291,39 +391,35 @@ class Construct:
     @property
     def batch_sequences(self) -> Tuple[Sequence, ...]:
         """
-        Get the concatenated Sequence objects batch that represent one user-facing Construct.
+        Get the joined Sequence objects batch that represent one user-facing Construct.
 
         Returns:
-            Tuple of concatenated Sequence objects where each element represents
-            the concatenation of the i-th sequence from each segment in order.
-            The final batch size is equal to the smallest batch size of the segments.
+            Tuple of joined Sequence objects where each element represents
+            the joining of the i-th sequence from each segment in order.
         """
-        sequences = []
-        segment_sequences = [segment.batch_sequences for segment in self.segments]
-        for corresponding_seqs in zip(*segment_sequences):
-            concatenated_seq = "".join(
-                seq.sequence for seq in corresponding_seqs if seq is not None
+        # Join corresponding sequences from each segment with metadata propagation
+        # Example: [Seq("AAA"), Seq("TTT"), Seq("GGG")] → [Sequence("AAATTTGGG")]
+        joined_sequences = []
+        batch_size = len(self.segments[0].batch_sequences)
+        
+        for batch_position in range(batch_size):
+            sequences_to_combine = [segment.batch_sequences[batch_position] for segment in self.segments]
+            joined_seq = Sequence.from_sequences(
+                subsequences=sequences_to_combine,
+                propagate_metadata=True
             )
-
-            # TODO: REVISIT THIS TO AVOID METADATA COLLISION
-            # Merge metadata from all corresponding sequences
-            merged_metadata = {}
-            for seq in corresponding_seqs:
-                if seq is not None:
-                    merged_metadata.update(seq._metadata)
-
-            # Create new Sequence object with concatenated sequence and merged metadata
-            sequence_obj = Sequence(
-                sequence=concatenated_seq,
-                sequence_type=self.sequence_type,
-                metadata=merged_metadata,
-                valid_chars=self._valid_chars,
-            )
-            # Ensure metadata reflects the concatenated sequence
-            sequence_obj._metadata["sequence"] = concatenated_seq
-            sequence_obj._metadata["sequence_length"] = len(concatenated_seq)
-            sequences.append(sequence_obj)
-        return tuple(sequences)
+            
+            # Update energy score and time step from construct-level attributes
+            if self.energy_scores is not None:
+                joined_seq._metadata = {
+                    "time_step": self.time_step,
+                    "energy_score": self.energy_scores[batch_position],
+                    **joined_seq._metadata
+                }
+                
+            joined_sequences.append(joined_seq)
+            
+        return tuple(joined_sequences)
 
 
 class Constraint:
@@ -345,7 +441,7 @@ class Constraint:
         ...     scoring_function=length_constraint,
         ...     scoring_function_config={'target_length': 4},
         ...     constraint_type=ConstraintType.CONTIGUOUS,
-        ...     name='length_constraint'
+        ...     label='length_constraint'
         ... )
         >>> constraint.evaluate()  # [0.0]
     """
@@ -356,7 +452,7 @@ class Constraint:
         scoring_function: Callable[[Sequence | Tuple[Sequence], Dict[str, Any]], float],
         scoring_function_config: Dict[str, Any] = {},
         constraint_type: ConstraintType = ConstraintType.CONTIGUOUS,
-        name: Optional[str] = None,
+        label: Optional[str] = None,
     ) -> None:
         """
         Initialize a constraint with its inputs and scoring function.
@@ -371,7 +467,8 @@ class Constraint:
             constraint_type: How to process multiple inputs:
                 - CONTIGUOUS: Concatenate sequences before evaluation
                 - DISJOINT: Evaluate sequences separately as a group
-            name: Optional unique name for this constraint. Metadata keys will be prefixed with this name to avoid collisions.
+            label: Optional custom label for this constraint. If not provided, defaults to scoring function name. 
+                   Prefixed to prevent metadata collisions.
         """
         self.inputs: Tuple[ConstructSegment] = tuple(inputs)
         self.scoring_function: Callable[
@@ -379,85 +476,57 @@ class Constraint:
         ] = scoring_function
         self.scoring_function_config: Dict[str, Any] = scoring_function_config
         self.constraint_type: ConstraintType = constraint_type
-        self.name: Optional[str] = name
+        self.label: str = label or scoring_function.__name__
+        
+        # Validate input consistency and store common properties
+        self._validate_input_consistency(self.inputs)
+        self.sequence_type = self.inputs[0].sequence_type
+        self.valid_chars = self.inputs[0]._valid_chars
+        self.batch_size = len(self.inputs[0].batch_sequences)
 
-    def _process_inputs(
-        self, inputs: Tuple[ConstructSegment], constraint_type: ConstraintType
-    ) -> List[Sequence] | List[Tuple[Sequence, ...]]:
+    def _process_inputs(self) -> List[Sequence] | List[Tuple[Sequence, ...]]:
         """
-        Transform batched ConstructSegment inputs into the format expected by the scoring function.
-
-        Processes segments by corresponding indices across batches. If ConstructSegment inputs have
-        different batch sizes, the missing segments are padded with None. # TODO: REVIEW THIS APPROACH
-
-        Args:
-            inputs: Tuple of ConstructSegment objects to process.
-            constraint_type: Strategy for combining inputs:
-                - CONTIGUOUS: Concatenate corresponding segments
-                - DISJOINT: Group corresponding segments as tuples
+        Processes segments by constraint type to accommodate scoring function inputs.
 
         Returns:
-            For CONTIGUOUS: List of Sequence objects with concatenated sequences.
+            For CONTIGUOUS: List of Sequence objects with joined sequences.
             For DISJOINT: List of tuples, each containing corresponding Sequence objects.
-
-        Raises:
-            ValueError: Inconsistent sequence_type or valid_chars between inputs in CONTIGUOUS case.
         """
-        if constraint_type == ConstraintType.CONTIGUOUS:
-            # Ensure sequence_type and valid_chars consistency across all inputs
-            if not all(
-                input_batch.sequence_type == inputs[0].sequence_type
-                for input_batch in inputs
-            ):
-                all_types = {input_batch.sequence_type for input_batch in inputs}
-                raise ValueError(
-                    f"Inconsistent sequence_type across inputs. Found: {all_types}"
+        processed_inputs = []
+
+        # CONTIGUOUS CASE: Join corresponding sequences from each segment into a single dummy Sequence object
+        # Example: [Seq("AAA"), Seq("TTT"), Seq("GGG")] → [Sequence("AAATTTGGG")]
+        # Note: Metadata isn't propagated to dummy sequences since scoring functions won't use it.
+        if self.constraint_type == ConstraintType.CONTIGUOUS:
+            # Join sequences without metadata propagation (dummy sequences for scoring)
+            for batch_position in range(self.batch_size):
+                sequences_to_combine = [segment.batch_sequences[batch_position] for segment in self.inputs] # [Sequence("A"), Sequence("T"), Sequence("C"), Sequence("G")]
+                dummy_seq = Sequence.from_sequences(
+                    subsequences=sequences_to_combine,
+                    propagate_metadata=False  # Clean metadata - only basic system keys
                 )
-            if not all(
-                input_batch._valid_chars == inputs[0]._valid_chars
-                for input_batch in inputs
-            ):
-                raise ValueError("Inconsistent valid_chars across inputs.")
-
-            # Get sequence_type and valid_chars from the first input
-            sequence_type = inputs[0].sequence_type
-            valid_chars = inputs[0]._valid_chars
-
-            # Concatenate sequences by corresponding indices across batches
-            result = []
-            segment_sequences = [input_batch.batch_sequences for input_batch in inputs]
-            for corresponding_idx_seqs in zip_longest(
-                *segment_sequences, fillvalue=None
-            ):
-                concatenated_sequence = "".join(
-                    seq.sequence for seq in corresponding_idx_seqs if seq is not None
-                )
-                # Merge metadata from all corresponding sequences
-                merged_metadata = {}
-                for seq in corresponding_idx_seqs:
-                    if seq is not None:
-                        merged_metadata.update(seq._metadata)
-
-                result.append(
-                    Sequence(
-                        sequence=concatenated_sequence,
-                        sequence_type=sequence_type,
-                        metadata=merged_metadata,
-                        valid_chars=valid_chars,
+                processed_inputs.append(dummy_seq)
+        # DISJOINT CASE: Group corresponding sequences from each segment as tuples
+        # Example: segment_0=[Seq("AAA"), Seq("TTT"), Seq("GGG")], segment_1=[Seq("CCC"), Seq("AAC"), Seq("TTC")] 
+        #          → [(Seq("AAA"), Seq("CCC")), (Seq("TTT"), Seq("AAC")), (Seq("GGG"), Seq("TTC"))]
+        # Note: Create dummy sequences without old metadata, similar to CONTIGUOUS case
+        elif self.constraint_type == ConstraintType.DISJOINT:
+            for batch_idx in range(self.batch_size):
+                # Create clean sequences for scoring (without old metadata)
+                clean_sequences = []
+                for segment in self.inputs:
+                    original_seq = segment.batch_sequences[batch_idx]
+                    # Create clean sequence with only system metadata
+                    dummy_seq = Sequence(
+                        sequence=original_seq.sequence,
+                        sequence_type=original_seq.sequence_type,
+                        valid_chars=original_seq._valid_chars
                     )
-                )
-            return result
+                    clean_sequences.append(dummy_seq)
+                processed_inputs.append(tuple(clean_sequences))
 
-        elif constraint_type == ConstraintType.DISJOINT:
-            # Extract sequences from each ConstructSegment and group by corresponding indices
-            result = []
-            segment_sequences = [input_batch.batch_sequences for input_batch in inputs]
-            for corresponding_idx_seqs in zip_longest(
-                *segment_sequences, fillvalue=None
-            ):
-                result.append(tuple(corresponding_idx_seqs))
-            return result
-
+        return processed_inputs
+    
     def evaluate(self) -> List[float]:
         """
         Evaluate each Sequence object in the ConstructSegment batch.
@@ -466,41 +535,77 @@ class Constraint:
             List of scores between 0.0 and 1.0, one per Sequence object in the batch.
             Returns float('inf') for invalid sequences.
         """
-        # Preprocess inputs depending on the constraint type
-        scoring_function_inputs = self._process_inputs(
-            self.inputs, self.constraint_type
-        )
-
-        # TODO: REFACTOR METADATA
         scores = []
+        
+        # Preprocess inputs to accommodate scoring function
+        scoring_function_inputs = self._process_inputs()
+            
+        # Score all inputs and propagate metadata back with prefixing
         for i, input in enumerate(scoring_function_inputs):
-            # Check for invalid input scenarios
-            if isinstance(input, tuple) and None in input:
-                scores.append(float("inf"))
-            else:
-                scores.append(
-                    self.scoring_function(input, **self.scoring_function_config)
-                )
-                if isinstance(input, Sequence):
-                    # Propagate metadata back to all input sequences at index i
-                    for batch in self.inputs:
-                        original_seq = batch.batch_sequences[i]
-                        if original_seq is not None:
-                            for key in input._metadata.keys():
-                                if (
-                                    key != "sequence"
-                                ):  # Don't overwrite original sequence content
-                                    value = input._metadata[key]
-                                    # Prefix metadata key with constraint name if provided
-                                    prefixed_key = (
-                                        f"{self.name}_{key}" if self.name else key
-                                    )
-                                    original_seq._metadata[prefixed_key] = value
-                elif isinstance(input, tuple):
-                    raise NotImplementedError(
-                        "Handle DISJOINT case where input is a Tuple."
+            scores.append(self.scoring_function(input, **self.scoring_function_config)) # this adds metadata to the dummy input sequence
+
+            if self.constraint_type == ConstraintType.CONTIGUOUS:
+                # Create segment labels string (e.g. promoter-cds-terminator)
+                segment_labels = [seg.label or f"segment_{idx}" for idx, seg in enumerate(self.inputs)]
+                segments_str = "-".join(segment_labels)
+                
+                for segment in self.inputs:
+                    original_seq = segment.batch_sequences[i]
+                    _propagate_metadata(
+                        source_metadata=input._metadata,
+                        target_metadata=original_seq._metadata,
+                        prefix=f"{segments_str}.{self.label}"
                     )
+
+            elif self.constraint_type == ConstraintType.DISJOINT:
+                # For DISJOINT: input is a tuple of Sequence objects, propagate metadata from each
+                # sequence in the tuple back to the corresponding original sequence
+                for j, scored_sequence in enumerate(input):  # input is tuple of sequences
+                    original_seq = self.inputs[j].batch_sequences[i]  # Get original sequence from j-th segment
+                    segment_label = self.inputs[j].label or f"segment_{j}"
+                    
+                    _propagate_metadata(
+                        source_metadata=scored_sequence._metadata,
+                        target_metadata=original_seq._metadata,
+                        prefix=f"{segment_label}.{self.label}"
+                    )
+                
         return scores
+    
+    def _validate_input_consistency(self, inputs: Tuple[ConstructSegment]) -> None:
+        """
+        Validate that all input segments have consistent properties.
+
+        Args:
+            inputs: Tuple of ConstructSegment objects to validate.
+
+        Raises:
+            ValueError: If inputs have inconsistent sequence_type, valid_chars, or batch sizes.
+        """
+        # Check sequence_type consistency
+        if not all(
+            input_batch.sequence_type == inputs[0].sequence_type
+            for input_batch in inputs
+        ):
+            all_types = {input_batch.sequence_type for input_batch in inputs}
+            raise ValueError(
+                f"Inconsistent sequence_type across inputs. Found: {all_types}"
+            )
+            
+        # Check valid_chars consistency
+        if not all(
+            input_batch._valid_chars == inputs[0]._valid_chars
+            for input_batch in inputs
+        ):
+            raise ValueError("Inconsistent valid_chars across inputs.")
+            
+        # Check batch size consistency
+        batch_sizes = [len(input_batch.batch_sequences) for input_batch in inputs]
+        if not all(size == batch_sizes[0] for size in batch_sizes):
+            raise ValueError(
+                f"Inconsistent batch sizes across inputs. Found: {batch_sizes}. "
+                f"All input segments must have the same batch size."
+            )
 
 
 class Generator(ABC):
@@ -889,13 +994,11 @@ class IterativeGenerator(Generator):
         else:
             raise ValueError(f"Operation must be 'multiply' or 'add', got {operation}")
 
-        # Update sequence metadata with respective energy_score and time_step
+        # Convert to list and store at construct level
         energies_list = energies.tolist()
         
-        for batch_idx, energy_score in enumerate(energies_list):
-            metadata_update = {"energy_score": energy_score, "time_step": self.current_step}
-            for construct in self.constructs:
-                for segment in construct.segments:
-                    segment.batch_sequences[batch_idx]._metadata.update(metadata_update)
+        for construct in self.constructs:
+            construct.energy_scores = energies_list
+            construct.time_step = self.current_step
 
         return energies_list

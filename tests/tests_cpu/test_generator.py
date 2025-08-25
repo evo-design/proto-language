@@ -383,9 +383,10 @@ class TestMCMCGenerator:
         expected_score = (40.0 - 20.0) / 40.0  # 0.5
         assert abs(energies[0] - expected_score) < 1e-9
 
-        # Check metadata update
-        assert "energy_score" in segment[0]._metadata
-        assert abs(segment[0]._metadata["energy_score"] - expected_score) < 1e-9
+        # Check metadata update - energy_score should be in construct's batch_sequences
+        construct = mcmc_gen.constructs[0]
+        assert "energy_score" in construct.batch_sequences[0]._metadata
+        assert abs(construct.batch_sequences[0]._metadata["energy_score"] - expected_score) < 1e-9
 
     def test_score_energy_multiply(self):
         """Tests the score_energy method with operation='multiply'."""

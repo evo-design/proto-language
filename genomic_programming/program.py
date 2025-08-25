@@ -102,13 +102,16 @@ class Program:
         The actual optimization is performed by the underlying IterativeGenerator.
         """
 
+        # Calculate initial energy scores
+        self.ebm.score_energy()
+
         # Print initial sequences and energies for all batch elements
         print("Initial constructs for all batch elements:")
         for construct_idx, construct in enumerate(self.constructs):
             print(f"  Construct {construct_idx}:")
             for batch_idx, batch_sequence in enumerate(construct.batch_sequences):
                 sequence = batch_sequence.sequence
-                energy = batch_sequence._metadata["energy_score"]
+                energy = construct.energy_scores[batch_idx]
                 print(f"    Batch {batch_idx}: {sequence} (energy: {energy})")
 
         # Run iterative generation
@@ -120,7 +123,7 @@ class Program:
             print(f"  Construct {construct_idx}:")
             for batch_idx, batch_sequence in enumerate(construct.batch_sequences):
                 sequence = batch_sequence.sequence
-                energy = batch_sequence._metadata["energy_score"]
+                energy = construct.energy_scores[batch_idx]
                 print(f"    Batch {batch_idx}: {sequence} (energy: {energy})")
         
         self.history = self.ebm.history
