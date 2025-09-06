@@ -13,7 +13,7 @@ using various generation strategies like MCMC, autoregressive models, etc.
 """
 
 from abc import ABC, abstractmethod
-from typing import Callable, List, Tuple, Dict, Any, Set, Optional, Iterator, Iterable, final
+from typing import Callable, List, Tuple, Dict, Any, Set, Optional, Iterator, Iterable, Union, final
 from enum import Enum
 import warnings
 import numpy as np
@@ -772,6 +772,7 @@ class IterativeGenerator(Generator):
         generators: List[Generator],
         constraints: List[Constraint],
         constraint_weights: Optional[List[float]] = None,
+        stopping_callback: Optional[Callable[[List[float], int, Any], bool]] = None,
         **hyperparameters: Any,
     ) -> None:
         """
@@ -782,6 +783,9 @@ class IterativeGenerator(Generator):
             generators: List of Generator objects for sequence modification.
             constraints: List of Constraint objects for evaluation.
             constraint_weights: Optional weights for constraints. If None, all weights are 1.0.
+            stopping_callback: Optional callback function for custom stopping logic. Called with
+                            (energies: List[float], step: int, generator: IterativeGenerator) and should
+                            return True to stop iteration, False to continue. If None, runs full iterations.
             **hyperparameters: Additional configuration parameters.
         """
         super().__init__(**hyperparameters)
@@ -789,6 +793,7 @@ class IterativeGenerator(Generator):
         self.generators = generators
         self.constraints = constraints
         self.constraint_weights = constraint_weights or [1.0] * len(constraints)
+        self.stopping_callback = stopping_callback
         self.current_step = 0
         self.history: List[Tuple[Construct, ...]] = []
 
@@ -797,6 +802,29 @@ class IterativeGenerator(Generator):
             seq for gen in self.generators for seq in gen.get_generator_outputs()
         )  # Unused
         self._is_initialized = True
+
+    def check_energy_threshold(self, energies: List[float]) -> bool:
+        """
+        Check if stopping conditions have been reached.
+
+        Uses the stopping_callback if provided, otherwise continues iteration.
+
+        Args:
+            energies: List of energy scores from the current iteration.
+
+        Returns:
+            True if stopping conditions are met (should stop), False otherwise.
+        """
+        if self.stopping_callback is None:
+            return False
+
+        try:
+            import pdb; pdb.set_trace()
+            return self.stopping_callback(energies, self.current_step, self)
+        except Exception as e:
+            if hasattr(self, 'verbose') and self.verbose:
+                print(f"Warning: stopping_callback failed: {e}. Continuing iteration.")
+            return False
 
     def _validate_generator(self) -> None:
         """
