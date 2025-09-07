@@ -39,6 +39,7 @@ dependencies = [
     "asyncpg>=0.28.0",
     "psycopg2-binary>=2.9.0",
     "greenlet>=2.0.0",
+    "sse-starlette>=1.6.5",
     # Task queue
     "worker>=5.3.0",
     "cache>=5.0.0",
@@ -106,6 +107,7 @@ addopts = [
     "--strict-markers",
 ]
 markers = [
+    "asyncio: mark test as requiring asyncio",
     "cpu: CPU-only tests",
     "gpu: GPU-required tests",
     "slow: Slow tests that may take several minutes",

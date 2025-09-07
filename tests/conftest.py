@@ -88,12 +88,13 @@ def mock_database():
     mock_session.execute.return_value = mock_result
     
     # Mock a simple run object with all required attributes
-    from datetime import datetime
+    from datetime import datetime, timezone
     mock_run = Mock()
-    mock_run.id = uuid4()
+    mock_run.id = uuid4()  # Changed back to id
+    mock_run.user_id = "test_user"  # Added user_id
     mock_run.status = "pending"
-    mock_run.created_at = datetime.utcnow()
-    mock_run.updated_at = datetime.utcnow()
+    mock_run.created_at = datetime.now(timezone.utc)
+    mock_run.updated_at = datetime.now(timezone.utc)
     mock_run.started_at = None
     mock_run.completed_at = None
     mock_run.total_steps = None
