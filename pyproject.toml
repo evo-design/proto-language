@@ -50,16 +50,20 @@ dependencies = [
     "transformers>=4.30.0",
     # Visualization
     "py3Dmol>=2.0.0",
+    # AlphaGenome client (CPU-only)
+    "alphagenome>=0.2.0",
     # Development and testing
     "pytest>=7.3.0",
 ]
 
 [project.optional-dependencies]
-# GPU dependencies for structure prediction and ML models
+# GPU dependencies for structure prediction and sequence scoring models
 gpu = [
     "boltz==0.4.1",
     "chai_lab==0.6.1",
-    "esm @ git+https://github.com/bviggiano/esm.git@fix/178" # NOTE: Running into this bug for general inference when installing from PyPI: https://github.com/evolutionaryscale/esm/issues/178
+    "esm @ git+https://github.com/bviggiano/esm.git@fix/178", # NOTE: Running into this bug for general inference when installing from PyPI: https://github.com/evolutionaryscale/esm/issues/178
+    "borzoi-pytorch",
+    "enformer-pytorch", 
 ]
 
 # Development dependencies
@@ -155,5 +159,8 @@ module = [
     "boltz.*",
     "chai_lab.*",
     "py3Dmol.*",
+    "borzoi_pytorch.*",
+    "enformer_pytorch.*",
+    "alphagenome.*",
 ]
 ignore_missing_imports = true
