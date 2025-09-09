@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from .base import Construct, Constraint, Generator, IterativeGenerator
 
@@ -57,9 +57,8 @@ class Program:
         self.generators = generators
         self.constraints = constraints
         self.constraint_weights = constraint_weights
-        self.history = []
         self.kwargs = kwargs
-
+        
         # Validate before instantiation to catch errors early
         self._validate_program()
 
@@ -72,6 +71,21 @@ class Program:
             constraint_weights=constraint_weights,
             **kwargs,
         )
+
+    @property
+    def energy_scores(self) -> List[float]:
+        """Get energy scores from the underlying generator."""
+        return self.ebm.energy_scores
+    
+    @property  
+    def time_step(self) -> int:
+        """Get current time step from the underlying generator."""
+        return self.ebm.current_step
+
+    @property
+    def history(self) -> List[Dict[str, Any]]:
+        """Get optimization history from the underlying generator."""
+        return self.ebm.history
 
     def _validate_program(self) -> None:
         """
@@ -112,7 +126,7 @@ class Program:
             print(f"  Construct {construct_idx}:")
             for batch_idx, batch_sequence in enumerate(construct.batch_sequences):
                 sequence = batch_sequence.sequence
-                energy = construct.energy_scores[batch_idx]
+                energy = self.energy_scores[batch_idx]
                 print(f"    Batch {batch_idx}: {sequence} (energy: {energy})")
 
         # Run iterative generation
@@ -124,7 +138,5 @@ class Program:
             print(f"  Construct {construct_idx}:")
             for batch_idx, batch_sequence in enumerate(construct.batch_sequences):
                 sequence = batch_sequence.sequence
-                energy = construct.energy_scores[batch_idx]
+                energy = self.energy_scores[batch_idx]
                 print(f"    Batch {batch_idx}: {sequence} (energy: {energy})")
-        
-        self.history = self.ebm.history

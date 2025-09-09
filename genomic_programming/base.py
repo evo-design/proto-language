@@ -349,11 +349,9 @@ class Construct:
                 sequence types, segments have different valid characters, or segments have different batch sizes.
         """
         # Convert to tuple for validation and storage
-        self.segments: Tuple[ConstructSegment, ...] = tuple(segments) 
-        self.energy_scores: Optional[List[float]] = None
-        self.time_step: Optional[int] = None
+        self.segments: Tuple[ConstructSegment, ...] = tuple(segments)
 
-        # TODO: REVISIT. Maybe we want to simply enforce that all segments have labels?
+        # Any unlabeled segments will be labeled as segment_i
         for i, segment in enumerate(self.segments):
             if segment.label is None:
                 segment.label = f"segment_{i}"
@@ -408,14 +406,6 @@ class Construct:
                 subsequences=sequences_to_combine,
                 propagate_metadata=True
             )
-            
-            # Update energy score and time step from construct-level attributes
-            if self.energy_scores is not None:
-                joined_seq._metadata = {
-                    "time_step": self.time_step,
-                    "energy_score": self.energy_scores[batch_position],
-                    **joined_seq._metadata
-                }
                 
             joined_sequences.append(joined_seq)
             
@@ -795,7 +785,8 @@ class IterativeGenerator(Generator):
         self.constraint_weights = constraint_weights or [1.0] * len(constraints)
         self.stopping_callback = stopping_callback
         self.current_step = 0
-        self.history: List[Tuple[Construct, ...]] = []
+        self.history: List[Dict[str, Any]] = []  # Each entry: {"time_step": int, "energy_scores": List[float], "constructs": List[Construct]}
+        self.energy_scores: List[float] = []  # Each index corresponds to a batch element, empty until first score_energy() call
 
         # Set self._generator_outputs to be a flat tuple of all ConstructSegment objects from all sub-generators
         self._generator_outputs = tuple(
@@ -975,32 +966,27 @@ class IterativeGenerator(Generator):
             "creating the IterativeGenerator."
         )
 
-    def score_energy(self, operation: str = "add") -> List[float]:
+    def score_energy(self, operation: str = "add") -> None:
         """
-        Compute energy scores by combining constraint evaluation scores and store them in metadata.
+        Compute energy scores by combining constraint evaluation scores
+        Energy scores are stored in self.energy_scores.
 
         The energy function is computed as a weighted combination of all
         constraint scores. Lower energy values indicate better solutions.
-        Results are automatically stored in sequence metadata.
 
         Args:
             operation: How to combine constraint scores across constraints:
                 - 'add': Sum weighted constraint scores (default)
                 - 'multiply': Multiply weighted constraint scores
 
-        Returns:
-            List of energy values, one per batch element. Lower values indicate
-            better constraint satisfaction.
-
         Raises:
             ValueError: If generator is not properly initialized or operation is not 'add' or 'multiply'.
             RuntimeError: If called before assign() has been called.
 
         Note:
-            The returned list length equals the batch size of the sequences.
             Energy computation uses current sequence values, so it reflects
-            the most recent state after any sampling operations.
-            Energy scores and time steps are automatically stored in metadata.
+            the most recent state after any sampling operations. The computed
+            energy scores are accessible via self.energy_scores.
         """
         # Ensure generator is properly initialized
         self._validate_generator()
@@ -1021,11 +1007,16 @@ class IterativeGenerator(Generator):
         else:
             raise ValueError(f"Operation must be 'multiply' or 'add', got {operation}")
 
-        # Convert to list and store at construct level
         energies_list = energies.tolist()
+        self.energy_scores = energies_list
+    
+    def append_snapshot_to_history(self) -> None:
+        """Save snapshot of current construct state and energy scores to history."""
+        # Store as structured history entry with separate metadata
+        history_entry = {
+            "time_step": self.current_step,
+            "energy_scores": self.energy_scores.copy(),
+            "constructs": copy.deepcopy(self.constructs)
+        }
         
-        for construct in self.constructs:
-            construct.energy_scores = energies_list
-            construct.time_step = self.current_step
-
-        return energies_list
+        self.history.append(history_entry)

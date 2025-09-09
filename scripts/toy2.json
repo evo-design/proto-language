@@ -56,7 +56,7 @@
       "key": "uniform-mutation",
       "config": {
         "mutation_rate": 0.01,
-        "batch_size": 1,
+        "batch_size": 2,
         "sequence_length": 20
       },
       "targets": ["construct1-segment1"]
@@ -66,7 +66,7 @@
       "key": "uniform-mutation",
       "config": {
         "mutation_rate": 0.01,
-        "batch_size": 1,
+        "batch_size": 2,
         "sequence_length": 20
       },
       "targets": ["construct2-segment1"]

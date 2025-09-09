@@ -1516,10 +1516,10 @@ class MCMCGenerator(IterativeGenerator):
             - Snapshots of constructs at tracked timesteps are stored in self.history.
         """
         # Initialize MCMC states
-        energies = self.score_energy()
-        current_best_energy = np.min(energies)
-        current_best_idx = np.argmin(energies)
-        self.history.append(copy.deepcopy(self.constructs))
+        self.score_energy()
+        current_best_energy = np.min(self.energy_scores)
+        current_best_idx = np.argmin(self.energy_scores)
+        self.append_snapshot_to_history()
 
         # Execute MCMC optimization steps
         for step in range(1, self.num_steps + 1):
@@ -1533,11 +1533,11 @@ class MCMCGenerator(IterativeGenerator):
 
             # Track progress periodically
             if step % self.track_step_size == 0:
-                self.history.append(copy.deepcopy(self.constructs))
+                self.append_snapshot_to_history()
         
         # Always store final state, even if not a tracked step
         if self.num_steps % self.track_step_size != 0:
-            self.history.append(copy.deepcopy(self.constructs))
+            self.append_snapshot_to_history()
 
     def _execute_mcmc_step(
         self,
@@ -1564,9 +1564,9 @@ class MCMCGenerator(IterativeGenerator):
 
         # 2. Sample new proposal and evaluate
         generator.sample()
-        new_energies = self.score_energy()
-        new_best_energy = np.min(new_energies)
-        new_best_idx = np.argmin(new_energies)
+        self.score_energy()
+        new_best_energy = np.min(self.energy_scores)
+        new_best_idx = np.argmin(self.energy_scores)
 
         # 3. Accept or reject proposal according to Metropolis-Hastings algorithm
         original_best_energy = current_best_energy  # Save original for logging
@@ -1803,9 +1803,9 @@ class SequentialGenerator(IterativeGenerator):
         Snapshots of constructs at tracked timesteps are stored in self.history.
         """
         # Initialize sequential states
-        old_energies = self.score_energy()
-        current_best_energy = np.min(old_energies)
-        self.history.append(copy.deepcopy(self.constructs))
+        self.score_energy()
+        current_best_energy = np.min(self.energy_scores)
+        self.append_snapshot_to_history()
 
         # Execute sequential optimization steps
         for step in range(1, self.num_steps + 1):
@@ -1821,11 +1821,11 @@ class SequentialGenerator(IterativeGenerator):
 
             # Track progress periodically
             if step % self.track_step_size == 0:
-                self.history.append(copy.deepcopy(self.constructs))
+                self.append_snapshot_to_history()
         
         # Always capture final state if it wasn't already captured
         if self.num_steps % self.track_step_size != 0:
-            self.history.append(copy.deepcopy(self.constructs))
+            self.append_snapshot_to_history()
 
     def _execute_sequential_step(
         self, step: int, cur_temp: float, current_best_energy: float
@@ -1848,8 +1848,8 @@ class SequentialGenerator(IterativeGenerator):
         self._sample_sequential_generators()
 
         # 3. Evaluate new energy
-        new_energies = self.score_energy()
-        new_best_energy = np.min(new_energies)
+        self.score_energy()
+        new_best_energy = np.min(self.energy_scores)
 
         # 4. Accept or reject proposal according to Metropolis-Hastings algorithm
         original_best_energy = current_best_energy  # Save original for logging
@@ -1858,7 +1858,6 @@ class SequentialGenerator(IterativeGenerator):
             new_best_energy,
             cur_temp,
             old_sequences_by_gen,
-            new_energies,
         )
 
         # 5. Log progress
@@ -1950,7 +1949,6 @@ class SequentialGenerator(IterativeGenerator):
         new_best_energy: float,
         cur_temp: float,
         old_sequences_by_gen: List[List[Any]],
-        new_energies: List[float],
     ) -> Tuple[float, bool, float]:
         """
         Compute Metropolis-Hastings acceptance probability and make decision.
@@ -1975,7 +1973,7 @@ class SequentialGenerator(IterativeGenerator):
         # Execute the decision
         if accept:
             # Accept: copy best sequences to all positions
-            new_best_idx = np.argmin(new_energies)
+            new_best_idx = np.argmin(self.energy_scores)
             self._replicate_best_sequence(new_best_idx)
             return new_best_energy, accept, alpha
         else:
@@ -2277,7 +2275,7 @@ class ChainedGenerator:
         
         # Get final constructs and energy
         constructs = copy.deepcopy(stage.constructs)
-        final_energy = stage.score_energy() if hasattr(stage, 'score_energy') else []
+        stage.score_energy() if hasattr(stage, 'score_energy') else []
         
         # Capture stage configuration
         stage_config = self._extract_stage_config(stage)
@@ -2303,7 +2301,7 @@ class ChainedGenerator:
             'stage': stage_index,
             'stage_type': stage.__class__.__name__,
             'constructs': constructs,
-            'final_energy': final_energy,
+            'final_energy': stage.energy_scores,
             'num_steps': getattr(stage, 'num_steps', None),
             'execution_time': execution_time,
             'stage_config': stage_config,

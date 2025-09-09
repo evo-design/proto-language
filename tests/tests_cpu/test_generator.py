@@ -372,20 +372,26 @@ class TestMCMCGenerator:
 
         # Test with a sequence that is within the target GC range
         segment.batch_sequences[0].sequence = "GCGCGAATTA"  # 50% GC
-        energies = mcmc_gen.score_energy()
-        assert len(energies) == 1
-        assert energies[0] == 0.0
+        mcmc_gen.score_energy()
+        assert len(mcmc_gen.energy_scores) == 1
+        assert mcmc_gen.energy_scores[0] == 0.0
 
         # Test with a sequence below the target range
         segment.batch_sequences[0].sequence = "GCTTAATTAA"  # 20% GC
-        energies = mcmc_gen.score_energy()
+        mcmc_gen.score_energy()
         expected_score = (40.0 - 20.0) / 40.0  # 0.5
-        assert abs(energies[0] - expected_score) < 1e-9
+        assert abs(mcmc_gen.energy_scores[0] - expected_score) < 1e-9
 
-        # Check metadata update - energy_score should be in construct's batch_sequences
-        construct = mcmc_gen.constructs[0]
-        assert "energy_score" in construct.batch_sequences[0]._metadata
-        assert abs(construct.batch_sequences[0]._metadata["energy_score"] - expected_score) < 1e-9
+        # Test that energy scores are stored in the generator's energy_scores attribute
+        assert hasattr(mcmc_gen, 'energy_scores')
+        assert len(mcmc_gen.energy_scores) == 1
+        assert abs(mcmc_gen.energy_scores[0] - expected_score) < 1e-9
+        
+        # Test that calling score_energy again updates the stored scores
+        segment.batch_sequences[0].sequence = "GCGCGCGCGC"  # 100% GC -> score 1.0
+        mcmc_gen.score_energy()
+        expected_new_score = abs((40.0 - 100.0) / 40.0)  # Should be 1.5, but clamped to 1.0
+        assert abs(mcmc_gen.energy_scores[0] - min(expected_new_score, 1.0)) < 1e-9
 
     def test_score_energy_multiply(self):
         """Tests the score_energy method with operation='multiply'."""
@@ -393,8 +399,10 @@ class TestMCMCGenerator:
         segment.batch_sequences[0].sequence = "GCTTAATTAA"  # 20% GC -> score 0.5
         
         # With one constraint, multiply and add should be the same
-        energy_add = mcmc_gen.score_energy(operation="add")[0]
-        energy_mul = mcmc_gen.score_energy(operation="multiply")[0]
+        mcmc_gen.score_energy(operation="add")
+        energy_add = mcmc_gen.energy_scores[0]
+        mcmc_gen.score_energy(operation="multiply")
+        energy_mul = mcmc_gen.energy_scores[0]
         assert abs(energy_add - 0.5) < 1e-9
         assert abs(energy_mul - 0.5) < 1e-9
 
@@ -409,12 +417,14 @@ class TestMCMCGenerator:
         
         # Start with a bad sequence
         segment.batch_sequences[0].sequence = "A" * 50
-        initial_energy = mcmc_gen.score_energy()[0]
+        mcmc_gen.score_energy()
+        initial_energy = mcmc_gen.energy_scores[0]
         assert initial_energy > 0.99 # Should be max penalty (1.0)
         
         # Sample and check for improvement
         mcmc_gen.sample()
-        final_energy = mcmc_gen.score_energy()[0]
+        mcmc_gen.score_energy()
+        final_energy = mcmc_gen.energy_scores[0]
         
         assert final_energy < initial_energy
         assert len(mcmc_gen.history) > 1 # Check that history is being tracked
@@ -449,11 +459,13 @@ class TestMCMCGenerator:
         
         # E = 1.0 * 1.0 + 2.0 * 0.333...
         expected_energy = gc_score * 1.0 + len_score * 2.0
-        assert abs(mcmc_gen.score_energy("add")[0] - expected_energy) < 1e-9
+        mcmc_gen.score_energy("add")
+        assert abs(mcmc_gen.energy_scores[0] - expected_energy) < 1e-9
 
         # Test multiply operation
         expected_energy_mul = (gc_score * 1.0) * (len_score * 2.0)
-        assert abs(mcmc_gen.score_energy("multiply")[0] - expected_energy_mul) < 1e-9
+        mcmc_gen.score_energy("multiply")
+        assert abs(mcmc_gen.energy_scores[0] - expected_energy_mul) < 1e-9
 
     def test_with_multiple_generators(self):
         """Tests MCMC with more than one proposal generator."""
@@ -1102,8 +1114,10 @@ class TestChainedGenerator:
         )
 
         # Check initial state - both should have high energy (bad GC)
-        initial_energy1 = mcmc_gen1.score_energy()[0]
-        initial_energy2 = mcmc_gen2.score_energy()[0]
+        mcmc_gen1.score_energy()
+        initial_energy1 = mcmc_gen1.energy_scores[0]
+        mcmc_gen2.score_energy()
+        initial_energy2 = mcmc_gen2.energy_scores[0]
         assert initial_energy1 > 0.5
         assert initial_energy2 > 0.5
 
@@ -1112,8 +1126,10 @@ class TestChainedGenerator:
         mcmc_gen2.sample()
 
         # Check final state - both should have reached threshold
-        final_energy1 = mcmc_gen1.score_energy()[0]
-        final_energy2 = mcmc_gen2.score_energy()[0]
+        mcmc_gen1.score_energy()
+        final_energy1 = mcmc_gen1.energy_scores[0]
+        mcmc_gen2.score_energy()
+        final_energy2 = mcmc_gen2.energy_scores[0]
 
         assert final_energy1 <= 0.3
         assert final_energy2 <= 0.3
