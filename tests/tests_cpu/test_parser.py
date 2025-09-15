@@ -293,7 +293,7 @@ def test_comprehensive_darwin_parser_parse(comprehensive_darwin_json):
     assert len(program.constraints) == 9
     
     # Check that the optimization method is correct
-    assert program.iterative_generator_type.__name__ == "RegisterMCMCGenerator"
+    assert program.iterative_generator_type.__name__ == "MCMCGenerator"
 
 
 def test_sequential_optimization_parser_parse(sequential_optimization_darwin_json):
@@ -313,7 +313,7 @@ def test_sequential_optimization_parser_parse(sequential_optimization_darwin_jso
     assert len(program.constraints) == 1
     
     # Check that the optimization method is correct
-    assert program.iterative_generator_type.__name__ == "RegisterSequentialGenerator"
+    assert program.iterative_generator_type.__name__ == "SequentialGenerator"
 
 
 def test_parser_registry_completeness():
