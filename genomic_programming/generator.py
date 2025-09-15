@@ -1909,7 +1909,7 @@ class SequentialGenerator(IterativeGenerator):
         # Sample from each generator in sequence, chaining outputs
         for i, generator in enumerate(self.generators):
             # For generators that accept prompts
-            if hasattr(generator, 'sample') and 'prompt_seqs' in generator.sample.__code__.co_varnames:
+            if self._is_extension_based_generator(generator):
                 prompt_seqs = running_prompts if i > 0 else None
                 generator.sample(prompt_seqs=prompt_seqs)
             else:
@@ -2020,6 +2020,20 @@ class SequentialGenerator(IterativeGenerator):
         if self.custom_logging:
             self.custom_logging(step, self.get_generator_outputs())
         sys.stdout.flush()
+
+    def _is_extension_based_generator(self, generator) -> bool:
+        """
+        Determine if a generator is extension-based or mutation-based.
+        
+        Args:
+            generator: The generator to check
+            
+        Returns:
+            True if the generator is extension-based, False if mutation-based
+        """
+        # Extension-based generators have prepend_prompt attribute
+        # Mutation-based generators don't have this attribute
+        return hasattr(generator, 'prepend_prompt') and generator.prepend_prompt
 
 
 @final
