@@ -464,7 +464,7 @@ class Constraint:
         self.scoring_function: Callable[
             [Sequence | Tuple[Sequence], Dict[str, Any]], float
         ] = scoring_function
-        self.scoring_function_config: Dict[str, Any] = scoring_function_config
+        self.scoring_function_config: Dict[str, Any] = self._normalize_config(scoring_function_config)
         self.constraint_type: ConstraintType = constraint_type
         self.label: str = label or scoring_function.__name__
         
@@ -473,6 +473,48 @@ class Constraint:
         self.sequence_type = self.inputs[0].sequence_type
         self.valid_chars = self.inputs[0]._valid_chars
         self.batch_size = len(self.inputs[0].batch_sequences)
+
+    def _normalize_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Automatically convert dict configs to Pydantic models where needed.
+        
+        This handles the conversion for constraint configurations that expect Pydantic models
+        for their kwargs parameters but receive dictionaries from JSON parsing or direct calls.
+        
+        Args:
+            config: Configuration dictionary that may contain nested dicts for Pydantic models
+            
+        Returns:
+            Normalized configuration with dicts converted to Pydantic models where appropriate
+        """
+        if not config:
+            return {}
+        
+        # Import here to avoid circular imports
+        try:
+            from .schemas import ESMFoldKwargs, ORFipyKwargs, MMseqsKwargs
+        except ImportError:
+            # If schemas aren't available, return config unchanged
+            return config.copy()
+        
+        normalized = config.copy()
+        
+        # Define the mapping of config keys to their Pydantic models
+        PYDANTIC_MAPPINGS = {
+            'esmfold_kwargs': ESMFoldKwargs,
+            'orfipy_kwargs': ORFipyKwargs, 
+            'mmseqs_kwargs': MMseqsKwargs,
+        }
+        
+        for key, value in normalized.items():
+            if key in PYDANTIC_MAPPINGS and isinstance(value, dict):
+                try:
+                    normalized[key] = PYDANTIC_MAPPINGS[key](**value)
+                except Exception:
+                    # If conversion fails, leave as dict (backward compatibility)
+                    pass
+                    
+        return normalized
 
     def _process_inputs(self) -> List[Sequence] | List[Tuple[Sequence, ...]]:
         """
