@@ -5,6 +5,8 @@ from .base import (
     Constraint,
     Generator,
     IterativeGenerator,
+)
+from .utils import (
     SequenceType,
     ConstraintType,
 )

@@ -2,7 +2,8 @@ import pytest
 import sys
 
 sys.path.append(".")
-from proto_language.base import ConstructSegment, SequenceType
+from proto_language.base import ConstructSegment
+from proto_language.utils import SequenceType
 from proto_language.generator import ESM2Generator
 
 # Check if GPU is available and required dependencies are installed

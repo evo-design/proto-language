@@ -16,7 +16,8 @@ from proto_language.tools.orf_prediction.orfipy import (
     parse_orfipy_results_to_df,
     _parse_orfipy_header,
 )
-from proto_language.base import Sequence, SequenceType
+from proto_language.base import Sequence
+from proto_language.utils import SequenceType
 from proto_language.constraint import _run_esmfold, _run_orfipy_mmseqs_pipeline
 from proto_language.tool_cache import ToolCache
 

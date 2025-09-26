@@ -14,6 +14,8 @@ from proto_language.base import (
     ConstructSegment,
     Constraint,
     Sequence,
+)
+from proto_language.utils import (
     SequenceType,
     ConstraintType,
 )

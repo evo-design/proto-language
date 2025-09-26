@@ -18,41 +18,8 @@ from enum import Enum
 import warnings
 import numpy as np
 import copy
+from .utils import propagate_metadata, SequenceType, ConstraintType
 
-
-def _propagate_metadata(
-    source_metadata: Dict[str, Any], 
-    target_metadata: Dict[str, Any], 
-    prefix: Optional[str] = None
-) -> None:
-    """
-    Utility function to propagate metadata from source to target, filtering out system keys.
-    
-    Args:
-        source_metadata: Metadata from scored sequence
-        target_metadata: Target metadata dictionary to receive the metadata
-        prefix: Optional prefix for metadata keys (e.g. "promoter.esmfold_constraint")
-    """
-    # Sequence and sequence_length not be propagated since they are populated dynamically by the Sequence class
-    system_keys = {"sequence", "sequence_length"}
-    for key, value in source_metadata.items():
-        if key not in system_keys:
-            final_key = f"{prefix}.{key}" if prefix else key
-            target_metadata[final_key] = value
-
-class SequenceType(Enum):
-    """Enumeration of supported biological sequence types."""
-
-    DNA = "dna"
-    RNA = "rna"
-    PROTEIN = "protein"
-
-
-class ConstraintType(Enum):
-    """Enumeration of constraint evaluation strategies for multiple inputs."""
-
-    CONTIGUOUS = "contiguous"  # Concatenate sequences before evaluation
-    DISJOINT = "disjoint"  # Evaluate sequences separately as a group
 
 @final
 class Sequence:
@@ -183,7 +150,7 @@ class Sequence:
     @staticmethod
     def from_sequences(
         subsequences: List['Sequence'],
-        propagate_metadata: bool = False
+        merge_metadata: bool = False
     ) -> 'Sequence':
         """
         Create a sequence by joining subsequences with optional metadata propagation.
@@ -193,24 +160,24 @@ class Sequence:
         
         Args:
             subsequences: List of Sequence objects to join
-            propagate_metadata: If True, merge non-system metadata; if False, start clean
+            merge_metadata: If True, merge non-system metadata; if False, start clean
             
         Returns:
-            Single joined Sequence object with only system metadata (if propagate_metadata=False)
-            or with merged non-system metadata (if propagate_metadata=True)
+            Single joined Sequence object with only system metadata (if merge_metadata=False)
+            or with merged non-system metadata (if merge_metadata=True)
             
         Example:
             >>> sequences = [Seq("ATG"), Seq("CCC")]
-            >>> clean_seq = Sequence.from_sequences(sequences, propagate_metadata=False)
+            >>> clean_seq = Sequence.from_sequences(sequences, merge_metadata=False)
             >>> # Returns Seq("ATGCCC") with only system metadata
         """
         combined_sequence_string = "".join(sequence.sequence for sequence in subsequences)
         combined_metadata = {}
         
-        if propagate_metadata:
+        if merge_metadata:
             for sequence in subsequences:
                 # Only propagate non-system metadata (no prefix needed)
-                _propagate_metadata(sequence._metadata, combined_metadata)
+                propagate_metadata(sequence._metadata, combined_metadata)
         
         return Sequence(
             sequence=combined_sequence_string,
@@ -404,7 +371,7 @@ class Construct:
             sequences_to_combine = [segment.batch_sequences[batch_position] for segment in self.segments]
             joined_seq = Sequence.from_sequences(
                 subsequences=sequences_to_combine,
-                propagate_metadata=True
+                merge_metadata=True
             )
                 
             joined_sequences.append(joined_seq)
@@ -535,7 +502,7 @@ class Constraint:
                 sequences_to_combine = [segment.batch_sequences[batch_position] for segment in self.inputs] # [Sequence("A"), Sequence("T"), Sequence("C"), Sequence("G")]
                 dummy_seq = Sequence.from_sequences(
                     subsequences=sequences_to_combine,
-                    propagate_metadata=False  # Clean metadata - only basic system keys
+                    merge_metadata=False  # Clean metadata - only basic system keys
                 )
                 processed_inputs.append(dummy_seq)
         # DISJOINT CASE: Group corresponding sequences from each segment as tuples
@@ -583,7 +550,7 @@ class Constraint:
                 
                 for segment in self.inputs:
                     original_seq = segment.batch_sequences[i]
-                    _propagate_metadata(
+                    propagate_metadata(
                         source_metadata=input._metadata,
                         target_metadata=original_seq._metadata,
                         prefix=f"{segments_str}.{self.label}"
@@ -596,7 +563,7 @@ class Constraint:
                     original_seq = self.inputs[j].batch_sequences[i]  # Get original sequence from j-th segment
                     segment_label = self.inputs[j].label or f"segment_{j}"
                     
-                    _propagate_metadata(
+                    propagate_metadata(
                         source_metadata=scored_sequence._metadata,
                         target_metadata=original_seq._metadata,
                         prefix=f"{segment_label}.{self.label}"

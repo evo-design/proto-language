@@ -2060,7 +2060,8 @@ class ChainedGenerator:
         Creating a two-stage optimization pipeline:
         >>> from proto_language.generator import ChainedGenerator, MCMCGenerator, UniformMutationGenerator
         >>> from proto_language.constraint import gc_content_constraint
-        >>> from proto_language.base import Construct, ConstructSegment, SequenceType
+        >>> from proto_language.base import Construct, ConstructSegment
+        >>> from proto_language.utils import SequenceType
         >>>
         >>> # Create segments and generators
         >>> segment1 = ConstructSegment(sequence="A" * 50, sequence_type=SequenceType.DNA)

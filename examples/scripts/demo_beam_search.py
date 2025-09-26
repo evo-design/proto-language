@@ -14,7 +14,8 @@ import sys
 import os
 import argparse
 
-from proto_language.base import Construct, ConstructSegment, SequenceType, Constraint
+from proto_language.base import Construct, ConstructSegment, Constraint
+from proto_language.utils import SequenceType
 from proto_language.generator import BeamSearchGenerator, Evo2Generator
 
 # Import shared utilities
