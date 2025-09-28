@@ -3305,24 +3305,20 @@ class BeamSearchGenerator(IterativeGenerator):
             # Store beam candidates for the next sample
             self._beam_candidates = beam_candidates.copy()
         
-        # Add final state to history with proper format for history tracking
-        # BeamSearchGenerator needs to calculate energy scores for compatibility
-        # with the history tracking system
+        # Add final state to history
         energy_scores = []
         for construct in self.constructs:
-            # Calculate minimum energy across all batch sequences for this construct
+            # Calculate min energy across all batch sequences for this construct
             construct_energies = []
             for seq in construct.batch_sequences:
                 if hasattr(seq, '_metadata') and 'energy' in seq._metadata:
                     construct_energies.append(seq._metadata['energy'])
-            # Use minimum energy if available, otherwise 0
+            # Use min energy if available, otherwise 0
             min_energy = min(construct_energies) if construct_energies else 0.0
             energy_scores.append(min_energy)
         
-        # Set energy_scores attribute for compatibility with base class
-        # Ensure we have at least one energy score per construct
+        # Set energy_scores attribute
         if not energy_scores:
-            # If no constructs or no energy scores, create default
             energy_scores = [0.0] * max(1, len(self.constructs))
         self.energy_scores = energy_scores
         

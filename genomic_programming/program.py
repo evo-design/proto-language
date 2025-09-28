@@ -126,16 +126,13 @@ class Program:
             # For BeamSearchGenerator: one energy per construct
             # For other generators: one energy per batch element across all constructs
             if len(self.energy_scores) == len(self.constructs):
-                # BeamSearchGenerator case: one energy per construct
                 for construct_idx, construct in enumerate(self.constructs):
                     print(f"  Construct {construct_idx}:")
                     energy = self.energy_scores[construct_idx]
                     for batch_idx, batch_sequence in enumerate(construct.batch_sequences):
                         sequence = batch_sequence.sequence
-                        # Use construct-level energy for all batch sequences
                         print(f"    Batch {batch_idx}: {sequence} (energy: {energy})")
             else:
-                # MCMC/Sequential case: energy scores for each batch element
                 global_batch_idx = 0
                 for construct_idx, construct in enumerate(self.constructs):
                     print(f"  Construct {construct_idx}:")
@@ -159,16 +156,13 @@ class Program:
             # For BeamSearchGenerator: one energy per construct
             # For other generators: one energy per batch element across all constructs
             if len(self.energy_scores) == len(self.constructs):
-                # BeamSearchGenerator case: one energy per construct
                 for construct_idx, construct in enumerate(self.constructs):
                     print(f"  Construct {construct_idx}:")
                     energy = self.energy_scores[construct_idx]
                     for batch_idx, batch_sequence in enumerate(construct.batch_sequences):
                         sequence = batch_sequence.sequence
-                        # Use construct-level energy for all batch sequences
                         print(f"    Batch {batch_idx}: {sequence} (energy: {energy})")
             else:
-                # MCMC/Sequential case: energy scores for each batch element
                 global_batch_idx = 0
                 for construct_idx, construct in enumerate(self.constructs):
                     print(f"  Construct {construct_idx}:")
