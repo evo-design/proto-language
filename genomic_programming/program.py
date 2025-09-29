@@ -74,17 +74,32 @@ class Program:
 
     @property
     def energy_scores(self) -> List[float]:
-        """Get energy scores from the underlying generator."""
+        """
+        Get energy scores from the underlying generator.
+        
+        Returns:
+            List of energy scores where lower values indicate better solutions.
+        """
         return self.ebm.energy_scores
     
     @property  
     def time_step(self) -> int:
-        """Get current time step from the underlying generator."""
+        """
+        Get current time step from the underlying generator.
+        
+        Returns:
+            Current iteration step number.
+        """
         return self.ebm.current_step
 
     @property
     def history(self) -> List[Dict[str, Any]]:
-        """Get optimization history from the underlying generator."""
+        """
+        Get optimization history from the underlying generator.
+        
+        Returns:
+            List of history entries, each containing time_step, energy_scores, and constructs.
+        """
         return self.ebm.history
 
     def _validate_program(self) -> None:

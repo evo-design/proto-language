@@ -14,7 +14,6 @@ using various generation strategies like MCMC, autoregressive models, etc.
 
 from abc import ABC, abstractmethod
 from typing import Callable, List, Tuple, Dict, Any, Set, Optional, Iterator, Iterable, Union, final
-from enum import Enum
 import warnings
 import numpy as np
 import copy
@@ -819,7 +818,6 @@ class IterativeGenerator(Generator):
             return False
 
         try:
-            import pdb; pdb.set_trace()
             return self.stopping_callback(energies, self.current_step, self)
         except Exception as e:
             if hasattr(self, 'verbose') and self.verbose:

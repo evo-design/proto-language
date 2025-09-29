@@ -55,12 +55,9 @@ class TestUniformMutationGenerator:
         assert segment_pre[0].sequence == predefined_seq
 
     def test_assign_errors(self):
-        """Tests error conditions for the assign method."""
+        """Tests runtime validation for the assign method."""
         gen = UniformMutationGenerator(sequence_length=10)
-        # Should raise error if assigned multiple segments
-        with pytest.raises(ValueError):
-            gen.assign([create_segment("A"*10), create_segment("C"*10)])
-        # Should raise error if provided sequence length doesn't match
+        # Should raise error if provided sequence length doesn't match configured length
         with pytest.raises(AssertionError):
             gen.assign(create_segment("A"*5))
 

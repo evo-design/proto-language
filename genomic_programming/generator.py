@@ -72,23 +72,14 @@ class UniformMutationGenerator(Generator):
         self.mutation_scheduler = mutation_scheduler
 
     def assign(
-        self, assigned_segments: ConstructSegment | Iterable[ConstructSegment]
+        self, assigned_segments: ConstructSegment
     ) -> None:
         """
         Assign a ConstructSegment to this generator.
 
         Args:
-            assigned_segments: Either a single ConstructSegment or an iterable of ConstructSegment objects.
-
-        Raises:
-            ValueError: If more than one segment is provided.
+            assigned_segments: A single ConstructSegment to be assigned to this generator.
         """
-        # Ensure single ConstructSegment assignment
-        if not isinstance(assigned_segments, ConstructSegment):
-            raise ValueError(
-                "UniformMutationGenerator must be assigned exactly one ConstructSegment"
-            )
-
         # Initialize _generator_output (singular) and create batch
         self._generator_output = assigned_segments
         self._generator_output._is_assigned = True
@@ -345,12 +336,14 @@ class Evo2Generator(Generator):
         if len(prompt_seqs) == 1:
             self.prompt_seqs = prompt_seqs * batch_size
         else:
-            assert (
-                len(prompt_seqs) == batch_size
-            ), f"Multiple prompts ({len(prompt_seqs)}) must equal batch_size ({batch_size})"
-            assert (
-                len(set(len(seq) for seq in prompt_seqs)) == 1
-            ), f"All prompts must have same length, got: {[len(seq) for seq in prompt_seqs]}"
+            if len(prompt_seqs) != batch_size:
+                raise ValueError(
+                    f"Multiple prompts ({len(prompt_seqs)}) must equal batch_size ({batch_size})"
+                )
+            if len(set(len(seq) for seq in prompt_seqs)) != 1:
+                raise ValueError(
+                    f"All prompts must have same length, got: {[len(seq) for seq in prompt_seqs]}"
+                )
             self.prompt_seqs = prompt_seqs
 
         self.batch_size = batch_size
@@ -368,27 +361,18 @@ class Evo2Generator(Generator):
         self.sampling_kwargs = sampling_kwargs
 
     def assign(
-        self, assigned_segments: ConstructSegment | Iterable[ConstructSegment]
+        self, assigned_segments: ConstructSegment
     ) -> None:
         """
         Assign a ConstructSegment to this generator.
 
         Args:
-            assigned_segments: Either a single ConstructSegment or an iterable of ConstructSegment objects.
-
-        Raises:
-            ValueError: If more than one segment is provided.
+            assigned_segments: A single ConstructSegment to be assigned to this generator.
 
         Warning:
             Any existing sequences in the assigned segment will be overwritten when sample()
             is called, as Evo2 performs autoregressive generation from prompt sequences.
         """
-        # Ensure single ConstructSegment assignment
-        if not isinstance(assigned_segments, ConstructSegment):
-            raise ValueError(
-                "Evo2Generator must be assigned exactly one ConstructSegment"
-            )
-
         # Warn user if existing sequences will be overwritten
         existing_sequences = [
             seq.sequence for seq in assigned_segments.batch_sequences if seq.sequence
@@ -575,9 +559,10 @@ class NimEvo2Generator(Generator):
         if len(prompt_seqs) == 1:
             self.prompt_seqs = prompt_seqs * batch_size
         else:
-            assert (
-                len(prompt_seqs) == batch_size
-            ), f"Multiple prompts ({len(prompt_seqs)}) must equal batch_size ({batch_size})"
+            if len(prompt_seqs) != batch_size:
+                raise ValueError(
+                    f"Multiple prompts ({len(prompt_seqs)}) must equal batch_size ({batch_size})"
+                )
             self.prompt_seqs = prompt_seqs
 
         self.batch_size = batch_size
@@ -602,27 +587,18 @@ class NimEvo2Generator(Generator):
         return os.getenv("NV_API_KEY") or input("Paste the Run Key: ")
 
     def assign(
-        self, assigned_segments: ConstructSegment | Iterable[ConstructSegment]
+        self, assigned_segments: ConstructSegment
     ) -> None:
         """
         Assign a ConstructSegment to this generator.
 
         Args:
-            assigned_segments: Either a single ConstructSegment or an iterable of ConstructSegment objects.
-
-        Raises:
-            ValueError: If more than one segment is provided.
+            assigned_segments: A single ConstructSegment to be assigned to this generator.
 
         Warning:
             Any existing sequences in the assigned segment will be overwritten when sample()
             is called, as NIM Evo2 performs autoregressive generation from prompt sequences.
         """
-        # Ensure single ConstructSegment assignment
-        if not isinstance(assigned_segments, ConstructSegment):
-            raise ValueError(
-                "NimEvo2Generator must be assigned exactly one ConstructSegment"
-            )
-
         # Warn user if existing sequences will be overwritten
         existing_sequences = [
             seq.sequence for seq in assigned_segments.batch_sequences if seq.sequence
@@ -790,7 +766,7 @@ class ESM2Generator(Generator):
         self.top_k = top_k
         self.batch_size = batch_size
 
-    def assign(self, assigned_segments: ConstructSegment | Iterable[ConstructSegment]) -> None:
+    def assign(self, assigned_segments: ConstructSegment) -> None:
         """
         Assign a ConstructSegment to this generator.
 
@@ -799,18 +775,11 @@ class ESM2Generator(Generator):
         If the segment already contains sequences, they will be used as starting points.
 
         Args:
-            assigned_segments: Either a single ConstructSegment or an iterable of ConstructSegment objects.
+            assigned_segments: A single ConstructSegment to be assigned to this generator.
 
         Raises:
-            ValueError: If more than one segment is provided.
             AssertionError: If provided sequence length doesn't match configured length.
         """
-        # Ensure single ConstructSegment assignment
-        if not isinstance(assigned_segments, ConstructSegment):
-            raise ValueError(
-                "ESM2Generator must be assigned exactly one ConstructSegment"
-            )
-
         # Validate provided sequence length if not empty
         initial_sequence = assigned_segments.batch_sequences[0].sequence
         if initial_sequence != "":
@@ -1082,7 +1051,7 @@ class ESM3Generator(Generator):
         self.batch_size = batch_size
 
     def assign(
-        self, assigned_segments: ConstructSegment | Iterable[ConstructSegment]
+        self, assigned_segments: ConstructSegment
     ) -> None:
         """
         Assign a ConstructSegment to this generator.
@@ -1092,18 +1061,11 @@ class ESM3Generator(Generator):
         If the segment already contains sequences, they will be used as starting points.
 
         Args:
-            assigned_segments: Either a single ConstructSegment or an iterable of ConstructSegment objects.
+            assigned_segments: A single ConstructSegment to be assigned to this generator.
 
         Raises:
-            ValueError: If more than one segment is provided.
             AssertionError: If provided sequence length doesn't match configured length.
         """
-        # Ensure single ConstructSegment assignment
-        if not isinstance(assigned_segments, ConstructSegment):
-            raise ValueError(
-                "ESM3Generator must be assigned exactly one ConstructSegment"
-            )
-
         # Validate provided sequence length if not empty
         initial_sequence = assigned_segments.batch_sequences[0].sequence
         if initial_sequence != "":
@@ -1359,10 +1321,12 @@ class SlowMutationGenerator(Generator):
         self.sequence_length = sequence_length
         self.sleep_time = sleep_time
         
-    def assign(self, assigned_segments):
-        if not isinstance(assigned_segments, ConstructSegment):
-            raise ValueError("SlowMutationGenerator must be assigned exactly one ConstructSegment")
+    def assign(self, assigned_segments: ConstructSegment) -> None:
+        """Assign a ConstructSegment to this generator.
         
+        Args:
+            assigned_segments: A single ConstructSegment to be assigned to this generator.
+        """
         self._generator_output = assigned_segments
         self._generator_output._is_assigned = True
         
@@ -1497,10 +1461,6 @@ class MCMCGenerator(IterativeGenerator):
             ValueError: If temperature parameters are invalid.
         """
         super()._validate_generator()
-
-        # Validate generators list
-        if not self.generators:
-            raise ValueError("MCMCGenerator requires at least one generator")
 
         # Validate temperature parameters
         if self.temperature <= 0:
@@ -1932,9 +1892,10 @@ class SequentialGenerator(IterativeGenerator):
 
             # Accumulate this generator's output
             outputs = generator.get_generator_outputs()
-            assert (
-                len(outputs) == 1
-            ), f"Generator {i} must output exactly one ConstructSegment for chaining"
+            if len(outputs) != 1:
+                raise ValueError(
+                    f"Generator {i} must output exactly one ConstructSegment for chaining"
+                )
             batch = outputs[0]
 
             # Update running_prompts with the generator's output
@@ -2213,7 +2174,7 @@ class ChainedGenerator:
                 if len(first_construct.segments) != len(stage_construct.segments):
                     raise ValueError(
                         f"Stage {i} construct {j} must have the same number of segments as stage 0. "
-                        f"Found: {len(stage_construct.segments)} vs {len(first_stage.constructs)}"
+                        f"Found: {len(stage_construct.segments)} vs {len(first_construct.segments)}"
                     )
                 
                 # Check sequence types and lengths
