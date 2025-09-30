@@ -789,7 +789,6 @@ class IterativeGenerator(Generator):
         self.generators = generators
         self.constraints = constraints
         self.constraint_weights = constraint_weights or [1.0] * len(constraints)
-        self.current_step = 0
         self.history: List[Dict[str, Any]] = []  # Each entry: {"time_step": int, "energy_scores": List[float], "constructs": List[Construct]}
         self.energy_scores: List[float] = []  # Each index corresponds to a batch element, empty until first score_energy() call
 
@@ -992,11 +991,11 @@ class IterativeGenerator(Generator):
         energies_list = energies.tolist()
         self.energy_scores = energies_list
     
-    def append_snapshot_to_history(self) -> None:
+    def append_snapshot_to_history(self, step: int = 0) -> None:
         """Save snapshot of current construct state and energy scores to history."""
         # Store as structured history entry with separate metadata
         history_entry = {
-            "time_step": self.current_step,
+            "time_step": step,
             "energy_scores": self.energy_scores.copy(),
             "constructs": copy.deepcopy(self.constructs)
         }

@@ -88,9 +88,11 @@ class Program:
         Get current time step from the underlying generator.
         
         Returns:
-            Current iteration step number.
+            Current iteration step number (latest time_step from history, or 0 if no history).
         """
-        return self.ebm.current_step
+        if self.ebm.history:
+            return self.ebm.history[-1]["time_step"]
+        return 0
 
     @property
     def history(self) -> List[Dict[str, Any]]:
