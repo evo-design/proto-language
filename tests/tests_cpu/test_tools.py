@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import pytest
 import tempfile
 import shutil
@@ -16,9 +17,15 @@ from proto_language.tools.orf_prediction.orfipy import (
     parse_orfipy_results_to_df,
     _parse_orfipy_header,
 )
+from proto_language.tools.orf_prediction.prodigal import run_prodigal
 from proto_language.base import Sequence
 from proto_language.utils import SequenceType
-from proto_language.constraint import _run_esmfold, _run_orfipy_mmseqs_pipeline
+from proto_language.constraint.protein_structure import (
+    _run_esmfold,
+)
+from proto_language.constraint.sequence_annotation import (
+    _run_orfipy_mmseqs_pipeline,
+)
 from proto_language.tool_cache import ToolCache
 
 # Test data file paths
@@ -28,6 +35,7 @@ DNA_FASTA = TEST_DATA_DIR / "test_dna_sequences.fna"
 M8_FILE = TEST_DATA_DIR / "test_mmseqs_results.m8"
 ORFIPY_AA_FILE = TEST_DATA_DIR / "test_orfipy_aa.faa"
 ORFIPY_NT_FILE = TEST_DATA_DIR / "test_orfipy_nt.fna"
+PRODIGAL_FASTA = TEST_DATA_DIR / "test_prodigal_sequences.fna"
 
 # Fixtures for managing temporary files
 @pytest.fixture
@@ -281,3 +289,188 @@ class TestToolCaching:
         partial_dict = {"config": {"threshold": 0.5}}  # Missing method and options
         cached_partial = ToolCache.get_cached_results(seq, "test_tool", **partial_dict)
         assert cached_partial is None
+
+
+class TestProdigalTools:
+    """Test suite for Prodigal (pyrodigal) tool wrappers."""
+
+    def test_run_prodigal_basic_functionality(self):
+        """Test basic Prodigal functionality with a simple gene sequence."""
+        # Create a DNA sequence with a gene
+        dna_seq = Sequence('ATGAAACGTATTGCGTCGTAA' * 20, SequenceType.DNA)
+        df = run_prodigal(dna_seq)
+        
+        # Check that we got a DataFrame back
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) > 0, "Should find at least one gene"
+        
+        # Check required columns are present
+        required_columns = ['id', 'description', 'sequence', 'length', 'start', 'end', 'strand']
+        for col in required_columns:
+            assert col in df.columns, f"Missing required column: {col}"
+        
+        # Check data types
+        assert isinstance(df.iloc[0]['sequence'], str)
+        assert isinstance(df.iloc[0]['length'], (int, np.integer))
+        assert isinstance(df.iloc[0]['start'], (int, np.integer))
+        assert isinstance(df.iloc[0]['end'], (int, np.integer))
+        assert df.iloc[0]['strand'] in ['+', '-']
+
+    def test_run_prodigal_with_real_gene(self):
+        """Test Prodigal with a realistic bacterial gene sequence (lacZ partial)."""
+        # Read test sequence from file
+        from Bio import SeqIO
+        test_seq = None
+        for record in SeqIO.parse(PRODIGAL_FASTA, "fasta"):
+            if record.id == "test_seq_2_with_gene":
+                test_seq = str(record.seq)
+                break
+        
+        assert test_seq is not None, "Test sequence not found in file"
+        
+        dna_seq = Sequence(test_seq, SequenceType.DNA)
+        df = run_prodigal(dna_seq)
+        
+        # Should find genes in lacZ sequence
+        assert len(df) >= 1, "Should find at least one gene in lacZ sequence"
+        
+        # First gene should be substantial
+        first_gene = df.iloc[0]
+        assert first_gene['length'] > 100, "lacZ gene should be substantial"
+        assert first_gene['start'] > 0
+        assert first_gene['end'] > first_gene['start']
+        
+        # Check protein sequence is valid amino acids
+        protein_seq = first_gene['sequence']
+        valid_aas = set("ACDEFGHIKLMNPQRSTVWY*")
+        assert all(aa in valid_aas for aa in protein_seq), "Invalid amino acids in protein sequence"
+
+    def test_run_prodigal_caching(self):
+        """Test that Prodigal results are properly cached."""
+        dna_seq = Sequence('ATGAAACGTATTGCGTCGTAA' * 30, SequenceType.DNA)
+        
+        # First run - should compute
+        df1 = run_prodigal(dna_seq)
+        
+        # Check metadata was cached
+        assert "prodigal_proteins" in dna_seq._metadata
+        assert "prodigal_protein_count" in dna_seq._metadata
+        assert dna_seq._metadata["prodigal_protein_count"] == len(df1)
+        
+        # Second run - should use cache
+        df2 = run_prodigal(dna_seq)
+        
+        # Results should be identical
+        assert len(df1) == len(df2)
+        pd.testing.assert_frame_equal(df1, df2)
+
+    def test_run_prodigal_error_handling(self):
+        """Test that Prodigal raises appropriate errors for invalid input."""
+        # Test with non-DNA sequence
+        protein_seq = Sequence("MKFLKFSLTSAA", SequenceType.PROTEIN)
+        with pytest.raises(ValueError, match="Can only run Prodigal on DNA sequences"):
+            run_prodigal(protein_seq)
+        
+        # Test with RNA sequence
+        rna_seq = Sequence("AUGAAACGUAUUGCGUCGUAA", SequenceType.RNA)
+        with pytest.raises(ValueError, match="Can only run Prodigal on DNA sequences"):
+            run_prodigal(rna_seq)
+
+    def test_run_prodigal_no_genes_found(self):
+        """Test behavior when no genes are found in sequence."""
+        # Sequence with no valid ORFs (just repeating As)
+        from Bio import SeqIO
+        test_seq = None
+        for record in SeqIO.parse(PRODIGAL_FASTA, "fasta"):
+            if record.id == "test_seq_3_no_genes":
+                test_seq = str(record.seq)
+                break
+        
+        if test_seq:
+            dna_seq = Sequence(test_seq, SequenceType.DNA)
+            df = run_prodigal(dna_seq)
+            
+            # Should return empty DataFrame
+            assert isinstance(df, pd.DataFrame)
+            assert len(df) == 0
+            assert dna_seq._metadata["prodigal_protein_count"] == 0
+
+    def test_run_prodigal_metadata_storage(self):
+        """Test that Prodigal stores metadata correctly."""
+        dna_seq = Sequence('ATGAAACGTATTGCGTCGTAA' * 25, SequenceType.DNA)
+        df = run_prodigal(dna_seq)
+        
+        # Check metadata keys
+        assert "prodigal_proteins" in dna_seq._metadata
+        assert "prodigal_protein_count" in dna_seq._metadata
+        
+        # Check metadata content matches DataFrame
+        stored_df = dna_seq._metadata["prodigal_proteins"]
+        assert isinstance(stored_df, pd.DataFrame)
+        pd.testing.assert_frame_equal(df, stored_df)
+        assert dna_seq._metadata["prodigal_protein_count"] == len(df)
+
+    def test_run_prodigal_sequence_quality(self):
+        """Test that predicted proteins have valid sequences."""
+        dna_seq = Sequence('ATGAAACGTATTGCGTCGTAA' * 40, SequenceType.DNA)
+        df = run_prodigal(dna_seq)
+        
+        if len(df) > 0:
+            for idx, row in df.iterrows():
+                # Check sequence is non-empty string
+                assert isinstance(row['sequence'], str)
+                assert len(row['sequence']) > 0
+                
+                # Check length matches actual sequence length
+                assert row['length'] == len(row['sequence'])
+                
+                # Check no stop codons in middle (only at end if present)
+                assert row['sequence'].count('*') <= 1
+                if '*' in row['sequence']:
+                    assert row['sequence'].endswith('*')
+                
+                # Check start/end coordinates make sense
+                assert row['start'] >= 1
+                assert row['end'] > row['start']
+
+    def test_run_prodigal_multiple_sequences_independent(self):
+        """Test that running Prodigal on different sequences works independently."""
+        # Create two different sequences
+        seq1 = Sequence('ATGAAACGTATTGCGTCGTAA' * 20, SequenceType.DNA)
+        seq2 = Sequence('ATGCCCGGGAAATTTCCCGGG' * 25, SequenceType.DNA)
+        
+        # Run Prodigal on both
+        df1 = run_prodigal(seq1)
+        df2 = run_prodigal(seq2)
+        
+        # Both should have results cached independently
+        assert "prodigal_proteins" in seq1._metadata
+        assert "prodigal_proteins" in seq2._metadata
+        
+        # Metadata should be independent
+        stored_df1 = seq1._metadata["prodigal_proteins"]
+        stored_df2 = seq2._metadata["prodigal_proteins"]
+        
+        pd.testing.assert_frame_equal(df1, stored_df1)
+        pd.testing.assert_frame_equal(df2, stored_df2)
+
+    def test_run_prodigal_dataframe_structure(self):
+        """Test that output DataFrame has the expected structure for downstream use."""
+        dna_seq = Sequence('ATGAAACGTATTGCGTCGTAA' * 30, SequenceType.DNA)
+        df = run_prodigal(dna_seq)
+        
+        if len(df) > 0:
+            # Check column types
+            assert df['id'].dtype == object  # string
+            assert df['description'].dtype == object  # string  
+            assert df['sequence'].dtype == object  # string
+            assert df['length'].dtype in [int, 'int64', 'int32']
+            assert df['start'].dtype in [int, 'int64', 'int32']
+            assert df['end'].dtype in [int, 'int64', 'int32']
+            assert df['strand'].dtype == object  # string
+            
+            # Check no null values in critical columns
+            assert not df['sequence'].isnull().any()
+            assert not df['length'].isnull().any()
+            assert not df['start'].isnull().any()
+            assert not df['end'].isnull().any()

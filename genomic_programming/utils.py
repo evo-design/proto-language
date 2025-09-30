@@ -40,6 +40,7 @@ class SequenceType(Enum):
     DNA = "dna"
     RNA = "rna"
     PROTEIN = "protein"
+    LIGAND = "ligand"
 
 
 class ConstraintType(Enum):

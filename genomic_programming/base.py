@@ -56,6 +56,8 @@ class Sequence:
             self._valid_chars = set("ACGU")
         elif self.sequence_type == SequenceType.PROTEIN:
             self._valid_chars = set("ACDEFGHIKLMNPQRSTVWY")
+        elif self.sequence_type == SequenceType.LIGAND:
+            self._valid_chars = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890'- ")
         else:
             raise ValueError(f"Unsupported sequence_type: {self.sequence_type}")
 

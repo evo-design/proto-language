@@ -52,6 +52,9 @@ dependencies = [
     "py3Dmol>=2.0.0",
     # AlphaGenome client (CPU-only)
     "alphagenome>=0.2.0",
+    # Constraint tool imports
+    "promotercalculator>=1.0.0",
+    "pyrodigal>=3.0.0",
     # Development and testing
     "pytest>=7.3.0",
 ]

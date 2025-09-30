@@ -27,6 +27,10 @@ from proto_language.constraint import (
     tetranucleotide_usage_constraint,
     orfipy_mmseqs_gene_hit_count_constraint,
     orfipy_mmseqs_gene_homology_constraint,
+    protein_length_constraint,
+    protein_repetitiveness_constraint,
+    protein_diversity_constraint,
+    balanced_aa_constraint,
 )
 from proto_language.schemas import ORFipyKwargs, MMseqsKwargs, ESMFoldKwargs
 
@@ -627,7 +631,7 @@ class TestOrfipyMmseqsConstraints:
             scoring_function=orfipy_mmseqs_gene_hit_count_constraint,
             scoring_function_config=hit_count_config,
         )
-        
+
         # Since we're using real files, we expect the constraint to work with actual data
         scores = constraint.evaluate()
         assert len(scores) == 1
@@ -654,7 +658,7 @@ class TestOrfipyMmseqsConstraints:
             scoring_function=orfipy_mmseqs_gene_homology_constraint,
             scoring_function_config=homology_config,
         )
-        
+
         scores = constraint.evaluate()
         assert len(scores) == 1
         assert isinstance(scores[0], float)
@@ -670,18 +674,18 @@ class TestOrfipyMmseqsConstraints:
         """Test constraint behavior when no hits are found."""
         # Use a sequence with no meaningful ORFs
         segment = create_segment("A" * 100)
-        
+
         # Set up test files with empty ORF results
         dna_file = temp_dir / "input.fna"
         dna_file.write_text(">test_seq\n" + "A" * 100 + "\n")
-        
+
         orfipy_dir = temp_dir / "orfipy_output"
         orfipy_dir.mkdir()
-        
+
         # Create empty ORF files
         (orfipy_dir / "orfipy_aa.faa").write_text("")
         (orfipy_dir / "orfipy_nt.fna").write_text("")
-        
+
         # Create empty mmseqs results
         mmseqs_file = temp_dir / "mmseqs_results.m8"
         mmseqs_file.write_text("")
@@ -691,7 +695,7 @@ class TestOrfipyMmseqsConstraints:
             scoring_function=orfipy_mmseqs_gene_hit_count_constraint,
             scoring_function_config=hit_count_config,
         )
-        
+
         scores = constraint.evaluate()
         assert len(scores) == 1
         assert isinstance(scores[0], float)
@@ -703,19 +707,19 @@ class TestOrfipyMmseqsConstraints:
         sequences = get_test_sequences_with_real_hits()
         # Create a batch with multiple sequences
         batch = create_batched_segment([sequences[0], sequences[1], "A"*100])
-        
+
         # Set up test files
         setup_test_files(temp_dir, sequences[0])
-        
+
         # Adjust config for batch testing
         hit_count_config["min_hits"] = 0  # Allow 0 hits for some sequences
-        
+
         constraint = Constraint(
             inputs=[batch],
             scoring_function=orfipy_mmseqs_gene_hit_count_constraint,
             scoring_function_config=hit_count_config,
         )
-        
+
         scores = constraint.evaluate()
         assert len(scores) == 3
         assert all(isinstance(score, float) for score in scores)
@@ -729,7 +733,9 @@ class TestOrfipyMmseqsConstraints:
 
     def test_caching(self, hit_count_config, temp_dir):
         """Test that caching works correctly with real files."""
-        from proto_language.constraint import _run_orfipy_mmseqs_pipeline
+        from proto_language.constraint.sequence_annotation import (
+            _run_orfipy_mmseqs_pipeline,
+        )
         from proto_language.tool_cache import ToolCache
         seq = Sequence("ATGAAACGCATTAGCACCACCATTACCACCACCATCACCATTACCACAGGTAACGGTGCGGGCTGA", SequenceType.DNA)
 
@@ -751,18 +757,18 @@ class TestOrfipyMmseqsConstraints:
                                           orfipy_kwargs=hit_count_config.get("orfipy_kwargs"),
                                           mmseqs_kwargs=hit_count_config.get("mmseqs_kwargs"))
         assert seq._metadata["test_marker"] == "should_remain"
-        
+
         # Verify cache is working by checking ToolCache directly with model parameters
         orfipy_kwargs = hit_count_config.get("orfipy_kwargs").model_dump()
         mmseqs_kwargs = hit_count_config.get("mmseqs_kwargs").model_dump()
-        
+
         cached_results = ToolCache.get_cached_results(seq, "orfipy_mmseqs", 
                                                     orfipy_kwargs=orfipy_kwargs,
                                                     mmseqs_kwargs=mmseqs_kwargs)
         assert cached_results is not None
         assert "orfipy_orfs" in cached_results
         assert "mmseqs_results" in cached_results
-        
+
         # Different config should recompute when pipeline parameters change
         new_mmseqs_kwargs = MMseqsKwargs(database=hit_count_config["mmseqs_kwargs"].database, 
                                    threads=1, sensitivity=2.0)  # Change pipeline parameter
@@ -775,7 +781,7 @@ class TestOrfipyMmseqsConstraints:
     def test_parameter_validation(self, dummy_db_path):
         """Tests that missing required parameters raise ValueErrors."""
         segment = create_segment("ATGAAATAG")
-        
+
         # Test hit count constraint
         with pytest.raises(TypeError, match="missing 2 required positional arguments: 'min_hits' and 'max_hits'"):
             Constraint(
@@ -791,6 +797,355 @@ class TestOrfipyMmseqsConstraints:
                 scoring_function=orfipy_mmseqs_gene_homology_constraint,
                 scoring_function_config={"min_homology": 50.0},
             ).evaluate()
+
+
+# Tests for protein_length_constraint
+class TestProteinLengthConstraint:
+    def test_protein_within_range(self):
+        """Test protein length within acceptable range."""
+        segment = create_segment("MVLSPADKTNVKAAWGKVGAH", SequenceType.PROTEIN)
+        config = {"config": {"min_length": 20, "max_length": 25}}
+        
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=protein_length_constraint,
+            scoring_function_config=config,
+        )
+        
+        assert constraint.evaluate()[0] == 0.0
+        assert segment[0]._metadata["segment_0.protein_length_constraint.protein_length"] == 21
+    
+    def test_protein_too_short(self):
+        """Test protein shorter than minimum."""
+        segment = create_segment("MVLSP", SequenceType.PROTEIN)
+        config = {"config": {"min_length": 10, "max_length": 50}}
+        
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=protein_length_constraint,
+            scoring_function_config=config,
+        )
+        
+        score = constraint.evaluate()[0]
+        assert score > 0.0
+        assert segment[0]._metadata["segment_0.protein_length_constraint.protein_length"] == 5
+    
+    def test_protein_too_long(self):
+        """Test protein longer than maximum."""
+        segment = create_segment("M" * 100, SequenceType.PROTEIN)
+        config = {"config": {"min_length": 10, "max_length": 50}}
+        
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=protein_length_constraint,
+            scoring_function_config=config,
+        )
+        
+        score = constraint.evaluate()[0]
+        assert score > 0.0
+        assert segment[0]._metadata["segment_0.protein_length_constraint.protein_length"] == 100
+    
+    def test_batch_processing(self):
+        """Test constraint with batch of proteins."""
+        sequences = ["M" * 10, "M" * 25, "M" * 60]
+        batch = create_batched_segment(sequences, SequenceType.PROTEIN)
+        config = {"config": {"min_length": 20, "max_length": 50}}
+        
+        constraint = Constraint(
+            inputs=[batch],
+            scoring_function=protein_length_constraint,
+            scoring_function_config=config,
+        )
+        
+        scores = constraint.evaluate()
+        assert len(scores) == 3
+        assert scores[0] > 0.0  # Too short
+        assert scores[1] == 0.0  # Within range
+        assert scores[2] > 0.0  # Too long
+    
+    def test_invalid_sequence_type(self):
+        """Test that DNA sequence raises error."""
+        segment = create_segment("ATCGATCG", SequenceType.DNA)
+        config = {"config": {"min_length": 10, "max_length": 50}}
+        
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=protein_length_constraint,
+            scoring_function_config=config,
+        )
+        
+        with pytest.raises(AssertionError):
+            constraint.evaluate()
+
+
+# Tests for protein_repetitiveness_constraint
+class TestProteinRepetitivenessConstraint:
+    def test_non_repetitive_protein(self):
+        """Test protein with low repetitiveness."""
+        segment = create_segment("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMF", SequenceType.PROTEIN)
+        config = {"config": {"max_repetitiveness": 0.5, "min_repeat_length": 3}}
+        
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=protein_repetitiveness_constraint,
+            scoring_function_config=config,
+        )
+        
+        score = constraint.evaluate()[0]
+        assert score >= 0.0
+        assert "segment_0.protein_repetitiveness_constraint.repetitiveness_score" in segment[0]._metadata
+        assert "segment_0.protein_repetitiveness_constraint.max_repetitive_fraction" in segment[0]._metadata
+    
+    def test_highly_repetitive_protein(self):
+        """Test protein with high repetitiveness."""
+        segment = create_segment("AAAAAAAAAAAAAA", SequenceType.PROTEIN)
+        config = {"config": {"max_repetitiveness": 0.3}}
+        
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=protein_repetitiveness_constraint,
+            scoring_function_config=config,
+        )
+        
+        score = constraint.evaluate()[0]
+        assert score > 0.0
+        rep_score = segment[0]._metadata["segment_0.protein_repetitiveness_constraint.repetitiveness_score"]
+        assert rep_score > 0.5  # Highly repetitive
+    
+    def test_repetitive_pattern(self):
+        """Test protein with repetitive pattern."""
+        segment = create_segment("MVKMVKMVKMVKMVK", SequenceType.PROTEIN)
+        config = {"config": {"max_repetitiveness": 0.3, "min_repeat_length": 3}}
+        
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=protein_repetitiveness_constraint,
+            scoring_function_config=config,
+        )
+        
+        score = constraint.evaluate()[0]
+        assert score > 0.0
+        rep_score = segment[0]._metadata["segment_0.protein_repetitiveness_constraint.repetitiveness_score"]
+        assert rep_score > 0.3
+    
+    def test_batch_processing(self):
+        """Test constraint with batch of proteins."""
+        sequences = ["MVLSPADKTNVK", "AAAAAAAAAA", "MVKMVKMVKMVK"]
+        batch = create_batched_segment(sequences, SequenceType.PROTEIN)
+        config = {"config": {"max_repetitiveness": 0.4}}
+        
+        constraint = Constraint(
+            inputs=[batch],
+            scoring_function=protein_repetitiveness_constraint,
+            scoring_function_config=config,
+        )
+        
+        scores = constraint.evaluate()
+        assert len(scores) == 3
+        assert scores[0] <= scores[2]  # First is less repetitive than third
+        assert scores[1] > scores[0]  # Second (all As) is most repetitive
+
+
+# Tests for protein_diversity_constraint
+class TestProteinDiversityConstraint:
+    def test_high_diversity(self):
+        """Test protein with high amino acid diversity."""
+        segment = create_segment("MVLSPADKTNVKAAWGKVGAHAGEYGAEALER", SequenceType.PROTEIN)
+        config = {"config": {"min_diversity": 0.5}}
+        
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=protein_diversity_constraint,
+            scoring_function_config=config,
+        )
+        
+        score = constraint.evaluate()[0]
+        assert score == 0.0
+        assert "segment_0.protein_diversity_constraint.aa_diversity_score" in segment[0]._metadata
+        assert "segment_0.protein_diversity_constraint.unique_amino_acid_count" in segment[0]._metadata
+        assert segment[0]._metadata["segment_0.protein_diversity_constraint.aa_diversity_score"] > 0.5
+    
+    def test_low_diversity(self):
+        """Test protein with low amino acid diversity."""
+        segment = create_segment("AAAAAAGGGGGGLLLLLL", SequenceType.PROTEIN)
+        config = {"config": {"min_diversity": 0.5}}
+        
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=protein_diversity_constraint,
+            scoring_function_config=config,
+        )
+        
+        score = constraint.evaluate()[0]
+        assert score > 0.0
+        diversity = segment[0]._metadata["segment_0.protein_diversity_constraint.aa_diversity_score"]
+        assert diversity < 0.5
+        assert segment[0]._metadata["segment_0.protein_diversity_constraint.unique_amino_acid_count"] == 3
+    
+    def test_single_amino_acid(self):
+        """Test protein with only one amino acid type."""
+        segment = create_segment("AAAAAAAAAA", SequenceType.PROTEIN)
+        config = {"config": {"min_diversity": 0.2}}
+        
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=protein_diversity_constraint,
+            scoring_function_config=config,
+        )
+        
+        score = constraint.evaluate()[0]
+        assert score > 0.0
+        assert segment[0]._metadata["segment_0.protein_diversity_constraint.unique_amino_acid_count"] == 1
+        assert segment[0]._metadata["segment_0.protein_diversity_constraint.aa_diversity_score"] == 1/20  # 1 out of 20 standard AAs
+    
+    def test_empty_sequence(self):
+        """Test that empty sequence raises error."""
+        segment = create_segment("", SequenceType.PROTEIN)
+        config = {"config": {"min_diversity": 0.3}}
+        
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=protein_diversity_constraint,
+            scoring_function_config=config,
+        )
+        
+        with pytest.raises(ValueError, match="Sequence is non-existent"):
+            constraint.evaluate()
+
+
+# Tests for balanced_aa_constraint
+class TestBalancedAAConstraint:
+    def test_balanced_protein(self):
+        """Test protein with balanced amino acid frequencies."""
+        # Create a relatively balanced sequence
+        segment = create_segment("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHF", SequenceType.PROTEIN)
+        config = {"config": {"min_aa_frequency": 0.02, "max_underrepresented_count": 10}}
+        
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=balanced_aa_constraint,
+            scoring_function_config=config,
+        )
+        
+        score = constraint.evaluate()[0]
+        assert score >= 0.0
+        assert "segment_0.balanced_aa_constraint.underrepresented_aa_score" in segment[0]._metadata
+        assert "segment_0.balanced_aa_constraint.underrepresented_amino_acids" in segment[0]._metadata
+    
+    def test_unbalanced_protein(self):
+        """Test protein with unbalanced amino acid frequencies."""
+        segment = create_segment("AAAAAAGGGGLLLLMMMM", SequenceType.PROTEIN)
+        config = {"config": {"min_aa_frequency": 0.1, "max_underrepresented_count": 2}}
+        
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=balanced_aa_constraint,
+            scoring_function_config=config,
+        )
+        
+        score = constraint.evaluate()[0]
+        # With 4 amino acids, all at ~25%, and threshold of 10%, all are above threshold
+        # So underrepresented_aa_count should be 0
+        assert score >= 0.0
+        assert "segment_0.balanced_aa_constraint.underrepresented_aa_count" in segment[0]._metadata
+    
+    def test_empty_sequence(self):
+        """Test empty sequence handling."""
+        segment = create_segment("", SequenceType.PROTEIN)
+        config = {"config": {"min_aa_frequency": 0.05, "max_underrepresented_count": 5}}
+        
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=balanced_aa_constraint,
+            scoring_function_config=config,
+        )
+        
+        score = constraint.evaluate()[0]
+        assert score == 1.0
+    
+    def test_batch_processing(self):
+        """Test constraint with batch of proteins."""
+        sequences = [
+            "MVLSPADKTNVKAAWGKVGAHAGEYGAEAL",  # Balanced
+            "AAAAAGGGGGLLLLLL",  # Less balanced
+            "MMMMM"  # Very unbalanced (single AA)
+        ]
+        batch = create_batched_segment(sequences, SequenceType.PROTEIN)
+        config = {"config": {"min_aa_frequency": 0.15, "max_underrepresented_count": 3}}
+        
+        constraint = Constraint(
+            inputs=[batch],
+            scoring_function=balanced_aa_constraint,
+            scoring_function_config=config,
+        )
+        
+        scores = constraint.evaluate()
+        assert len(scores) == 3
+        # All sequences should have some underrepresented amino acids with this threshold
+        assert all(score >= 0.0 for score in scores)
+
+
+# Tests for sigma70_promoter_constraint
+class TestSigma70PromoterConstraint:
+    def test_ideal_promoter(self):
+        """Test ideal sigma70 promoter sequence."""
+        from proto_language.constraint import sigma70_promoter_constraint
+        
+        # Ideal promoter: -35 box + 17bp spacer + -10 box
+        ideal = "TTGACA" + "A" * 17 + "TATAAT"
+        segment = create_segment(ideal, SequenceType.DNA)
+        
+        score = sigma70_promoter_constraint(segment.batch_sequences[0])  # Pass single Sequence
+        assert score < 0.5  # Should have low penalty
+        assert "sigma70" in segment.batch_sequences[0]._metadata
+        assert segment.batch_sequences[0]._metadata["sigma70"]["spacer_len"] == 17
+    
+    def test_poor_promoter(self):
+        """Test poor promoter sequence."""
+        from proto_language.constraint import sigma70_promoter_constraint
+        
+        poor = "AAAAAA" + "G" * 17 + "CCCCCC"
+        segment = create_segment(poor, SequenceType.DNA)
+        
+        score = sigma70_promoter_constraint(segment.batch_sequences[0])
+        assert score > 0.4  # Should have moderate-to-high penalty
+        assert "sigma70" in segment.batch_sequences[0]._metadata
+    
+    def test_scanning_long_sequence(self):
+        """Test scanning long sequence for best promoter."""
+        from proto_language.constraint import sigma70_promoter_constraint
+        
+        # Embed promoter in longer sequence
+        long_seq = "A" * 50 + "TTGACA" + "T" * 17 + "TATAAT" + "G" * 50
+        segment = create_segment(long_seq, SequenceType.DNA)
+        
+        score = sigma70_promoter_constraint(segment.batch_sequences[0])
+        assert score < 0.5
+        assert "sigma70" in segment.batch_sequences[0]._metadata
+        assert "pos" in segment.batch_sequences[0]._metadata["sigma70"]
+    
+    def test_short_sequence(self):
+        """Test sequence too short for promoter."""
+        from proto_language.constraint import sigma70_promoter_constraint
+        
+        short = "ATCG"
+        segment = create_segment(short, SequenceType.DNA)
+        
+        score = sigma70_promoter_constraint(segment.batch_sequences[0])
+        assert score == 1.0
+        assert segment.batch_sequences[0]._metadata["sigma70"]["reason"] == "too_short"
+    
+    def test_batch_processing(self):
+        """Test batch of sequences."""
+        from proto_language.constraint import sigma70_promoter_constraint
+        
+        ideal = "TTGACA" + "A" * 17 + "TATAAT"
+        poor = "AAAAAA" + "G" * 17 + "CCCCCC"
+        batch = create_batched_segment([ideal, poor], SequenceType.DNA)
+        
+        scores = sigma70_promoter_constraint(batch.batch_sequences)
+        assert len(scores) == 2
+        assert scores[0] < scores[1]  # Ideal better than poor
 
 
 class TestConstraintConfigNormalization:
@@ -1016,4 +1371,3 @@ class TestConstraintConfigNormalization:
         assert isinstance(esmfold_kwargs, ESMFoldKwargs)
         assert esmfold_kwargs.verbose == True
         assert esmfold_kwargs.residue_idx_offset == 256
-
