@@ -5,7 +5,8 @@ Constraints define the objective function for construct optimization.
 """
 
 from enum import Enum
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from collections.abc import Iterable as AbcIterable
 
 from .sequence import Sequence, SequenceType
 from .segment import Segment
@@ -17,6 +18,13 @@ class ConstraintType(Enum):
 
     CONTIGUOUS = "contiguous"  # Concatenate sequences before evaluation
     DISJOINT = "disjoint"  # Evaluate sequences separately as a group
+
+
+class InputMode(Enum):
+    """Enumeration of inputs modes for constraints."""
+
+    SINGLE = "single"  # Single input mode: sequence objects are passed to the scoring function one at a time
+    MULTI = "multi"  # Multi input mode: a list of sequence objects is passed to the scoring function
 
 
 class Constraint:
@@ -47,8 +55,11 @@ class Constraint:
         self,
         inputs: Iterable[Segment],
         scoring_function: Callable[[Sequence | Tuple[Sequence], Dict[str, Any]], float],
-        scoring_function_config: Dict[str, Any] = {},
-        constraint_type: ConstraintType = ConstraintType.CONTIGUOUS,
+        scoring_function_config: Optional[Dict[str, Any]] = None,
+        input_mode: Optional[Union[InputMode, str]] = InputMode.SINGLE,
+        constraint_type: Optional[
+            Union[ConstraintType, str]
+        ] = ConstraintType.CONTIGUOUS,
         label: Optional[str] = None,
     ) -> None:
         """
@@ -56,15 +67,24 @@ class Constraint:
 
         Args:
             inputs: The Segment object(s) this constraint evaluates.
-                Can be a single Segment or an iterable of Segment objects.
+                Can be a single Segment or an iterable of Segment objects. Each
+                segment object can contain a batch of sequences, but all segments
+                must have the same batch size.
             scoring_function: Function that scores sequences.
                 Inputs are single sequence for contiguous constraints or tuple of sequences for disjoint constraints.
                 Outputs are a float score between 0.0 and 1.0. Lower values are better.
             scoring_function_config: Configuration parameters passed to scoring_function.
-            constraint_type: How to process multiple inputs:
-                - CONTIGUOUS: Concatenate sequences before evaluation
-                - DISJOINT: Evaluate sequences separately as a group
-            label: Optional custom label for this constraint. If not provided, defaults to scoring function name. 
+            input_mode: How to pass sequence objects to the scoring function:
+                - SINGLE: Single input mode: sequence objects are passed to the scoring function one at a time.
+                    The scoring function should expect a single sequence object in it's first parameter. (This is the default mode.)
+                - MULTI: Multi input mode: a list of sequence objects is passed to the scoring function.
+                    The scoring function should expect a list of sequence objects in it's first parameter. This is helpful for
+                    scoring functions that can batch inference for multiple sequences at once (such as functions that involve
+                    forward passes through a model)
+            constraint_type: How multiple sequences within a segment batch position are processed:
+                - CONTIGUOUS: Concatenate sequences before evaluation.
+                - DISJOINT: Evaluate sequences separately as a group.
+            label: Optional custom label for this constraint. If not provided, defaults to scoring function name.
                    Prefixed to prevent metadata collisions.
         """
         self.inputs: Tuple[Segment] = tuple(inputs)
@@ -72,9 +92,10 @@ class Constraint:
             [Sequence | Tuple[Sequence], Dict[str, Any]], float
         ] = scoring_function
         self.scoring_function_config: Dict[str, Any] = self._normalize_config(scoring_function_config)
-        self.constraint_type: ConstraintType = constraint_type
+        self.constraint_type: ConstraintType = ConstraintType(constraint_type)
         self.label: str = label or scoring_function.__name__
-        
+        self.input_mode: InputMode = InputMode(input_mode)
+
         # Validate input consistency and store common properties
         self._validate_input_consistency(self.inputs)
         self.sequence_type = self.inputs[0].sequence_type
@@ -95,23 +116,23 @@ class Constraint:
         """
         if not config:
             return {}
-        
+
         # Import here to avoid circular imports
         try:
             from ...schemas import ESMFoldKwargs, ORFipyKwargs, MMseqsKwargs
         except ImportError:
             # If schemas aren't available, return config unchanged
             return config.copy()
-        
+
         normalized = config.copy()
-        
+
         # Define the mapping of config keys to their Pydantic models
         PYDANTIC_MAPPINGS = {
             'esmfold_kwargs': ESMFoldKwargs,
             'orfipy_kwargs': ORFipyKwargs, 
             'mmseqs_kwargs': MMseqsKwargs,
         }
-        
+
         for key, value in normalized.items():
             if key in PYDANTIC_MAPPINGS and isinstance(value, dict):
                 try:
@@ -119,7 +140,7 @@ class Constraint:
                 except Exception:
                     # If conversion fails, leave as dict (backward compatibility)
                     pass
-                    
+
         return normalized
 
     def _process_inputs(self) -> List[Sequence] | List[Tuple[Sequence, ...]]:
@@ -145,7 +166,7 @@ class Constraint:
                 )
                 processed_inputs.append(dummy_seq)
         # DISJOINT CASE: Group corresponding sequences from each segment as tuples
-        # Example: segment_0=[Seq("AAA"), Seq("TTT"), Seq("GGG")], segment_1=[Seq("CCC"), Seq("AAC"), Seq("TTC")] 
+        # Example: segment_0=[Seq("AAA"), Seq("TTT"), Seq("GGG")], segment_1=[Seq("CCC"), Seq("AAC"), Seq("TTC")]
         #          → [(Seq("AAA"), Seq("CCC")), (Seq("TTT"), Seq("AAC")), (Seq("GGG"), Seq("TTC"))]
         # Note: Create dummy sequences without old metadata, similar to CONTIGUOUS case
         elif self.constraint_type == ConstraintType.DISJOINT:
@@ -164,7 +185,7 @@ class Constraint:
                 processed_inputs.append(tuple(clean_sequences))
 
         return processed_inputs
-    
+
     def evaluate(self) -> List[float]:
         """
         Evaluate each Sequence object in the Segment batch.
@@ -173,20 +194,32 @@ class Constraint:
             List of scores between 0.0 and 1.0, one per Sequence object in the batch.
             Returns float('inf') for invalid sequences.
         """
-        scores = []
-        
+
         # Preprocess inputs to accommodate scoring function
         scoring_function_inputs = self._process_inputs()
-            
-        # Score all inputs and propagate metadata back with prefixing
+
+        # Score all inputs
+        scores = []
+        if self.input_mode == InputMode.MULTI:
+            # Multi-input scoring function: pass in list of inputs
+            scores = self.scoring_function(
+                scoring_function_inputs, **self.scoring_function_config
+            )
+        else:
+            # Single-input scoring function: pass in each input separately
+            scores = [
+                self.scoring_function(input, **self.scoring_function_config)
+                for input in scoring_function_inputs
+            ]
+
+        # Propagate metadata back with prefixing
         for i, input in enumerate(scoring_function_inputs):
-            scores.append(self.scoring_function(input, **self.scoring_function_config)) # this adds metadata to the dummy input sequence
 
             if self.constraint_type == ConstraintType.CONTIGUOUS:
                 # Create segment labels string (e.g. promoter-cds-terminator)
                 segment_labels = [seg.label or f"segment_{idx}" for idx, seg in enumerate(self.inputs)]
                 segments_str = "-".join(segment_labels)
-                
+
                 for segment in self.inputs:
                     original_seq = segment.batch_sequences[i]
                     propagate_metadata(
@@ -201,15 +234,15 @@ class Constraint:
                 for j, scored_sequence in enumerate(input):  # input is tuple of sequences
                     original_seq = self.inputs[j].batch_sequences[i]  # Get original sequence from j-th segment
                     segment_label = self.inputs[j].label or f"segment_{j}"
-                    
+
                     propagate_metadata(
                         source_metadata=scored_sequence._metadata,
                         target_metadata=original_seq._metadata,
                         prefix=f"{segment_label}.{self.label}"
                     )
-                
+
         return scores
-    
+
     def _validate_input_consistency(self, inputs: Tuple[Segment]) -> None:
         """
         Validate that all input segments have consistent properties.
@@ -229,14 +262,14 @@ class Constraint:
             raise ValueError(
                 f"Inconsistent sequence_type across inputs. Found: {all_types}"
             )
-            
+
         # Check valid_chars consistency
         if not all(
             input_batch._valid_chars == inputs[0]._valid_chars
             for input_batch in inputs
         ):
             raise ValueError("Inconsistent valid_chars across inputs.")
-            
+
         # Check batch size consistency
         batch_sizes = [len(input_batch.batch_sequences) for input_batch in inputs]
         if not all(size == batch_sizes[0] for size in batch_sizes):
@@ -244,4 +277,3 @@ class Constraint:
                 f"Inconsistent batch sizes across inputs. Found: {batch_sizes}. "
                 f"All input segments must have the same batch size."
             )
-

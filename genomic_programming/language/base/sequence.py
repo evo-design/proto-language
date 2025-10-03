@@ -5,7 +5,7 @@ Represents a single DNA, RNA, or protein sequence with validation and metadata.
 """
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Union
 import warnings
 
 from ...utils.metadata import propagate_metadata
@@ -38,7 +38,7 @@ class Sequence:
     def __init__(
         self,
         sequence: str = "",
-        sequence_type: SequenceType = SequenceType.DNA,
+        sequence_type: Optional[Union[SequenceType, str]] = SequenceType.DNA,
         valid_chars: Optional[Set[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
@@ -52,7 +52,7 @@ class Sequence:
                 If provided, overrides the default character set for the sequence_type.
             metadata: Additional data associated with this sequence.
         """
-        self.sequence_type: SequenceType = sequence_type
+        self.sequence_type: SequenceType = SequenceType(sequence_type)
         # Set up character validation based on sequence type or custom valid_chars
         if valid_chars:
             self._valid_chars: Optional[Set[str]] = valid_chars
@@ -74,7 +74,7 @@ class Sequence:
             "sequence": sequence,
             "sequence_length": len(sequence),
         }
-        
+
         # Add user metadata, warning if they try to override protected keys
         if metadata:
             conflicting_keys = [key for key in metadata if key in protected_metadata]
@@ -180,12 +180,12 @@ class Sequence:
         """
         combined_sequence_string = "".join(sequence.sequence for sequence in subsequences)
         combined_metadata = {}
-        
+
         if merge_metadata:
             for sequence in subsequences:
                 # Only propagate non-system metadata (no prefix needed)
                 propagate_metadata(sequence._metadata, combined_metadata)
-        
+
         return Sequence(
             sequence=combined_sequence_string,
             sequence_type=subsequences[0].sequence_type, # assumed to be the same for all subsequences
@@ -202,9 +202,8 @@ class Sequence:
             Dict with system keys first, then constraint keys in chronological order.
         """
         system_keys = ["sequence", "sequence_length"]
-        
+
         return {
             **{k: self._metadata[k] for k in system_keys if k in self._metadata},  # System keys first
             **{k: v for k, v in self._metadata.items() if k not in set(system_keys)}    # Constraint keys
         }
-
