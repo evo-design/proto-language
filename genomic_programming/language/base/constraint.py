@@ -6,6 +6,8 @@ Constraints define the objective function for construct optimization.
 
 from enum import Enum
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+import inspect
+from collections.abc import Iterable as AbcIterable
 
 from .sequence import Sequence, SequenceType
 from .segment import Segment
@@ -74,11 +76,82 @@ class Constraint:
         self.scoring_function_config: Dict[str, Any] = self._normalize_config(scoring_function_config)
         self.constraint_type: ConstraintType = constraint_type
         self.label: str = label or scoring_function.__name__
-        
+        self.multi_input: bool = self._detect_multi_input(scoring_function)
+
         # Validate input consistency and store common properties
         self._validate_input_consistency(self.inputs)
         self.sequence_type = self.inputs[0].sequence_type
         self.valid_chars = self.inputs[0]._valid_chars
+
+    def _detect_multi_input(self, scoring_function: Callable) -> bool:
+        """
+        Detect if the scoring function can handle multiple inputs
+        (iterable of sequences and returns list of scores).
+
+        First checks type annotations - if the first parameter is annotated as any iterable type, it's multi-input.
+        If no type annotation, falls back to parameter name: 'sequence' = single, 'sequences' = multi.
+
+        Args:
+            scoring_function: The scoring function to inspect
+
+        Returns:
+            True if function expects iterable of sequences, False if single sequence/tuple
+        """
+        try:
+            sig = inspect.signature(scoring_function)
+            params = list(sig.parameters.values())
+
+            if not params:
+                return False
+
+            first_param = params[0]
+
+            # Check type annotation first
+            if first_param.annotation != inspect.Parameter.empty:
+                # Check if annotation is any iterable type
+                annotation = first_param.annotation
+
+                # Check for generic types with __origin__ (List, Tuple, Iterable, etc.)
+                if hasattr(annotation, "__origin__"):
+                    origin = annotation.__origin__
+                    # Check if it's list, tuple, or any iterable
+                    if origin in (list, tuple) or (
+                        hasattr(origin, "__mro__") and AbcIterable in origin.__mro__
+                    ):
+                        return True
+                    # Special case for typing.Iterable
+                    if hasattr(origin, "_name") and origin._name in (
+                        "Iterable",
+                        "List",
+                        "Tuple",
+                    ):
+                        return True
+
+                # Check for direct types
+                if annotation in (list, tuple, AbcIterable):
+                    return True
+
+                # Check for typing module types by name
+                if hasattr(annotation, "_name") and annotation._name in (
+                    "List",
+                    "Tuple",
+                    "Iterable",
+                ):
+                    return True
+
+            # Fall back to parameter name
+            param_name = first_param.name.lower()
+            if param_name == "sequences":
+                return True
+            elif param_name == "sequence":
+                return False
+
+            # Default to single input if unclear
+            return False
+
+        except Exception:
+            # If inspection fails, default to single input
+            return False
 
     def _normalize_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -95,23 +168,23 @@ class Constraint:
         """
         if not config:
             return {}
-        
+
         # Import here to avoid circular imports
         try:
             from ...schemas import ESMFoldKwargs, ORFipyKwargs, MMseqsKwargs
         except ImportError:
             # If schemas aren't available, return config unchanged
             return config.copy()
-        
+
         normalized = config.copy()
-        
+
         # Define the mapping of config keys to their Pydantic models
         PYDANTIC_MAPPINGS = {
             'esmfold_kwargs': ESMFoldKwargs,
             'orfipy_kwargs': ORFipyKwargs, 
             'mmseqs_kwargs': MMseqsKwargs,
         }
-        
+
         for key, value in normalized.items():
             if key in PYDANTIC_MAPPINGS and isinstance(value, dict):
                 try:
@@ -119,7 +192,7 @@ class Constraint:
                 except Exception:
                     # If conversion fails, leave as dict (backward compatibility)
                     pass
-                    
+
         return normalized
 
     def _process_inputs(self) -> List[Sequence] | List[Tuple[Sequence, ...]]:
@@ -145,7 +218,7 @@ class Constraint:
                 )
                 processed_inputs.append(dummy_seq)
         # DISJOINT CASE: Group corresponding sequences from each segment as tuples
-        # Example: segment_0=[Seq("AAA"), Seq("TTT"), Seq("GGG")], segment_1=[Seq("CCC"), Seq("AAC"), Seq("TTC")] 
+        # Example: segment_0=[Seq("AAA"), Seq("TTT"), Seq("GGG")], segment_1=[Seq("CCC"), Seq("AAC"), Seq("TTC")]
         #          → [(Seq("AAA"), Seq("CCC")), (Seq("TTT"), Seq("AAC")), (Seq("GGG"), Seq("TTC"))]
         # Note: Create dummy sequences without old metadata, similar to CONTIGUOUS case
         elif self.constraint_type == ConstraintType.DISJOINT:
@@ -164,7 +237,7 @@ class Constraint:
                 processed_inputs.append(tuple(clean_sequences))
 
         return processed_inputs
-    
+
     def evaluate(self) -> List[float]:
         """
         Evaluate each Sequence object in the Segment batch.
@@ -174,10 +247,10 @@ class Constraint:
             Returns float('inf') for invalid sequences.
         """
         scores = []
-        
+
         # Preprocess inputs to accommodate scoring function
         scoring_function_inputs = self._process_inputs()
-            
+
         # Score all inputs and propagate metadata back with prefixing
         for i, input in enumerate(scoring_function_inputs):
             scores.append(self.scoring_function(input, **self.scoring_function_config)) # this adds metadata to the dummy input sequence
@@ -186,7 +259,7 @@ class Constraint:
                 # Create segment labels string (e.g. promoter-cds-terminator)
                 segment_labels = [seg.label or f"segment_{idx}" for idx, seg in enumerate(self.inputs)]
                 segments_str = "-".join(segment_labels)
-                
+
                 for segment in self.inputs:
                     original_seq = segment.batch_sequences[i]
                     propagate_metadata(
@@ -201,15 +274,15 @@ class Constraint:
                 for j, scored_sequence in enumerate(input):  # input is tuple of sequences
                     original_seq = self.inputs[j].batch_sequences[i]  # Get original sequence from j-th segment
                     segment_label = self.inputs[j].label or f"segment_{j}"
-                    
+
                     propagate_metadata(
                         source_metadata=scored_sequence._metadata,
                         target_metadata=original_seq._metadata,
                         prefix=f"{segment_label}.{self.label}"
                     )
-                
+
         return scores
-    
+
     def _validate_input_consistency(self, inputs: Tuple[Segment]) -> None:
         """
         Validate that all input segments have consistent properties.
@@ -229,14 +302,14 @@ class Constraint:
             raise ValueError(
                 f"Inconsistent sequence_type across inputs. Found: {all_types}"
             )
-            
+
         # Check valid_chars consistency
         if not all(
             input_batch._valid_chars == inputs[0]._valid_chars
             for input_batch in inputs
         ):
             raise ValueError("Inconsistent valid_chars across inputs.")
-            
+
         # Check batch size consistency
         batch_sizes = [len(input_batch.batch_sequences) for input_batch in inputs]
         if not all(size == batch_sizes[0] for size in batch_sizes):
@@ -244,4 +317,3 @@ class Constraint:
                 f"Inconsistent batch sizes across inputs. Found: {batch_sizes}. "
                 f"All input segments must have the same batch size."
             )
-

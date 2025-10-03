@@ -52,6 +52,23 @@ def create_batched_segment(
     return segment
 
 
+# Mock scoring functions
+def mock_single_input_scoring_function(sequence: Sequence) -> float:
+    """
+    Mock scoring function that takes in a single sequence and returns a score
+    corresponding to the number of T characters in the sequence
+    """
+    return sequence.sequence.count("T")
+
+
+def mock_multi_input_scoring_function(sequences: List[Sequence]) -> List[float]:
+    """
+    Mock scoring function that takes in a list of sequences and returns a list of scores
+    corresponding to the number of T characters in each sequence
+    """
+    return [sequence.sequence.count("T") for sequence in sequences]
+
+
 # Tests for Sequence and Segment basics
 def test_sequence_validation():
     """Tests character validation for Sequence objects."""
@@ -97,6 +114,26 @@ def test_construct_concatenation():
     assert len(batch_construct.batch_sequences) == 2
     assert batch_construct.batch_sequences[0].sequence == "ATGGGGTAA"
     assert batch_construct.batch_sequences[1].sequence == "ATG" + "CCC" + "TGA"
+
+
+def test_input_type_detection():
+    """
+    Tests that the constraint can detect the type of input it is given.
+    """
+    assert (
+        Constraint(
+            inputs=[create_segment("ATCG")],
+            scoring_function=mock_single_input_scoring_function,
+        ).multi_input
+        == False
+    )
+    assert (
+        Constraint(
+            inputs=[create_segment("ATCG")],
+            scoring_function=mock_multi_input_scoring_function,
+        ).multi_input
+        == True
+    )
 
 
 # Tests for sequence_length_constraint
