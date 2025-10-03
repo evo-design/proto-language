@@ -129,26 +129,6 @@ def test_construct_concatenation():
     assert batch_construct.batch_sequences[1].sequence == "ATG" + "CCC" + "TGA"
 
 
-def test_input_type_detection():
-    """
-    Tests that the constraint can detect the type of input it is given.
-    """
-    assert (
-        Constraint(
-            inputs=[create_segment("ATCG")],
-            scoring_function=mock_single_input_scoring_function,
-        ).multi_input
-        == False
-    ), "Should have identified single-input"
-    assert (
-        Constraint(
-            inputs=[create_segment("ATCG")],
-            scoring_function=mock_multi_input_scoring_function,
-        ).multi_input
-        == True
-    ), "Should have identified multi-input"
-
-
 def test_mock_constraint_with_batched_segment():
     """
     Tests both single and multi-input scoring functions return the metadata and
@@ -169,11 +149,13 @@ def test_mock_constraint_with_batched_segment():
     constraint_single_input = Constraint(
         inputs=[single_batch_input],
         scoring_function=mock_single_input_scoring_function,
+        input_mode="single",
     )
     scores_single_input = constraint_single_input.evaluate()
     constraint_multi_input = Constraint(
         inputs=[multi_batch_input],
         scoring_function=mock_multi_input_scoring_function,
+        input_mode="multi",
     )
     scores_multi_input = constraint_multi_input.evaluate()
 
@@ -251,12 +233,14 @@ def test_mock_constraint_with_single_sequence_input():
     constraint_single_input = Constraint(
         inputs=[single_seq_segment],
         scoring_function=mock_single_input_scoring_function,
+        input_mode="single",
     )
     scores_single_input = constraint_single_input.evaluate()
 
     constraint_multi_input = Constraint(
         inputs=[multi_seq_segment],
         scoring_function=mock_multi_input_scoring_function,
+        input_mode="multi",
     )
     scores_multi_input = constraint_multi_input.evaluate()
 
@@ -351,14 +335,16 @@ def test_mock_constraint_with_multi_segment_input():
     constraint_single_input = Constraint(
         inputs=[single_batch_input_a, single_batch_input_b],
         scoring_function=mock_single_input_scoring_function,
-        constraint_type=ConstraintType.CONTIGUOUS,  # Concatenate segments
+        constraint_type=ConstraintType.CONTIGUOUS,
+        input_mode="single",
     )
     scores_single_input = constraint_single_input.evaluate()
 
     constraint_multi_input = Constraint(
         inputs=[multi_batch_input_a, multi_batch_input_b],
         scoring_function=mock_multi_input_scoring_function,
-        constraint_type=ConstraintType.CONTIGUOUS,  # Concatenate segments
+        constraint_type=ConstraintType.CONTIGUOUS,
+        input_mode="multi",
     )
     scores_multi_input = constraint_multi_input.evaluate()
 

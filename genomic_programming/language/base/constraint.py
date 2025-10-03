@@ -5,8 +5,7 @@ Constraints define the objective function for construct optimization.
 """
 
 from enum import Enum
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
-import inspect
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 from collections.abc import Iterable as AbcIterable
 
 from .sequence import Sequence, SequenceType
@@ -19,6 +18,13 @@ class ConstraintType(Enum):
 
     CONTIGUOUS = "contiguous"  # Concatenate sequences before evaluation
     DISJOINT = "disjoint"  # Evaluate sequences separately as a group
+
+
+class InputMode(Enum):
+    """Enumeration of inputs modes for constraints."""
+
+    SINGLE = "single"  # Single input mode: sequence objects are passed to the scoring function one at a time
+    MULTI = "multi"  # Multi input mode: a list of sequence objects is passed to the scoring function
 
 
 class Constraint:
@@ -49,8 +55,11 @@ class Constraint:
         self,
         inputs: Iterable[Segment],
         scoring_function: Callable[[Sequence | Tuple[Sequence], Dict[str, Any]], float],
-        scoring_function_config: Dict[str, Any] = {},
-        constraint_type: ConstraintType = ConstraintType.CONTIGUOUS,
+        scoring_function_config: Optional[Dict[str, Any]] = None,
+        input_mode: Optional[Union[InputMode, str]] = InputMode.SINGLE,
+        constraint_type: Optional[
+            Union[ConstraintType, str]
+        ] = ConstraintType.CONTIGUOUS,
         label: Optional[str] = None,
     ) -> None:
         """
@@ -58,15 +67,24 @@ class Constraint:
 
         Args:
             inputs: The Segment object(s) this constraint evaluates.
-                Can be a single Segment or an iterable of Segment objects.
+                Can be a single Segment or an iterable of Segment objects. Each
+                segment object can contain a batch of sequences, but all segments
+                must have the same batch size.
             scoring_function: Function that scores sequences.
                 Inputs are single sequence for contiguous constraints or tuple of sequences for disjoint constraints.
                 Outputs are a float score between 0.0 and 1.0. Lower values are better.
             scoring_function_config: Configuration parameters passed to scoring_function.
-            constraint_type: How to process multiple inputs:
-                - CONTIGUOUS: Concatenate sequences before evaluation
-                - DISJOINT: Evaluate sequences separately as a group
-            label: Optional custom label for this constraint. If not provided, defaults to scoring function name. 
+            input_mode: How to pass sequence objects to the scoring function:
+                - SINGLE: Single input mode: sequence objects are passed to the scoring function one at a time.
+                    The scoring function should expect a single sequence object in it's first parameter. (This is the default mode.)
+                - MULTI: Multi input mode: a list of sequence objects is passed to the scoring function.
+                    The scoring function should expect a list of sequence objects in it's first parameter. This is helpful for
+                    scoring functions that can batch inference for multiple sequences at once (such as functions that involve
+                    forward passes through a model)
+            constraint_type: How multiple sequences within a segment batch position are processed:
+                - CONTIGUOUS: Concatenate sequences before evaluation.
+                - DISJOINT: Evaluate sequences separately as a group.
+            label: Optional custom label for this constraint. If not provided, defaults to scoring function name.
                    Prefixed to prevent metadata collisions.
         """
         self.inputs: Tuple[Segment] = tuple(inputs)
@@ -74,84 +92,14 @@ class Constraint:
             [Sequence | Tuple[Sequence], Dict[str, Any]], float
         ] = scoring_function
         self.scoring_function_config: Dict[str, Any] = self._normalize_config(scoring_function_config)
-        self.constraint_type: ConstraintType = constraint_type
+        self.constraint_type: ConstraintType = ConstraintType(constraint_type)
         self.label: str = label or scoring_function.__name__
-        self.multi_input: bool = self._detect_multi_input(scoring_function)
+        self.input_mode: InputMode = InputMode(input_mode)
 
         # Validate input consistency and store common properties
         self._validate_input_consistency(self.inputs)
         self.sequence_type = self.inputs[0].sequence_type
         self.valid_chars = self.inputs[0]._valid_chars
-
-    def _detect_multi_input(self, scoring_function: Callable) -> bool:
-        """
-        Detect if the scoring function can handle multiple inputs
-        (iterable of sequences and returns list of scores).
-
-        First checks type annotations - if the first parameter is annotated as any iterable type, it's multi-input.
-        If no type annotation, falls back to parameter name: 'sequence' = single, 'sequences' = multi.
-
-        Args:
-            scoring_function: The scoring function to inspect
-
-        Returns:
-            True if function expects iterable of sequences, False if single sequence/tuple
-        """
-        try:
-            sig = inspect.signature(scoring_function)
-            params = list(sig.parameters.values())
-
-            if not params:
-                return False
-
-            first_param = params[0]
-
-            # Check type annotation first
-            if first_param.annotation != inspect.Parameter.empty:
-                # Check if annotation is any iterable type
-                annotation = first_param.annotation
-
-                # Check for generic types with __origin__ (List, Tuple, Iterable, etc.)
-                if hasattr(annotation, "__origin__"):
-                    origin = annotation.__origin__
-                    # Check if it's list, tuple, or any iterable
-                    if origin in (list, tuple) or (
-                        hasattr(origin, "__mro__") and AbcIterable in origin.__mro__
-                    ):
-                        return True
-                    # Special case for typing.Iterable
-                    if hasattr(origin, "_name") and origin._name in (
-                        "Iterable",
-                        "List",
-                        "Tuple",
-                    ):
-                        return True
-
-                # Check for direct types
-                if annotation in (list, tuple, AbcIterable):
-                    return True
-
-                # Check for typing module types by name
-                if hasattr(annotation, "_name") and annotation._name in (
-                    "List",
-                    "Tuple",
-                    "Iterable",
-                ):
-                    return True
-
-            # Fall back to parameter name
-            param_name = first_param.name.lower()
-            if param_name == "sequences":
-                return True
-            elif param_name == "sequence":
-                return False
-
-            # Default to single input if unclear
-            return False
-
-        except Exception:
-            # If inspection fails, default to single input
-            return False
 
     def _normalize_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -252,7 +200,7 @@ class Constraint:
 
         # Score all inputs
         scores = []
-        if self.multi_input:
+        if self.input_mode == InputMode.MULTI:
             # Multi-input scoring function: pass in list of inputs
             scores = self.scoring_function(
                 scoring_function_inputs, **self.scoring_function_config
