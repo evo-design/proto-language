@@ -4,7 +4,7 @@ Segment class for the proto-language.
 Represents building blocks for biological constructs.
 """
 
-from typing import Any, Dict, Iterator, List, Optional, Set
+from typing import Any, Dict, Iterator, List, Optional, Set, Union
 import copy
 
 from .sequence import Sequence, SequenceType
@@ -25,7 +25,7 @@ class Segment:
     def __init__(
         self,
         sequence: str = "",
-        sequence_type: SequenceType = SequenceType.DNA,
+        sequence_type: Optional[Union[SequenceType, str]] = SequenceType.DNA,
         valid_chars: Optional[Set[str]] = None,
         label: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -47,7 +47,7 @@ class Segment:
             valid_chars=valid_chars,
         )
         self.batch_sequences: List[Sequence] = [seq]
-        self.sequence_type: SequenceType = seq.sequence_type
+        self.sequence_type: SequenceType = SequenceType(seq.sequence_type)
         self._valid_chars: Optional[Set[str]] = seq._valid_chars
         self._is_assigned: bool = False
         self.label: Optional[str] = label
@@ -93,4 +93,3 @@ class Segment:
             The Sequence object at the specified index.
         """
         return self.batch_sequences[index]
-
