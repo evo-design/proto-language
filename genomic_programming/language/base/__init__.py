@@ -11,6 +11,7 @@ This module provides the core abstractions for sequence programming:
 - Program: User-friendly wrapper for optimization workflows
 """
 
+from .config import BaseConfig
 from .sequence import (
     Sequence,
     SequenceType,
@@ -21,12 +22,14 @@ from .sequence import (
 )
 from .segment import Segment
 from .construct import Construct
-from .constraint import Constraint, ConstraintType
+from .constraint import Constraint
 from .generator import Generator
 from .iterative_generator import IterativeGenerator
 from .program import Program
+from .registry import BaseRegistry, BaseSpec
 
 __all__ = [
+    "BaseConfig",
     "Sequence",
     "SequenceType",
     "DNA_NUCLEOTIDES",
@@ -36,8 +39,9 @@ __all__ = [
     "Segment",
     "Construct",
     "Constraint",
-    "ConstraintType",
     "Generator",
     "IterativeGenerator",
     "Program",
+    "BaseRegistry",
+    "BaseSpec",
 ]

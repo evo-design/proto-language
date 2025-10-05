@@ -15,11 +15,9 @@ from proto_language.language.base import (
     Constraint,
     Sequence,
     SequenceType,
-    ConstraintType,
 )
-from proto_language.language.constraint import (
-    tetranucleotide_usage_constraint,
-)
+from proto_language.language.constraint import tetranucleotide_usage_constraint, ConstraintRegistry
+from proto_language.language.constraint.sequence_composition.tetranucleotide_usage_constraint import TetranucleotideUsageConfig
 from ..test_utils import (
     create_segment,
     create_batched_segment,
@@ -35,14 +33,15 @@ class TestTetranucleotideUsageConstraint:
         seq_balanced = create_segment("AGCT" * 10 + "GATC" + "AGCT" * 10)
         seq_no_gatc = create_segment("A" * 25)  # TUD is 0, outside range.
 
+        config = TetranucleotideUsageConfig(
+            tetranucleotide=tetranuc,
+            min_tud=tud_range[0],
+            max_tud=tud_range[1],
+        )
         constraint_bal = Constraint(
             inputs=[seq_balanced],
             scoring_function=tetranucleotide_usage_constraint,
-            scoring_function_config={
-                "tetranucleotide": tetranuc,
-                "min_tud": tud_range[0],
-                "max_tud": tud_range[1],
-            },
+            scoring_function_config=config,
         )
         # TUD is high, deviation is (3.16-1.2)/1.2 -> capped at 1.0
         assert abs(constraint_bal.evaluate()[0] - 1.0) < 1e-9
@@ -60,11 +59,7 @@ class TestTetranucleotideUsageConstraint:
         constraint_no_gatc = Constraint(
             inputs=[seq_no_gatc],
             scoring_function=tetranucleotide_usage_constraint,
-            scoring_function_config={
-                "tetranucleotide": tetranuc,
-                "min_tud": tud_range[0],
-                "max_tud": tud_range[1],
-            },
+            scoring_function_config=config,
         )
         # TUD is 0, deviation is (0.8-0)/0.8 = 1.0
         assert abs(constraint_no_gatc.evaluate()[0] - 1.0) < 1e-9
@@ -76,16 +71,18 @@ class TestTetranucleotideUsageConstraint:
         )
 
     def test_edge_cases(self):
+        """Test constraint-specific edge cases (short and empty sequences)."""
         # Sequence too short
         seq_short = create_segment("GAT")
+        config = TetranucleotideUsageConfig(
+            tetranucleotide="GATC",
+            min_tud=0.8,
+            max_tud=1.2,
+        )
         constraint_short = Constraint(
             inputs=[seq_short],
             scoring_function=tetranucleotide_usage_constraint,
-            scoring_function_config={
-                "tetranucleotide": "GATC",
-                "min_tud": 0.8,
-                "max_tud": 1.2,
-            },
+            scoring_function_config=config,
         )
         assert constraint_short.evaluate()[0] == 0.0
         assert (
@@ -100,28 +97,26 @@ class TestTetranucleotideUsageConstraint:
         constraint_empty = Constraint(
             inputs=[seq_empty],
             scoring_function=tetranucleotide_usage_constraint,
-            scoring_function_config={
-                "tetranucleotide": "GATC",
-                "min_tud": 0.8,
-                "max_tud": 1.2,
-            },
+            scoring_function_config=config,
         )
         assert constraint_empty.evaluate()[0] == 0.0
 
     def test_all_same_tetranucleotide(self):
-        """Tests when the sequence is composed of the target tetranucleotide."""
+        """Tests when the sequence is composed of the target tetranucleotide (constraint-specific scoring)."""
         # TUD for AAAA in AAAAAAAAAAAAAAAA should be 1.0
         seq_all_a = create_segment("A" * 16)
+        config = TetranucleotideUsageConfig(
+            tetranucleotide="AAAA",
+            min_tud=0.8,
+            max_tud=1.2,
+        )
         constraint = Constraint(
             inputs=[seq_all_a],
             scoring_function=tetranucleotide_usage_constraint,
-            scoring_function_config={
-                "tetranucleotide": "AAAA",
-                "min_tud": 0.8,
-                "max_tud": 1.2,
-            },
+            scoring_function_config=config,
         )
         assert constraint.evaluate()[0] == 0.0
+        # Check constraint-specific metadata
         assert (
             abs(
                 seq_all_a[0]._metadata[

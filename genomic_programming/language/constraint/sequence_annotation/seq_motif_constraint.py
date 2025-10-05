@@ -7,62 +7,73 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import List, Literal, Optional, Union
 
 import numpy as np
+from pydantic import Field
 
 from ...base import Sequence
+from ...base.config import BaseConfig
+from ..registry import ConstraintRegistry
 
 
+class SeqMotifConfig(BaseConfig):
+    """Configuration for sequence motif constraint."""
+    motifs_path: str = Field(description="Path to MEME format motif file (.meme) containing PWMs")
+    meme_bin_path: str = Field(description="Path to directory containing MEME Suite binaries (must include fimo)")
+    wanted: Optional[Union[str, List[str]]] = Field(default=None, description="Motifs that should be present: 'all' (all motifs), 'none' (no requirement), or list of motif names")
+    not_wanted: Optional[Union[str, List[str]]] = Field(default=None, description="Motifs that should NOT be present: 'all' (reject all), 'none' (allow all), or list of motif names")
+    scale: float = Field(default=1.0, description="Scaling factor to adjust penalty magnitude (>1 = stricter, <1 = more lenient)")
+    exclusive: bool = Field(default=False, description="If True, automatically sets unwanted motifs as complement of wanted motifs")
+    aggregation: Literal["smart", "average", "max", "percentile"] = Field(default="smart", description="How to aggregate penalties: 'smart' (adaptive), 'average', 'max' (strictest), 'percentile'")
+    percentile_value: float = Field(default=95.0, ge=0.0, le=100.0, description="Which percentile to use when aggregation='percentile' (0-100)")
+    unwanted_focus: bool = Field(default=True, description="When both wanted and unwanted motifs exist, weight unwanted motifs more heavily in final score")
+
+
+@ConstraintRegistry.register(
+    key="seq-motif",
+    config=SeqMotifConfig,
+    description="Score DNA sequences against motifs using MEME",
+    vectorized=True,
+    concatenate=True
+)
 def seq_motif_constraint(
-    sequences: Union["Sequence", List["Sequence"]],
-    motifs_path: str,
-    meme_bin_path: str,
-    wanted: Union[str, List[str], None] = None,
-    not_wanted: Union[str, List[str], None] = None,
-    scale: float = 1.0,
-    exclusive: bool = False,
-    aggregation: Literal["smart", "average", "max", "percentile"] = "smart",
-    percentile_value: float = 95.0,
-    unwanted_focus: bool = True,
-) -> Union[float, List[float]]:
+    sequences: List[Sequence],
+    config: SeqMotifConfig
+) -> List[float]:
     """
-    Score one or more DNA Sequences against motifs using MEME.
+    Score DNA sequences against motifs using MEME FIMO.
 
-    Modified scoring:
-    - Unwanted motifs: Strong matches (low e-value) get high penalties
-    - Wanted motifs: Strong matches (low e-value) get LOW penalties (rewards)
+    Scoring strategy:
+    - Unwanted motifs: Strong matches (low e-value) → high penalties
+    - Wanted motifs: Strong matches (low e-value) → low penalties (rewards)
+    - Missing wanted motifs → high penalties
 
-    Aggregation strategies for handling many motifs:
-    - "smart": Uses max/percentile for unwanted, average for wanted
+    Aggregation strategies for handling multiple motifs:
+    - "smart": Adaptive (uses max/percentile for unwanted, average for wanted)
     - "average": Simple average of all penalties
-    - "max": Takes maximum penalty
+    - "max": Takes maximum penalty (strictest)
     - "percentile": Uses specified percentile of penalties
 
     Args:
-        sequences: Sequence or list of sequences to evaluate
-        motifs_path: Path to MEME motif file
-        meme_bin_path: Path to MEME binaries
-        wanted: Motifs that should be present
-        not_wanted: Motifs that should not be present
-        scale: Scaling factor for penalties
-        exclusive: If True, automatically sets complement (e.g., one TF motif set for wanted, sets unwanted to all others)
-        aggregation: Aggregation strategy to combine multiple penalties
-        percentile_value: Which percentile to use (if aggregation="percentile", e.g., 5% takes penalties of top 5% of hits)
-        unwanted_focus: Prioritize scoring of unwanted motifs
+        sequences: List of DNA Sequences to evaluate.
+        config: Configuration containing motif paths, wanted/unwanted lists, and scoring parameters.
 
     Returns:
-        float or list[float]: penalty scores (0=best, 1=worst).
+        List of penalty scores (0.0 = best, 1.0 = worst).
     """
 
     # Parse motif names
     motif_names = []
-    with open(motifs_path) as f:
+    with open(config.motifs_path) as f:
         for line in f:
             if line.startswith("MOTIF"):
                 motif_names.append(line.split()[1])
 
     # Normalize "all"/"none"
+    wanted = config.wanted
+    not_wanted = config.not_wanted
+    
     if (
         isinstance(wanted, list)
         and len(wanted) == 1
@@ -92,15 +103,11 @@ def seq_motif_constraint(
         not_wanted = set(not_wanted)
 
     # Exclusive settings to automatically set wanted/unwanted
-    if exclusive:
+    if config.exclusive:
         if wanted and not not_wanted:
             not_wanted = set(motif_names) - wanted
         elif not_wanted and not wanted:
             wanted = set(motif_names) - not_wanted
-
-    is_single = isinstance(sequences, Sequence)
-    if is_single:
-        sequences = [sequences]
 
     penalties: List[float] = []
 
@@ -115,9 +122,9 @@ def seq_motif_constraint(
                 f.write(">query\n" + seq + "\n")
 
             fimo_out = os.path.join(tmpdir, "fimo_out")
-            fimo_bin = os.path.join(meme_bin_path, "fimo")
+            fimo_bin = os.path.join(config.meme_bin_path, "fimo")
             subprocess.run(
-                [fimo_bin, "--oc", fimo_out, motifs_path, fasta_path],
+                [fimo_bin, "--oc", fimo_out, config.motifs_path, fasta_path],
                 check=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -149,7 +156,7 @@ def seq_motif_constraint(
                 strongest_eval = min(found.values())
                 if strongest_eval > 0:
                     log_penalty = -np.log10(strongest_eval) / 10.0
-                    penalty = min(1.0, scale * log_penalty)
+                    penalty = min(1.0, config.scale * log_penalty)
                 else:
                     penalty = 1.0
 
@@ -178,9 +185,9 @@ def seq_motif_constraint(
                 if e_val > 0:
                     # Using -log10 transform
                     log_penalty = -np.log10(e_val)
-                    penalty_val = min(1.0, scale * (log_penalty / 10.0))
+                    penalty_val = min(1.0, config.scale * (log_penalty / 10.0))
                 else:
-                    penalty_val = 1.0 * scale
+                    penalty_val = 1.0 * config.scale
                 unwanted_penalties.append(penalty_val)
                 details[motif] = {
                     "penalty": penalty_val,
@@ -193,13 +200,13 @@ def seq_motif_constraint(
         # Reward wanted motifs (lower e-value = stronger match = lower penalty)
         for motif in wanted:
             if motif not in found:
-                wanted_penalties.append(1.0 * scale)
-                details[motif] = {"penalty": 1.0 * scale, "status": "wanted_missing"}
+                wanted_penalties.append(1.0 * config.scale)
+                details[motif] = {"penalty": 1.0 * config.scale, "status": "wanted_missing"}
             else:
                 e_val = found[motif]
                 if e_val > 0:
                     penalty_val = min(
-                        1.0, scale * (1.0 / (1.0 + np.exp(-10 * (e_val - 0.1))))
+                        1.0, config.scale * (1.0 / (1.0 + np.exp(-10 * (e_val - 0.1))))
                     )
                 else:
                     penalty_val = 0.0
@@ -213,23 +220,23 @@ def seq_motif_constraint(
         # Aggregate penalties based on specified aggregation methods
         final_penalty = 0.0
 
-        if aggregation == "average":
+        if config.aggregation == "average":
             # Simple average
             all_penalties = unwanted_penalties + wanted_penalties
             if all_penalties:
                 final_penalty = np.mean(all_penalties)
 
-        elif aggregation == "max":
+        elif config.aggregation == "max":
             # Strictest, take worst penalty across all methods
             all_penalties = unwanted_penalties + wanted_penalties
             if all_penalties:
                 final_penalty = max(all_penalties)
 
-        elif aggregation == "percentile":
+        elif config.aggregation == "percentile":
             # Use specified percentile to aggregate top n% penalties
             all_penalties = unwanted_penalties + wanted_penalties
             if all_penalties:
-                final_penalty = np.percentile(all_penalties, percentile_value)
+                final_penalty = np.percentile(all_penalties, config.percentile_value)
 
         else:
             # Different strategies for wanted vs unwanted
@@ -255,7 +262,7 @@ def seq_motif_constraint(
                 wanted_score = np.mean(wanted_penalties)
 
             if unwanted_penalties and wanted_penalties:
-                if unwanted_focus:
+                if config.unwanted_focus:
                     # Give more weight to unwanted motifs when many are scanned
                     total_motifs = len(motif_names)
                     unwanted_ratio = len(not_wanted) / total_motifs
@@ -283,13 +290,13 @@ def seq_motif_constraint(
             "found": found,
             "details": details,
             "aggregation_info": {
-                "method": aggregation,
+                "method": config.aggregation,
                 "unwanted_count": len(unwanted_penalties),
                 "wanted_count": len(wanted_penalties),
                 "unwanted_matches": len([p for p in unwanted_penalties if p > 0]),
-                "wanted_matches": len([p for p in wanted_penalties if p < 1.0 * scale]),
+                "wanted_matches": len([p for p in wanted_penalties if p < 1.0 * config.scale]),
             },
         }
         penalties.append(penalty)
 
-    return penalties[0] if is_single else penalties
+    return penalties

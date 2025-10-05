@@ -15,11 +15,9 @@ from proto_language.language.base import (
     Constraint,
     Sequence,
     SequenceType,
-    ConstraintType,
 )
-from proto_language.language.constraint import (
-    gc_content_constraint,
-)
+from proto_language.language.constraint import gc_content_constraint, ConstraintRegistry
+from proto_language.language.constraint.sequence_composition.gc_content_constraint import GCContentConfig
 from ..test_utils import (
     create_segment,
     create_batched_segment,
@@ -43,10 +41,11 @@ class TestGCContentConstraint:
     )
     def test_dna_sequences(self, sequence, min_gc, max_gc, expected_score):
         segment = create_segment(sequence, SequenceType.DNA)
+        config = GCContentConfig(min_gc=min_gc, max_gc=max_gc)
         constraint = Constraint(
             inputs=[segment],
             scoring_function=gc_content_constraint,
-            scoring_function_config={"min_gc": min_gc, "max_gc": max_gc},
+            scoring_function_config=config,
         )
         assert abs(constraint.evaluate()[0] - expected_score) < 1e-9
         # Check metadata
@@ -68,55 +67,22 @@ class TestGCContentConstraint:
     )
     def test_rna_sequences(self, sequence, min_gc, max_gc, expected_score):
         segment = create_segment(sequence, SequenceType.RNA)
+        config = GCContentConfig(min_gc=min_gc, max_gc=max_gc)
         constraint = Constraint(
             inputs=[segment],
             scoring_function=gc_content_constraint,
-            scoring_function_config={"min_gc": min_gc, "max_gc": max_gc},
+            scoring_function_config=config,
         )
         assert abs(constraint.evaluate()[0] - expected_score) < 1e-9
 
-    def test_invalid_config(self):
-        segment = create_segment("ATCG")
-        with pytest.raises(
-            TypeError, match="missing 1 required positional argument: 'max_gc'"
-        ):
-            Constraint(
-                inputs=[segment],
-                scoring_function=gc_content_constraint,
-                scoring_function_config={"min_gc": 40},
-            ).evaluate()
-        with pytest.raises(ValueError, match="min_gc must be between 0.0 and 100.0"):
-            Constraint(
-                inputs=[segment],
-                scoring_function=gc_content_constraint,
-                scoring_function_config={"min_gc": -10, "max_gc": 60},
-            ).evaluate()
-
     def test_wrong_sequence_type(self):
+        """Test that protein sequences raise assertion (constraint-specific check)."""
         segment = create_segment("MVLSPADKTNVK", SequenceType.PROTEIN)
+        config = GCContentConfig(min_gc=40, max_gc=60)
         constraint = Constraint(
             inputs=[segment],
             scoring_function=gc_content_constraint,
-            scoring_function_config={"min_gc": 40, "max_gc": 60},
+            scoring_function_config=config,
         )
         with pytest.raises(AssertionError):
             constraint.evaluate()
-
-    def test_batch_processing(self):
-        sequences = ["GCGC", "ATAT", "GCAT", ""]
-        seg_batch = create_batched_segment(sequences, SequenceType.DNA)
-        constraint = Constraint(
-            inputs=[seg_batch],
-            scoring_function=gc_content_constraint,
-            scoring_function_config={"min_gc": 40, "max_gc": 60},
-        )
-        scores = constraint.evaluate()
-        expected_scores = [
-            1.0,  # 100% GC -> (100-60)/(100-60) = 1.0
-            1.0,  # 0% GC -> (40-0)/40 = 1.0
-            0.0,  # 50% GC
-            1.0,  # 0% GC
-        ]
-        assert len(scores) == len(expected_scores)
-        for actual, expected in zip(scores, expected_scores):
-            assert abs(actual - expected) < 1e-9

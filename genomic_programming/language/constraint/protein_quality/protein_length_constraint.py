@@ -4,23 +4,36 @@ Protein length constraint function.
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from pydantic import Field
 
 from ...base import Sequence, SequenceType
-from ..utils import validate_required_config, calculate_range_deviation
+from ...base.config import BaseConfig
+from ..registry import ConstraintRegistry
+from ..utils import calculate_range_deviation
 
 
+class ProteinLengthConfig(BaseConfig):
+    """Configuration for protein length constraint."""
+    min_length: int = Field(gt=0, description="Minimum acceptable protein length")
+    max_length: int = Field(gt=0, description="Maximum acceptable protein length")
+
+
+@ConstraintRegistry.register(
+    key="protein-length",
+    config=ProteinLengthConfig,
+    description="Evaluate whether protein length falls within acceptable range",
+    vectorized=False,
+    concatenate=True
+)
 def protein_length_constraint(
-    input_sequence: Sequence, config: Dict[str, Any]
+    input_sequence: Sequence, config: ProteinLengthConfig
 ) -> float:
     """
     Evaluate whether a protein sequence length falls within acceptable range.
 
     Args:
         input_sequence: The protein sequence to evaluate.
-        config: Configuration dictionary containing:
-            - min_length (int): Minimum acceptable protein length.
-            - max_length (int): Maximum acceptable protein length.
+        config: Configuration containing min_length and max_length parameters.
 
     Returns:
         Constraint score where 0.0 indicates length is within acceptable range
@@ -29,12 +42,8 @@ def protein_length_constraint(
     assert (
         input_sequence.sequence_type == SequenceType.PROTEIN
     ), "Input must be a protein sequence"
-    validate_required_config(config, ["min_length", "max_length"])
 
-    min_length = config["min_length"]
-    max_length = config["max_length"]
     actual_length = len(input_sequence)
-
     input_sequence._metadata["protein_length"] = actual_length
 
-    return calculate_range_deviation(actual_length, min_length, max_length)
+    return calculate_range_deviation(actual_length, config.min_length, config.max_length)

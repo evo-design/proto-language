@@ -12,12 +12,14 @@ from proto_language.language.base import (
     Segment,
     Constraint,
     SequenceType,
-    ConstraintType,
 )
 from proto_language.language.constraint import (
     gc_content_constraint,
     sequence_length_constraint,
 )
+from proto_language.language.constraint.sequence_composition.gc_content_constraint import GCContentConfig
+from proto_language.language.constraint.sequence_composition.sequence_length_constraint import SequenceLengthConfig
+from pydantic import BaseModel
 from proto_language.language.generator import (
     UniformMutationGenerator,
     MCMCGenerator,
@@ -48,10 +50,10 @@ def _setup_mcmc_components(
     constraint = Constraint(
         inputs=[segment],
         scoring_function=gc_content_constraint,
-        scoring_function_config={
-            "min_gc": gc_target_range[0],
-            "max_gc": gc_target_range[1],
-        },
+        scoring_function_config=GCContentConfig(
+            min_gc=gc_target_range[0],
+            max_gc=gc_target_range[1],
+        ),
     )
 
     # 3. Create the MCMC generator.
@@ -1412,7 +1414,7 @@ class TestMCMCGenerator:
             inputs=[segment1, segment2],
             scoring_function=gc_content_constraint,
             scoring_function_config={"min_gc": 40.0, "max_gc": 60.0},
-            constraint_type=ConstraintType.CONTIGUOUS,
+            concatenate=True,
         )
 
         mcmc_gen = MCMCGenerator(

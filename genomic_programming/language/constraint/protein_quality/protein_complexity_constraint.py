@@ -4,24 +4,44 @@ Protein complexity constraint function.
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from pydantic import Field
 
 from ...base import Sequence, SequenceType
+from ...base.config import BaseConfig
+from ..registry import ConstraintRegistry
 from ....tools.gene_annotation.blast import calculate_segmasker_score
-from ..utils import MIN_ENERGY, MAX_ENERGY, validate_required_config
+from ..utils import MIN_ENERGY, MAX_ENERGY
 
 
+class ProteinComplexityConfig(BaseConfig):
+    """Configuration for protein complexity constraint."""
+    max_low_complexity: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Maximum acceptable fraction of low-complexity regions (0.0-1.0). Low-complexity regions contain repetitive or biased amino acid compositions. Typical values: 0.2-0.4."
+    )
+    segmasker_path: str = Field(
+        default="segmasker",
+        description="Path to NCBI segmasker executable for detecting low-complexity regions. Must be installed separately."
+    )
+
+
+@ConstraintRegistry.register(
+    key="protein-complexity",
+    config=ProteinComplexityConfig,
+    description="Evaluate protein sequence complexity using segmasker to detect low-complexity regions",
+    vectorized=False,
+    concatenate=True
+)
 def protein_complexity_constraint(
-    input_sequence: Sequence, config: Dict[str, Any]
+    input_sequence: Sequence, config: ProteinComplexityConfig
 ) -> float:
     """
     Evaluate protein sequence complexity using segmasker to detect low-complexity regions.
 
     Args:
         input_sequence: The protein sequence to evaluate.
-        config: Configuration dictionary containing:
-            - max_low_complexity (float): Maximum acceptable fraction of low-complexity regions (0.0-1.0).
-            - segmasker_path (str, optional): Path to segmasker executable (default: 'segmasker').
+        config: Configuration containing max_low_complexity and segmasker_path parameters.
 
     Returns:
         Constraint score where 0.0 indicates acceptable complexity
@@ -31,17 +51,11 @@ def protein_complexity_constraint(
     Raises:
         ValueError: If segmasker execution fails.
     """
-    assert (
-        input_sequence.sequence_type == SequenceType.PROTEIN
-    ), "Input must be a protein sequence"
-    validate_required_config(config, ["max_low_complexity"])
-
-    max_low_complexity = config["max_low_complexity"]
-    segmasker_path = config.get("segmasker_path", "segmasker")
+    assert input_sequence.sequence_type == SequenceType.PROTEIN, "Input must be protein"
 
     try:
         low_complexity_fraction = calculate_segmasker_score(
-            input_sequence.sequence, segmasker_path
+            input_sequence.sequence, config.segmasker_path
         )
 
         input_sequence._metadata["low_complexity_fraction"] = low_complexity_fraction
@@ -50,11 +64,11 @@ def protein_complexity_constraint(
         )
         input_sequence._metadata["segmasker_error"] = False
 
-        if low_complexity_fraction <= max_low_complexity:
+        if low_complexity_fraction <= config.max_low_complexity:
             return MIN_ENERGY
 
-        excess = low_complexity_fraction - max_low_complexity
-        return min(MAX_ENERGY, excess / (1.0 - max_low_complexity))
+        excess = low_complexity_fraction - config.max_low_complexity
+        return min(MAX_ENERGY, excess / (1.0 - config.max_low_complexity))
 
     except ValueError as e:
         # Store error information in metadata

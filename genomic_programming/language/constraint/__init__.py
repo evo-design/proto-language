@@ -6,6 +6,9 @@ sequences. Constraints assess sequence properties like length, composition, stru
 and functional characteristics
 """
 
+# Base infrastructure
+from .registry import ConstraintRegistry, ConstraintSpec
+
 # Sequence composition constraints
 from .sequence_composition import (
     sequence_length_constraint,
@@ -46,6 +49,9 @@ from .sequence_annotation import (
 )
 
 __all__ = [
+    # Base infrastructure
+    "ConstraintRegistry",
+    "ConstraintSpec",
     # Sequence composition
     "sequence_length_constraint",
     "gc_content_constraint",

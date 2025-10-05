@@ -4,22 +4,39 @@ Protein diversity constraint function.
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from pydantic import Field
 
 from ...base import Sequence, SequenceType
-from ..utils import MIN_ENERGY, MAX_ENERGY, validate_required_config
+from ...base.config import BaseConfig
+from ..registry import ConstraintRegistry
+from ..utils import MIN_ENERGY, MAX_ENERGY
 
 
+class ProteinDiversityConfig(BaseConfig):
+    """Configuration for protein diversity constraint."""
+    min_diversity: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Minimum acceptable amino acid diversity (0.0-1.0). Calculated as (unique amino acids) / 20. Higher values require more diverse amino acid usage. Typical values: 0.4-0.7."
+    )
+
+
+@ConstraintRegistry.register(
+    key="protein-diversity",
+    config=ProteinDiversityConfig,
+    description="Evaluate amino acid diversity in a protein sequence",
+    vectorized=False,
+    concatenate=True
+)
 def protein_diversity_constraint(
-    input_sequence: Sequence, config: Dict[str, Any]
+    input_sequence: Sequence, config: ProteinDiversityConfig
 ) -> float:
     """
     Evaluate amino acid diversity in a protein sequence.
 
     Args:
         input_sequence: The protein sequence to evaluate.
-        config: Configuration dictionary containing:
-            - min_diversity (float): Minimum acceptable amino acid diversity (0.0-1.0).
+        config: Configuration containing the min_diversity parameter.
 
     Returns:
         Constraint score where 0.0 indicates sufficient diversity
@@ -28,12 +45,8 @@ def protein_diversity_constraint(
     Raises:
         ValueError: If sequence has length 0
     """
-    assert (
-        input_sequence.sequence_type == SequenceType.PROTEIN
-    ), "Input must be a protein sequence"
-    validate_required_config(config, ["min_diversity"])
+    assert input_sequence.sequence_type == SequenceType.PROTEIN, "Input must be protein"
 
-    min_diversity = config["min_diversity"]
     seq = input_sequence.sequence
 
     # Calculate amino acid diversity score
@@ -49,8 +62,8 @@ def protein_diversity_constraint(
     input_sequence._metadata["unique_amino_acids"] = sorted(list(set(seq)))
 
     # Return constraint score
-    if diversity_score >= min_diversity:
+    if diversity_score >= config.min_diversity:
         return MIN_ENERGY
 
-    deficit = min_diversity - diversity_score
-    return min(MAX_ENERGY, deficit / min_diversity)
+    deficit = config.min_diversity - diversity_score
+    return min(MAX_ENERGY, deficit / config.min_diversity)

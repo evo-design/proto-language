@@ -27,21 +27,6 @@ MIN_GC_CONTENT = 0.0
 MAX_GC_CONTENT = 100.0
 
 
-def validate_required_config(config: Dict[str, Any], required_keys: List[str]) -> None:
-    """
-    Validate that all required configuration keys are present.
-
-    Args:
-        config: Configuration dictionary to validate.
-        required_keys: List of required configuration keys.
-
-    Raises:
-        ValueError: If any required keys are missing from the configuration.
-    """
-    missing_keys = [key for key in required_keys if key not in config]
-    if missing_keys:
-        raise ValueError(f"Missing required config keys: {missing_keys}")
-
 def validate_range(value: float, min_val: float, max_val: float, name: str) -> None:
     """
     Validate that a value falls within the specified range.
@@ -101,6 +86,21 @@ def calculate_percentage_range_deviation(
         return min(MAX_ENERGY, (min_val - actual) / max(min_val, 1))
     else:
         return min(MAX_ENERGY, (actual - max_val) / max(100 - max_val, 1))
+
+
+def calculate_normalized_deviation(actual: float, target: float) -> float:
+    """
+    Calculate normalized deviation from target value for target-based constraints.
+
+    Args:
+        actual: The actual measured value.
+        target: The desired target value.
+
+    Returns:
+        Normalized deviation score where 0.0 indicates perfect match
+        and higher values indicate greater deviation from target.
+    """
+    return min(MAX_ENERGY, abs(actual - target) / max(target, 1))
 
 
 def run_esmfold(

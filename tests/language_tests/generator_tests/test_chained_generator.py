@@ -12,7 +12,6 @@ from proto_language.language.base import (
     Segment,
     Constraint,
     SequenceType,
-    ConstraintType,
 )
 from proto_language.language.constraint import (
     gc_content_constraint,

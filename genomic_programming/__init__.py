@@ -6,7 +6,6 @@ from .language.base import (
     Generator,
     IterativeGenerator,
     SequenceType,
-    ConstraintType,
 )
 from .language.constraint import (
     sequence_length_constraint,
@@ -73,7 +72,6 @@ __all__ = [
     "Generator",
     "IterativeGenerator",
     "SequenceType",
-    "ConstraintType",
     "Program",
     # Constraints
     "sequence_length_constraint",

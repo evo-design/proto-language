@@ -4,85 +4,84 @@ Promoter strength constraint using Barrick Lab Promoter Calculator.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
+from typing import List, Optional
 
 from promoter_calculator.wrapper import promoter_calculator
+from pydantic import Field
 
 from ...base import Sequence
+from ...base.config import BaseConfig
+from ..registry import ConstraintRegistry
 
 
+class PromoterStrengthConfig(BaseConfig):
+    """Configuration for promoter strength constraint."""
+    add_context: bool = Field(default=False, description="If True, adds flanking nucleotides to short sequences to meet calculator length minimums")
+    context_length: int = Field(default=10, description="Number of 'A' nucleotides to add on each end when add_context=True")
+    threads: int = Field(default=8, ge=1, description="Number of threads for parallel processing of promoter calculations")
+    verbosity: int = Field(default=0, ge=0, description="Verbosity level for promoter calculator output (0=quiet, higher=more verbose)")
+    circular: bool = Field(default=False, description="If True, treat sequences as circular for promoter detection across ends")
+    batch_size: Optional[int] = Field(default=None, description="Max sequences per batch (None=process all together). Use for memory control.")
+    scoring_type: str = Field(default="dG", description="Score type to use: 'dG' (binding free energy) or 'tx_rate' (transcription rate)")
+
+
+@ConstraintRegistry.register(
+    key="promoter-strength",
+    config=PromoterStrengthConfig,
+    description="Evaluate promoter strength using Barrick Lab Promoter Calculator",
+    vectorized=True,
+    concatenate=True
+)
 def promoter_strength_constraint(
-    sequences: Union["Sequence", List["Sequence"]],
-    config: Optional[Dict[str, Any]] = None,
-) -> Union[float, List[float]]:
+    sequences: List[Sequence],
+    config: PromoterStrengthConfig
+) -> List[float]:
     """
     Run Barrick Lab Promoter Calculator and return a [0,1] penalty score.
 
-    Also caches the full promoter_calculator output in each Sequence's metadata
+    Caches the full promoter_calculator output in each Sequence's metadata
     under the "promoter_strength" key.
 
     Penalty scheme:
-        For tx_rate penalty:
-        - Tx_rate < 1500: weak     (penalty = 1.0)
-        - 1500–5000: moderate (linear from 1.0 --> 0.5)
-        - > 5000: strong   (linear from 0.5 --> 0.0, capped at 10,000)
-        For dG penalty:
+        For tx_rate scoring:
+        - Tx_rate < 1500: weak (penalty = 1.0)
+        - 1500–5000: moderate (linear from 1.0 → 0.5)
+        - > 5000: strong (linear from 0.5 → 0.0, capped at 10,000)
+        
+        For dG scoring:
         - dG > -1.5: weak (penalty = 1.0)
-        - dG between -1.5 and -3.0: moderate (linear scale from 1 to 0.5)
-        - dG < -3.0: strong (linear from 0.5 --> 0.0, capped at -5.0)
+        - dG between -1.5 and -3.0: moderate (linear scale from 1.0 → 0.5)
+        - dG < -3.0: strong (linear from 0.5 → 0.0, capped at -5.0)
 
     Args:
-        sequences: Sequence or list[Sequence] (DNA only).
-        config: optional params for promoter_calculator:
-            - add_context (bool, default False, adds additional nucleotides to end of sequence to ensure
-            sequence meets promoter calcualtor length minimums)
-            - context_length (int, default 10, amount of additional nucleotides to add)
-            - threads (int, default 1)
-            - verbosity (int, default 0)
-            - circular (bool, default False, circularizes sequence if needed)
-            - batch_size (int, default None, process all at once)
-            - scoring_type (string, default = dG)
+        sequences: List of DNA Sequences to evaluate.
+        config: Configuration containing scoring parameters and processing options.
 
     Returns:
-        float or list[float]: penalty scores.
+        List of penalty scores (0.0 = strong promoter, 1.0 = weak/no promoter).
     """
-    if config is None:
-        config = {}
-
-    is_single = isinstance(sequences, Sequence)
-    if is_single:
-        sequences = [sequences]
-
-    # Extract config parameters
-    add_context = bool(config.get("add_context", False))
-    context_length = int(config.get("context_length", 10))
-    threads = int(config.get("threads", 8))
-    verbosity = int(config.get("verbosity", 0))
-    circular = bool(config.get("circular", False))
-    batch_size = config.get("batch_size", None)  # If None, process all at once
-    scoring_type = config.get("scoring_type", "dG")
 
     # Clean all sequences
     processed_sequences = []
     for seq_obj in sequences:
         s = seq_obj.sequence.upper().replace(" ", "").replace("\n", "")
-        if add_context:
-            s = ("A" * context_length) + s + ("A" * context_length)
+        if config.add_context:
+            s = ("A" * config.context_length) + s + ("A" * config.context_length)
         processed_sequences.append(s)
 
     penalties: List[float] = []
 
     # Process in batches if batch_size is specified, otherwise all at once
-    if batch_size and batch_size < len(processed_sequences):
+    if config.batch_size and config.batch_size < len(processed_sequences):
         # Process in batches
         all_results = []
-        for i in range(0, len(processed_sequences), batch_size):
-            batch = processed_sequences[i : i + batch_size]
+        for i in range(0, len(processed_sequences), config.batch_size):
+            batch = processed_sequences[i : i + config.batch_size]
             batch_results = []
             for seq in batch:
                 res = (
                     promoter_calculator(
-                        seq, threads=threads, verbosity=verbosity, circular=circular
+                        seq, threads=config.threads, verbosity=config.verbosity, circular=config.circular
                     )
                     or []
                 )
@@ -93,9 +92,9 @@ def promoter_strength_constraint(
             # Attempt batch processing
             all_results = promoter_calculator(
                 processed_sequences,
-                threads=threads,
-                verbosity=verbosity,
-                circular=circular,
+                threads=config.threads,
+                verbosity=config.verbosity,
+                circular=config.circular,
             )
             if not isinstance(all_results[0], list):
                 raise NotImplementedError("Batch processing format not recognized")
@@ -104,7 +103,7 @@ def promoter_strength_constraint(
             for seq in processed_sequences:
                 res = (
                     promoter_calculator(
-                        seq, threads=threads, verbosity=verbosity, circular=circular
+                        seq, threads=config.threads, verbosity=config.verbosity, circular=config.circular
                     )
                     or []
                 )
@@ -125,7 +124,7 @@ def promoter_strength_constraint(
             penalties.append(penalty)
             continue
 
-        if scoring_type == "tx_rate":
+        if config.scoring_type == "tx_rate":
             # Extract tx_rate
             tx_rate = max(float(r.Tx_rate) for r in res if hasattr(r, "Tx_rate"))
 
@@ -163,4 +162,6 @@ def promoter_strength_constraint(
                 "dG_rate": dG,
                 "raw_output": [r.__dict__ for r in res],
             }
-    return penalties[0] if is_single else penalties
+            penalties.append(penalty)
+    
+    return penalties

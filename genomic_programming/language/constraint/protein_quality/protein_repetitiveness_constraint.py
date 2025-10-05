@@ -5,12 +5,14 @@ Protein repetitiveness constraint function.
 from __future__ import annotations
 
 from collections import Counter
-from typing import Any, Dict
 
 import numpy as np
+from pydantic import Field
 
 from ...base import Sequence, SequenceType
-from ..utils import MIN_ENERGY, MAX_ENERGY, validate_required_config
+from ...base.config import BaseConfig
+from ..registry import ConstraintRegistry
+from ..utils import MIN_ENERGY, MAX_ENERGY
 
 
 def _calculate_repetitiveness_score(seq: str, min_repeat_length: int = 3) -> float:
@@ -45,38 +47,51 @@ def _calculate_repetitiveness_score(seq: str, min_repeat_length: int = 3) -> flo
     return max_repetitive_fraction
 
 
+class ProteinRepetitivenessConfig(BaseConfig):
+    """Configuration for protein repetitiveness constraint."""
+    max_repetitiveness: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Maximum acceptable repetitiveness fraction (0.0-1.0). Measures the maximum fraction of sequence covered by repeated k-mers. Typical values: 0.3-0.5."
+    )
+    min_repeat_length: int = Field(
+        default=3,
+        ge=1,
+        description="Minimum k-mer length to consider as repeats. Shorter values (3-4) detect short tandem repeats, longer values (5-7) detect larger structural repeats."
+    )
+
+
+@ConstraintRegistry.register(
+    key="protein-repetitiveness",
+    config=ProteinRepetitivenessConfig,
+    description="Evaluate protein sequence repetitiveness based on k-mer analysis",
+    vectorized=False,
+    concatenate=True
+)
 def protein_repetitiveness_constraint(
-    input_sequence: Sequence, config: Dict[str, Any]
+    input_sequence: Sequence, config: ProteinRepetitivenessConfig
 ) -> float:
     """
     Evaluate protein sequence repetitiveness based on k-mer analysis.
 
     Args:
         input_sequence: The protein sequence to evaluate.
-        config: Configuration dictionary containing:
-            - max_repetitiveness (float): Maximum acceptable repetitiveness fraction (0.0-1.0).
-            - min_repeat_length (int, optional): Minimum repeat length to consider (default: 3).
+        config: Configuration containing max_repetitiveness and min_repeat_length parameters.
 
     Returns:
         Constraint score where 0.0 indicates acceptable repetitiveness
         and higher values indicate excessive repetitive content.
     """
-    assert (
-        input_sequence.sequence_type == SequenceType.PROTEIN
-    ), "Input must be a protein sequence"
-    validate_required_config(config, ["max_repetitiveness"])
-
-    max_repetitiveness = config["max_repetitiveness"]
-    min_repeat_length = config.get("min_repeat_length", 3)
+    assert input_sequence.sequence_type == SequenceType.PROTEIN, "Input must be protein"
 
     repetitiveness_score = _calculate_repetitiveness_score(
-        input_sequence.sequence, min_repeat_length
+        input_sequence.sequence, config.min_repeat_length
     )
     input_sequence._metadata["repetitiveness_score"] = repetitiveness_score
     input_sequence._metadata["max_repetitive_fraction"] = repetitiveness_score
 
-    if repetitiveness_score <= max_repetitiveness:
+    if repetitiveness_score <= config.max_repetitiveness:
         return MIN_ENERGY
 
-    excess = repetitiveness_score - max_repetitiveness
-    return min(MAX_ENERGY, excess / (1.0 - max_repetitiveness))
+    excess = repetitiveness_score - config.max_repetitiveness
+    return min(MAX_ENERGY, excess / (1.0 - config.max_repetitiveness))

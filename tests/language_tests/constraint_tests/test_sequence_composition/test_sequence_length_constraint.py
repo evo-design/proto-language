@@ -15,11 +15,9 @@ from proto_language.language.base import (
     Constraint,
     Sequence,
     SequenceType,
-    ConstraintType,
 )
-from proto_language.language.constraint import (
-    sequence_length_constraint,
-)
+from proto_language.language.constraint import sequence_length_constraint, ConstraintRegistry
+from proto_language.language.constraint.sequence_composition.sequence_length_constraint import SequenceLengthConfig
 from ..test_utils import (
     create_segment,
     create_batched_segment,
@@ -34,20 +32,21 @@ class TestSequenceLengthConstraint:
         seg_short = create_segment("A" * (target_len // 2))
         seg_long = create_segment("A" * (target_len * 2))
 
+        config = SequenceLengthConfig(target_length=target_len)
         constraint_match = Constraint(
             inputs=[seg_match],
             scoring_function=sequence_length_constraint,
-            scoring_function_config={"target_length": target_len},
+            scoring_function_config=config,
         )
         constraint_short = Constraint(
             inputs=[seg_short],
             scoring_function=sequence_length_constraint,
-            scoring_function_config={"target_length": target_len},
+            scoring_function_config=config,
         )
         constraint_long = Constraint(
             inputs=[seg_long],
             scoring_function=sequence_length_constraint,
-            scoring_function_config={"target_length": target_len},
+            scoring_function_config=config,
         )
 
         assert constraint_match.evaluate()[0] == 0.0
@@ -72,11 +71,12 @@ class TestSequenceLengthConstraint:
         seg1 = create_segment("A" * 10)
         seg2 = create_segment("T" * 10)
 
+        config = SequenceLengthConfig(target_length=target_len)
         constraint = Constraint(
             inputs=[seg1, seg2],
             scoring_function=sequence_length_constraint,
-            scoring_function_config={"target_length": target_len},
-            constraint_type=ConstraintType.CONTIGUOUS,
+            scoring_function_config=config,
+            concatenate=True,
         )
 
         assert constraint.evaluate()[0] == 0.0
@@ -94,77 +94,35 @@ class TestSequenceLengthConstraint:
             == target_len
         )
 
-    def test_batch_processing(self):
-        """Tests length constraint with a batch of sequences."""
-        target_len = 15
-        sequences = ["A" * 8, "A" * 12, "A" * 15, "A" * 16, "A" * 20]
-        seg_batch = create_batched_segment(sequences)
-
-        constraint = Constraint(
-            inputs=[seg_batch],
-            scoring_function=sequence_length_constraint,
-            scoring_function_config={"target_length": target_len},
-        )
-
-        scores = constraint.evaluate()
-        expected_scores = [
-            abs(8 - 15) / 15.0,
-            abs(12 - 15) / 15.0,
-            abs(15 - 15) / 15.0,
-            abs(16 - 15) / 15.0,
-            abs(20 - 15) / 15.0,
-        ]
-
-        assert len(scores) == len(expected_scores)
-        for actual, expected in zip(scores, expected_scores):
-            assert abs(actual - expected) < 1e-9
-
-        # Check metadata for all sequences in the batch
-        for i, seq_obj in enumerate(seg_batch):
-            assert seq_obj._metadata[
-                "segment_0.sequence_length_constraint.length"
-            ] == len(sequences[i])
-
     @pytest.mark.parametrize(
         "seq_str, target_len, expected_score",
         [
             ("", 10, 1.0),  # Empty sequence
             ("A", 1, 0.0),  # Single character match
             ("A", 2, 0.5),  # Single character mismatch
-            ("ATCG", 0, 1.0),  # Target length is 0, score capped at 1.0
         ],
     )
     def test_edge_cases(self, seq_str, target_len, expected_score):
+        """Test constraint-specific edge cases."""
         segment = create_segment(seq_str)
+        config = SequenceLengthConfig(target_length=target_len)
         constraint = Constraint(
             inputs=[segment],
             scoring_function=sequence_length_constraint,
-            scoring_function_config={"target_length": target_len},
+            scoring_function_config=config,
         )
         assert abs(constraint.evaluate()[0] - expected_score) < 1e-9
 
-    def test_invalid_config(self):
-        """Tests that missing 'target_length' raises an error."""
-        segment = create_segment("ATCG")
-        constraint = Constraint(
-            inputs=[segment],
-            scoring_function=sequence_length_constraint,
-            scoring_function_config={},  # Missing target_length
-        )
-        with pytest.raises(
-            TypeError, match="missing 1 required positional argument: 'target_length'"
-        ):
-            constraint.evaluate()
-
     def test_disjoint_mode_raises_error(self):
-        """Tests that sequence_length_constraint doesn't support DISJOINT mode."""
+        """Tests that sequence_length_constraint doesn't support concatenate=False mode (constraint-specific behavior)."""
         seg1 = create_segment("A" * 10)
         seg2 = create_segment("T" * 10)
+        config = SequenceLengthConfig(target_length=20)
         constraint = Constraint(
             inputs=[seg1, seg2],
             scoring_function=sequence_length_constraint,
-            scoring_function_config={"target_length": 20},
-            constraint_type=ConstraintType.DISJOINT,
+            scoring_function_config=config,
+            concatenate=False,
         )
         # The default scoring function expects a single Sequence, not a tuple
         with pytest.raises(AttributeError):

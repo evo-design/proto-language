@@ -7,12 +7,16 @@ from __future__ import annotations
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+from pydantic import Field
 
 from ...base import Sequence, SequenceType
+from ...base.config import BaseConfig
+from ..registry import ConstraintRegistry
 from ....tools.orf_prediction.prodigal import run_prodigal
 from ....tools.gene_annotation.hmmer import run_hmmscan
-from ..utils import MIN_ENERGY, MAX_ENERGY, validate_required_config
+from ..utils import MIN_ENERGY, MAX_ENERGY
 
 
 def _check_protein_domains(
@@ -122,8 +126,42 @@ def _check_protein_domains(
                     pass
 
 
+class ProteinDomainConfig(BaseConfig):
+    """Configuration for protein domain constraint."""
+    hmm_db: str = Field(
+        description="Path to HMM database file for hmmscan (e.g., Pfam-A.hmm). Must be pressed with hmmpress."
+    )
+    keywords: List[str] = Field(
+        description="Keywords to search for in domain descriptions (case-insensitive). Matches if any keyword found in hit description, unless match_all_keywords=True."
+    )
+    evalue_threshold: float = Field(
+        default=0.005,
+        description="Maximum E-value threshold for significant hits. Lower values are more stringent. Typical: 0.001-0.01."
+    )
+    query_coverage: Optional[float] = Field(
+        default=None,
+        description="Minimum query coverage percentage (0-100). If specified, filters hits by alignment coverage. None = no filter."
+    )
+    match_all_keywords: bool = Field(
+        default=False,
+        description="If True, require ALL keywords to be found. If False, require ANY keyword (default)."
+    )
+    hmmer_kwargs: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Additional HMMER parameters to pass to hmmscan (e.g., cpu, domE, etc.)."
+    )
+
+
+@ConstraintRegistry.register(
+    key="protein-domain",
+    config=ProteinDomainConfig,
+    description="Evaluate whether a sequence contains protein domains matching specified keywords",
+    vectorized=False,
+    concatenate=True
+)
 def protein_domain_constraint(
-    input_sequence: Sequence, config: Dict[str, Any]
+    input_sequence: Sequence,
+    config: ProteinDomainConfig
 ) -> float:
     """
     Evaluate whether a sequence contains protein domains matching specified keywords.
@@ -133,13 +171,7 @@ def protein_domain_constraint(
 
     Args:
         input_sequence: The DNA or protein sequence to evaluate.
-        config: Configuration dictionary containing:
-            - hmm_db (str): Path to HMM database for hmmscan.
-            - keywords (List[str]): Keywords to search for in domain descriptions.
-            - evalue_threshold (float, optional): Maximum E-value for hits (default: 0.005).
-            - query_coverage (float, optional): Minimum query coverage percentage (0-100).
-            - match_all_keywords (bool, optional): Require all keywords vs any (default: False).
-            - hmmer_kwargs (dict, optional): Additional HMMER parameters.
+        config: Configuration containing hmm_db, keywords, evalue_threshold, query_coverage, match_all_keywords, and hmmer_kwargs.
 
     Returns:
         Constraint score where 0.0 indicates domain criteria are satisfied
@@ -153,38 +185,32 @@ def protein_domain_constraint(
         Evaluating domain presence in protein:
 
         >>> seq = Sequence("MVLSPADKTNVK", SequenceType.PROTEIN)
-        >>> config = {
-        ...     "hmm_db": "pfam.hmm",
-        ...     "keywords": ["kinase", "ATP-binding"],
-        ...     "evalue_threshold": 0.001
-        ... }
-        >>> score = protein_domain_keyword_constraint(seq, config)
+        >>> cfg = ProteinDomainConfig(
+        ...     hmm_db="pfam.hmm",
+        ...     keywords=["kinase", "ATP-binding"],
+        ...     evalue_threshold=0.001
+        ... )
+        >>> score = protein_domain_constraint(seq, config=cfg)
 
         Evaluating domain presence in DNA (via Prodigal):
 
         >>> seq = Sequence("ATGGTACTGAGCCCAGCG...", SequenceType.DNA)
-        >>> config = {
-        ...     "hmm_db": "pfam.hmm",
-        ...     "keywords": ["helicase"],
-        ...     "match_all_keywords": False
-        ... }
-        >>> score = protein_domain_keyword_constraint(seq, config)
+        >>> cfg = ProteinDomainConfig(
+        ...     hmm_db="pfam.hmm",
+        ...     keywords=["helicase"],
+        ...     match_all_keywords=False
+        ... )
+        >>> score = protein_domain_constraint(seq, config=cfg)
     """
-    validate_required_config(config, ["hmm_db", "keywords"])
-
-    hmm_db = Path(config["hmm_db"])
+    hmmer_kwargs = config.hmmer_kwargs or {}
+    hmm_db = Path(config.hmm_db)
     if not hmm_db.exists():
         raise ValueError(f"HMM database not found: {hmm_db}")
 
-    keywords = config["keywords"]
-    if not keywords or not isinstance(keywords, list):
+    if not config.keywords or not isinstance(config.keywords, list):
         raise ValueError("Keywords must be a non-empty list")
 
-    keywords_lower = [kw.lower() for kw in keywords]
-    evalue_threshold = config.get("evalue_threshold", 0.005)
-    query_coverage = config.get("query_coverage")
-    match_all_keywords = config.get("match_all_keywords", False)
-    hmmer_kwargs = config.get("hmmer_kwargs", {})
+    keywords_lower = [kw.lower() for kw in config.keywords]
 
     # Handle DNA vs protein sequences
     if input_sequence.sequence_type == SequenceType.DNA:
@@ -212,8 +238,8 @@ def protein_domain_constraint(
                 protein_seq,
                 str(hmm_db),
                 keywords_lower,
-                evalue_threshold,
-                query_coverage,
+                config.evalue_threshold,
+                config.query_coverage,
                 hmmer_kwargs,
             )
 
@@ -231,9 +257,9 @@ def protein_domain_constraint(
         input_sequence._metadata["domain_matching_proteins"] = matching_proteins
 
         # Determine constraint matching
-        if match_all_keywords:
+        if config.match_all_keywords:
             return (
-                MIN_ENERGY if len(all_keywords_found) == len(keywords) else MAX_ENERGY
+                MIN_ENERGY if len(all_keywords_found) == len(keywords_lower) else MAX_ENERGY
             )
         else:
             return MIN_ENERGY if all_keywords_found else MAX_ENERGY
@@ -245,8 +271,8 @@ def protein_domain_constraint(
                 input_sequence,
                 str(hmm_db),
                 keywords_lower,
-                evalue_threshold,
-                query_coverage,
+                config.evalue_threshold,
+                config.query_coverage,
                 hmmer_kwargs,
             )
         except Exception as e:
@@ -260,8 +286,8 @@ def protein_domain_constraint(
 
         # Determine constraint matching
         keywords_found = set(result["keywords_found"])
-        if match_all_keywords:
-            return MIN_ENERGY if len(keywords_found) == len(keywords) else MAX_ENERGY
+        if config.match_all_keywords:
+            return MIN_ENERGY if len(keywords_found) == len(keywords_lower) else MAX_ENERGY
         else:
             return MIN_ENERGY if keywords_found else MAX_ENERGY
 

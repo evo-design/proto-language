@@ -15,11 +15,12 @@ from proto_language.language.base import (
     Constraint,
     Sequence,
     SequenceType,
-    ConstraintType,
 )
 from proto_language.language.constraint import (
     protein_diversity_constraint,
+    ConstraintRegistry,
 )
+from proto_language.language.constraint.protein_quality.protein_diversity_constraint import ProteinDiversityConfig
 from ..test_utils import (
     create_segment,
     create_batched_segment,
@@ -29,11 +30,11 @@ from ..test_utils import (
 # Tests for protein_diversity_constraint
 class TestProteinDiversityConstraint:
     def test_high_diversity(self):
-        """Test protein with high amino acid diversity."""
+        """Test protein with high amino acid diversity and constraint-specific metadata."""
         segment = create_segment(
             "MVLSPADKTNVKAAWGKVGAHAGEYGAEALER", SequenceType.PROTEIN
         )
-        config = {"config": {"min_diversity": 0.5}}
+        config = ProteinDiversityConfig(min_diversity=0.5)
 
         constraint = Constraint(
             inputs=[segment],
@@ -43,6 +44,7 @@ class TestProteinDiversityConstraint:
 
         score = constraint.evaluate()[0]
         assert score == 0.0
+        # Check constraint-specific metadata fields
         assert (
             "segment_0.protein_diversity_constraint.aa_diversity_score"
             in segment[0]._metadata
@@ -61,7 +63,7 @@ class TestProteinDiversityConstraint:
     def test_low_diversity(self):
         """Test protein with low amino acid diversity."""
         segment = create_segment("AAAAAAGGGGGGLLLLLL", SequenceType.PROTEIN)
-        config = {"config": {"min_diversity": 0.5}}
+        config = ProteinDiversityConfig(min_diversity=0.5)
 
         constraint = Constraint(
             inputs=[segment],
@@ -85,7 +87,7 @@ class TestProteinDiversityConstraint:
     def test_single_amino_acid(self):
         """Test protein with only one amino acid type."""
         segment = create_segment("AAAAAAAAAA", SequenceType.PROTEIN)
-        config = {"config": {"min_diversity": 0.2}}
+        config = ProteinDiversityConfig(min_diversity=0.2)
 
         constraint = Constraint(
             inputs=[segment],
@@ -109,9 +111,9 @@ class TestProteinDiversityConstraint:
         )  # 1 out of 20 standard AAs
 
     def test_empty_sequence(self):
-        """Test that empty sequence raises error."""
+        """Test that empty sequence raises error (constraint-specific edge case)."""
         segment = create_segment("", SequenceType.PROTEIN)
-        config = {"config": {"min_diversity": 0.3}}
+        config = ProteinDiversityConfig(min_diversity=0.3)
 
         constraint = Constraint(
             inputs=[segment],

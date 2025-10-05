@@ -15,11 +15,12 @@ from proto_language.language.base import (
     Constraint,
     Sequence,
     SequenceType,
-    ConstraintType,
 )
 from proto_language.language.constraint import (
     balanced_aa_constraint,
+    ConstraintRegistry,
 )
+from proto_language.language.constraint.protein_quality.balanced_aa_constraint import BalancedAaConfig
 from ..test_utils import (
     create_segment,
     create_batched_segment,
@@ -34,9 +35,7 @@ class TestBalancedAAConstraint:
         segment = create_segment(
             "MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHF", SequenceType.PROTEIN
         )
-        config = {
-            "config": {"min_aa_frequency": 0.02, "max_underrepresented_count": 10}
-        }
+        config = BalancedAaConfig(min_aa_frequency=0.02, max_underrepresented_count=10)
 
         constraint = Constraint(
             inputs=[segment],
@@ -56,9 +55,9 @@ class TestBalancedAAConstraint:
         )
 
     def test_unbalanced_protein(self):
-        """Test protein with unbalanced amino acid frequencies."""
+        """Test protein with unbalanced amino acid frequencies and metadata."""
         segment = create_segment("AAAAAAGGGGLLLLMMMM", SequenceType.PROTEIN)
-        config = {"config": {"min_aa_frequency": 0.1, "max_underrepresented_count": 2}}
+        config = BalancedAaConfig(min_aa_frequency=0.1, max_underrepresented_count=2)
 
         constraint = Constraint(
             inputs=[segment],
@@ -70,15 +69,24 @@ class TestBalancedAAConstraint:
         # With 4 amino acids, all at ~25%, and threshold of 10%, all are above threshold
         # So underrepresented_aa_count should be 0
         assert score >= 0.0
+        # Check constraint-specific metadata fields
         assert (
             "segment_0.balanced_aa_constraint.underrepresented_aa_count"
+            in segment[0]._metadata
+        )
+        assert (
+            "segment_0.balanced_aa_constraint.underrepresented_aa_score"
+            in segment[0]._metadata
+        )
+        assert (
+            "segment_0.balanced_aa_constraint.underrepresented_amino_acids"
             in segment[0]._metadata
         )
 
     def test_empty_sequence(self):
         """Test empty sequence handling."""
         segment = create_segment("", SequenceType.PROTEIN)
-        config = {"config": {"min_aa_frequency": 0.05, "max_underrepresented_count": 5}}
+        config = BalancedAaConfig(min_aa_frequency=0.05, max_underrepresented_count=5)
 
         constraint = Constraint(
             inputs=[segment],
@@ -88,24 +96,3 @@ class TestBalancedAAConstraint:
 
         score = constraint.evaluate()[0]
         assert score == 1.0
-
-    def test_batch_processing(self):
-        """Test constraint with batch of proteins."""
-        sequences = [
-            "MVLSPADKTNVKAAWGKVGAHAGEYGAEAL",  # Balanced
-            "AAAAAGGGGGLLLLLL",  # Less balanced
-            "MMMMM",  # Very unbalanced (single AA)
-        ]
-        batch = create_batched_segment(sequences, SequenceType.PROTEIN)
-        config = {"config": {"min_aa_frequency": 0.15, "max_underrepresented_count": 3}}
-
-        constraint = Constraint(
-            inputs=[batch],
-            scoring_function=balanced_aa_constraint,
-            scoring_function_config=config,
-        )
-
-        scores = constraint.evaluate()
-        assert len(scores) == 3
-        # All sequences should have some underrepresented amino acids with this threshold
-        assert all(score >= 0.0 for score in scores)

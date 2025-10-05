@@ -6,20 +6,44 @@ from __future__ import annotations
 
 import itertools
 
+from pydantic import Field
+
 from ...base import Sequence, SequenceType, DNA_NUCLEOTIDES, RNA_NUCLEOTIDES
+from ...base.config import BaseConfig
+from ..registry import ConstraintRegistry
 from ..utils import MAX_ENERGY, calculate_range_deviation
 
 
+class DinucleotideFrequencyConfig(BaseConfig):
+    """Configuration for dinucleotide frequency constraint."""
+    min_freq: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Minimum acceptable frequency for each dinucleotide pair (0.0-1.0). Applied to all 16 possible dinucleotides (AA, AT, AC, AG, TA, etc.)."
+    )
+    max_freq: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Maximum acceptable frequency for each dinucleotide pair (0.0-1.0). Applied to all 16 possible dinucleotides. Helps prevent overly repetitive sequences."
+    )
+
+
+@ConstraintRegistry.register(
+    key="dinucleotide-frequency",
+    config=DinucleotideFrequencyConfig,
+    description="Evaluate whether dinucleotide frequencies fall within acceptable ranges",
+    vectorized=False,
+    concatenate=True
+)
 def dinucleotide_frequency_constraint(
-    input_sequence: Sequence, min_freq: float, max_freq: float
+    input_sequence: Sequence, config: DinucleotideFrequencyConfig
 ) -> float:
     """
     Evaluate whether dinucleotide frequencies fall within acceptable ranges.
 
     Args:
         input_sequence: The DNA or RNA sequence to evaluate.
-        min_freq: Minimum acceptable frequency for each dinucleotide (0.0-1.0).
-        max_freq: Maximum acceptable frequency for each dinucleotide (0.0-1.0).
+        config: Configuration containing min_freq and max_freq parameters.
 
     Returns:
         Constraint score where 0.0 indicates all dinucleotide frequencies are within acceptable range
@@ -32,7 +56,8 @@ def dinucleotide_frequency_constraint(
         Evaluating dinucleotide frequency constraint:
 
         >>> seq = Sequence("ATCGATCG", SequenceType.DNA)
-        >>> score = dinucleotide_frequency_constraint(seq, 0.0, 0.3)
+        >>> cfg = DinucleotideFrequencyConfig(min_freq=0.0, max_freq=0.3)
+        >>> score = dinucleotide_frequency_constraint(seq, config=cfg)
     """
 
     assert input_sequence.sequence_type in {
@@ -73,7 +98,7 @@ def dinucleotide_frequency_constraint(
         freq = dinucleotide_counts.get(dinuc, 0) / total_count
         dinucleotide_freqs[dinuc] = freq
         max_deviation = max(
-            max_deviation, calculate_range_deviation(freq, min_freq, max_freq)
+            max_deviation, calculate_range_deviation(freq, config.min_freq, config.max_freq)
         )
 
     input_sequence._metadata["dinucleotide_freqs"] = dinucleotide_freqs

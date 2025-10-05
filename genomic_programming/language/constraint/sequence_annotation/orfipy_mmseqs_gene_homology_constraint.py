@@ -8,28 +8,40 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
+from pydantic import Field
 
 from ...base import Sequence
+from ...base.config import BaseConfig
+from ..registry import ConstraintRegistry
 from ....schemas import ORFipyKwargs, MMseqsKwargs
 from ..utils import MIN_ENERGY, MAX_ENERGY, calculate_percentage_range_deviation, run_orfipy_mmseqs_pipeline
 
 
+class ORFipyMMseqsGeneHomologyConfig(BaseConfig):
+    """Configuration for ORFipy + MMseqs gene homology constraint."""
+    min_homology: float = Field(ge=0.0, le=100.0, description="Minimum acceptable percent identity (0-100) for each ORF. Lower values are more permissive.")
+    max_homology: float = Field(ge=0.0, le=100.0, description="Maximum acceptable percent identity (0-100) for each ORF. Higher values allow more similar hits.")
+    orfipy_kwargs: Optional[ORFipyKwargs] = Field(default=None, description="ORFipy configuration for ORF prediction")
+    mmseqs_kwargs: Optional[MMseqsKwargs] = Field(default=None, description="MMseqs configuration for homology search (database path REQUIRED)")
+
+
+@ConstraintRegistry.register(
+    key="orfipy-mmseqs-gene-homology",
+    config=ORFipyMMseqsGeneHomologyConfig,
+    description="Evaluate the homology (percent identity) of each individual ORF hit",
+    vectorized=False,
+    concatenate=True
+)
 def orfipy_mmseqs_gene_homology_constraint(
     input_sequence: Sequence,
-    min_homology: float,
-    max_homology: float,
-    orfipy_kwargs: Optional[ORFipyKwargs] = None,
-    mmseqs_kwargs: Optional[MMseqsKwargs] = None,
+    config: ORFipyMMseqsGeneHomologyConfig
 ) -> float:
     """
     Evaluate the homology (percent identity) of each individual ORF hit.
 
     Args:
         input_sequence: The sequence to evaluate.
-        min_homology: Minimum acceptable percent identity (0-100) for each ORF.
-        max_homology: Maximum acceptable percent identity (0-100) for each ORF.
-        orfipy_kwargs: ORFipy configuration arguments.
-        mmseqs_kwargs: MMseqs configuration arguments (database path required).
+        config: Configuration containing min_homology, max_homology, orfipy_kwargs, and mmseqs_kwargs parameters.
 
     Returns:
         Constraint score where 0.0 indicates all ORF homologies are within acceptable range
@@ -38,13 +50,18 @@ def orfipy_mmseqs_gene_homology_constraint(
     Examples:
         Evaluating ORF homology constraint:
 
+        >>> from proto_language.schemas import ORFipyKwargs, MMseqsKwargs
         >>> seq = Sequence("ATGTCGATCGATGTAG", SequenceType.DNA)
-        >>> orfipy_kwargs = ORFipyKwargs(threads=48)
-        >>> mmseqs_kwargs = MMseqsKwargs(database="/path/to/protein_db")
-        >>> score = orfipy_mmseqs_gene_homology_constraint(seq, 50.0, 90.0, orfipy_kwargs, mmseqs_kwargs)
+        >>> cfg = ORFipyMMseqsGeneHomologyConfig(
+        ...     min_homology=50.0,
+        ...     max_homology=90.0,
+        ...     orfipy_kwargs=ORFipyKwargs(threads=48),
+        ...     mmseqs_kwargs=MMseqsKwargs(database="/path/to/protein_db")
+        ... )
+        >>> score = orfipy_mmseqs_gene_homology_constraint(seq, config=cfg)
     """
     # Run the pipeline
-    run_orfipy_mmseqs_pipeline(input_sequence, orfipy_kwargs, mmseqs_kwargs)
+    run_orfipy_mmseqs_pipeline(input_sequence, config.orfipy_kwargs, config.mmseqs_kwargs)
 
     # Get the MMseqs results (convert from dict records if needed)
     mmseqs_results_data = input_sequence._metadata.get("mmseqs_results", [])
@@ -76,12 +93,12 @@ def orfipy_mmseqs_gene_homology_constraint(
 
     for _, row in mmseqs_results.iterrows():
         homology = row["identity"]
-        if min_homology <= homology <= max_homology:
+        if config.min_homology <= homology <= config.max_homology:
             acceptable_homology_count += 1
         else:
             # Calculate how far this ORF's homology deviates from acceptable range
             deviation = calculate_percentage_range_deviation(
-                homology, min_homology, max_homology
+                homology, config.min_homology, config.max_homology
             )
             homology_violations.append(deviation)
 

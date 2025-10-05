@@ -7,8 +7,11 @@ from __future__ import annotations
 import itertools
 
 import numpy as np
+from pydantic import Field
 
 from ...base import Sequence
+from ...base.config import BaseConfig
+from ..registry import ConstraintRegistry
 from ..utils import (
     MIN_ENERGY,
     MAX_ENERGY,
@@ -16,13 +19,28 @@ from ..utils import (
 )
 
 
-def max_homopolymer_constraint(input_sequence: Sequence, max_length: int) -> float:
+class MaxHomopolymerConfig(BaseConfig):
+    """Configuration for maximum homopolymer constraint."""
+    max_length: int = Field(
+        gt=0,
+        description="Maximum allowed homopolymer length in consecutive identical nucleotides or amino acids. Must be a positive integer. Sequences with longer homopolymers are penalized."
+    )
+
+
+@ConstraintRegistry.register(
+    key="max-homopolymer",
+    config=MaxHomopolymerConfig,
+    description="Penalize sequences containing homopolymers longer than specified maximum",
+    vectorized=False,
+    concatenate=True
+)
+def max_homopolymer_constraint(input_sequence: Sequence, config: MaxHomopolymerConfig) -> float:
     """
     Penalize sequences containing homopolymers longer than a specified maximum.
 
     Args:
         input_sequence: The sequence to evaluate.
-        max_length: Maximum allowed homopolymer length.
+        config: Configuration containing the max_length parameter.
 
     Returns:
         Constraint score where 0.0 indicates no homopolymers exceed the maximum length
@@ -32,7 +50,8 @@ def max_homopolymer_constraint(input_sequence: Sequence, max_length: int) -> flo
         Evaluating homopolymer constraint:
 
         >>> seq = Sequence("ATCGATCG", SequenceType.DNA)
-        >>> score = max_homopolymer_constraint(seq, 3)
+        >>> cfg = MaxHomopolymerConfig(max_length=3)
+        >>> score = max_homopolymer_constraint(seq, config=cfg)
         >>> print(score)  # 0.0 (no long homopolymers)
 
     Note:
@@ -50,9 +69,9 @@ def max_homopolymer_constraint(input_sequence: Sequence, max_length: int) -> flo
 
     input_sequence._metadata["max_homopolymer_length"] = longest_homopolymer
 
-    if longest_homopolymer <= max_length:
+    if longest_homopolymer <= config.max_length:
         return MIN_ENERGY
 
-    excess_length = longest_homopolymer - max_length
-    log_ratio = np.log(1 + excess_length / max_length) / np.log(LOG_BASE)
+    excess_length = longest_homopolymer - config.max_length
+    log_ratio = np.log(1 + excess_length / config.max_length) / np.log(LOG_BASE)
     return min(MAX_ENERGY, log_ratio)

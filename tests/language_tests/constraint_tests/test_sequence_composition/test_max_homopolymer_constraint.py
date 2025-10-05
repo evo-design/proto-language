@@ -15,11 +15,9 @@ from proto_language.language.base import (
     Constraint,
     Sequence,
     SequenceType,
-    ConstraintType,
 )
-from proto_language.language.constraint import (
-    max_homopolymer_constraint,
-)
+from proto_language.language.constraint import max_homopolymer_constraint, ConstraintRegistry
+from proto_language.language.constraint.sequence_composition.max_homopolymer_constraint import MaxHomopolymerConfig
 from ..test_utils import (
     create_segment,
     create_batched_segment,
@@ -49,10 +47,11 @@ class TestMaxHomopolymerConstraint:
     )
     def test_homopolymer_scoring(self, sequence, max_len, expected_score, seq_type):
         segment = create_segment(sequence, seq_type)
+        config = MaxHomopolymerConfig(max_length=max_len)
         constraint = Constraint(
             inputs=[segment],
             scoring_function=max_homopolymer_constraint,
-            scoring_function_config={"max_length": max_len},
+            scoring_function_config=config,
         )
         score = constraint.evaluate()[0]
         assert abs(score - expected_score) < 1e-9
@@ -76,34 +75,3 @@ class TestMaxHomopolymerConstraint:
                 ]
                 == 0
             )
-
-    def test_invalid_config(self):
-        segment = create_segment("ATCG")
-        with pytest.raises(
-            TypeError, match="missing 1 required positional argument: 'max_length'"
-        ):
-            Constraint(
-                inputs=[segment],
-                scoring_function=max_homopolymer_constraint,
-                scoring_function_config={},
-            ).evaluate()
-
-    def test_batch_processing(self):
-        sequences = ["AAAA", "AAACCC", "AAAGGC", ""]
-        max_len = 3
-        seg_batch = create_batched_segment(sequences, SequenceType.DNA)
-        constraint = Constraint(
-            inputs=[seg_batch],
-            scoring_function=max_homopolymer_constraint,
-            scoring_function_config={"max_length": max_len},
-        )
-        scores = constraint.evaluate()
-        expected_scores = [
-            np.log2(1 + 1 / 3),  # excess 1
-            0.0,  # in limit
-            0.0,  # in limit
-            0.0,  # empty
-        ]
-        assert len(scores) == len(expected_scores)
-        for actual, expected in zip(scores, expected_scores):
-            assert abs(actual - expected) < 1e-9
