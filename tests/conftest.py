@@ -16,6 +16,12 @@ def pytest_addoption(parser):
         default=False,
         help="Run only CPU tests, skip GPU tests",
     )
+    parser.addoption(
+        "--gpu-tests-only",
+        action="store_true",
+        default=False,
+        help="Run only GPU tests, skip CPU tests",
+    )
 
 
 def pytest_configure(config):
@@ -38,6 +44,13 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if "uses_gpu" in item.keywords:
                 item.add_marker(skip_gpu)
+    
+    # Skip CPU tests when --gpu-tests-only is specified
+    if config.getoption("--gpu-tests-only"):
+        skip_cpu = pytest.mark.skip(reason="--gpu-tests-only specified")
+        for item in items:
+            if "uses_cpu" in item.keywords and "uses_gpu" not in item.keywords:
+                item.add_marker(skip_cpu)
 
 
 @pytest.fixture(scope="session", autouse=True)
