@@ -148,15 +148,29 @@ def mock_celery():
         }
 
 
-@pytest.fixture(autouse=True) 
+@pytest.fixture(autouse=True)
 def mock_redis():
-    """Mock a cache connections."""
-    mock_redis = Mock()
-    mock_redis.ping.return_value = True
+    """Mock a cache connections for both sync and async operations."""
+    # Sync a cache mock
+    mock_redis_sync = Mock()
+    mock_redis_sync.ping.return_value = True
+    mock_redis_sync.publish.return_value = 1
+    mock_redis_sync.setex.return_value = True
+    mock_redis_sync.exists.return_value = 0
+    mock_redis_sync.get.return_value = None
     
-    with patch("cache.a cache", return_value=mock_redis), \
-         patch("cache.StrictRedis", return_value=mock_redis):
-        yield mock_redis
+    # Async a cache mock
+    from unittest.mock import AsyncMock
+    mock_redis_async = AsyncMock()
+    mock_redis_async.publish = AsyncMock(return_value=1)
+    mock_redis_async.pubsub_numsub = AsyncMock(return_value=[("run:sse:test", 0)])
+    mock_redis_async.pubsub_channels = AsyncMock(return_value=[])
+    
+    with patch("cache.a cache", return_value=mock_redis_sync), \
+         patch("cache.StrictRedis", return_value=mock_redis_sync), \
+         patch("api.core.sse.SSEManager.get_sync_redis_client", return_value=mock_redis_sync), \
+         patch("api.core.sse.SSEManager.get_async_redis_client", return_value=mock_redis_async):
+        yield mock_redis_sync
 
 
 @pytest.fixture(autouse=True)

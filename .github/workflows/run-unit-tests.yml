@@ -5,6 +5,7 @@ on:
 
 jobs:
   test-cpu:
+    name: Run CPU Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -14,10 +15,9 @@ jobs:
       uses: conda-incubator/setup-miniconda@v2
       with:
         auto-activate-base: false
-        environment-name: proto-language
+        activate-environment: proto-language
         python-version: 3.11
         channels: conda-forge,bioconda
-        activate-environment: true
         mamba-version: "*"
 
     - name: Install dependencies
