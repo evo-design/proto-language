@@ -55,4 +55,4 @@ jobs:
 
     - name: Run full integration tests
       run: |
-        python run_integration_tests.py --verbose
+        python tests/run_integration_tests.py --verbose
