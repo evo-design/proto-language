@@ -6,6 +6,15 @@ including local GPU and cloud GPU selection.
 """
 
 import os
+import torch
+from typing import Union
+
+
+def number_of_available_gpus() -> int:
+    """
+    Returns the number of available GPUs.
+    """
+    return torch.cuda.device_count()
 
 
 def use_cloud_gpu() -> bool:
@@ -65,3 +74,89 @@ def is_gpu_available() -> bool:
     """Check if any GPU is available (local CUDA or cloud)."""
     return _is_local_gpu_available() or _is_cloud_available()
 
+
+def get_default_device() -> str:
+    """Get the default device to use for computation."""
+    if is_gpu_available():
+        return "cuda:0"
+    else:
+        return "cpu"
+
+
+def get_device_string(device_str_or_int: Union[int, str, torch.device]):
+    """
+    Returns the string representation of the GPU specified by an integer index.
+    """
+    # If the device is a torch.device, get the string representation
+    if isinstance(device_str_or_int, torch.device):
+        device_str_or_int = str(device_str_or_int)
+
+    # If we have a string
+    if isinstance(device_str_or_int, str):
+        # If it's just "cuda", return "cuda:0"
+        if device_str_or_int == "cuda":
+            return "cuda:0"
+
+        if device_str_or_int == "cpu":
+            return "cpu"
+
+        # Otherwise, ensure it parses correctly to a single integer
+        try:
+            device_int = parse_cuda_device_index(device_str_or_int)
+            return f"cuda:{device_int}"
+        except ValueError:
+            raise ValueError(f"Invalid device string: {device_str_or_int}")
+
+    # If it's an integer, return the string representation
+    elif isinstance(device_str_or_int, int):
+        return f"cuda:{device_str_or_int}"
+
+    else:
+        raise ValueError(f"Invalid device: {device_str_or_int}")
+
+
+def parse_cuda_device_index(device_string: str):
+    """
+    Returns the integer index of the GPU specified by a cuda device string.
+    """
+
+    # If the device is not a cuda device string, raise an error
+    if not device_string.startswith("cuda"):
+        raise ValueError("Device string must start with 'cuda'")
+
+    # If the device is "cuda", return 0
+    if device_string == "cuda":
+        return 0
+
+    # Otherwise, return the integer index of the GPU
+    device_string = device_string.replace("cuda:", "")
+    device_int = int(device_string)
+
+    if device_int >= number_of_available_gpus():
+        raise ValueError(
+            f"Device index {device_int} is greater than the number of available GPUs ({number_of_available_gpus()})"
+        )
+
+    return device_int
+
+
+def determine_visible_devices(device: str) -> str:
+    """
+    Returns a string corresponding to the CUDA_VISIBLE_DEVICES environment variable
+    for a given device.
+    """
+
+    # If we are using the CPU, set no devices to be visible
+    if device == "cpu":
+        return ""
+
+    # If CUDA is specified, but no number is provided, set the first device to be visible
+    elif device == "cuda":
+        return "0"
+
+    # If CUDA is specified with a number, set the specified device to be visible
+    elif device.startswith("cuda:"):
+        return device.replace("cuda:", "")
+
+    else:
+        raise ValueError(f"Invalid device: {device}")

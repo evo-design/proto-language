@@ -11,6 +11,7 @@ __pycache__/
 **/__pycache__/
 .ipynb_checkpoints/
 data/
+*.venvs
 
 # Database files
 *.db

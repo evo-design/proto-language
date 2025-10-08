@@ -9,7 +9,7 @@ from pydantic import Field
 from ...base import Sequence, SequenceType
 from ...base.config import BaseConfig
 from ..registry import ConstraintRegistry
-from ....tools.gene_annotation.blast import calculate_segmasker_score
+from ....tools.utils import calculate_segmasker_score
 from ..utils import MIN_ENERGY, MAX_ENERGY
 
 

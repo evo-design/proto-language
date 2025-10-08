@@ -11,7 +11,7 @@ from pydantic import Field
 from ...base import Sequence, SequenceType
 from ...base.config import BaseConfig
 from ..registry import ConstraintRegistry
-from ....tools.structure_prediction.boltz import predict_structure_boltz2
+from ....tools.models.structure_prediction.boltz import predict_structure_boltz2
 
 
 class BoltzBindingStrengthConfig(BaseConfig):

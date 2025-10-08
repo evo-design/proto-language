@@ -34,14 +34,11 @@ from .tools import (
     # BLAST tools
     online_blast,
     local_blast,
-    blast_results_to_df,
     create_blast_db,
     # HMMER tools
-    run_hmmsearch,
-    run_hmmscan,
-    run_phmmer,
-    parse_hmmer_tblout,
-    parse_hmmer_domtblout,
+    hmmsearch,
+    hmmscan,
+    phmmer,
     build_hmm,
     press_hmm_db,
     # MMseqs2 tools
@@ -52,14 +49,15 @@ from .tools import (
     extract_mmseqs_cluster_representatives,
     convert_m8_to_df,
     # ORF prediction tools
-    run_orfipy,
-    parse_orfipy_results_to_df,
+    run_orfipy_prediction,
+    OrfipyConfig,
+    OrfipyOutput,
     # Structure prediction tools
     predict_structure_boltz2,
     predict_structure_chai1,
     predict_structure_esmfold,
-    predict_structure_esm3,
 )
+
 # File resolution utilities
 from .utils import resolve_paths, resolve_file
 
@@ -95,13 +93,10 @@ __all__ = [
     "ToolCache",
     "online_blast",
     "local_blast",
-    "blast_results_to_df",
     "create_blast_db",
-    "run_hmmsearch",
-    "run_hmmscan",
-    "run_phmmer",
-    "parse_hmmer_tblout",
-    "parse_hmmer_domtblout",
+    "hmmsearch",
+    "hmmscan",
+    "phmmer",
     "build_hmm",
     "press_hmm_db",
     "mmseqs_easy_search",
@@ -110,12 +105,12 @@ __all__ = [
     "run_mmseqs_clustering",
     "extract_mmseqs_cluster_representatives",
     "convert_m8_to_df",
-    "run_orfipy",
-    "parse_orfipy_results_to_df",
+    "run_orfipy_prediction",
+    "OrfipyConfig",
+    "OrfipyOutput",
     "predict_structure_boltz2",
     "predict_structure_chai1",
     "predict_structure_esmfold",
-    "predict_structure_esm3",
     # Utilities
     "resolve_paths",
     "resolve_file",

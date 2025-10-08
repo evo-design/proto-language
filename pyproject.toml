@@ -74,8 +74,6 @@ dependencies = [
 [project.optional-dependencies]
 # GPU dependencies for structure prediction and sequence scoring models
 gpu = [
-    "boltz==0.4.1",
-    "chai_lab==0.6.1",
     "esm @ git+https://github.com/bviggiano/esm.git@fix/178",  # See: https://github.com/evolutionaryscale/esm/issues/178
     "borzoi-pytorch",
     "enformer-pytorch",

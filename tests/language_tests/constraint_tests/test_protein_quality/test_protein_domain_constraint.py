@@ -56,7 +56,7 @@ class TestProteinDomainConstraint:
         })
         
         with patch('proto_language.language.constraint.protein_quality.protein_domain_constraint.Path') as mock_path, \
-             patch('proto_language.language.constraint.protein_quality.protein_domain_constraint.run_hmmscan') as mock_hmmscan:
+             patch('proto_language.language.constraint.protein_quality.protein_domain_constraint._run_hmmer') as mock_hmmscan:
             
             mock_path_inst = Mock()
             mock_path_inst.exists.return_value = True
@@ -95,7 +95,7 @@ class TestProteinDomainConstraint:
         })
         
         with patch('proto_language.language.constraint.protein_quality.protein_domain_constraint.Path') as mock_path, \
-             patch('proto_language.language.constraint.protein_quality.protein_domain_constraint.run_hmmscan') as mock_hmmscan:
+             patch('proto_language.language.constraint.protein_quality.protein_domain_constraint._run_hmmer') as mock_hmmscan:
             
             mock_path_inst = Mock()
             mock_path_inst.exists.return_value = True
@@ -130,7 +130,7 @@ class TestProteinDomainConstraint:
         })
         
         with patch('proto_language.language.constraint.protein_quality.protein_domain_constraint.Path') as mock_path, \
-             patch('proto_language.language.constraint.protein_quality.protein_domain_constraint.run_hmmscan') as mock_hmmscan:
+             patch('proto_language.language.constraint.protein_quality.protein_domain_constraint._run_hmmer') as mock_hmmscan:
             
             mock_path_inst = Mock()
             mock_path_inst.exists.return_value = True
@@ -158,15 +158,18 @@ class TestProteinDomainConstraint:
         
         # Mock Prodigal returning no proteins
         empty_df = pd.DataFrame(columns=["id", "description", "sequence"])
+        mock_prodigal_output = Mock()
+        mock_prodigal_output.results_df = empty_df
+        mock_prodigal_output.num_genes = 0
         
         with patch('proto_language.language.constraint.protein_quality.protein_domain_constraint.Path') as mock_path, \
-             patch('proto_language.language.constraint.protein_quality.protein_domain_constraint.run_prodigal') as mock_prodigal:
+             patch('proto_language.language.constraint.protein_quality.protein_domain_constraint.run_prodigal_prediction') as mock_prodigal:
             
             mock_path_inst = Mock()
             mock_path_inst.exists.return_value = True
             mock_path.return_value = mock_path_inst
             
-            mock_prodigal.return_value = empty_df
+            mock_prodigal.return_value = mock_prodigal_output
             
             constraint = Constraint(
                 inputs=[segment],

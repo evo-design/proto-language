@@ -9,7 +9,7 @@ from pydantic import Field, model_validator
 from ...base import Sequence, SequenceType
 from ...base.config import BaseConfig
 from ..registry import ConstraintRegistry
-from ....tools.orf_prediction.prodigal import run_prodigal
+from ....tools.orf_prediction.prodigal import run_prodigal_prediction, ProdigalConfig
 from .protein_length_constraint import protein_length_constraint
 from .protein_complexity_constraint import protein_complexity_constraint
 from .protein_repetitiveness_constraint import protein_repetitiveness_constraint
@@ -162,8 +162,13 @@ def overall_protein_quality_constraint(
         if min_high_quality_fraction is None:
             raise ValueError("min_high_quality_fraction is required for DNA sequences")
 
-        # Get predicted proteins, this will load cached proteins if they already exist
-        proteins_df = run_prodigal(input_sequence)
+        # Get predicted proteins using Prodigal
+        config = ProdigalConfig(input_sequence=input_sequence.sequence)
+        result = run_prodigal_prediction(config)
+        proteins_df = result.results_df
+
+        input_sequence._metadata["prodigal_proteins"] = proteins_df
+        input_sequence._metadata["prodigal_protein_count"] = result.num_genes
 
         if len(proteins_df) == 0:
             input_sequence._metadata["predicted_protein_count"] = 0

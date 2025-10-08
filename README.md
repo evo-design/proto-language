@@ -11,6 +11,7 @@ The package is now structured with `pyproject.toml`. Install with:
 conda create --name proto-language python=3.12 -y
 conda activate proto-language
 conda install -c conda-forge -c bioconda mmseqs2 -y
+git submodule update --init --recursive
 ```
 
 2. Install as an editable package:

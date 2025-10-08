@@ -14,8 +14,8 @@ from pydantic import Field
 from ...base import Sequence, SequenceType
 from ...base.config import BaseConfig
 from ..registry import ConstraintRegistry
-from ....tools.orf_prediction.prodigal import run_prodigal
-from ....tools.gene_annotation.hmmer import run_hmmscan
+from ....tools.orf_prediction.prodigal import run_prodigal_prediction, ProdigalConfig
+from ....tools.gene_annotation.hmmer import _run_hmmer
 from ..utils import MIN_ENERGY, MAX_ENERGY
 
 
@@ -53,9 +53,10 @@ def _check_protein_domains(
 
     try:
         # Run hmmscan
-        results = run_hmmscan(
-            hmm_db=hmm_db,
-            query=temp_seq_path,
+        results = _run_hmmer(
+            "hmmscan",
+            hmm_db,
+            temp_seq_path,
             output_path=temp_out_path,
             **hmmer_kwargs,
         )
@@ -216,7 +217,12 @@ def protein_domain_constraint(
     if input_sequence.sequence_type == SequenceType.DNA:
         # Run Prodigal to get predicted proteins
         try:
-            proteins_df = run_prodigal(input_sequence)
+            prodigal_config = ProdigalConfig(input_sequence=input_sequence.sequence)
+            result = run_prodigal_prediction(prodigal_config)
+            proteins_df = result.results_df
+            
+            input_sequence._metadata["prodigal_proteins"] = proteins_df
+            input_sequence._metadata["prodigal_protein_count"] = result.num_genes
         except Exception as e:
             raise RuntimeError(f"Prodigal execution failed: {e}")
 

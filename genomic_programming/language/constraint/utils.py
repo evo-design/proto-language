@@ -10,10 +10,10 @@ from typing import Any, Dict, List, Optional
 
 from ..base import Sequence, SequenceType, DNA_NUCLEOTIDES
 from ...schemas import ESMFoldKwargs, ORFipyKwargs, MMseqsKwargs
-from ...tools.structure_prediction.esmfold import predict_structure_esmfold
+from ...tools.models.structure_prediction.esmfold import predict_structure_esmfold
 from ...tools.tool_cache import ToolCache
 from ...utils import resolve_paths
-from ...tools.orf_prediction.orfipy import run_orfipy, parse_orfipy_results_to_df
+from ...tools.orf_prediction import run_orfipy_prediction, OrfipyConfig
 from ...tools.gene_annotation.mmseqs import run_mmseqs_search_proteins
 
 
@@ -217,12 +217,18 @@ def run_orfipy_mmseqs_pipeline(
 
         # Run ORFipy
         orfipy_output = temp_path / "orfipy_output"
-        aa_fasta, nt_fasta = run_orfipy(
-            input_fasta, output_dir=orfipy_output, **orfipy_kwargs_dict
+        result = run_orfipy_prediction(
+            OrfipyConfig(
+                input_fasta=str(input_fasta),
+                output_dir=str(orfipy_output),
+                **orfipy_kwargs_dict
+            )
         )
-
-        # Parse ORFipy results
-        orfs_df = parse_orfipy_results_to_df(aa_fasta, nt_fasta)
+        
+        # Get parsed ORFs from result
+        orfs_df = result.results_df if result.results_df is not None else pd.DataFrame()
+        aa_fasta = result.aa_fasta_path
+        nt_fasta = result.nt_fasta_path
 
         if orfs_df.empty:
             # No ORFs found (store as empty lists for JSON serialization)
