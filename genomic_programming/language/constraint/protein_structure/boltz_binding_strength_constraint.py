@@ -11,7 +11,7 @@ from pydantic import Field
 from ...base import Sequence, SequenceType
 from ...base.config import BaseConfig
 from ..registry import ConstraintRegistry
-from ....tools.models.structure_prediction.boltz import predict_structure_boltz2
+from ....tools.models.structure_prediction.boltz import run_boltz, BoltzConfig
 
 
 class BoltzBindingStrengthConfig(BaseConfig):
@@ -92,7 +92,7 @@ def boltz_binding_strength_constraint(
         - on_error: "penalize" or "raise" (default "penalize").
                     If penalize, returns 1.0 on failure.
         - batch_size: int (fold this many complexes at once)
-        - predict_kwargs: dict of pass-through kwargs to predict_structure_boltz2
+        - predict_kwargs: dict of pass-through kwargs to BoltzConfig
                           (e.g., msa_server_url, recycling_steps, diffusion_samples, etc.)
 
       return_component (str):
@@ -198,20 +198,23 @@ def boltz_binding_strength_constraint(
     def _process_batch(batch):
         try:
             if len(batch) == 1:
-                out_list = predict_structure_boltz2(
+                config = BoltzConfig(
                     sequences=batch[0]["sequences"],
                     entity_types=batch[0]["entity_types"],
                     **predict_kwargs,
                 )
-                out_list = [out_list]
+                out_list = [run_boltz(config)]
             else:
-                out_list = predict_structure_boltz2(
-                    sequences=[b["sequences"] for b in batch],
-                    entity_types=[b["entity_types"] for b in batch],
-                    **predict_kwargs,
-                )
-                if not isinstance(out_list, list):
-                    out_list = [out_list]
+                # Note: Boltz doesn't support batch processing in the new API yet
+                # Process sequentially
+                out_list = []
+                for b in batch:
+                    config = BoltzConfig(
+                        sequences=b["sequences"],
+                        entity_types=b["entity_types"],
+                        **predict_kwargs,
+                    )
+                    out_list.append(run_boltz(config))
         except Exception:
             if str(boltz_cfg.get("on_error", "penalize")).lower() == "raise":
                 raise
