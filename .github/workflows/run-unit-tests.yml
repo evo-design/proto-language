@@ -23,8 +23,7 @@ jobs:
     - name: Install dependencies
       shell: bash -l {0}  # ensures conda env is activated
       run: |
-        conda install -c conda-forge -c bioconda mmseqs2 -y
-        conda install -y mmseqs2
+        conda install -c conda-forge -c bioconda mmseqs2 blast -y
         pip install uv
         uv pip install -e .[dev]
 

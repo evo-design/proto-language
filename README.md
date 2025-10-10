@@ -10,7 +10,7 @@ The package is now structured with `pyproject.toml`. Install with:
 ```bash
 conda create --name proto-language python=3.12 -y
 conda activate proto-language
-conda install -c conda-forge -c bioconda mmseqs2 -y
+conda install -c conda-forge -c bioconda mmseqs2 blast -y
 ```
 
 2. Install as an editable package:
