@@ -207,7 +207,7 @@ class EnvManager:
         self,
         script_path: Path,
         input_dict: Dict[str, Any],
-        device: str = "cuda:0",
+        device: str = "cuda",
         verbose: bool = True,
     ) -> Dict[str, Any]:
         """

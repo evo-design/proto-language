@@ -76,9 +76,11 @@ def is_gpu_available() -> bool:
 
 
 def get_default_device() -> str:
-    """Get the default device to use for computation."""
+    """
+    Get the default device to use for computation.
+    """
     if is_gpu_available():
-        return "cuda:0"
+        return "cuda"
     else:
         return "cpu"
 
