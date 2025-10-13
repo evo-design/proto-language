@@ -22,6 +22,7 @@ from proto_language.language.constraint.sequence_composition.sequence_length_con
 from pydantic import BaseModel
 from proto_language.language.generator import (
     UniformMutationGenerator,
+    UniformMutationGeneratorConfig,
     MCMCGenerator,
 )
 
@@ -41,7 +42,9 @@ def _setup_mcmc_components(
     """Helper function to set up a basic MCMC generator for testing."""
     # 1. Create the proposal generator and the segment it will modify.
     # Note: sub-generator batch_size will be overridden to batch_size by MCMCGenerator
-    proposal_gen = UniformMutationGenerator(sequence_length=seq_length, batch_size=1)
+    proposal_gen = UniformMutationGenerator(
+        UniformMutationGeneratorConfig(sequence_length=seq_length, batch_size=1, num_mutations=1)
+    )
     segment = create_segment("A" * seq_length)  # Start with a known sequence
     proposal_gen.assign(segment)
 
@@ -85,7 +88,9 @@ class TestMCMCGenerator:
 
         # Test validation errors
         # Unassigned generator
-        unassigned_gen = UniformMutationGenerator(sequence_length=10)
+        unassigned_gen = UniformMutationGenerator(
+            UniformMutationGeneratorConfig(sequence_length=10, num_mutations=1)
+        )
         with pytest.raises(RuntimeError, match="has not been assigned"):
             MCMCGenerator(
                 constructs=[Construct([create_segment("A" * 10)])],
@@ -104,7 +109,9 @@ class TestMCMCGenerator:
 
         # Unassigned segment in construct
         segment_assigned = create_segment("A" * 10)
-        gen = UniformMutationGenerator(sequence_length=10)
+        gen = UniformMutationGenerator(
+            UniformMutationGeneratorConfig(sequence_length=10, num_mutations=1)
+        )
         gen.assign(segment_assigned)
         segment_unassigned = create_segment("C" * 10)  # Not assigned to any generator
         construct = Construct([segment_assigned, segment_unassigned])
@@ -187,7 +194,9 @@ class TestMCMCGenerator:
     def test_multiple_constraints(self):
         """Tests the MCMC generator with multiple constraints and weights."""
         seq_len = 30
-        proposal_gen = UniformMutationGenerator(sequence_length=seq_len)
+        proposal_gen = UniformMutationGenerator(
+            UniformMutationGeneratorConfig(sequence_length=seq_len, num_mutations=1)
+        )
         segment = create_segment("A" * seq_len)
         proposal_gen.assign(segment)
         construct = Construct([segment])
@@ -240,12 +249,16 @@ class TestMCMCGenerator:
 
         seq_len = 50
         # Generator 1: Point mutations
-        mut_gen = UniformMutationGenerator(sequence_length=seq_len)
+        mut_gen = UniformMutationGenerator(
+            UniformMutationGeneratorConfig(sequence_length=seq_len, num_mutations=1)
+        )
         segment1 = create_segment("A" * seq_len)
         mut_gen.assign(segment1)
 
         # Generator 2: Inversions
-        inv_gen = InversionGenerator(sequence_length=seq_len)
+        inv_gen = InversionGenerator(
+            UniformMutationGeneratorConfig(sequence_length=seq_len, num_mutations=1)
+        )
         segment2 = create_segment("C" * seq_len)
         inv_gen.assign(segment2)
 
@@ -315,7 +328,9 @@ class TestMCMCGenerator:
 
         # Create components manually for batch_size > 1
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            )
         )
         segment = create_segment("A" * seq_length)
         proposal_gen.assign(segment)
@@ -359,7 +374,9 @@ class TestMCMCGenerator:
 
         # Set up with a constraint that prefers 'A' nucleotides
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            )
         )
         segment = create_segment("ATCGATCGATCGATCGATCG")
         proposal_gen.assign(segment)
@@ -405,10 +422,14 @@ class TestMCMCGenerator:
         segment2 = create_segment("A" * seq_length)
 
         gen1 = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=1, num_mutations=1
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=1, num_mutations=1
+            )
         )
         gen2 = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=1, num_mutations=1
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=1, num_mutations=1
+            )
         )
 
         gen1.assign(segment1)
@@ -466,7 +487,9 @@ class TestMCMCGenerator:
 
         # Create generator with small mutations
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            )
         )
         segment = create_segment("A" * seq_length)
         proposal_gen.assign(segment)
@@ -522,7 +545,9 @@ class TestMCMCGenerator:
         seq_length = 15
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            )
         )
         segment = create_segment("GCGCGCGCGCGCGCG")  # Already optimal
         proposal_gen.assign(segment)
@@ -569,7 +594,9 @@ class TestMCMCGenerator:
         seq_length = 10
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            )
         )
         segment = create_segment("A" * seq_length)
         proposal_gen.assign(segment)
@@ -618,7 +645,9 @@ class TestMCMCGenerator:
         seq_length = 10
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            )
         )
         segment = create_segment("A" * seq_length)
         proposal_gen.assign(segment)
@@ -771,7 +800,9 @@ class TestMCMCGenerator:
         seq_length = 30
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=2
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=2
+            )
         )
         segment = create_segment("A" * seq_length)
         proposal_gen.assign(segment)
@@ -821,7 +852,9 @@ class TestMCMCGenerator:
         seq_length = 20
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            )
         )
         # Create distinct initial sequences
         segment = create_segment("A" * seq_length)
@@ -880,7 +913,9 @@ class TestMCMCGenerator:
         seq_length = 20
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            )
         )
         segment = create_segment("A" * seq_length)
         proposal_gen.assign(segment)
@@ -966,7 +1001,9 @@ class TestMCMCGenerator:
         seq_length = 20
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=2
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=2
+            )
         )
         segment = create_segment("A" * seq_length)
         proposal_gen.assign(segment)
@@ -1039,7 +1076,9 @@ class TestMCMCGenerator:
         seq_length = 15
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=5
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=5
+            )
         )
         segment = create_segment("G" * seq_length)  # Optimal sequence
         proposal_gen.assign(segment)
@@ -1096,7 +1135,9 @@ class TestMCMCGenerator:
         seq_length = 20
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            )
         )
         segment = create_segment("C" * seq_length)
         proposal_gen.assign(segment)
@@ -1145,7 +1186,9 @@ class TestMCMCGenerator:
         seq_length = 20
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=2
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=2
+            )
         )
         segment = create_segment("A" * seq_length)
         proposal_gen.assign(segment)
@@ -1204,7 +1247,9 @@ class TestMCMCGenerator:
         seq_length = 15
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            )
         )
         segment = create_segment("A" * seq_length)
         proposal_gen.assign(segment)
@@ -1240,7 +1285,9 @@ class TestMCMCGenerator:
         seq_length = 10
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=5
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=5
+            )
         )
         segment = create_segment("G" * seq_length)  # Optimal for constraint
         proposal_gen.assign(segment)
@@ -1287,7 +1334,9 @@ class TestMCMCGenerator:
         num_steps = 50
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            )
         )
         segment = create_segment("A" * seq_length)
         proposal_gen.assign(segment)
@@ -1337,7 +1386,9 @@ class TestMCMCGenerator:
         seq_length = 15
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            )
         )
         segment = create_segment("A" * seq_length)
         proposal_gen.assign(segment)
@@ -1396,10 +1447,14 @@ class TestMCMCGenerator:
 
         # Create two different mutation generators
         gen1 = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            )
         )
         gen2 = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=3
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=3
+            )
         )
 
         segment1 = create_segment("A" * seq_length)
@@ -1446,7 +1501,9 @@ class TestMCMCGenerator:
         seq_length = 15
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            )
         )
         segment = create_segment("A" * seq_length)  # Start far from optimal
         proposal_gen.assign(segment)
@@ -1499,7 +1556,9 @@ class TestMCMCGenerator:
         seq_length = 20
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            )
         )
         segment = create_segment("A" * seq_length)
         proposal_gen.assign(segment)
@@ -1553,7 +1612,9 @@ class TestMCMCGenerator:
         seq_length = 20
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=3
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=3
+            )
         )
         segment = create_segment("A" * seq_length)
         proposal_gen.assign(segment)
@@ -1652,10 +1713,14 @@ class TestMCMCGenerator:
         batch_size = 2
 
         gen1 = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            )
         )
         gen2 = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=5
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=5
+            )
         )
 
         segment1 = create_segment("A" * seq_length)
@@ -1719,7 +1784,9 @@ class TestMCMCGenerator:
             log_calls.append({"step": step})
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            )
         )
         segment = create_segment("A" * seq_length)
         proposal_gen.assign(segment)
@@ -1756,7 +1823,9 @@ class TestMCMCGenerator:
         seq_length = 15
 
         proposal_gen1 = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=1
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=1, num_mutations=1
+            )
         )
         segment1 = create_segment("A" * seq_length)
         proposal_gen1.assign(segment1)
@@ -1790,7 +1859,9 @@ class TestMCMCGenerator:
         assert "best:" not in output1
 
         proposal_gen2 = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=3
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=3, num_mutations=1
+            )
         )
         segment2 = create_segment("A" * seq_length)
         proposal_gen2.assign(segment2)
@@ -1828,7 +1899,9 @@ class TestMCMCGenerator:
         seq_length = 10
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=1
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=1, num_mutations=1
+            )
         )
         segment = create_segment("A" * seq_length)
         proposal_gen.assign(segment)
@@ -1859,7 +1932,9 @@ class TestMCMCGenerator:
         batch_size = 3
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            )
         )
         segment = create_segment("GCGCGCGCGCGCGCG")
         proposal_gen.assign(segment)
@@ -1890,10 +1965,14 @@ class TestMCMCGenerator:
         num_steps = 50
 
         gen1 = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            )
         )
         gen2 = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=3
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=3
+            )
         )
 
         segment1 = create_segment("A" * seq_length)
@@ -1931,7 +2010,9 @@ class TestMCMCGenerator:
         num_steps = 30
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=2
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=2
+            )
         )
         segment = create_segment("G" * seq_length)
         proposal_gen.assign(segment)
@@ -1966,7 +2047,9 @@ class TestMCMCGenerator:
         num_steps = 20
 
         proposal_gen = UniformMutationGenerator(
-            sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            UniformMutationGeneratorConfig(
+                sequence_length=seq_length, batch_size=batch_size, num_mutations=1
+            )
         )
         segment = create_segment("A" * seq_length)
         proposal_gen.assign(segment)

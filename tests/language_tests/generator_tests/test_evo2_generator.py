@@ -3,7 +3,7 @@ import sys
 
 sys.path.append(".")
 from proto_language.language.base import Segment, SequenceType
-from proto_language.language.generator import Evo2Generator
+from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
 
 # Check if GPU is available (either locally or via cloud)
 from proto_language.utils import is_gpu_available
@@ -25,11 +25,12 @@ class TestEvo2Generator:
     def test_evo2_single_prompt_sampling(self):
         """Test Evo2 generator with a single prompt sequence."""
         prompts = ["ATCG"]
-        evo2_generator = Evo2Generator(
+        config = Evo2GeneratorConfig(
             prompt_seqs=prompts, 
             sequence_length=100, 
             batch_size=1
         )
+        evo2_generator = Evo2Generator(config)
 
         # Create segment and assign to generator
         segment = create_segment("", seq_type=SequenceType.DNA)
@@ -51,11 +52,12 @@ class TestEvo2Generator:
         """Test Evo2 generator with multiple prompt sequences."""
         prompts = ["ATCG", "AAAA"]
         batch_size = len(prompts)
-        evo2_generator = Evo2Generator(
+        config = Evo2GeneratorConfig(
             prompt_seqs=prompts, 
             sequence_length=100, 
             batch_size=batch_size
         )
+        evo2_generator = Evo2Generator(config)
 
         # Create segment and assign to generator
         segment = create_segment("", seq_type=SequenceType.DNA)
@@ -78,7 +80,8 @@ class TestEvo2Generator:
     def test_evo2_assign_errors(self):
         """Test error conditions for Evo2 generator assignment."""
         prompts = ["ATCG"]
-        evo2_generator = Evo2Generator(prompt_seqs=prompts, sequence_length=100)
+        config = Evo2GeneratorConfig(prompt_seqs=prompts, sequence_length=100)
+        evo2_generator = Evo2Generator(config)
         
         # Should raise error if assigned multiple segments
         with pytest.raises(ValueError):
@@ -87,7 +90,7 @@ class TestEvo2Generator:
     def test_evo2_custom_parameters(self):
         """Test Evo2 generator with custom generation parameters."""
         prompts = ["ATCGATCG"]
-        evo2_generator = Evo2Generator(
+        config = Evo2GeneratorConfig(
             prompt_seqs=prompts,
             sequence_length=50,
             temperature=0.8,
@@ -95,6 +98,7 @@ class TestEvo2Generator:
             top_p=0.9,
             batch_size=1
         )
+        evo2_generator = Evo2Generator(config)
 
         # Create segment and assign to generator
         segment = create_segment("", seq_type=SequenceType.DNA)

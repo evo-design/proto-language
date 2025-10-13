@@ -8,17 +8,38 @@ from typing import final
 import random
 import time
 
+from pydantic import Field
+
 from ..base import Generator, Segment
+from ..base.config import BaseConfig
+from .registry import GeneratorRegistry
 
 
+class SlowMutationGeneratorConfig(BaseConfig):
+    """Configuration for SlowMutationGenerator (for testing)."""
+    batch_size: int = Field(default=1, ge=1, description="Number of sequence variants to generate")
+    sequence_length: int = Field(default=20, ge=1, description="Length of sequences to generate")
+    sleep_time: float = Field(default=2.0, ge=0.0, description="Sleep time in seconds per sample call")
+
+
+@GeneratorRegistry.register(
+    key="slow-mutation",
+    config=SlowMutationGeneratorConfig,
+    description="Slow mutations for testing and demonstration",
+    category="mutation",
+    requires_gpu=False,
+    supports_batch=True,
+    estimated_runtime="slow",
+)
 @final
 class SlowMutationGenerator(Generator):
     """A generator that introduces mutations slowly for testing and demonstration purposes."""
     
-    def __init__(self, batch_size: int = 1, sequence_length: int = 20, sleep_time: float = 2.0):
-        super().__init__(batch_size=batch_size)
-        self.sequence_length = sequence_length
-        self.sleep_time = sleep_time
+    def __init__(self, config: SlowMutationGeneratorConfig):
+        super().__init__(batch_size=config.batch_size)
+        self.config = config
+        self.sequence_length = config.sequence_length
+        self.sleep_time = config.sleep_time
         
     def assign(self, assigned_segments: Segment) -> None:
         """Assign a Segment to this generator.

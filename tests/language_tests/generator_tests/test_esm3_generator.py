@@ -3,7 +3,7 @@ import sys
 
 sys.path.append(".")
 from proto_language.language.base import Segment, SequenceType
-from proto_language.language.generator import ESM3Generator
+from proto_language.language.generator import ESM3Generator, ESM3GeneratorConfig
 
 # Check if GPU is available and required dependencies are installed
 from proto_language.utils import is_gpu_available
@@ -22,10 +22,12 @@ class TestESM3Generator:
     def test_esm3_entropy_sampling(self):
         """Test ESM3 generator with entropy-based sampling."""
         esm3_generator = ESM3Generator(
-            sequence_length=20,
-            temperature=1.0,
-            decoding_method="entropy",
-            top_k=5,
+            ESM3GeneratorConfig(
+                sequence_length=20,
+                temperature=1.0,
+                decoding_method="entropy",
+                top_k=5,
+            )
         )
 
         # Create segment and assign to generator
@@ -46,10 +48,12 @@ class TestESM3Generator:
     def test_esm3_max_logit_sampling(self):
         """Test ESM3 generator with max logit sampling."""
         esm3_generator = ESM3Generator(
-            sequence_length=20,
-            temperature=1.0,
-            decoding_method="max_logit",
-            top_k=5,
+            ESM3GeneratorConfig(
+                sequence_length=20,
+                temperature=1.0,
+                decoding_method="max_logit",
+                top_k=5,
+            )
         )
 
         # Create segment and assign to generator
@@ -70,10 +74,12 @@ class TestESM3Generator:
     def test_esm3_random_sampling(self):
         """Test ESM3 generator with random sampling."""
         esm3_generator = ESM3Generator(
-            sequence_length=20,
-            temperature=1.0,
-            decoding_method="random",
-            top_k=5,
+            ESM3GeneratorConfig(
+                sequence_length=20,
+                temperature=1.0,
+                decoding_method="random",
+                top_k=5,
+            )
         )
 
         # Create segment and assign to generator
@@ -95,11 +101,13 @@ class TestESM3Generator:
         """Test ESM3 generator with batch processing."""
         batch_size = 3
         esm3_generator = ESM3Generator(
-            sequence_length=15,
-            temperature=1.0,
-            decoding_method="entropy",
-            top_k=5,
-            batch_size=batch_size,
+            ESM3GeneratorConfig(
+                sequence_length=15,
+                temperature=1.0,
+                decoding_method="entropy",
+                top_k=5,
+                batch_size=batch_size,
+            )
         )
 
         # Create segment and assign to generator
@@ -120,7 +128,9 @@ class TestESM3Generator:
     def test_esm3_assign_errors(self):
         """Test error conditions for ESM3 generator assignment."""
         esm3_generator = ESM3Generator(
-            sequence_length=10,
+            ESM3GeneratorConfig(
+                sequence_length=10,
+            )
         )
         
         # Should raise error if assigned multiple segments

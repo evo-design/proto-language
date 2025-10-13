@@ -3,7 +3,7 @@ import sys
 
 sys.path.append(".")
 from proto_language.language.base import Segment, SequenceType
-from proto_language.language.generator import ESM2Generator
+from proto_language.language.generator import ESM2Generator, ESM2GeneratorConfig
 
 # Check if GPU is available and required dependencies are installed
 from proto_language.utils import is_gpu_available
@@ -22,11 +22,13 @@ class TestESM2Generator:
     def test_esm2_entropy_sampling(self):
         """Test ESM2 generator with entropy-based sampling."""
         esm2_generator = ESM2Generator(
-            esm2_type="esm2_t33_650M_UR50D",
-            sequence_length=20,
-            temperature=1.0,
-            decoding_method="entropy",
-            top_k=5,
+            ESM2GeneratorConfig(
+                esm2_type="esm2_t33_650M_UR50D",
+                sequence_length=20,
+                temperature=1.0,
+                decoding_method="entropy",
+                top_k=5,
+            )
         )
 
         # Create segment and assign to generator
@@ -47,11 +49,13 @@ class TestESM2Generator:
     def test_esm2_max_logit_sampling(self):
         """Test ESM2 generator with max logit sampling."""
         esm2_generator = ESM2Generator(
-            esm2_type="esm2_t33_650M_UR50D",
-            sequence_length=20,
-            temperature=1.0,
-            decoding_method="max_logit",
-            top_k=5,
+            ESM2GeneratorConfig(
+                esm2_type="esm2_t33_650M_UR50D",
+                sequence_length=20,
+                temperature=1.0,
+                decoding_method="max_logit",
+                top_k=5,
+            )
         )
 
         # Create segment and assign to generator
@@ -72,11 +76,13 @@ class TestESM2Generator:
     def test_esm2_random_sampling(self):
         """Test ESM2 generator with random sampling."""
         esm2_generator = ESM2Generator(
-            esm2_type="esm2_t33_650M_UR50D",
-            sequence_length=20,
-            temperature=1.0,
-            decoding_method="random",
-            top_k=5,
+            ESM2GeneratorConfig(
+                esm2_type="esm2_t33_650M_UR50D",
+                sequence_length=20,
+                temperature=1.0,
+                decoding_method="random",
+                top_k=5,
+            )
         )
 
         # Create segment and assign to generator
@@ -98,12 +104,14 @@ class TestESM2Generator:
         """Test ESM2 generator with batch processing."""
         batch_size = 3
         esm2_generator = ESM2Generator(
-            esm2_type="esm2_t33_650M_UR50D",
-            sequence_length=15,
-            temperature=1.0,
-            decoding_method="entropy",
-            top_k=5,
-            batch_size=batch_size,
+            ESM2GeneratorConfig(
+                esm2_type="esm2_t33_650M_UR50D",
+                sequence_length=15,
+                temperature=1.0,
+                decoding_method="entropy",
+                top_k=5,
+                batch_size=batch_size,
+            )
         )
 
         # Create segment and assign to generator
@@ -124,8 +132,10 @@ class TestESM2Generator:
     def test_esm2_assign_errors(self):
         """Test error conditions for ESM2 generator assignment."""
         esm2_generator = ESM2Generator(
-            esm2_type="esm2_t33_650M_UR50D",
-            sequence_length=10,
+            ESM2GeneratorConfig(
+                esm2_type="esm2_t33_650M_UR50D",
+                sequence_length=10,
+            )
         )
         
         # Should raise error if assigned multiple segments

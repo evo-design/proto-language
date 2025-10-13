@@ -19,15 +19,13 @@ from .base import (
 
 from .generator import (
     UniformMutationGenerator,
-    TwoSegmentUniformMutationGenerator,
     Evo2Generator,
-    NimEvo2Generator,
     ESM2Generator,
     ESM3Generator,
     SlowMutationGenerator,
     MCMCGenerator,
-    ChainedGenerator,
     BeamSearchGenerator,
+    GeneratorRegistry,
 )
 
 from .base import Program
@@ -42,15 +40,13 @@ __all__ = [
     "IterativeGenerator",
     # Generators
     "UniformMutationGenerator",
-    "TwoSegmentUniformMutationGenerator",
     "Evo2Generator",
-    "NimEvo2Generator",
     "ESM2Generator",
     "ESM3Generator",
     "SlowMutationGenerator",
     "MCMCGenerator",
-    "ChainedGenerator",
     "BeamSearchGenerator",
+    "GeneratorRegistry",
     # Program
     "Program",
 ]

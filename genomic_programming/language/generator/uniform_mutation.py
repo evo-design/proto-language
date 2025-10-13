@@ -4,12 +4,32 @@ UniformMutationGenerator for random point mutations.
 A sequence generator that proposes random point mutations.
 """
 
-from typing import Callable, Optional, final
+from typing import final, Optional, Callable
 import random
 
+from pydantic import Field
+
 from ..base import Generator, Segment
+from ..base.config import BaseConfig
+from .registry import GeneratorRegistry
 
 
+class UniformMutationGeneratorConfig(BaseConfig):
+    """Configuration for UniformMutationGenerator."""
+    batch_size: int = Field(default=1, ge=1, description="Number of sequence variants to generate")
+    sequence_length: int = Field(default=100, ge=1, description="Length of sequences to generate")
+    num_mutations: int = Field(default=1, ge=0, description="Number of mutations per sequence per sample")
+
+
+@GeneratorRegistry.register(
+    key="uniform-mutation",
+    config=UniformMutationGeneratorConfig,
+    description="Random point mutations for sequence diversity",
+    category="mutation",
+    requires_gpu=False,
+    supports_batch=True,
+    estimated_runtime="fast",
+)
 @final
 class UniformMutationGenerator(Generator):
     """
@@ -19,52 +39,41 @@ class UniformMutationGenerator(Generator):
     or amino acid mutations on each call to sample().
 
     Examples:
-        Creating a DNA mutation generator:
-        >>> segment = Segment(sequence="ATCGG", sequence_type=SequenceType.DNA)
-        >>> gen = UniformMutationGenerator(
+        Creating a DNA mutation generator with config:
+        >>> from proto_language.language.generator import UniformMutationGenerator, UniformMutationGeneratorConfig
+        >>> config = UniformMutationGeneratorConfig(
         ...     batch_size=5,
-        ...     sequence_length=5,
+        ...     sequence_length=100,
         ...     num_mutations=2
         ... )
+        >>> gen = UniformMutationGenerator(config)
+        >>> segment = Segment(sequence="", sequence_type=SequenceType.DNA)
         >>> gen.assign(segment)
         >>> gen.sample()  # Introduces 2 random mutations
-        >>> outputs = gen.get_generator_outputs()
-        >>> len(outputs[0])  # 5 (batch size)
 
-        Note: Using a mutation scheduler. Define a function that takes the iteration count 
-            and returns the number of mutations.
-        
+        Using a mutation scheduler:
         >>> def mutation_scheduler(iteration: int) -> int:
         ...     return max(1, 10 - iteration // 10)  # Decrease mutations over time
-        >>> gen = UniformMutationGenerator(
+        >>> config = UniformMutationGeneratorConfig(
         ...     batch_size=5,
         ...     sequence_length=100,
         ...     mutation_scheduler=mutation_scheduler
         ... )
+        >>> gen = UniformMutationGenerator(config)
     """
 
-    def __init__(
-        self,
-        batch_size: int = 1,
-        sequence_length: int = 100,
-        num_mutations: int = 1,
-        mutation_scheduler: Optional[Callable[[int], int]] = None,
-    ) -> None:
+    def __init__(self, config: UniformMutationGeneratorConfig) -> None:
         """
         Initialize the uniform mutation generator.
 
         Args:
-            batch_size: Number of sequence variants to maintain simultaneously.
-            sequence_length: Length of the sequence to generate.
-            num_mutations: Number of mutations to introduce per sequence per sample() call.
-                          Ignored if mutation_scheduler is provided.
-            mutation_scheduler: Optional callable that takes iteration count and returns
-                              number of mutations. If provided, overrides num_mutations.
+            config: Configuration object containing all generator parameters.
         """
-        super().__init__(batch_size=batch_size)
-        self.sequence_length = sequence_length
-        self.num_mutations = num_mutations
-        self.mutation_scheduler = mutation_scheduler
+        super().__init__(batch_size=config.batch_size)
+        self.config = config
+        self.sequence_length = config.sequence_length
+        self.num_mutations = config.num_mutations
+        self.mutation_scheduler = None  # Can be set after initialization if needed
 
     def assign(
         self, assigned_segments: Segment

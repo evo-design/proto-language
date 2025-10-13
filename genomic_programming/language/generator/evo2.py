@@ -4,11 +4,49 @@ Evo2 Generator
 Extracted from generator.py for better code organization.
 """
 
-from typing import Any, List, Optional, final
+from typing import Any, List, Optional, Dict, final
+
+from pydantic import Field, field_validator
 
 from ..base import Generator, Segment
+from ..base.config import BaseConfig
+from .registry import GeneratorRegistry
 
 
+class Evo2GeneratorConfig(BaseConfig):
+    """Configuration for Evo2Generator."""
+    prompt_seqs: List[str] = Field(description="Prompt sequences for generation (1 or batch_size prompts)")
+    evo2_type: str = Field(default="evo2_7b", description="Evo2 model variant to use")
+    evo2_local_path: Optional[str] = Field(default=None, description="Optional path to local model weights")
+    sequence_length: int = Field(default=500, ge=1, description="Number of tokens to generate after prompt")
+    temperature: float = Field(default=1.0, gt=0.0, description="Sampling temperature")
+    top_k: int = Field(default=4, ge=1, description="Top-k sampling parameter")
+    top_p: float = Field(default=1.0, gt=0.0, le=1.0, description="Top-p (nucleus) sampling parameter")
+    batched: bool = Field(default=True, description="Whether to use batched generation")
+    cached_generation: bool = Field(default=True, description="Whether to cache model states")
+    verbose: int = Field(default=1, ge=0, description="Verbosity level for logging")
+    force_prompt_threshold: Optional[int] = Field(default=None, description="Optional threshold for forcing prompt continuation")
+    batch_size: int = Field(default=1, ge=1, description="Number of sequences to generate")
+    prepend_prompt: bool = Field(default=False, description="Whether to prepend prompt to generated sequences")
+    sampling_kwargs: Dict[str, Any] = Field(default_factory=dict, description="Additional sampling arguments")
+    
+    @field_validator('prompt_seqs')
+    @classmethod
+    def validate_prompt_seqs(cls, v):
+        if not v:
+            raise ValueError("prompt_seqs must not be empty")
+        return v
+
+
+@GeneratorRegistry.register(
+    key="evo2",
+    config=Evo2GeneratorConfig,
+    description="Evo2 genome language model for DNA sequence generation",
+    category="language_model",
+    requires_gpu=True,
+    supports_batch=True,
+    estimated_runtime="slow",
+)
 @final
 class Evo2Generator(Generator):
     """
@@ -21,45 +59,32 @@ class Evo2Generator(Generator):
 
     Examples:
         Basic DNA generation:
-        >>> segment = Segment(sequence="", sequence_type=SequenceType.DNA)
-        >>> gen = Evo2Generator(
+        >>> from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
+        >>> config = Evo2GeneratorConfig(
         ...     prompt_seqs=["+~GA"],
         ...     evo2_type="evo2_7b",
         ...     sequence_length=1000,
         ...     temperature=0.8,
         ...     batch_size=5
         ... )
+        >>> gen = Evo2Generator(config)
+        >>> segment = Segment(sequence="", sequence_type=SequenceType.DNA)
         >>> gen.assign(segment)
         >>> gen.sample()  # Generates sequences from prompts
 
         Custom model with local weights:
-        >>> gen = Evo2Generator(
+        >>> config = Evo2GeneratorConfig(
         ...     prompt_seqs=["+~GA", "+~GC"],
         ...     evo2_type="evo2_7b_phage",
         ...     evo2_local_path="/path/to/weights.pt",
         ...     batch_size=2
         ... )
+        >>> gen = Evo2Generator(config)
         >>> gen.assign(segment)
         >>> gen.sample()  # Uses local model weights
     """
 
-    def __init__(
-        self,
-        prompt_seqs: List[str],
-        evo2_type: str = "evo2_7b",
-        evo2_local_path: Optional[str] = None,
-        sequence_length: int = 500,
-        temperature: float = 1.0,
-        top_k: int = 4,
-        top_p: float = 1.0,
-        batched: bool = True,
-        cached_generation: bool = True,
-        verbose: int = 1,
-        force_prompt_threshold: Optional[int] = None,
-        batch_size: int = 1,
-        prepend_prompt: bool = False,
-        **sampling_kwargs: Any,
-    ) -> None:
+    def __init__(self, config: Evo2GeneratorConfig) -> None:
         """
         Initialize the Evo2 generator with model configuration and sampling parameters.
 
@@ -67,56 +92,42 @@ class Evo2Generator(Generator):
         https://github.com/arcinstitute/evo2 and https://github.com/Zymrael/vortex
 
         Args:
-            prompt_seqs: List of prompt sequences to start generation from.
-                Single prompt gets replicated batch_size times, or provide
-                one prompt per batch element.
-            evo2_type: Name of the Evo2 model variant to use.
-            evo2_local_path: Optional path to local model weights file.
-            sequence_length: Number of tokens to generate after each prompt.
-            temperature: Sampling temperature for nucleus sampling.
-            top_k: Top-k parameter for sampling.
-            top_p: Top-p (nucleus) parameter for sampling.
-            batched: Whether to use batched generation for efficiency.
-            cached_generation: Whether to cache model states for faster sampling.
-            verbose: Verbosity level for generation logging.
-            force_prompt_threshold: Optional threshold for forcing prompt continuation.
-            batch_size: Number of sequences to generate simultaneously.
-            prepend_prompt: Whether to prepend the prompt to generated sequences.
-            **sampling_kwargs: Additional arguments passed to Evo2 model sampling.
+            config: Configuration object containing all generator parameters.
 
         Note:
             Model instances are automatically shared between generators with the same
             evo2_type, evo2_local_path, and sampling_kwargs to save memory and initialization time.
         """
-        super().__init__(batch_size=batch_size)
+        super().__init__(batch_size=config.batch_size)
+        self.config = config
 
         # Handle batch_size: replicate single prompt or validate multiple prompts
-        if len(prompt_seqs) == 1:
-            self.prompt_seqs = prompt_seqs * batch_size
+        if len(config.prompt_seqs) == 1:
+            self.prompt_seqs = config.prompt_seqs * config.batch_size
         else:
-            if len(prompt_seqs) != batch_size:
+            if len(config.prompt_seqs) != config.batch_size:
                 raise ValueError(
-                    f"Multiple prompts ({len(prompt_seqs)}) must equal batch_size ({batch_size})"
+                    f"Multiple prompts ({len(config.prompt_seqs)}) must equal batch_size ({config.batch_size})"
                 )
-            if len(set(len(seq) for seq in prompt_seqs)) != 1:
+            if len(set(len(seq) for seq in config.prompt_seqs)) != 1:
                 raise ValueError(
-                    f"All prompts must have same length, got: {[len(seq) for seq in prompt_seqs]}"
+                    f"All prompts must have same length, got: {[len(seq) for seq in config.prompt_seqs]}"
                 )
-            self.prompt_seqs = prompt_seqs
+            self.prompt_seqs = config.prompt_seqs
 
-        self.batch_size = batch_size
-        self.evo2_type = evo2_type
-        self.evo2_local_path = evo2_local_path
-        self.n_tokens = sequence_length
-        self.temperature = temperature
-        self.top_k = top_k
-        self.top_p = top_p
-        self.batched = batched
-        self.cached_generation = cached_generation
-        self.verbose = verbose
-        self.force_prompt_threshold = force_prompt_threshold
-        self.prepend_prompt = prepend_prompt
-        self.sampling_kwargs = sampling_kwargs
+        self.batch_size = config.batch_size
+        self.evo2_type = config.evo2_type
+        self.evo2_local_path = config.evo2_local_path
+        self.n_tokens = config.sequence_length
+        self.temperature = config.temperature
+        self.top_k = config.top_k
+        self.top_p = config.top_p
+        self.batched = config.batched
+        self.cached_generation = config.cached_generation
+        self.verbose = config.verbose
+        self.force_prompt_threshold = config.force_prompt_threshold
+        self.prepend_prompt = config.prepend_prompt
+        self.sampling_kwargs = config.sampling_kwargs
 
     def assign(
         self, assigned_segments: Segment

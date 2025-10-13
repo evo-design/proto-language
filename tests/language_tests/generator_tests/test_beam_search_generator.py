@@ -43,7 +43,11 @@ with patch.dict('sys.modules', {
     # Now import the modules safely
     from proto_language.language.base import (
         Construct, Segment, Constraint, SequenceType)
-    from proto_language.language.generator import BeamSearchGenerator, UniformMutationGenerator
+    from proto_language.language.generator import (
+        BeamSearchGenerator, 
+        UniformMutationGenerator,
+        UniformMutationGeneratorConfig
+    )
     from examples.scripts.beam_search_utils import MockAutoregressiveGenerator, gc_content_constraint
 
 class TestBeamSearchGenerator:
@@ -60,16 +64,24 @@ class TestBeamSearchGenerator:
         construct = Construct([segment1, segment2, segment3])
         
         # Create generators
-        gen1 = UniformMutationGenerator(sequence_length=4, batch_size=1)
+        gen1 = UniformMutationGenerator(
+            UniformMutationGeneratorConfig(sequence_length=4, batch_size=1, num_mutations=1)
+        )
         gen1.assign(segment1)
         
-        gen2 = UniformMutationGenerator(sequence_length=4, batch_size=1)
+        gen2 = UniformMutationGenerator(
+            UniformMutationGeneratorConfig(sequence_length=4, batch_size=1, num_mutations=1)
+        )
         gen2.assign(segment2)
         
-        gen3 = UniformMutationGenerator(sequence_length=4, batch_size=1)
+        gen3 = UniformMutationGenerator(
+            UniformMutationGeneratorConfig(sequence_length=4, batch_size=1, num_mutations=1)
+        )
         gen3.assign(segment3)
         
-        gen4 = UniformMutationGenerator(sequence_length=4, batch_size=1)
+        gen4 = UniformMutationGenerator(
+            UniformMutationGeneratorConfig(sequence_length=4, batch_size=1, num_mutations=1)
+        )
         gen4.assign(segment3)
         
         # Create constraint

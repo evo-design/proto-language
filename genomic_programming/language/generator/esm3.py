@@ -4,11 +4,46 @@ Esm3 Generator
 Extracted from generator.py for better code organization.
 """
 
-from typing import List, final
+from typing import List, final, Optional
+
+from pydantic import Field, field_validator
 
 from ..base import Generator, Segment
+from ..base.config import BaseConfig
+from .registry import GeneratorRegistry
 
 
+class ESM3GeneratorConfig(BaseConfig):
+    """Configuration for ESM3Generator."""
+    esm3_type: str = Field(default="esm3_sm_open_v1", description="ESM3 model variant")
+    esm3_local_path: Optional[str] = Field(default=None, description="Optional path to local model weights")
+    sequence_length: int = Field(default=100, ge=1, description="Length of protein sequences to generate")
+    temperature: float = Field(default=1.0, gt=0.0, description="Sampling temperature")
+    decoding_method: str = Field(
+        default="entropy",
+        description="Position selection strategy: 'entropy', 'max_logit', or 'random'"
+    )
+    top_k: int = Field(default=5, ge=1, description="Number of positions to sample per iteration")
+    batch_size: int = Field(default=1, ge=1, description="Number of sequences to generate")
+    prepend_prompt: bool = Field(default=False, description="Whether to prepend prompt to generated sequences")
+    
+    @field_validator('top_k')
+    @classmethod
+    def validate_top_k(cls, v, info):
+        if 'sequence_length' in info.data and v > info.data['sequence_length']:
+            raise ValueError(f"top_k ({v}) cannot exceed sequence_length ({info.data['sequence_length']})")
+        return v
+
+
+@GeneratorRegistry.register(
+    key="esm3",
+    config=ESM3GeneratorConfig,
+    description="ESM-3 open protein language model for protein sequence generation",
+    category="language_model",
+    requires_gpu=True,
+    supports_batch=True,
+    estimated_runtime="medium",
+)
 @final
 class ESM3Generator(Generator):
     """
@@ -21,50 +56,37 @@ class ESM3Generator(Generator):
 
     Examples:
         Basic protein generation:
-        >>> segment = Segment(sequence="", sequence_type=SequenceType.PROTEIN)
-        >>> gen = ESM3Generator(
+        >>> from proto_language.language.generator import ESM3Generator, ESM3GeneratorConfig
+        >>> config = ESM3GeneratorConfig(
         ...     sequence_length=100,
         ...     temperature=1.0,
         ...     decoding_method="entropy",
         ...     top_k=5,
         ...     batch_size=3
         ... )
+        >>> gen = ESM3Generator(config)
+        >>> segment = Segment(sequence="", sequence_type=SequenceType.PROTEIN)
         >>> gen.assign(segment)  # Creates random initial sequences from mask tokens
         >>> gen.sample()  # Refines 5 highest-entropy positions
     """
 
-    def __init__(
-        self,
-        sequence_length: int = 100,
-        temperature: float = 1.0,
-        decoding_method: str = "entropy",
-        top_k: int = 5,
-        batch_size: int = 1,
-    ) -> None:
+    def __init__(self, config: ESM3GeneratorConfig) -> None:
         """
         Initialize the ESM3 generator with model and sampling configuration.
 
         Args:
-            sequence_length: Length of protein sequences to generate.
-            temperature: Sampling temperature for amino acid selection.
-            decoding_method: Strategy for selecting positions to sample:
-                - 'entropy': Choose positions with highest prediction entropy
-                - 'max_logit': Choose positions with highest maximum logits
-                - 'random': Choose positions randomly
-            top_k: Number of positions to sample per iteration.
-            batch_size: Number of sequences to generate simultaneously.
+            config: Configuration object containing all generator parameters.
         """
-        super().__init__(batch_size=batch_size)
-        if top_k > sequence_length:
-            raise ValueError(
-                f"top_k ({top_k}) cannot exceed sequence_length ({sequence_length})"
-            )
-
-        self.sequence_length = sequence_length
-        self.temperature = temperature
-        self.decoding_method = decoding_method
-        self.top_k = top_k
-        self.batch_size = batch_size
+        super().__init__(batch_size=config.batch_size)
+        self.config = config
+        self.esm3_type = config.esm3_type
+        self.esm3_local_path = config.esm3_local_path
+        self.sequence_length = config.sequence_length
+        self.temperature = config.temperature
+        self.decoding_method = config.decoding_method
+        self.top_k = config.top_k
+        self.batch_size = config.batch_size
+        self.prepend_prompt = config.prepend_prompt
 
     def assign(
         self, assigned_segments: Segment

@@ -57,7 +57,7 @@
       "id": "uniform_mutation_generator",
       "key": "uniform-mutation",
       "config": {
-        "mutation_rate": 0.01,
+        "num_mutations": 1,
         "sequence_length": 20
       },
       "targets": ["construct1-segment1"]
@@ -66,7 +66,7 @@
       "id": "uniform_mutation_generator2",
       "key": "uniform-mutation",
       "config": {
-        "mutation_rate": 0.01,
+        "num_mutations": 1,
         "sequence_length": 20
       },
       "targets": ["construct2-segment1"]
