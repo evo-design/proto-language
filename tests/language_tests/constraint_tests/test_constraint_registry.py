@@ -60,7 +60,7 @@ class TestRegistration:
         
         # Verify registration
         assert ConstraintRegistry.count() == initial_count + 1
-        assert "test-temp-constraint" in ConstraintRegistry.list_keys()
+        assert "test-temp-constraint" in sorted(ConstraintRegistry._registry.keys())
         
         # Get the spec and verify
         spec = ConstraintRegistry.get("test-temp-constraint")
@@ -172,18 +172,10 @@ class TestDiscovery:
             assert isinstance(info["config_schema"], dict)
             assert isinstance(info["gpu_required"], bool)
     
-    def test_list_keys_returns_sorted_keys(self):
-        """Test that list_keys returns sorted list of constraint keys."""
-        keys = ConstraintRegistry.list_keys()
-        
-        assert isinstance(keys, list)
-        assert len(keys) >= 20
-        assert keys == sorted(keys)  # Should be sorted
-    
     def test_count_returns_correct_number(self):
         """Test that count returns the correct number of registered constraints."""
         count = ConstraintRegistry.count()
-        keys = ConstraintRegistry.list_keys()
+        keys = sorted(ConstraintRegistry._registry.keys())
         
         assert count == len(keys)
         assert count >= 20
@@ -238,22 +230,6 @@ class TestSchemaGeneration:
         for prop_name, prop_info in properties.items():
             assert "type" in prop_info or "anyOf" in prop_info
             assert "description" in prop_info
-    
-    def test_get_defaults_extracts_default_values(self):
-        """Test that get_defaults extracts default values from schema."""
-        # Test with a constraint that has defaults
-        defaults = ConstraintRegistry.get_defaults("esmfold-plddt")
-        
-        assert isinstance(defaults, dict)
-        # ESMFold pLDDT should have n_replications with default
-        assert "n_replications" in defaults
-    
-    def test_get_defaults_empty_for_required_params(self):
-        """Test that get_defaults returns empty for constraints with no defaults."""
-        defaults = ConstraintRegistry.get_defaults("gc-content")
-        
-        # GC content has no defaults (min_gc and max_gc are required)
-        assert defaults == {} or all(v is None for v in defaults.values())
     
     def test_schema_includes_field_descriptions(self):
         """Test that generated schemas include field descriptions."""
@@ -359,33 +335,6 @@ class TestFactoryMethod:
 
 
 # ============================================================================
-# Unit Tests: Ensure Loaded
-# ============================================================================
-
-class TestEnsureLoaded:
-    """Test import verification mechanism."""
-    
-    def test_ensure_loaded_passes_with_correct_count(self):
-        """Test that ensure_loaded passes when count matches."""
-        actual_count = ConstraintRegistry.count()
-        
-        # Should not raise any warnings
-        ConstraintRegistry.ensure_loaded(expected_count=actual_count)
-    
-    def test_ensure_loaded_warns_on_mismatch(self):
-        """Test that ensure_loaded warns when count doesn't match."""
-        actual_count = ConstraintRegistry.count()
-        
-        with pytest.warns(ImportWarning):
-            ConstraintRegistry.ensure_loaded(expected_count=actual_count + 5)
-    
-    def test_ensure_loaded_without_count_passes(self):
-        """Test that ensure_loaded without count always passes."""
-        # Should not raise or warn
-        ConstraintRegistry.ensure_loaded()
-
-
-# ============================================================================
 # Integration Tests
 # ============================================================================
 
@@ -402,8 +351,8 @@ class TestIntegration:
         schema = ConstraintRegistry.get_schema("gc-content")
         assert "properties" in schema
         
-        # 3. Get defaults for pre-filling
-        defaults = ConstraintRegistry.get_defaults("gc-content")
+        # 3. Get defaults for pre-filling (extract from schema)
+        defaults = {k: v.get("default") for k, v in schema.get("properties", {}).items() if "default" in v}
         
         # 4. Create constraint from user input
         constraint = ConstraintRegistry.create(
@@ -424,11 +373,11 @@ class TestIntegration:
         errors = []
         for key in all_constraints.keys():
             try:
-                # Get defaults
-                defaults = ConstraintRegistry.get_defaults(key)
-                
                 # Try to get schema (should not raise)
                 schema = ConstraintRegistry.get_schema(key)
+                
+                # Extract defaults from schema
+                defaults = {k: v.get("default") for k, v in schema.get("properties", {}).items() if "default" in v}
                 
                 # Note: We can't create all constraints without proper config values
                 # This test just verifies the registry methods work for all
@@ -442,7 +391,7 @@ class TestIntegration:
         """Test that different registry methods return consistent data."""
         # Get constraint keys from different methods
         keys_from_list_all = set(ConstraintRegistry.list_all().keys())
-        keys_from_list_keys = set(ConstraintRegistry.list_keys())
+        keys_from_list_keys = set(sorted(ConstraintRegistry._registry.keys()))
         count = ConstraintRegistry.count()
         
         # All should be consistent
@@ -468,7 +417,7 @@ class TestBuiltinConstraints:
             "tetranucleotide-usage"
         ]
         
-        registered = ConstraintRegistry.list_keys()
+        registered = sorted(ConstraintRegistry._registry.keys())
         for key in expected:
             assert key in registered, f"Missing constraint: {key}"
     
@@ -484,7 +433,7 @@ class TestBuiltinConstraints:
             "overall-protein-quality"
         ]
         
-        registered = ConstraintRegistry.list_keys()
+        registered = sorted(ConstraintRegistry._registry.keys())
         for key in expected:
             assert key in registered, f"Missing constraint: {key}"
     
@@ -498,7 +447,7 @@ class TestBuiltinConstraints:
             "boltz-binding-strength"
         ]
         
-        registered = ConstraintRegistry.list_keys()
+        registered = sorted(ConstraintRegistry._registry.keys())
         for key in expected:
             assert key in registered, f"Missing constraint: {key}"
     
@@ -512,7 +461,7 @@ class TestBuiltinConstraints:
             "promoter-strength"
         ]
         
-        registered = ConstraintRegistry.list_keys()
+        registered = sorted(ConstraintRegistry._registry.keys())
         for key in expected:
             assert key in registered, f"Missing constraint: {key}"
     

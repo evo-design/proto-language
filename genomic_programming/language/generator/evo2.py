@@ -9,7 +9,7 @@ from typing import Any, List, Optional, Dict, final
 from pydantic import Field, field_validator
 
 from ..base import Generator, Segment
-from ..base.config import BaseConfig
+from proto_language.base_config import BaseConfig
 from .registry import GeneratorRegistry
 
 

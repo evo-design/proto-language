@@ -10,7 +10,7 @@ import random
 from pydantic import Field
 
 from ..base import Generator, Segment
-from ..base.config import BaseConfig
+from proto_language.base_config import BaseConfig
 from .registry import GeneratorRegistry
 
 

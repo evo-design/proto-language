@@ -190,7 +190,7 @@ class IterativeGenerator(Generator):
 
             best_sequence = segment.batch_sequences[best_idx]
             # Propagate the best sequence to all positions in this Segment
-            # TODO: Check if this propagation makes sense for top_k impelemenetation
+            # TODO: Check if this propagation makes sense for top_k implemenetation
             for sequence in segment.batch_sequences:
                 sequence.sequence = best_sequence.sequence
                 sequence._metadata = best_sequence._metadata.copy()

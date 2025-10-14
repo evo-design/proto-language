@@ -10,7 +10,8 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel
 
-from proto_language.language.base import BaseRegistry, BaseSpec, Generator
+from proto_language.base_registry import BaseRegistry, BaseSpec
+from proto_language.language.base import Generator
 
 
 @dataclass
@@ -31,15 +32,16 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
     """
     Registry for generator discovery and schema generation.
     
-    Follows the same pattern as ConstraintRegistry and ToolRegistry.
+    Inherits common registry functionality from BaseRegistry and adds
+    generator-specific metadata (category, requires_gpu, supports_batch, estimated_runtime).
     
-    Key Methods:
+    Public Methods:
     - register(): Decorator to register generator classes
+    - list_all(): List generators with metadata and schemas
     - create(): Factory to create generator instances from config dicts
-    - list_all(): List generators with schemas
-    - get_schema(): Get JSON schema for a generator (inherited)
-    - get_defaults(): Get default config values (inherited)
-    - ensure_loaded(): Verify all generators loaded (inherited)
+    - get(): Get generator spec by key (inherited)
+    - get_schema(): Get JSON schema for generator configuration (inherited)
+    - count(): Get number of registered generators (inherited)
     
     Examples:
         Registration (in generator files):
@@ -56,7 +58,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
         ...         super().__init__(batch_size=config.batch_size)
         ...         # Implementation
         
-        API/Client Usage (discovery):
+        API/Client Usage:
         >>> # List all available generators
         >>> generators = GeneratorRegistry.list_all()
         >>> 
@@ -219,68 +221,4 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
             }
             for key, spec in cls._registry.items()
         }
-    
-    @classmethod
-    def list_by_category(cls, category: str) -> Dict[str, dict]:
-        """
-        List all generators in a specific category.
-        
-        Args:
-            category: Category to filter by (e.g., "mutation", "language_model")
-            
-        Returns:
-            Dict of generators in the specified category (same format as list_all())
-        
-        Examples:
-            >>> mutation_generators = GeneratorRegistry.list_by_category("mutation")
-            >>> print(mutation_generators.keys())
-            dict_keys(['uniform-mutation', 'slow-mutation'])
-        """
-        all_generators = cls.list_all()
-        return {
-            key: info
-            for key, info in all_generators.items()
-            if info["category"] == category
-        }
-    
-    @classmethod
-    def list_gpu_generators(cls) -> Dict[str, dict]:
-        """
-        List all generators that require GPU.
-        
-        Returns:
-            Dict of GPU generators (same format as list_all())
-        
-        Examples:
-            >>> gpu_generators = GeneratorRegistry.list_gpu_generators()
-            >>> print(gpu_generators.keys())
-            dict_keys(['evo2', 'esm2', 'esm3'])
-        """
-        all_generators = cls.list_all()
-        return {
-            key: info
-            for key, info in all_generators.items()
-            if info["requires_gpu"]
-        }
-    
-    @classmethod
-    def get_categories(cls) -> list[str]:
-        """
-        Get list of all generator categories.
-        
-        Returns:
-            Sorted list of unique category names
-        
-        Examples:
-            >>> categories = GeneratorRegistry.get_categories()
-            >>> print(categories)
-            ['language_model', 'mutation', 'optimization', 'pipeline']
-        """
-        all_generators = cls.list_all()
-        categories = {info["category"] for info in all_generators.values()}
-        return sorted(categories)
-
-
-# Convenience alias for cleaner decorator syntax
-generator = GeneratorRegistry.register
 

@@ -9,7 +9,7 @@ import itertools
 from pydantic import Field
 
 from ...base import Sequence, SequenceType, DNA_NUCLEOTIDES, RNA_NUCLEOTIDES
-from ...base.config import BaseConfig
+from proto_language.base_config import BaseConfig
 from ..registry import ConstraintRegistry
 from ..utils import MAX_ENERGY, calculate_range_deviation
 

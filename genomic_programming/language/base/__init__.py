@@ -11,7 +11,7 @@ This module provides the core abstractions for sequence programming:
 - Program: User-friendly wrapper for optimization workflows
 """
 
-from .config import BaseConfig
+from proto_language.base_config import BaseConfig
 from .sequence import (
     Sequence,
     SequenceType,
@@ -26,7 +26,7 @@ from .constraint import Constraint
 from .generator import Generator
 from .iterative_generator import IterativeGenerator
 from .program import Program
-from .registry import BaseRegistry, BaseSpec
+from proto_language.base_registry import BaseRegistry, BaseSpec
 
 __all__ = [
     "BaseConfig",

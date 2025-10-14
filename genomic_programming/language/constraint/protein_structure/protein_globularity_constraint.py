@@ -11,7 +11,7 @@ import numpy as np
 from pydantic import Field
 
 from ...base import Sequence
-from ...base.config import BaseConfig
+from proto_language.base_config import BaseConfig
 from ..registry import ConstraintRegistry
 from ....tools.models.structure_prediction.esmfold import ESMFoldConfig
 from ....utils import (

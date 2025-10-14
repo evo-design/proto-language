@@ -9,7 +9,7 @@ from typing import Optional
 from pydantic import Field
 
 from ...base import Sequence
-from ...base.config import BaseConfig
+from proto_language.base_config import BaseConfig
 from ..registry import ConstraintRegistry
 from ....tools.models.structure_prediction.esmfold import run_esmfold, ESMFoldConfig
 from ....tools.tool_cache import ToolCache

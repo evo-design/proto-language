@@ -9,7 +9,7 @@ from collections import Counter
 from pydantic import Field
 
 from ...base import Sequence, SequenceType
-from ...base.config import BaseConfig
+from proto_language.base_config import BaseConfig
 from ..registry import ConstraintRegistry
 
 

@@ -11,7 +11,7 @@ import pandas as pd
 from pydantic import Field
 
 from ...base import Sequence
-from ...base.config import BaseConfig
+from proto_language.base_config import BaseConfig
 from ..registry import ConstraintRegistry
 from ....tools.orf_prediction.orfipy import OrfipyConfig
 from ....tools.gene_annotation.mmseqs import MmseqsSearchProteinsConfig

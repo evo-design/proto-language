@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import Field
 
 from ...base import Sequence, SequenceType
-from ...base.config import BaseConfig
+from proto_language.base_config import BaseConfig
 from ..registry import ConstraintRegistry
 from ....tools.orf_prediction.prodigal import run_prodigal_prediction, ProdigalConfig
 from ....tools.gene_annotation.hmmer import _run_hmmer

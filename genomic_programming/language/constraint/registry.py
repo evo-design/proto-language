@@ -10,7 +10,8 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel
 
-from ..base import Constraint, Segment, BaseRegistry, BaseSpec
+from proto_language.base_registry import BaseRegistry, BaseSpec
+from ..base import Constraint, Segment
 
 
 @dataclass
@@ -29,13 +30,13 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
     Inherits common registry functionality from BaseRegistry and adds
     constraint-specific features like vectorized/concatenate flags.
     
-    Key Methods:
+    Public Methods:
     - register(): Decorator to register constraint functions
+    - list_all(): List constraints with metadata (vectorized, concatenate, gpu_required)
     - create(): Factory to create Constraint instances from config dicts
-    - list_all(): List constraints with schemas (includes vectorized/concatenate)
-    - get_schema(): Get JSON schema for a constraint (inherited)
-    - get_defaults(): Get default config values (inherited)
-    - ensure_loaded(): Verify all constraints loaded (inherited)
+    - get(): Get constraint spec by key (inherited)
+    - get_schema(): Get JSON schema for constraint configuration (inherited)
+    - count(): Get number of registered constraints (inherited)
     
     Examples:
         Registration (in constraint files):
@@ -219,7 +220,3 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             }
             for key, spec in cls._registry.items()
         }
-
-# Convenience alias for cleaner decorator syntax
-constraint = ConstraintRegistry.register
-

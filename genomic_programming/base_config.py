@@ -1,5 +1,5 @@
 """
-Base configuration class for all configs in proto_language.
+Base configuration class for all pydantic configs.
 """
 
 from pydantic import BaseModel, ConfigDict
@@ -7,12 +7,7 @@ from pydantic import BaseModel, ConfigDict
 
 class BaseConfig(BaseModel):
     """
-    Base configuration class for tools, constraints, and generators.
-    
-    Provides consistent behavior across all configs:
-    - Typo detection via extra='forbid'
-    - Validation on assignment
-    - Proper JSON serialization
+    Base configuration class for consistent behavior across all configs (tools, constraints, and generators).
     
     Example:
         >>> class MyToolConfig(BaseConfig):
@@ -25,6 +20,4 @@ class BaseConfig(BaseModel):
         validate_assignment=True,    # Validate on field updates
         use_enum_values=True,        # Serialize enums as values
         validate_default=True,       # Validate default values
-        str_strip_whitespace=True,   # Strip whitespace from strings
     )
-
