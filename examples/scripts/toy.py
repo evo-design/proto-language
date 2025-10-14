@@ -4,14 +4,14 @@ import sys
 import os
 
 from proto_language.language.generator import UniformMutationGenerator, MCMCGenerator
-from proto_language.language.base import (
+from proto_language.language.core import (
     Constraint,
     Construct,
     Segment,
     SequenceType,
     Sequence,
 )
-from proto_language.language.base import Program
+from proto_language.language.core import Program
 from proto_language.language.constraint import gc_content_constraint
 
 # Construct Segment

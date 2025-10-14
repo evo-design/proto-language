@@ -15,7 +15,7 @@ from unittest.mock import Mock, patch
 
 sys.path.append(".")
 
-from proto_language.language.base import Constraint, Sequence, SequenceType
+from proto_language.language.core import Constraint, Sequence, SequenceType
 from proto_language.language.constraint import esmfold_plddt_constraint, esmfold_ptm_constraint
 from proto_language.language.constraint.protein_structure.esmfold_plddt_constraint import ESMFoldPLDDTConfig
 from proto_language.language.constraint.protein_structure.esmfold_ptm_constraint import ESMFoldPTMConfig

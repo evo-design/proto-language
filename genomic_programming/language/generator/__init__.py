@@ -1,22 +1,5 @@
-"""
-Generator implementations for the proto-language.
-
-This module provides concrete implementations of sequence generation algorithms:
-- UniformMutationGenerator: Random point mutations
-- SlowMutationGenerator: Slow mutations for testing
-- Evo2Generator: Evo2 genome language model generation
-- ESM2Generator: ESM-2 protein language model generation
-- ESM3Generator: ESM-3 protein language model generation
-- MCMCGenerator: Metropolis-Hastings MCMC optimization
-- BeamSearchGenerator: Beam search optimization
-
-Registry System:
-- GeneratorRegistry: Central registry for generator discovery and execution
-- All generators are registered with metadata for API/client integration
-"""
-
 # Registry and base infrastructure
-from .registry import GeneratorRegistry
+from .generator_registry import GeneratorRegistry
 
 # Simple mutation generators
 from .uniform_mutation import (

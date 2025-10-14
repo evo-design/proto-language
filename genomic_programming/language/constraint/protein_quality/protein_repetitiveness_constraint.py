@@ -9,10 +9,10 @@ from collections import Counter
 import numpy as np
 from pydantic import Field
 
-from ...base import Sequence, SequenceType
+from ...core import Sequence, SequenceType
 from proto_language.base_config import BaseConfig
-from ..registry import ConstraintRegistry
-from ..utils import MIN_ENERGY, MAX_ENERGY
+from ..constraint_registry import ConstraintRegistry
+from ....utils import MIN_ENERGY, MAX_ENERGY
 
 
 def _calculate_repetitiveness_score(seq: str, min_repeat_length: int = 3) -> float:

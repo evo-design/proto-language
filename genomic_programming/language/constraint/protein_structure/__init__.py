@@ -1,10 +1,3 @@
-"""
-Protein structure prediction and analysis constraints.
-
-This module contains individual constraint functions for protein structure evaluation,
-including quality metrics, symmetry constraints, and binding strength assessments.
-"""
-
 from .esmfold_plddt_constraint import esmfold_plddt_constraint
 from .esmfold_ptm_constraint import esmfold_ptm_constraint
 from .protein_symmetry_ring_constraint import protein_symmetry_ring_constraint

@@ -1,16 +1,3 @@
-"""
-Base classes for the proto-language.
-
-This module provides the core abstractions for sequence programming:
-- Sequence: Individual sequence variables with validation and metadata
-- Segment: Individual sequence variables with validation and metadata
-- Construct: Fully-defined biological construct consisting of a collection of Segment objects
-- Constraint: Scoring functions that evaluate sequence quality
-- Generator: Base class for sequence generation algorithms
-- IterativeGenerator: Specialized generator for iterative optimization
-- Program: User-friendly wrapper for optimization workflows
-"""
-
 from proto_language.base_config import BaseConfig
 from .sequence import (
     Sequence,

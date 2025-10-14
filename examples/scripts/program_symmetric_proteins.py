@@ -2,7 +2,7 @@ from typing import Tuple
 
 import sys
 import os
-from proto_language.language.base import (
+from proto_language.language.core import (
     Constraint,
     Construct,
     Segment,
@@ -16,7 +16,7 @@ from proto_language.language.constraint import (
     protein_symmetry_ring_constraint,
 )
 from proto_language.language.generator import MCMCGenerator, UniformMutationGenerator
-from proto_language.language.base import Program
+from proto_language.language.core import Program
 
 
 MONOMER_LENGTH = 150

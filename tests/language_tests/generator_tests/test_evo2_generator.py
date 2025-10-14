@@ -2,7 +2,7 @@ import pytest
 import sys
 
 sys.path.append(".")
-from proto_language.language.base import Segment, SequenceType
+from proto_language.language.core import Segment, SequenceType
 from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
 
 # Check if GPU is available (either locally or via cloud)

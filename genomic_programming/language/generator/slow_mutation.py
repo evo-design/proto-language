@@ -10,9 +10,9 @@ import time
 
 from pydantic import Field
 
-from ..base import Generator, Segment
+from ..core import Generator, Segment
 from proto_language.base_config import BaseConfig
-from .registry import GeneratorRegistry
+from .generator_registry import GeneratorRegistry
 
 
 class SlowMutationGeneratorConfig(BaseConfig):
@@ -28,8 +28,7 @@ class SlowMutationGeneratorConfig(BaseConfig):
     description="Slow mutations for testing and demonstration",
     category="mutation",
     requires_gpu=False,
-    supports_batch=True,
-    estimated_runtime="slow",
+    supports_batch=True
 )
 @final
 class SlowMutationGenerator(Generator):

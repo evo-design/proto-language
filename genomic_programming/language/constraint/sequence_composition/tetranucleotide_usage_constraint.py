@@ -6,10 +6,10 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from ...base import Sequence, SequenceType, DNA_NUCLEOTIDES, RNA_NUCLEOTIDES
+from ...core import Sequence, SequenceType, DNA_NUCLEOTIDES, RNA_NUCLEOTIDES
 from proto_language.base_config import BaseConfig
-from ..registry import ConstraintRegistry
-from ..utils import MIN_ENERGY, calculate_range_deviation
+from ..constraint_registry import ConstraintRegistry
+from ....utils import MIN_ENERGY, calculate_range_deviation
 
 
 class TetranucleotideUsageConfig(BaseConfig):

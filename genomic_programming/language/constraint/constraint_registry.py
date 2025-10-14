@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pydantic import BaseModel
 
 from proto_language.base_registry import BaseRegistry, BaseSpec
-from ..base import Constraint, Segment
+from ..core import Constraint, Segment
 
 
 @dataclass

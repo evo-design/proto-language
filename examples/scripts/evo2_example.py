@@ -4,14 +4,14 @@ import sys
 import os
 
 from proto_language.language.generator import Evo2Generator, MCMCGenerator
-from proto_language.language.base import (
+from proto_language.language.core import (
     Constraint,
     Construct,
     Segment,
     SequenceType,
     Sequence,
 )
-from proto_language.language.base import Program
+from proto_language.language.core import Program
 from proto_language.language.constraint import sequence_length_constraint, gc_content_constraint, max_homopolymer_constraint, dinucleotide_frequency_constraint, tetranucleotide_usage_constraint, orfipy_mmseqs_gene_hit_count_constraint, orfipy_mmseqs_gene_homology_constraint
 
 NUM_MCMC_STEPS = 3 # Number of MCMC steps to run

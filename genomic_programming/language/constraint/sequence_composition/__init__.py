@@ -1,7 +1,3 @@
-"""
-Sequence composition constraints for evaluating basic sequence properties.
-"""
-
 from .sequence_length_constraint import sequence_length_constraint
 from .gc_content_constraint import gc_content_constraint
 from .max_homopolymer_constraint import max_homopolymer_constraint

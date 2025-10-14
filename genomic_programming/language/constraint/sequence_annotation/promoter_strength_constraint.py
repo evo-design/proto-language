@@ -9,9 +9,9 @@ from typing import List, Optional
 from promoter_calculator.wrapper import promoter_calculator
 from pydantic import Field
 
-from ...base import Sequence
+from ...core import Sequence
 from proto_language.base_config import BaseConfig
-from ..registry import ConstraintRegistry
+from ..constraint_registry import ConstraintRegistry
 
 
 class PromoterStrengthConfig(BaseConfig):

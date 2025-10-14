@@ -9,7 +9,7 @@ import copy
 
 import heapq
 
-from ..base import IterativeGenerator, Construct, Segment, Constraint, Sequence, Generator, SequenceType
+from ..core import IterativeGenerator, Construct, Segment, Constraint, Sequence, Generator, SequenceType
 
 
 class BeamSearchGenerator(IterativeGenerator):

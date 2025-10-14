@@ -8,9 +8,9 @@ from typing import Optional
 
 from pydantic import Field
 
-from ...base import Sequence
+from ...core import Sequence
 from proto_language.base_config import BaseConfig
-from ..registry import ConstraintRegistry
+from ..constraint_registry import ConstraintRegistry
 from ....tools.models.structure_prediction.esmfold import run_esmfold, ESMFoldConfig
 from ....tools.tool_cache import ToolCache
 

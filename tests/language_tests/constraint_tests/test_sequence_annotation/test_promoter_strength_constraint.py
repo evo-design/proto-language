@@ -25,7 +25,7 @@ from unittest.mock import patch, Mock
 
 sys.path.append(".")
 
-from proto_language.language.base import (
+from proto_language.language.core import (
     Construct,
     Segment,
     Constraint,

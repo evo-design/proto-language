@@ -41,7 +41,7 @@ with patch.dict('sys.modules', {
     'deployment.cloud_functions': Mock()
 }):
     # Now import the modules safely
-    from proto_language.language.base import (
+    from proto_language.language.core import (
         Construct, Segment, Constraint, SequenceType)
     from proto_language.language.generator import (
         BeamSearchGenerator, 

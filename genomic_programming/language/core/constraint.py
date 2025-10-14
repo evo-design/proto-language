@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 from .sequence import Sequence
 from .segment import Segment
-from ...utils.metadata import propagate_metadata
+from ...utils.helpers import propagate_metadata
 
 
 class Constraint:
@@ -34,7 +34,7 @@ class Constraint:
     Usage Patterns:
     
         Library Usage (Primary - Direct instantiation):
-        >>> from proto_language.language.base import Constraint
+        >>> from proto_language.language.core import Constraint
         >>> from proto_language.language.constraint import gc_content_constraint, GCContentConfig
         >>> 
         >>> config = GCContentConfig(min_gc=40, max_gc=60)

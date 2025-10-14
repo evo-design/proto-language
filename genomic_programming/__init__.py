@@ -1,4 +1,4 @@
-from .language.base import (
+from .language.core import (
     Sequence,
     Segment,
     Construct,
@@ -27,7 +27,7 @@ from .language.generator import (
     MCMCGenerator,
     BeamSearchGenerator,
 )
-from .language.base import Program
+from .language.core import Program
 from .tools import (
     # Tool cache
     ToolCache,

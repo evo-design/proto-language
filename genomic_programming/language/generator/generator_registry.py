@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pydantic import BaseModel
 
 from proto_language.base_registry import BaseRegistry, BaseSpec
-from proto_language.language.base import Generator
+from proto_language.language.core import Generator
 
 
 @dataclass
@@ -25,7 +25,6 @@ class GeneratorSpec(BaseSpec):
     category: str  # Generator category (e.g., "mutation", "language_model", "optimization")
     requires_gpu: bool = False  # Whether generator requires GPU
     supports_batch: bool = True  # Whether generator supports batch processing
-    estimated_runtime: str = "medium"  # "fast" (<1min), "medium" (1-10min), "slow" (>10min)
 
 
 class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
@@ -33,7 +32,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
     Registry for generator discovery and schema generation.
     
     Inherits common registry functionality from BaseRegistry and adds
-    generator-specific metadata (category, requires_gpu, supports_batch, estimated_runtime).
+    generator-specific metadata (category, requires_gpu, supports_batch).
     
     Public Methods:
     - register(): Decorator to register generator classes
@@ -88,7 +87,6 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
         category: str,
         requires_gpu: bool = False,
         supports_batch: bool = True,
-        estimated_runtime: str = "medium",
     ):
         """
         Decorator to register a generator class.
@@ -104,8 +102,6 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
                      "optimization", "pipeline")
             requires_gpu: If True, generator requires GPU for computation
             supports_batch: If True, generator supports batch processing
-            estimated_runtime: Expected runtime - "fast" (<1min), "medium" (1-10min),
-                             or "slow" (>10min)
         
         Returns:
             Decorator that registers the class and returns it unchanged
@@ -135,7 +131,6 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
                 category=category,
                 requires_gpu=requires_gpu,
                 supports_batch=supports_batch,
-                estimated_runtime=estimated_runtime,
             )
             return generator_class
         return decorator
@@ -188,7 +183,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
         List all registered generators with metadata and schemas.
         
         Overrides BaseRegistry.list_all() to include generator-specific fields
-        (category, requires_gpu, supports_batch, estimated_runtime).
+        (category, requires_gpu, supports_batch).
         
         Returns:
             Dict mapping generator keys to specifications:
@@ -198,7 +193,6 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
                     "category": "mutation",
                     "requires_gpu": False,
                     "supports_batch": True,
-                    "estimated_runtime": "fast",
                     "config_schema": {...}  # JSON Schema
                 }
             }
@@ -216,7 +210,6 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
                 "category": spec.category,
                 "requires_gpu": spec.requires_gpu,
                 "supports_batch": spec.supports_batch,
-                "estimated_runtime": spec.estimated_runtime,
                 "config_schema": spec.config_model.model_json_schema(),
             }
             for key, spec in cls._registry.items()

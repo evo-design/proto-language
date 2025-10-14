@@ -11,12 +11,12 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
-from ...base import Sequence, SequenceType
+from ...core import Sequence, SequenceType
 from proto_language.base_config import BaseConfig
-from ..registry import ConstraintRegistry
+from ..constraint_registry import ConstraintRegistry
 from ....tools.orf_prediction.prodigal import run_prodigal_prediction, ProdigalConfig
 from ....tools.gene_annotation.hmmer import _run_hmmer
-from ..utils import MIN_ENERGY, MAX_ENERGY
+from ....utils import MIN_ENERGY, MAX_ENERGY
 
 
 def _check_protein_domains(

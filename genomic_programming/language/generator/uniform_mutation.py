@@ -9,9 +9,9 @@ import random
 
 from pydantic import Field
 
-from ..base import Generator, Segment
+from ..core import Generator, Segment
 from proto_language.base_config import BaseConfig
-from .registry import GeneratorRegistry
+from .generator_registry import GeneratorRegistry
 
 
 class UniformMutationGeneratorConfig(BaseConfig):
@@ -27,8 +27,7 @@ class UniformMutationGeneratorConfig(BaseConfig):
     description="Random point mutations for sequence diversity",
     category="mutation",
     requires_gpu=False,
-    supports_batch=True,
-    estimated_runtime="fast",
+    supports_batch=True
 )
 @final
 class UniformMutationGenerator(Generator):

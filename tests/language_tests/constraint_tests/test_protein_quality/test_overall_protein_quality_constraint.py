@@ -11,7 +11,7 @@ from pathlib import Path
 
 sys.path.append(".")
 
-from proto_language.language.base import (
+from proto_language.language.core import (
     Construct,
     Segment,
     Constraint,

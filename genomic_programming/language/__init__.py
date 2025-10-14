@@ -1,14 +1,4 @@
-"""
-High-level programming language framework for genomic sequence design.
-
-This package provides the core abstractions for constraint-driven sequence optimization:
-- base: Core classes (Sequence, Segment, Construct, Constraint, Generator)
-- generator: Sequence generation algorithms (MCMC, Evo2, ESM2, etc.)
-- constraint: Scoring functions for sequence evaluation
-- program: User-friendly wrapper for optimization workflows
-"""
-
-from .base import (
+from .core import (
     Sequence,
     Segment,
     Construct,
@@ -28,7 +18,7 @@ from .generator import (
     GeneratorRegistry,
 )
 
-from .base import Program
+from .core import Program
 
 __all__ = [
     # Base classes
@@ -50,4 +40,3 @@ __all__ = [
     # Program
     "Program",
 ]
-

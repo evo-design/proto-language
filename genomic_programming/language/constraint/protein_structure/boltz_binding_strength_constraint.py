@@ -8,9 +8,9 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import Field
 
-from ...base import Sequence, SequenceType
+from ...core import Sequence, SequenceType
 from proto_language.base_config import BaseConfig
-from ..registry import ConstraintRegistry
+from ..constraint_registry import ConstraintRegistry
 from ....tools.models.structure_prediction.boltz import run_boltz, BoltzConfig
 
 

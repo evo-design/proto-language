@@ -8,7 +8,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Union
 import warnings
 
-from ...utils.metadata import propagate_metadata
+from ...utils.helpers import propagate_metadata
 
 
 # Valid characters for different sequence types

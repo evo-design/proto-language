@@ -8,7 +8,7 @@ and multi-segment beam search demos to reduce code duplication.
 import sys
 import os
 
-from proto_language.language.base import Segment, Generator
+from proto_language.language.core import Segment, Generator
 
 
 class MockAutoregressiveGenerator(Generator):

@@ -20,7 +20,7 @@ import pandas as pd
 
 sys.path.append(".")
 
-from proto_language.language.base import Constraint, SequenceType, Sequence
+from proto_language.language.core import Constraint, SequenceType, Sequence
 from proto_language.language.constraint import ConstraintRegistry, protein_domain_constraint
 from proto_language.language.constraint.protein_quality.protein_domain_constraint import ProteinDomainConfig
 from ..test_utils import create_segment

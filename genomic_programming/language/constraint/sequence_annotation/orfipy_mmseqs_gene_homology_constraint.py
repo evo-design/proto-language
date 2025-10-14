@@ -10,12 +10,13 @@ import numpy as np
 import pandas as pd
 from pydantic import Field
 
-from ...base import Sequence
+from ...core import Sequence
 from proto_language.base_config import BaseConfig
-from ..registry import ConstraintRegistry
+from ..constraint_registry import ConstraintRegistry
 from ....tools.orf_prediction.orfipy import OrfipyConfig
 from ....tools.gene_annotation.mmseqs import MmseqsSearchProteinsConfig
-from ..utils import MIN_ENERGY, MAX_ENERGY, calculate_percentage_range_deviation, run_orfipy_mmseqs_pipeline
+from ....utils import MIN_ENERGY, MAX_ENERGY, calculate_percentage_range_deviation
+from ..utils import run_orfipy_mmseqs_pipeline
 
 
 class ORFipyMMseqsGeneHomologyConfig(BaseConfig):

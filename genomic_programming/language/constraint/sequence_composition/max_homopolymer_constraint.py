@@ -9,10 +9,10 @@ import itertools
 import numpy as np
 from pydantic import Field
 
-from ...base import Sequence
+from ...core import Sequence
 from proto_language.base_config import BaseConfig
-from ..registry import ConstraintRegistry
-from ..utils import (
+from ..constraint_registry import ConstraintRegistry
+from ....utils import (
     MIN_ENERGY,
     MAX_ENERGY,
     LOG_BASE,

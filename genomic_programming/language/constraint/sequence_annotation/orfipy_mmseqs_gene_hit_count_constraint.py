@@ -8,12 +8,13 @@ from typing import Optional
 
 from pydantic import Field
 
-from ...base import Sequence
+from ...core import Sequence
 from proto_language.base_config import BaseConfig
-from ..registry import ConstraintRegistry
+from ..constraint_registry import ConstraintRegistry
 from ....tools.orf_prediction.orfipy import OrfipyConfig
 from ....tools.gene_annotation.mmseqs import MmseqsSearchProteinsConfig
-from ..utils import calculate_range_deviation, run_orfipy_mmseqs_pipeline
+from ....utils import calculate_range_deviation
+from ..utils import run_orfipy_mmseqs_pipeline
 
 
 class ORFipyMMseqsGeneHitCountConfig(BaseConfig):

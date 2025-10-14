@@ -8,9 +8,9 @@ from collections import Counter
 
 from pydantic import Field
 
-from ...base import Sequence, SequenceType
+from ...core import Sequence, SequenceType
 from proto_language.base_config import BaseConfig
-from ..registry import ConstraintRegistry
+from ..constraint_registry import ConstraintRegistry
 
 
 class BalancedAaConfig(BaseConfig):

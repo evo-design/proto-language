@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.append(".")
 
-from proto_language.language.base import (
+from proto_language.language.core import (
     Construct,
     Segment,
     Constraint,
@@ -201,7 +201,7 @@ except (subprocess.CalledProcessError, FileNotFoundError):
 # UNIT TESTS FOR CONSTRAINT UTILITY FUNCTIONS
 # =============================================================================
 
-from proto_language.language.constraint.utils import (
+from proto_language.utils import (
     validate_range,
     calculate_range_deviation,
     calculate_percentage_range_deviation,

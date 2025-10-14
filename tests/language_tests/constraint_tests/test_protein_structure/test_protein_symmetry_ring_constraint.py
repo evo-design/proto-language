@@ -23,7 +23,7 @@ from io import StringIO
 
 sys.path.append(".")
 
-from proto_language.language.base import (
+from proto_language.language.core import (
     Construct,
     Segment,
     Constraint,

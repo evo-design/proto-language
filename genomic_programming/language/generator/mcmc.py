@@ -11,7 +11,7 @@ import sys
 
 import numpy as np
 
-from ..base import IterativeGenerator, Construct, Generator, Constraint, Sequence, Segment
+from ..core import IterativeGenerator, Construct, Generator, Constraint, Sequence, Segment
 
 # Maximum safe exponent for np.exp() to prevent overflow
 MAX_EXP_ARG = 700.0

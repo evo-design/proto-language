@@ -10,9 +10,9 @@ from typing import Optional
 import numpy as np
 from pydantic import Field
 
-from ...base import Sequence
+from ...core import Sequence
 from proto_language.base_config import BaseConfig
-from ..registry import ConstraintRegistry
+from ..constraint_registry import ConstraintRegistry
 from ....tools.models.structure_prediction.esmfold import ESMFoldConfig
 from ....utils import (
     distances_to_centroid,

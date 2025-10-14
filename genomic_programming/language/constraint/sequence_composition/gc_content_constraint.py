@@ -6,10 +6,10 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from ...base import Sequence, SequenceType
+from ...core import Sequence, SequenceType
 from proto_language.base_config import BaseConfig
-from ..registry import ConstraintRegistry
-from ..utils import (
+from ..constraint_registry import ConstraintRegistry
+from ....utils import (
     MIN_GC_CONTENT,
     MAX_GC_CONTENT,
     validate_range,

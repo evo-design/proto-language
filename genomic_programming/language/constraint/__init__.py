@@ -1,13 +1,5 @@
-"""
-Constraint functions for sequence optimization and validation.
-
-This module provides constraint functions for evaluating and optimizing biological
-sequences. Constraints assess sequence properties like length, composition, structure,
-and functional characteristics
-"""
-
 # Base infrastructure
-from .registry import ConstraintRegistry, ConstraintSpec
+from .constraint_registry import ConstraintRegistry, ConstraintSpec
 
 # Sequence composition constraints
 from .sequence_composition import (

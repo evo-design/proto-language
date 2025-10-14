@@ -2,7 +2,7 @@ import pytest
 import sys
 
 sys.path.append(".")
-from proto_language.language.base import Sequence, Segment, Construct, SequenceType
+from proto_language.language.core import Sequence, Segment, Construct, SequenceType
 
 
 class TestConstruct:

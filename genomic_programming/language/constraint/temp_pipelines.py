@@ -1,5 +1,7 @@
 """
-Constraint-specific utility functions for ORFipy + MMseqs pipeline.
+Constraint-specific shared pipelines for ORFipy + MMseqs.
+
+TODO: Remove this file, move this logic in the actual constraints.
 """
 
 from __future__ import annotations

@@ -8,9 +8,9 @@ from typing import Any, List, Optional, Dict, final
 
 from pydantic import Field, field_validator
 
-from ..base import Generator, Segment
+from ..core import Generator, Segment
 from proto_language.base_config import BaseConfig
-from .registry import GeneratorRegistry
+from .generator_registry import GeneratorRegistry
 
 
 class Evo2GeneratorConfig(BaseConfig):
@@ -44,8 +44,7 @@ class Evo2GeneratorConfig(BaseConfig):
     description="Evo2 genome language model for DNA sequence generation",
     category="language_model",
     requires_gpu=True,
-    supports_batch=True,
-    estimated_runtime="slow",
+    supports_batch=True
 )
 @final
 class Evo2Generator(Generator):

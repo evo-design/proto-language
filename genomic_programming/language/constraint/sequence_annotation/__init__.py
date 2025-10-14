@@ -1,10 +1,3 @@
-"""
-Sequence annotation constraints for gene prediction and regulatory element identification.
-
-This module contains constraint functions that have been extracted from the original
-sequence_annotation.py file into separate modules for better organization.
-"""
-
 from .orfipy_mmseqs_gene_hit_count_constraint import (
     orfipy_mmseqs_gene_hit_count_constraint,
 )

@@ -14,7 +14,7 @@ import pytest
 from pydantic import BaseModel, Field, ValidationError
 
 from proto_language.language.constraint import ConstraintRegistry
-from proto_language.language.base import Segment, Sequence, SequenceType, Constraint
+from proto_language.language.core import Segment, Sequence, SequenceType, Constraint
 from .test_utils import create_segment
 
 

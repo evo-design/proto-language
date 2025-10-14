@@ -8,9 +8,9 @@ from typing import List, final, Optional
 
 from pydantic import Field, field_validator
 
-from ..base import Generator, Segment
+from ..core import Generator, Segment
 from proto_language.base_config import BaseConfig
-from .registry import GeneratorRegistry
+from .generator_registry import GeneratorRegistry
 
 
 class ESM3GeneratorConfig(BaseConfig):
@@ -41,8 +41,7 @@ class ESM3GeneratorConfig(BaseConfig):
     description="ESM-3 open protein language model for protein sequence generation",
     category="language_model",
     requires_gpu=True,
-    supports_batch=True,
-    estimated_runtime="medium",
+    supports_batch=True
 )
 @final
 class ESM3Generator(Generator):

@@ -6,9 +6,9 @@ from typing import Optional, TYPE_CHECKING
 
 from pydantic import Field, model_validator
 
-from ...base import Sequence, SequenceType
+from ...core import Sequence, SequenceType
 from proto_language.base_config import BaseConfig
-from ..registry import ConstraintRegistry
+from ..constraint_registry import ConstraintRegistry
 from ....tools.orf_prediction.prodigal import run_prodigal_prediction, ProdigalConfig
 from .protein_length_constraint import protein_length_constraint
 from .protein_complexity_constraint import protein_complexity_constraint
