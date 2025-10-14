@@ -14,7 +14,7 @@ from ..constraint_registry import ConstraintRegistry
 from ....tools.orf_prediction.orfipy import OrfipyConfig
 from ....tools.gene_annotation.mmseqs import MmseqsSearchProteinsConfig
 from ....utils import calculate_range_deviation
-from ..utils import run_orfipy_mmseqs_pipeline
+from ..temp_pipelines import run_orfipy_mmseqs_pipeline
 
 
 class ORFipyMMseqsGeneHitCountConfig(BaseConfig):
