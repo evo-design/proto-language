@@ -20,7 +20,6 @@ from ....utils import (
     pdb_file_to_atomarray,
 )
 from ....tools.models.structure_prediction.esmfold import run_esmfold
-from ....tools.tool_cache import ToolCache
 
 
 class ProteinGlobularityConfig(BaseConfig):
@@ -72,35 +71,22 @@ def protein_globularity_constraint(
         esmfold_config = ESMFoldConfig()
     else:
         esmfold_config = ESMFoldConfig(**config.esmfold_config.model_dump(exclude={'sequences'}))
-    
-    # Extract config params for caching
-    config_params = esmfold_config.model_dump(exclude={'sequences'})
-    
-    # Check cache
-    cached_results = ToolCache.get_cached_results(
-        input_sequence, "esmfold", n_replications=config.n_replications, **config_params
-    )
-    if not cached_results:
-        # Run ESMFold prediction
-        replicated_sequence = ":".join([input_sequence.sequence] * config.n_replications)
-        esmfold_config.sequences = replicated_sequence
-        output = run_esmfold(esmfold_config)
-        
-        # Store and cache results
-        results = {
-            "avg_plddt": output.avg_plddt,
-            "ptm": output.ptm,
-            "pdb_output": output.structure_pdb_output,
-            "esmfolded_sequence": replicated_sequence,
-        }
-        ToolCache.cache_results(
-            input_sequence, "esmfold", results,
-            n_replications=config.n_replications, **config_params
-        )
-        input_sequence._metadata.update(results)
-    else:
-        input_sequence._metadata.update(cached_results)
 
-    atom_array = pdb_file_to_atomarray(StringIO(input_sequence._metadata["pdb_output"]))
+    # Prepare replicated sequence for multimer prediction
+    replicated_sequence = ":".join([input_sequence.sequence] * config.n_replications)
+    esmfold_config.sequences = replicated_sequence
+
+    # Run ESMFold prediction (caching handled transparently by decorator)
+    output = run_esmfold(esmfold_config)
+
+    # Store results in metadata
+    input_sequence._metadata.update({
+        "avg_plddt": output.avg_plddt,
+        "ptm": output.ptm,
+        "pdb_output": output.structure_pdb_output,
+        "esmfolded_sequence": replicated_sequence,
+    })
+
+    atom_array = pdb_file_to_atomarray(StringIO(output.structure_pdb_output))
     backbone = get_backbone_atoms(atom_array).coord
     return float(np.std(distances_to_centroid(backbone)))

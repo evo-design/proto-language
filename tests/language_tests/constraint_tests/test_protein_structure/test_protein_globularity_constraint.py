@@ -41,19 +41,15 @@ class TestProteinGlobularityConstraint:
         """Test basic constraint evaluation with mocked structure."""
         segment = create_segment("MKTAYIAKQRQISFVK", SequenceType.PROTEIN)
         config = ProteinGlobularityConfig()
-        
+
         # Mock a compact globular structure (low std of distances)
         mock_pdb = """ATOM      1  N   MET A   1       0.000   0.000   0.000  1.00 90.00           N
 ATOM      2  CA  MET A   1       1.000   1.000   1.000  1.00 90.00           C
 ATOM      3  C   MET A   1       2.000   2.000   2.000  1.00 90.00           C
 ATOM      4  N   LYS A   2       3.000   3.000   3.000  1.00 90.00           N
 ATOM      5  CA  LYS A   2       4.000   4.000   4.000  1.00 90.00           C"""
-        
-        with patch('proto_language.language.constraint.protein_structure.protein_globularity_constraint.run_esmfold') as mock_run, \
-             patch('proto_language.language.constraint.protein_structure.protein_globularity_constraint.ToolCache') as mock_cache:
-            # Mock cache miss
-            mock_cache.get_cached_results.return_value = None
-            
+
+        with patch('proto_language.language.constraint.protein_structure.protein_globularity_constraint.run_esmfold') as mock_run:
             mock_output = Mock(spec=ESMFoldOutput)
             mock_output.avg_plddt = 0.9
             mock_output.ptm = 0.9
@@ -74,20 +70,16 @@ ATOM      5  CA  LYS A   2       4.000   4.000   4.000  1.00 90.00           C""
         """Test that DNA/RNA sequences raise errors (ESMFold validates entity types)."""
         segment = create_segment("ATCGATCG", SequenceType.DNA)
         config = ProteinGlobularityConfig()
-        
-        with patch('proto_language.language.constraint.protein_structure.protein_globularity_constraint.ToolCache') as mock_cache:
-            # Mock cache miss
-            mock_cache.get_cached_results.return_value = None
-            
-            constraint = Constraint(
-                inputs=[segment],
-                scoring_function=protein_globularity_constraint,
-                scoring_function_config=config,
-            )
-            
-            # ESMFold config validation should fail when setting sequences
-            with pytest.raises(ValueError, match="Invalid entity type 'dna' for ESMFold"):
-                constraint.evaluate()
+
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=protein_globularity_constraint,
+            scoring_function_config=config,
+        )
+
+        # ESMFold config validation should fail when setting sequences
+        with pytest.raises(ValueError, match="Invalid entity type 'dna' for ESMFold"):
+            constraint.evaluate()
     
     def test_n_replications_parameter(self):
         """Test that n_replications correctly replicates the sequence."""
@@ -96,11 +88,7 @@ ATOM      5  CA  LYS A   2       4.000   4.000   4.000  1.00 90.00           C""
         
         mock_pdb = "ATOM      1  CA  ALA A   1       0.000   0.000   0.000  1.00 90.00           C"
         
-        with patch('proto_language.language.constraint.protein_structure.protein_globularity_constraint.run_esmfold') as mock_run, \
-             patch('proto_language.language.constraint.protein_structure.protein_globularity_constraint.ToolCache') as mock_cache:
-            # Mock cache miss
-            mock_cache.get_cached_results.return_value = None
-            
+        with patch('proto_language.language.constraint.protein_structure.protein_globularity_constraint.run_esmfold') as mock_run:
             mock_output = Mock(spec=ESMFoldOutput)
             mock_output.avg_plddt = 0.9
             mock_output.ptm = 0.9

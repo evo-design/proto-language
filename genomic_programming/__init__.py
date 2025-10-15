@@ -29,8 +29,10 @@ from .language.generator import (
 )
 from .language.core import Program
 from .tools import (
-    # Tool cache
-    ToolCache,
+    # Tool cache functions
+    tool_cache,
+    clear_cache,
+    get_cache_info,
     # BLAST tools
     online_blast,
     local_blast,
@@ -96,8 +98,11 @@ __all__ = [
     "ESM2Generator",
     "MCMCGenerator",
     "BeamSearchGenerator",
+    # Tool cache functions
+    "tool_cache",
+    "clear_cache",
+    "get_cache_info",
     # Tools
-    "ToolCache",
     "online_blast",
     "local_blast",
     "create_blast_db",

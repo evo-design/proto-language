@@ -50,11 +50,7 @@ class TestProteinSymmetryRingConstraint:
 ATOM      2  CA  ALA B   1       5.000   0.000   0.000  1.00 90.00           C
 ATOM      3  CA  ALA C   1       2.500   4.330   0.000  1.00 90.00           C"""
         
-        with patch('proto_language.language.constraint.protein_structure.protein_symmetry_ring_constraint.run_esmfold') as mock_run, \
-             patch('proto_language.language.constraint.protein_structure.protein_symmetry_ring_constraint.ToolCache') as mock_cache:
-            # Mock cache miss
-            mock_cache.get_cached_results.return_value = None
-            
+        with patch('proto_language.language.constraint.protein_structure.protein_symmetry_ring_constraint.run_esmfold') as mock_run:
             mock_output = Mock(spec=ESMFoldOutput)
             mock_output.avg_plddt = 0.9
             mock_output.ptm = 0.9
@@ -91,20 +87,16 @@ ATOM      3  CA  ALA C   1       2.500   4.330   0.000  1.00 90.00           C""
         """Test that DNA/RNA sequences raise errors (ESMFold validates entity types)."""
         segment = create_segment("ATCGATCG", SequenceType.DNA)
         config = ProteinSymmetryRingConfig(n_replications=3)
-        
-        with patch('proto_language.language.constraint.protein_structure.protein_symmetry_ring_constraint.ToolCache') as mock_cache:
-            # Mock cache miss
-            mock_cache.get_cached_results.return_value = None
-            
-            constraint = Constraint(
-                inputs=[segment],
-                scoring_function=protein_symmetry_ring_constraint,
-                scoring_function_config=config,
-            )
-            
-            # ESMFold config validation should fail when setting sequences
-            with pytest.raises(ValueError, match="Invalid entity type 'dna' for ESMFold"):
-                constraint.evaluate()
+
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=protein_symmetry_ring_constraint,
+            scoring_function_config=config,
+        )
+
+        # ESMFold config validation should fail when setting sequences
+        with pytest.raises(ValueError, match="Invalid entity type 'dna' for ESMFold"):
+            constraint.evaluate()
     
     def test_n_replications_parameter(self):
         """Test that n_replications correctly replicates the sequence."""
@@ -118,11 +110,7 @@ ATOM      3  CA  ALA C   1       2.500   4.330   0.000  1.00 90.00           C
 ATOM      4  CA  ALA D   1      -2.500   4.330   0.000  1.00 90.00           C
 ATOM      5  CA  ALA E   1      -5.000   0.000   0.000  1.00 90.00           C"""
         
-        with patch('proto_language.language.constraint.protein_structure.protein_symmetry_ring_constraint.run_esmfold') as mock_run, \
-             patch('proto_language.language.constraint.protein_structure.protein_symmetry_ring_constraint.ToolCache') as mock_cache:
-            # Mock cache miss
-            mock_cache.get_cached_results.return_value = None
-            
+        with patch('proto_language.language.constraint.protein_structure.protein_symmetry_ring_constraint.run_esmfold') as mock_run:
             mock_output = Mock(spec=ESMFoldOutput)
             mock_output.avg_plddt = 0.9
             mock_output.ptm = 0.9

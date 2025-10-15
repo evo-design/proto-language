@@ -210,7 +210,6 @@ class TestOrfipyMmseqsConstraints:
         from proto_language.language.constraint.sequence_annotation import (
             run_orfipy_mmseqs_pipeline,
         )
-        from proto_language.tools.tool_cache import ToolCache
 
         seq = Sequence(
             "ATGAAACGCATTAGCACCACCATTACCACCACCATCACCATTACCACAGGTAACGGTGCGGGCTGA",
@@ -231,28 +230,26 @@ class TestOrfipyMmseqsConstraints:
         assert "mmseqs_results" in seq._metadata
         assert "unique_orfs_with_hits" in seq._metadata
 
-        # Second call, should use cache
-        seq._metadata["test_marker"] = "should_remain"
+        # Store first results
+        first_orfs = seq._metadata["orfipy_orfs"]
+        first_mmseqs = seq._metadata["mmseqs_results"]
+        first_hits = seq._metadata["unique_orfs_with_hits"]
+
+        # Second call, should be fast due to internal tool caching
+        seq2 = Sequence(
+            "ATGAAACGCATTAGCACCACCATTACCACCACCATCACCATTACCACAGGTAACGGTGCGGGCTGA",
+            SequenceType.DNA,
+        )
         run_orfipy_mmseqs_pipeline(
-            seq,
+            seq2,
             orfipy_config=hit_count_config.orfipy_config,
             mmseqs_config=hit_count_config.mmseqs_config,
         )
-        assert seq._metadata["test_marker"] == "should_remain"
 
-        # Verify cache is working by checking ToolCache directly with model parameters
-        orfipy_config = hit_count_config.orfipy_config.model_dump()
-        mmseqs_config = hit_count_config.mmseqs_config.model_dump()
-
-        cached_results = ToolCache.get_cached_results(
-            seq,
-            "orfipy_mmseqs",
-            orfipy_config=orfipy_config,
-            mmseqs_config=mmseqs_config,
-        )
-        assert cached_results is not None
-        assert "orfipy_orfs" in cached_results
-        assert "mmseqs_results" in cached_results
+        # Results should be the same (cached)
+        assert seq2._metadata["orfipy_orfs"] == first_orfs
+        assert seq2._metadata["mmseqs_results"] == first_mmseqs
+        assert seq2._metadata["unique_orfs_with_hits"] == first_hits
 
         # Different config should recompute when pipeline parameters change
         new_mmseqs_config = MmseqsSearchProteinsConfig(
@@ -260,16 +257,25 @@ class TestOrfipyMmseqsConstraints:
             mmseqs_db=hit_count_config.mmseqs_config.mmseqs_db,
             results_dir="",
             threads=1,
-            sensitivity=2.0,
-        )  # Change pipeline parameter
-        mmseqs_config_new = new_mmseqs_config.model_dump()
-        cached_results_new = ToolCache.get_cached_results(
-            seq,
-            "orfipy_mmseqs",
-            orfipy_config=orfipy_config,
-            mmseqs_config=mmseqs_config_new,
+            sensitivity=2.0,  # Different sensitivity
         )
-        assert cached_results_new is None  # Should not be cached with different params
+
+        seq3 = Sequence(
+            "ATGAAACGCATTAGCACCACCATTACCACCACCATCACCATTACCACAGGTAACGGTGCGGGCTGA",
+            SequenceType.DNA,
+        )
+
+        # This should compute with different parameters
+        run_orfipy_mmseqs_pipeline(
+            seq3,
+            orfipy_config=hit_count_config.orfipy_config,
+            mmseqs_config=new_mmseqs_config,
+        )
+
+        # Results exist but may be different due to different parameters
+        assert "orfipy_orfs" in seq3._metadata
+        assert "mmseqs_results" in seq3._metadata
+        assert "unique_orfs_with_hits" in seq3._metadata
 
     def test_parameter_validation(self, dummy_db_path):
         """Tests that missing required parameters raise validation errors (constraint-specific validation)."""

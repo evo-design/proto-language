@@ -12,7 +12,6 @@ from ...core import Sequence
 from proto_language.base_config import BaseConfig
 from ..constraint_registry import ConstraintRegistry
 from ....tools.models.structure_prediction.esmfold import run_esmfold, ESMFoldConfig
-from ....tools.tool_cache import ToolCache
 
 
 class ESMFoldPTMConfig(BaseConfig):
@@ -69,37 +68,20 @@ def esmfold_ptm_constraint(
     else:
         # Copy to avoid mutating the input
         esmfold_config = ESMFoldConfig(**config.esmfold_config.model_dump(exclude={'sequences'}))
-    
-    # Extract config params for caching (exclude sequences which varies)
-    config_params = esmfold_config.model_dump(exclude={'sequences'})
-    
-    # Check cache before running expensive prediction
-    cached_results = ToolCache.get_cached_results(
-        input_sequence, "esmfold", n_replications=config.n_replications, **config_params
-    )
-    if cached_results:
-        input_sequence._metadata.update(cached_results)
-        return 1.0 - input_sequence._metadata["ptm"]
-    
+
     # Prepare replicated sequence for multimer prediction
     replicated_sequence = ":".join([input_sequence.sequence] * config.n_replications)
     esmfold_config.sequences = replicated_sequence
-    
-    # Run ESMFold prediction
+
+    # Run ESMFold prediction (caching handled transparently by decorator)
     output = run_esmfold(esmfold_config)
-    
-    # Store results in metadata and cache
-    results = {
+
+    # Store results in metadata
+    input_sequence._metadata.update({
         "avg_plddt": output.avg_plddt,
         "ptm": output.ptm,
         "pdb_output": output.structure_pdb_output,
         "esmfolded_sequence": replicated_sequence,
-    }
-    
-    ToolCache.cache_results(
-        input_sequence, "esmfold", results,
-        n_replications=config.n_replications, **config_params
-    )
-    input_sequence._metadata.update(results)
-    
-    return 1.0 - input_sequence._metadata["ptm"]
+    })
+
+    return 1.0 - output.ptm
