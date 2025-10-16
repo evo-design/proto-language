@@ -5,6 +5,7 @@ from .core import (
     Constraint,
     Generator,
     Optimizer,
+    Program,
 )
 
 from .generator import (
@@ -13,12 +14,16 @@ from .generator import (
     ESM2Generator,
     ESM3Generator,
     SlowMutationGenerator,
-    MCMCOptimizer,
-    BeamSearchOptimizer,
     GeneratorRegistry,
 )
 
-from .core import Program
+from .optimizer import (
+    MCMCOptimizer,
+    MCMCOptimizerConfig,
+    BeamSearchOptimizer,
+    BeamSearchOptimizerConfig,
+    OptimizerRegistry,
+)
 
 __all__ = [
     # Base classes
@@ -28,16 +33,18 @@ __all__ = [
     "Constraint",
     "Generator",
     "Optimizer",
+    "Program",
     # Generators
     "UniformMutationGenerator",
     "Evo2Generator",
     "ESM2Generator",
     "ESM3Generator",
     "SlowMutationGenerator",
+    "GeneratorRegistry",
     # Optimizers
     "MCMCOptimizer",
+    "MCMCOptimizerConfig",
     "BeamSearchOptimizer",
-    "GeneratorRegistry",
-    # Program
-    "Program",
+    "BeamSearchOptimizerConfig",
+    "OptimizerRegistry",
 ]

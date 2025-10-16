@@ -1,5 +1,7 @@
 from typing import Any, Dict, List, Optional, Tuple, Type
 
+from pydantic import BaseModel
+
 from .construct import Construct
 from .constraint import Constraint
 from .generator import Generator
@@ -16,16 +18,19 @@ class Program:
 
     Examples:
         Basic MCMC optimization program:
-        >>> from proto_language.language.generator import MCMCOptimizer
-        >>> program = Program(
-        ...     optimizer_type=MCMCOptimizer,
-        ...     constructs=[construct1, construct2],
-        ...     generators=[evo2_gen, mutation_gen],
-        ...     constraints=[gc_constraint, length_constraint],
-        ...     constraint_weights=[1.0, 0.5],
+        >>> from proto_language.language.optimizer import MCMCOptimizer, MCMCOptimizerConfig
+        >>> config = MCMCOptimizerConfig(
         ...     num_steps=100,
         ...     temperature=1.0,
         ...     temperature_min=0.001
+        ... )
+        >>> program = Program(
+        ...     optimizer_type=MCMCOptimizer,
+        ...     optimizer_config=config,
+        ...     constructs=[construct1, construct2],
+        ...     generators=[evo2_gen, mutation_gen],
+        ...     constraints=[gc_constraint, length_constraint],
+        ...     constraint_weights=[1.0, 0.5]
         ... )
         >>> program.run()  # Execute optimization
         >>> final_sequences = program.constructs
@@ -34,45 +39,44 @@ class Program:
     def __init__(
         self,
         optimizer_type: Type[Optimizer],
+        optimizer_config: BaseModel,
         constructs: List[Construct],
         generators: List[Generator],
         constraints: List[Constraint],
         constraint_weights: Optional[List[float]] = None,
-        **kwargs: Any,
     ) -> None:
         """
         Initialize a Program with an optimizer class and its dependencies.
 
         Args:
             optimizer_type: The Optimizer class to use (e.g., MCMCOptimizer).
+            optimizer_config: Pydantic config object for the optimizer (e.g., MCMCOptimizerConfig).
             constructs: List of Construct objects to optimize.
             generators: List of Generator objects for sequence modification.
             constraints: List of Constraint objects for evaluation.
             constraint_weights: Optional weights for constraints. If None, all weights are 1.0.
-            **kwargs: Additional keyword arguments passed to the Optimizer.
 
         Raises:
             ValueError: If optimizer_type is not a valid Optimizer subclass.
         """
         # Store constructor arguments for validation
         self.optimizer_type = optimizer_type
+        self.optimizer_config = optimizer_config
         self.constructs = constructs
         self.generators = generators
         self.constraints = constraints
         self.constraint_weights = constraint_weights
-        self.kwargs = kwargs
-        
+
         # Validate before instantiation to catch errors early
         self._validate_program()
 
         # Create the Optimizer
-        # All optimizers take constructs (plural)
         self.optimizer = optimizer_type(
             constructs=constructs,
             generators=generators,
             constraints=constraints,
+            config=optimizer_config,
             constraint_weights=constraint_weights,
-            **kwargs,
         )
 
     @property

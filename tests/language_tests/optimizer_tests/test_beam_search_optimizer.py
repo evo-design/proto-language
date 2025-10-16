@@ -4,9 +4,6 @@ Tests for core BeamSearchOptimizer functionality.
 These tests verify the behavior of the BeamSearchOptimizer without API dependencies.
 """
 
-import pytest
-import sys
-import os
 from unittest.mock import patch, Mock
 
 # Mock all problematic imports at module level before any other imports

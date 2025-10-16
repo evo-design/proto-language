@@ -19,7 +19,6 @@ from proto_language.language.constraint import (
 )
 from proto_language.language.constraint.sequence_composition.gc_content_constraint import GCContentConfig
 from proto_language.language.constraint.sequence_composition.sequence_length_constraint import SequenceLengthConfig
-from pydantic import BaseModel
 from proto_language.language.generator import (
     UniformMutationGenerator,
     UniformMutationGeneratorConfig,

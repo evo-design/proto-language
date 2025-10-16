@@ -24,6 +24,8 @@ from .language.generator import (
     UniformMutationGenerator,
     Evo2Generator,
     ESM2Generator,
+)
+from .language.optimizer import (
     MCMCOptimizer,
     BeamSearchOptimizer,
 )
