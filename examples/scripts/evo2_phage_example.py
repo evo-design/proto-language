@@ -30,6 +30,14 @@ MIN_GENE_HITS = 10  # Min target for gene hits
 MAX_GENE_HITS = 12  # Max target for gene hits
 TRACK_EVERY = 1
 
+# Add custom model to evo2 registry
+from evo2.utils import MODEL_NAMES, CONFIG_MAP
+MODEL_NAMES.append("evo2_7b_phage")
+# Use absolute path to config file based on script location
+script_dir = os.path.dirname(os.path.abspath(__file__))
+config_path = os.path.join(script_dir, 'configs', 'config.yaml')
+CONFIG_MAP["evo2_7b_phage"] = config_path
+
 #######################
 ## Segments ##
 #######################
@@ -46,7 +54,8 @@ segment = Segment(
 # Initialize ProgramGenerator
 evo2_config = Evo2GeneratorConfig(
     prompt_seqs=["+~GAGTTTTA"],
-    evo2_type="evo2_7b_microviridae",
+    evo2_type="evo2_7b_phage",
+    evo2_local_path="/scratch/hielab/gbrixi/evo2/vortex_interleaved/7b_phage/iter_12000.pt",
     sequence_length=5500,
     temperature=0.9,
     batch_size=10,
@@ -150,6 +159,7 @@ gene_homology = Constraint(
 
 # Optimizer config
 optimizer_config = MCMCOptimizerConfig(
+    batch_size=10,
     num_steps=NUM_MCMC_STEPS,
     track_step_size=TRACK_EVERY,
 )
