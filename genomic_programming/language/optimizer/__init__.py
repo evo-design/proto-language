@@ -10,6 +10,10 @@ from .beam_search_optimizer import (
     BeamSearchOptimizer,
     BeamSearchOptimizerConfig,
 )
+from .topk_optimizer import (
+    TopKOptimizer,
+    TopKOptimizerConfig,
+)
 
 __all__ = [
     # Registry
@@ -21,4 +25,7 @@ __all__ = [
     # Beam Search Optimizer
     "BeamSearchOptimizer",
     "BeamSearchOptimizerConfig",
+    # TopK Optimizer
+    "TopKOptimizer",
+    "TopKOptimizerConfig",
 ]
