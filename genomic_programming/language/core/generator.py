@@ -1,130 +1,53 @@
 """
-Generator base class for the proto-language.
+Generator base class for the biological programming language.
 
 Provides the abstract interface for sequence generation algorithms.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Iterable, Optional, Tuple
+from typing import Iterable, Optional
 
 from .segment import Segment
 
 
 class Generator(ABC):
     """
-    Generator base class that creates/modifies sequences during optimization.
+    Generator base class that modify candidate_sequences of assigned segments during optimization.
 
-    Generators write to the candidate_sequences pool of assigned segments.
-    The optimizer manages transitions between candidate and selected pools.
-
-    Subclasses must implement `assign()` (Assign segments to the generator) 
-    and `sample()` (Generate/modify candidate sequences in-place)
+    Subclasses must implement `assign()` (Assign segments to the generator) and `sample()`
     """
 
-    def __init__(
-        self,
-        batch_size: int = 1,
-    ) -> None:
+    def __init__(self) -> None:
         """
         Initialize the generator with configuration parameters.
-
-        Args:
-            batch_size: Number of candidate sequences to generate per sample() call.
-                       This will be overridden by the optimizer to match num_candidates.
         """
-        self.batch_size: int = batch_size
         self._is_initialized: bool = False
         self.iteration_count: int = 0
-
-        # Support both single output (common) and multiple outputs (less common)
-        self._generator_output: Optional[Segment] = None
-        self._generator_outputs: Optional[Tuple[Segment, ...]] = None
+        self._assigned_segment: Optional[Segment] = None
 
     def _validate_generator(self) -> None:
         """
-        Validate that the generator has been assigned and outputs are properly initialized.
+        Validate that the generator has been assigned.
 
         Raises:
-            RuntimeError: If generator hasn't been assigned or outputs aren't initialized.
+            RuntimeError: If generator hasn't been assigned.
         """
-        if not self._is_initialized:
-            raise RuntimeError(
-                f"Generator {self.__class__.__name__} has not been assigned. "
-                "Call assign() first."
-            )
-
-        if self._generator_output is None and self._generator_outputs is None:
-            raise RuntimeError(
-                f"Generator {self.__class__.__name__} must initialize either "
-                "_generator_output (for single output) or _generator_outputs (for multiple outputs) "
-                "in the assign() method."
-            )
+        if not self._is_initialized or self._assigned_segment is None:
+            raise RuntimeError(f"Generator {self.__class__.__name__} has not been assigned a Segment via assign().")
 
     @abstractmethod
     def assign(
-        self, assigned_segments: Segment | Iterable[Segment]
+        self, assigned_segment: Segment
     ) -> None:
         """
-        Assign Segment objects to the generator and initialize the generator.
-        The generator will modify these Segment objects internally during sampling.
-
-        Args:
-            assigned_segments: Either a single Segment or an iterable of Segment objects.
-
-        Raises:
-            NotImplementedError: If not implemented by subclass.
-
-        Note:
-            This method must set self._is_initialized = True and initialize either:
-            - self._generator_output: Segment (for single output - most common)
-            - self._generator_outputs: Iterable[Segment] (for multiple outputs)
-
-            Most generators should use _generator_output for simplicity.
-            Use _generator_outputs only when the generator manages multiple distinct outputs.
+        Assign a Segment to the generator and initialize the generator.
+        The generator will modify the Segment's candidate_sequences internally during sampling.
         """
-        raise NotImplementedError(f"Subclass {self.__class__.__name__} must implement the assign method.")
+        raise NotImplementedError(f"Subclass {self.__class__.__name__} must implement the assign() method.")
 
     @abstractmethod
     def sample(self) -> None:
         """
-        Sample new sequences by modifying generator outputs in-place.
-
-        Raises:
-            RuntimeError: If called before assign() has been called.
-            NotImplementedError: If not implemented by subclass.
-
-        Note:
-            This method should modify sequences in-place for efficiency.
-            Subclasses may define additional parameters with proper type hints.
+        Sample new sequences by modifying the assigned Segment's candidate_sequences in-place.
         """
-        raise NotImplementedError(f"Subclass {self.__class__.__name__} must implement the assign method.")
-
-    def get_generator_outputs(self) -> Tuple[Segment, ...]:
-        """
-        Access the internal _generator_output or _generator_outputs as a tuple.
-
-        Returns:
-            Tuple of Segment objects that are modified during sampling.
-            For single outputs, returns a tuple with one element.
-            For multiple outputs, returns the tuple directly.
-
-        Raises:
-            RuntimeError: If called before assign() or if neither output is initialized.
-        """
-        # Ensure generator is properly initialized
-        self._validate_generator()
-
-        # Return the appropriate outputs as a tuple
-        return self._generator_outputs or (self._generator_output,)
-
-    def __len__(self) -> int:
-        """
-        Get the number of Segments managed by this generator.
-
-        Returns:
-            Number of Segment objects (1 for single output, N for multiple outputs).
-
-        Raises:
-            RuntimeError: If called before assign() has been called.
-        """
-        return len(self.get_generator_outputs())
+        raise NotImplementedError(f"Subclass {self.__class__.__name__} must implement the sample() method.")

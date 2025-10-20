@@ -763,26 +763,6 @@ def test_three_or_more_segments_disjoint():
     assert seg3.candidate_sequences[0]._metadata["segment_2.mock_triple_input_scoring_function.g_percent"] == 1.0
 
 
-def test_constraint_repr():
-    """Test Constraint string representation."""
-    segment = create_segment("ATCG")
-    config = MockConstraintConfig()
-    constraint = Constraint(
-        inputs=[segment],
-        scoring_function=mock_single_input_scoring_function,
-        scoring_function_config=config,
-        vectorized=False,
-        label="test_label"
-    )
-    
-    repr_str = repr(constraint)
-    assert "mock_single_input_scoring_function" in repr_str
-    assert "test_label" in repr_str
-    assert "vectorized=False" in repr_str
-    assert "concatenate=True" in repr_str
-    assert "num_segments=1" in repr_str
-
-
 def test_empty_sequence_in_batch():
     """Test constraint with empty sequence in batch.
     

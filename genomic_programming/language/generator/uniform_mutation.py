@@ -17,7 +17,6 @@ from .generator_registry import GeneratorRegistry
 
 class UniformMutationGeneratorConfig(BaseConfig):
     """Configuration for UniformMutationGenerator."""
-    batch_size: int = Field(default=1, ge=1, description="Number of sequence variants to generate")
     sequence_length: int = Field(default=100, ge=1, description="Length of sequences to generate")
     num_mutations: int = Field(default=1, ge=0, description="Number of mutations per sequence per sample")
     debug_with_sleep_calls: bool = Field(default=False, description="Enable debug mode with sleep calls (for testing purposes only)")
@@ -44,7 +43,6 @@ class UniformMutationGenerator(Generator):
         Creating a DNA mutation generator with config:
         >>> from proto_language.language.generator import UniformMutationGenerator, UniformMutationGeneratorConfig
         >>> config = UniformMutationGeneratorConfig(
-        ...     batch_size=5,
         ...     sequence_length=100,
         ...     num_mutations=2
         ... )
@@ -57,7 +55,6 @@ class UniformMutationGenerator(Generator):
         >>> def mutation_scheduler(iteration: int) -> int:
         ...     return max(1, 10 - iteration // 10)  # Decrease mutations over time
         >>> config = UniformMutationGeneratorConfig(
-        ...     batch_size=5,
         ...     sequence_length=100,
         ...     mutation_scheduler=mutation_scheduler
         ... )
@@ -71,7 +68,7 @@ class UniformMutationGenerator(Generator):
         Args:
             config: Configuration object containing all generator parameters.
         """
-        super().__init__(batch_size=config.batch_size)
+        super().__init__()
         self.config = config
         self.sequence_length = config.sequence_length
         self.num_mutations = config.num_mutations
@@ -79,24 +76,24 @@ class UniformMutationGenerator(Generator):
         self.mutation_scheduler = None  # Can be set after initialization if needed
         self.autoregressive = False
 
-    def assign(self, assigned_segments: Segment) -> None:
+    def assign(self, assigned_segment: Segment) -> None:
         """
         Initializes the segment's selected pool with a sequence of the configured length.
         Generator will write to candidate_sequences during sample() calls.
 
         Args:
-            assigned_segments: A single Segment to be assigned to this generator.
+            assigned_segment: A single Segment to be assigned to this generator.
         """
-        self._generator_output = assigned_segments
-        self._generator_output._is_assigned = True
+        self._assigned_segment = assigned_segment
+        self._assigned_segment._is_assigned = True
 
-        initial_sequence = self._generator_output.selected_sequences[0].sequence
-        valid_chars = self._generator_output._valid_chars - set(" ")
+        initial_sequence = self._assigned_segment.selected_sequences[0].sequence
+        valid_chars = self._assigned_segment._valid_chars - set(" ")
         valid_chars_list = list(valid_chars)
 
         if initial_sequence == "":
             # Generate random sequence
-            self._generator_output.selected_sequences[0].sequence = "".join(
+            self._assigned_segment.selected_sequences[0].sequence = "".join(
                 random.choice(valid_chars_list) for _ in range(self.sequence_length)
             )
         else:
@@ -133,7 +130,7 @@ class UniformMutationGenerator(Generator):
             current_mutations = self.num_mutations
 
         # Mutate each candidate sequence
-        for sequence in self._generator_output.candidate_sequences:
+        for sequence in self._assigned_segment.candidate_sequences:
             current_sequence = sequence.sequence
             sequence_length = len(current_sequence)
 
@@ -149,7 +146,7 @@ class UniformMutationGenerator(Generator):
 
                 # Make sure the mutated character is different from the current one
                 possible_mutations = [
-                    c for c in self._generator_output._valid_chars if c != current_char
+                    c for c in self._assigned_segment._valid_chars if c != current_char
                 ]
                 mutated_char = random.choice(possible_mutations)
                 current_sequence = (

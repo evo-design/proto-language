@@ -15,7 +15,7 @@ from .generator_registry import GeneratorRegistry
 
 class Evo2GeneratorConfig(BaseConfig):
     """Configuration for Evo2Generator."""
-    prompt_seqs: List[str] = Field(description="Prompt sequences for generation (1 or batch_size prompts)")
+    prompt_seqs: List[str] = Field(description="Prompt sequences for generation (single prompt or multiple)")
     evo2_type: str = Field(default="evo2_7b", description="Evo2 model variant to use")
     evo2_local_path: Optional[str] = Field(default=None, description="Optional path to local model weights")
     sequence_length: int = Field(default=500, ge=1, description="Number of tokens to generate after prompt")
@@ -26,7 +26,6 @@ class Evo2GeneratorConfig(BaseConfig):
     cached_generation: bool = Field(default=True, description="Whether to cache model states")
     verbose: int = Field(default=1, ge=0, description="Verbosity level for logging")
     force_prompt_threshold: Optional[int] = Field(default=None, description="Optional threshold for forcing prompt continuation")
-    batch_size: int = Field(default=1, ge=1, description="Number of sequences to generate")
     prepend_prompt: bool = Field(default=False, description="Whether to prepend prompt to generated sequences")
     sampling_kwargs: Dict[str, Any] = Field(default_factory=dict, description="Additional sampling arguments")
     
@@ -38,31 +37,14 @@ class Evo2GeneratorConfig(BaseConfig):
         return v
     
     @model_validator(mode='after')
-    def validate_prompt_seqs_batch_size(self):
-        """Validate that prompt_seqs is compatible with batch_size."""
-        if len(self.prompt_seqs) == 1:
-            # Single prompt will be replicated
-            return self
-        
-        # Multiple prompts must match batch_size exactly
-        if len(self.prompt_seqs) != self.batch_size:
-            raise ValueError(
-                f"Multiple prompts ({len(self.prompt_seqs)}) must equal batch_size ({self.batch_size})"
-            )
-        
-        # All prompts must have same length
-        if len(set(len(seq) for seq in self.prompt_seqs)) != 1:
-            raise ValueError(
-                f"All prompts must have same length, got: {[len(seq) for seq in self.prompt_seqs]}"
-            )
+    def validate_prompt_seqs_length(self):
+        """Validate that all prompts have the same length."""
+        if len(self.prompt_seqs) > 1:
+            # All prompts must have same length
+            if len(set(len(seq) for seq in self.prompt_seqs)) != 1:
+                raise ValueError(f"All prompts must have same length, got: {[len(seq) for seq in self.prompt_seqs]}")
         
         return self
-    
-    def get_prompts(self) -> List[str]:
-        """Get prompt sequences replicated to match batch_size."""
-        if len(self.prompt_seqs) == 1:
-            return self.prompt_seqs * self.batch_size
-        return self.prompt_seqs
 
 
 @GeneratorRegistry.register(
@@ -91,8 +73,7 @@ class Evo2Generator(Generator):
         ...     prompt_seqs=["+~GA"],
         ...     evo2_type="evo2_7b",
         ...     sequence_length=1000,
-        ...     temperature=0.8,
-        ...     batch_size=5
+        ...     temperature=0.8
         ... )
         >>> gen = Evo2Generator(config)
         >>> segment = Segment(sequence="", sequence_type=SequenceType.DNA)
@@ -103,8 +84,7 @@ class Evo2Generator(Generator):
         >>> config = Evo2GeneratorConfig(
         ...     prompt_seqs=["+~GA", "+~GC"],
         ...     evo2_type="evo2_7b_phage",
-        ...     evo2_local_path="/path/to/weights.pt",
-        ...     batch_size=2
+        ...     evo2_local_path="/path/to/weights.pt"
         ... )
         >>> gen = Evo2Generator(config)
         >>> gen.assign(segment)
@@ -125,10 +105,9 @@ class Evo2Generator(Generator):
             Model instances are automatically shared between generators with the same
             evo2_type, evo2_local_path, and sampling_kwargs to save memory and initialization time.
         """
-        super().__init__(batch_size=config.batch_size)
+        super().__init__()
         self.config = config
         self.prompt_seqs = config.get_prompts()
-        self.batch_size = config.batch_size
         self.evo2_type = config.evo2_type
         self.evo2_local_path = config.evo2_local_path
         self.n_tokens = config.sequence_length
@@ -142,29 +121,29 @@ class Evo2Generator(Generator):
         self.prepend_prompt = config.prepend_prompt
         self.sampling_kwargs = config.sampling_kwargs
 
-    def assign(self, assigned_segments: Segment) -> None:
+    def assign(self, assigned_segment: Segment) -> None:
         """
         Assign a Segment to this generator.
 
         Args:
-            assigned_segments: A single Segment to be assigned to this generator.
+            assigned_segment: A single Segment to be assigned to this generator.
 
         Raises:
-            ValueError: If assigned_segments is not a single Segment object.
+            ValueError: If assigned_segment is not a single Segment object.
 
         Warning:
             Evo2 performs autoregressive generation from prompt sequences.
             It will overwrite candidate_sequences during sample().
         """
         # Warn user if existing candidate sequences will be overwritten
-        if assigned_segments.candidate_sequences:
+        if assigned_segment.candidate_sequences:
             print(
-                f"Warning: Evo2Generator will overwrite {len(assigned_segments.candidate_sequences)} "
+                f"Warning: Evo2Generator will overwrite {len(assigned_segment.candidate_sequences)} "
                 f"existing candidate sequence(s) when sample() is called due to autoregressive generation."
             )
 
-        self._generator_output = assigned_segments
-        self._generator_output._is_assigned = True
+        self._assigned_segment = assigned_segment
+        self._assigned_segment._is_assigned = True
         self._is_initialized = True
         self.autoregressive = True
 
@@ -189,13 +168,13 @@ class Evo2Generator(Generator):
 
         # Replicate single prompt to match candidate pool size if needed
         if len(prompts) == 1:
-            prompts = prompts * len(self._generator_output.candidate_sequences)
+            prompts = prompts * len(self._assigned_segment.candidate_sequences)
 
         # Validate number of prompts matches candidate pool size
-        if len(prompts) != len(self._generator_output.candidate_sequences):
+        if len(prompts) != len(self._assigned_segment.candidate_sequences):
             raise ValueError(
                 f"Number of prompts ({len(prompts)}) must match candidate pool size "
-                f"({len(self._generator_output.candidate_sequences)})"
+                f"({len(self._assigned_segment.candidate_sequences)})"
             )
 
         # Use the evo2 sampling tool
@@ -227,4 +206,4 @@ class Evo2Generator(Generator):
 
         # Update candidate sequences
         for idx, sequence in enumerate(generated_sequences):
-            self._generator_output.candidate_sequences[idx].sequence = sequence
+            self._assigned_segment.candidate_sequences[idx].sequence = sequence

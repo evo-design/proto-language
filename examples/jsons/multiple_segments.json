@@ -8,7 +8,6 @@
     "track_step_size": 1,
     "temperature": 1.5,
     "temperature_min": 0.5,
-    "batch_size": 4,
     "num_candidates": 4
   },
   "constructs": [

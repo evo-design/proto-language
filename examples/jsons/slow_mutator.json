@@ -7,8 +7,7 @@
     "num_steps": 20,
     "track_step_size": 2,
     "temperature": 2.0,
-    "temperature_min": 0.1,
-    "batch_size": 1
+    "temperature_min": 0.1
   },
   "constructs": [
     {

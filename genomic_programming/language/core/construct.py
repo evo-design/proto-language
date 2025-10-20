@@ -1,5 +1,5 @@
 """
-Construct class for the proto-language.
+Construct class for the biological programming language.
 
 Represents a full biological construct composed of multiple segments.
 """
@@ -22,19 +22,12 @@ class Construct:
         >>> gene.joined_sequences  # [Sequence("TATAATGCCC", SequenceType.DNA)]
     """
 
-    def __init__(
-        self,
-        segments: Iterable[Segment],
-    ) -> None:
+    def __init__(self, segments: Iterable[Segment]) -> None:
         """
         Initialize a Construct with Segment objects.
 
         Args:
             segments: An iterable of Segment objects in order.
-
-        Raises:
-            ValueError: If construct contains no segments, segments have different
-                sequence types, segments have different valid characters, or segments have different batch sizes.
         """
         # Convert to tuple for validation and storage
         self.segments = tuple(segments)
@@ -47,7 +40,6 @@ class Construct:
         for i, segment in enumerate(self.segments):
             if segment.label is None:
                 segment.label = f"segment_{i}"
-
 
     @property
     def joined_sequences(self) -> List[Sequence]:
@@ -89,11 +81,3 @@ class Construct:
         
         if not all(segment._valid_chars == self.segments[0]._valid_chars for segment in self.segments):
             raise ValueError("All segments in a construct must have the same valid_chars.")
-        
-        # Ensure consistent selected pool sizes across all segments
-        selected_sizes = [segment.num_selected for segment in self.segments]
-        if not all(size == selected_sizes[0] for size in selected_sizes):
-            raise ValueError(
-                f"Inconsistent selected pool sizes across construct segments. Found: {selected_sizes}. "
-                f"All segments must have the same number of selected sequences."
-            )

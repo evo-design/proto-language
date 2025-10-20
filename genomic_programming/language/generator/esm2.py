@@ -24,7 +24,6 @@ class ESM2GeneratorConfig(BaseConfig):
         description="Position selection strategy: 'entropy', 'max_logit', or 'random'"
     )
     top_k: int = Field(default=5, ge=1, description="Number of positions to sample per iteration")
-    batch_size: int = Field(default=1, ge=1, description="Number of sequences to generate")
     prepend_prompt: bool = Field(default=False, description="Whether to prepend prompt to generated sequences")
     
     @field_validator('top_k')
@@ -62,8 +61,7 @@ class ESM2Generator(Generator):
         ...     sequence_length=100,
         ...     temperature=1.0,
         ...     decoding_method="entropy",
-        ...     top_k=5,
-        ...     batch_size=3
+        ...     top_k=5
         ... )
         >>> gen = ESM2Generator(config)
         >>> segment = Segment(sequence="", sequence_type=SequenceType.PROTEIN)
@@ -78,7 +76,7 @@ class ESM2Generator(Generator):
         Args:
             config: Configuration object containing all generator parameters.
         """
-        super().__init__(batch_size=config.batch_size)
+        super().__init__()
         self.config = config
         self.esm2_type = config.esm2_type
         self.esm2_local_path = config.esm2_local_path
@@ -86,11 +84,10 @@ class ESM2Generator(Generator):
         self.temperature = config.temperature
         self.decoding_method = config.decoding_method
         self.top_k = config.top_k
-        self.batch_size = config.batch_size
         self.prepend_prompt = config.prepend_prompt
         self.autoregressive = False
 
-    def assign(self, assigned_segments: Segment) -> None:
+    def assign(self, assigned_segment: Segment) -> None:
         """
         Assign a Segment to this generator.
 
@@ -99,18 +96,18 @@ class ESM2Generator(Generator):
         If the segment already contains sequences, they will be used as starting points.
 
         Args:
-            assigned_segments: A single Segment to be assigned to this generator.
+            assigned_segment: A single Segment to be assigned to this generator.
 
         Raises:
-            ValueError: If assigned_segments is not a single Segment object.
+            ValueError: If assigned_segment is not a single Segment object.
             AssertionError: If provided sequence length doesn't match configured length.
         """
-        initial_sequence = assigned_segments.selected_sequences[0].sequence
+        initial_sequence = assigned_segment.selected_sequences[0].sequence
         if initial_sequence != "" and len(initial_sequence) != self.sequence_length:
             raise ValueError(f"Provided sequence length ({len(initial_sequence)}) must match configured sequence_length ({self.sequence_length})")
 
-        self._generator_output = assigned_segments
-        self._generator_output._is_assigned = True
+        self._assigned_segment = assigned_segment
+        self._assigned_segment._is_assigned = True
         self._is_initialized = True
 
     def sample(self) -> None:
@@ -125,7 +122,7 @@ class ESM2Generator(Generator):
             RuntimeError: If called before assign().
         """
         self._validate_generator()
-        sequences = [self._generator_output.candidate_sequences[i].sequence for i in range(self.batch_size)]
+        sequences = [seq.sequence for seq in self._assigned_segment.candidate_sequences]
 
         # Use ESM2 sampling tool
         from ...tools.models.language_models.esm2.esm2 import run_esm2_sample, ESM2SampleConfig
@@ -146,4 +143,4 @@ class ESM2Generator(Generator):
 
         # Update sequences in the batch
         for i, sequence in enumerate(mutated_sequences):
-            self._generator_output.candidate_sequences[i].sequence = sequence
+            self._assigned_segment.candidate_sequences[i].sequence = sequence

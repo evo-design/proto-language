@@ -58,7 +58,6 @@ evo2_config = Evo2GeneratorConfig(
     evo2_local_path="/scratch/hielab/gbrixi/evo2/vortex_interleaved/7b_phage/iter_12000.pt",
     sequence_length=5500,
     temperature=0.9,
-    batch_size=10,
     prepend_prompt=True,
 )
 evo2_generator = Evo2Generator(evo2_config)
@@ -159,7 +158,6 @@ gene_homology = Constraint(
 
 # Optimizer config
 optimizer_config = MCMCOptimizerConfig(
-    batch_size=10,
     num_steps=NUM_MCMC_STEPS,
     track_step_size=TRACK_EVERY,
 )

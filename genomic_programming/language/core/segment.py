@@ -48,7 +48,7 @@ class Segment:
         )
         self.original_sequence = seq
         # Dual pools: candidates (work space) and selected (results space)
-        self.candidate_sequences: List[Sequence] = []
+        self.candidate_sequences: List[Sequence] = [seq]
         self.selected_sequences: List[Sequence] = [seq]
 
         self.sequence_type: SequenceType = SequenceType(seq.sequence_type)

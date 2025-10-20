@@ -1,5 +1,5 @@
 """
-Constraint class for the proto-language.
+Constraint class for biological programming language.
 
 Constraints score how well sequences satisfy biological or design requirements,
 returning values between 0.0 (perfect) and 1.0 (worst).
@@ -8,11 +8,9 @@ Key Features:
     - Batch evaluation (sequential or vectorized processing)
     - Segment coordination (contiguous concatenation or disjoint evaluation)
     - Automatic metadata propagation back to original sequences
-    - Integration with the constraint registry for API/client usage
 """
 
 from typing import Callable, List, Optional, Tuple, Union, Dict, Any, get_type_hints, Type
-import inspect
 
 from pydantic import BaseModel
 
@@ -23,17 +21,10 @@ from ...utils.helpers import propagate_metadata
 
 class Constraint:
     """
-    Constraint wrapper that handles batching, metadata propagation, and evaluation.
+    Constraints handle batching, metadata propagation, and evaluation of sequences.
     
-    This class wraps constraint scoring functions and manages:
-    - Batch processing (sequential or vectorized)
-    - Segment coordination (contiguous concatenation or disjoint tuples)
-    - Metadata propagation back to original sequences
-    - Configuration validation via Pydantic models
-    
-    Usage Patterns:
-    
-        Library Usage (Primary - Direct instantiation):
+    Examples:
+        Library Usage (Direct instantiation):
         >>> from proto_language.language.core import Constraint
         >>> from proto_language.language.constraint import gc_content_constraint, GCContentConfig
         >>> 
@@ -60,10 +51,6 @@ class Constraint:
         ...     segments=[dna_segment],
         ...     config_dict={"min_gc": 40, "max_gc": 60}
         ... )
-    
-    Note:
-        For library development, use direct instantiation. The registry is infrastructure
-        for API/client layers that need discovery, schema generation, and validation.
     """
     
     def __init__(
@@ -81,18 +68,15 @@ class Constraint:
         Args:
             inputs: List of Segment objects to evaluate
             scoring_function: The constraint scoring function that returns scores between 0.0-1.0.
-                             For sequential mode: (Sequence, config=ConfigModel) -> float or (Tuple[Sequence, ...], config=ConfigModel) -> float
-                             For vectorized mode: (List[Sequence], config=ConfigModel) -> List[float] or (List[Tuple[Sequence, ...]], config=ConfigModel) -> List[float]
+                For sequential mode: (Sequence, config=ConfigModel) -> float or (Tuple[Sequence, ...], config=ConfigModel) -> float
+                For vectorized mode: (List[Sequence], config=ConfigModel) -> List[float] or (List[Tuple[Sequence, ...]], config=ConfigModel) -> List[float]
             scoring_function_config: Configuration parameters. Can be either:
-                                    - Pydantic BaseModel instance (recommended)
-                                    - Dict that will be converted to the appropriate config model
-                                    Passed as a single config object to scoring functions (not unpacked).
+                Pydantic BaseModel instance (recommended)
+                Dict that will be converted to the appropriate config model
             vectorized: If True, pass all sequences at once for batch processing.
-                       If False, evaluate sequences one at a time.
-            concatenate: If True, concatenate multiple segments before evaluation.
-                        If False, pass segments separately (tuple of sequences).
-            label: Optional label for metadata tracking. If not provided, defaults to
-                  scoring_function.__name__. Prefixed to prevent metadata collisions.
+                If False, evaluate sequences one at a time.
+            concatenate: If True, concatenate multiple segments before evaluation. If False, pass segments separately (tuple of sequences).
+            label: Optional label for metadata tracking. Defaults to the name of the scoring function.
         """
         self.inputs = inputs
         self.scoring_function = scoring_function
@@ -100,7 +84,7 @@ class Constraint:
         self.concatenate = concatenate
         self.label = label or scoring_function.__name__
         
-        # Convert dict configs to Pydantic models for validation when possible
+        # Convert dict configs to Pydantic models for validation
         if isinstance(scoring_function_config, dict):
             config_class = self._try_extract_config_class(scoring_function)
             self.scoring_function_config = (
@@ -153,9 +137,8 @@ class Constraint:
     
     def _preprocess_candidate_at_index(self, candidate_idx: int) -> Sequence | Tuple[Sequence, ...]:
         """
-        Preprocess candidate sequence(s) at a specific index for scoring.
-
-        Creates clean Sequence objects with minimal metadata to pass to the scoring function (prevents collisions).
+        Preprocess sequence(s) at a specific batch position for scoring by creating dummy Sequence 
+        objects with clean metadata to pass to the scoring function.
 
         Args:
             candidate_idx: Index position in the candidate pool (0-based)
@@ -256,21 +239,21 @@ class Constraint:
         if not self.inputs:
             raise ValueError("At least one segment must be provided")
 
-        # Check candidate pool size consistency
+        # Check that all segments have the same number of candidates
         candidate_sizes = [seg.num_candidates for seg in self.inputs]
         if not all(size == candidate_sizes[0] for size in candidate_sizes):
             raise ValueError(
                 f"All segments must have the same number of candidates. Found: {candidate_sizes}"
             )
 
-        # Check sequence type consistency
+        # Check that all segments have the same sequence type
         sequence_types = [seg.sequence_type for seg in self.inputs]
         if not all(st == sequence_types[0] for st in sequence_types):
             raise ValueError(
                 f"All segments must have the same sequence type. Found: {sequence_types}"
             )
 
-        # Check valid_chars consistency (alphabet)
+        # Check that all segments have the same valid_chars (alphabet)
         first_valid_chars = self.inputs[0]._valid_chars
         for seg in self.inputs[1:]:
             if seg._valid_chars != first_valid_chars:
@@ -278,13 +261,3 @@ class Constraint:
                     f"All segments must have the same valid_chars. "
                     f"Expected: {first_valid_chars}, Found: {seg._valid_chars}"
                 )
-
-    def __repr__(self) -> str:
-        return (
-            f"Constraint(scoring_function={self.scoring_function.__name__}, "
-            f"label={self.label}, "
-            f"vectorized={self.vectorized}, "
-            f"concatenate={self.concatenate}, "
-            f"num_segments={len(self.inputs)}, "
-            f"num_candidates={self.inputs[0].num_candidates})"
-        )

@@ -23,10 +23,9 @@ def create_segment(sequence: str, seq_type: SequenceType = SequenceType.DNA) -> 
 class TestUniformMutationGenerator:
     def test_initialization(self):
         """Tests the __init__ method for correct initialization."""
-        config = UniformMutationGeneratorConfig(sequence_length=15, batch_size=5)
+        config = UniformMutationGeneratorConfig(sequence_length=15)
         gen = UniformMutationGenerator(config)
         assert gen.sequence_length == 15
-        assert gen.batch_size == 5
         assert not gen._is_initialized
 
     def test_assign_and_initialization(self):
@@ -34,12 +33,12 @@ class TestUniformMutationGenerator:
         seq_len = 20
         # Test assign with an empty segment (should initialize randomly)
         segment = create_segment("", seq_type=SequenceType.RNA)
-        config = UniformMutationGeneratorConfig(sequence_length=seq_len, batch_size=3)
+        config = UniformMutationGeneratorConfig(sequence_length=seq_len)
         gen = UniformMutationGenerator(config)
         gen.assign(segment)
 
         assert gen._is_initialized
-        assert gen._generator_output is segment
+        assert gen._assigned_segment is segment
         assert segment._is_assigned
         assert segment.num_selected == 1  # assign() initializes one selected sequence
         assert len(segment.selected_sequences[0].sequence) == seq_len
@@ -91,7 +90,7 @@ class TestUniformMutationGenerator:
 
     def test_sample_batch(self):
         """Tests that sample mutates all sequences in a batch of candidates independently."""
-        config = UniformMutationGeneratorConfig(sequence_length=30, batch_size=5)
+        config = UniformMutationGeneratorConfig(sequence_length=30)
         gen = UniformMutationGenerator(config)
         segment = create_segment("A" * 30)
         gen.assign(segment)

@@ -43,7 +43,7 @@ class BeamSearchOptimizer(Optimizer):
     1. Segments are processed one at a time, in order
     2. For each segment, the top K accumulated sequences (from all previous segments) 
        are used as prompts for generation
-    3. The generator generates num_candidates proposals per prompt (K × N total)
+    3. The generator generates num_candidates proposals per prompt (K x N total)
     4. Constraints evaluate all candidates (lower energy scores are better)
     5. Top beam_width candidates by energy are selected for the next segment
 
@@ -93,6 +93,15 @@ class BeamSearchOptimizer(Optimizer):
             config: Configuration object containing algorithm parameters (beam_width, num_candidates, etc.).
             constraint_weights: Optional weights for constraints. If None, all weights are 1.0.
         """
+        if not generator.autoregressive:
+            raise ValueError(f"BeamSearchOptimizer requires autoregressive generators. The provided generator '{generator.__class__.__name__}' is not autoregressive.")
+        
+        # Mark all segments as assigned and set generator before super().__init__()
+        # This is needed for validation in base class
+        for segment in construct.segments:
+            segment._is_assigned = True
+        generator._assigned_segment = construct.segments
+        
         # Initialize with dual-pool design
         super().__init__(
             constructs=[construct],
@@ -110,17 +119,14 @@ class BeamSearchOptimizer(Optimizer):
 
         # Initialize running prompts for each beam
         self.running_prompts = [prompt] * self.beam_width
-
-        if not generator.autoregressive:
-            raise ValueError(f"BeamSearchOptimizer requires autoregressive generators. The provided generator '{generator.__class__.__name__}' is not autoregressive.")
-        
-        # TODO: Clean this up
-        # Assign all segments to the generator upfront to pass validation
-        # The actual _generator_output will be set dynamically during sampling
-        for segment in construct.segments:
-            segment._is_assigned = True
-        # Set generator outputs to all segments so validator can verify constraint inputs
-        generator._generator_outputs = tuple(construct.segments)
+        # Clear candidate sequence content - BeamSearch creates them during sample()
+        for segment in self.segments:
+            for seq in segment.candidate_sequences:
+                if seq.sequence:
+                    if self.verbose:
+                        print(f"Warning: Clearing pre-populated sequence in segment '{segment.label or 'unlabeled'}'. "
+                              f"BeamSearchOptimizer will generate candidates during sample().")
+                seq.sequence = ""
 
     def sample(self) -> None:
         """
@@ -144,18 +150,15 @@ class BeamSearchOptimizer(Optimizer):
                 print(f"\n--- Processing Segment {segment_idx + 1}/{len(self.construct.segments)} ---")
 
             # 1. Assign generator to this segment
-            self.generator._generator_output = segment
+            self.generator._assigned_segment = segment
 
-            # 2. Prepare candidate pool: create beam_width × candidates_per_beam slots
-            segment.create_candidates(self.beam_width * self.candidates_per_beam)
-
-            # 3. Prepare prompts: replicate each running prompt candidates_per_beam times
+            # 2. Prepare prompts: replicate each running prompt candidates_per_beam times
             all_prompts, beam_indices = self._prepare_beam_prompts()
 
             if self.verbose:
                 print(f"Using {len(all_prompts)} prompts ({self.beam_width} beams x {self.candidates_per_beam} candidates)")
 
-            # 4. Generate candidates (writes to candidate_sequences)
+            # 3. Generate candidates (writes to candidate_sequences)
             self.generator.sample(prompt_seqs=all_prompts)
 
             if self.verbose:
@@ -165,7 +168,7 @@ class BeamSearchOptimizer(Optimizer):
                         seq_preview = sequence.sequence[:50] + ('...' if len(sequence.sequence) > 50 else '')
                         print(f"  [{i}]: {seq_preview}")
 
-            # 5. Score all candidates with applicable constraints
+            # 4. Score all candidates with applicable constraints
             # Populate previous segments' candidate pools for multi-segment constraint evaluation
             self._populate_previous_segments_for_scoring(segment_idx)
             self._score_energy_filtered()
@@ -173,11 +176,11 @@ class BeamSearchOptimizer(Optimizer):
             if self.verbose:
                 print(f"Evaluated {len(self.energy_scores)} candidates")
 
-            # 6. Select top beam_width candidates by energy
+            # 5. Select top beam_width candidates by energy
             top_idx = np.argsort(self.energy_scores)[:self.beam_width].tolist()
             self._set_selected_sequences(segment, top_idx)
 
-            # 7. Update running prompts by extending with new tokens from selected sequences
+            # 6. Update running prompts by extending with new tokens from selected sequences
             self._update_running_prompts(segment, top_idx, beam_indices)
 
             if self.verbose:

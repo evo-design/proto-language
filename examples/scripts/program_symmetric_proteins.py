@@ -50,7 +50,6 @@ protomer_construct = Construct([protomer])
 ################
 
 uniform_gen_config = UniformMutationGeneratorConfig(
-    batch_size=1,
     sequence_length=MONOMER_LENGTH,
 )
 uniform_gen = UniformMutationGenerator(uniform_gen_config)
@@ -114,7 +113,6 @@ def custom_logging(step: int, outputs: Tuple[Segment]) -> None:
 
 
 mcmc_optimizer_config = MCMCOptimizerConfig(
-    batch_size=1,
     num_candidates=1,
     num_steps=N_STEPS,
     temperature=1.,

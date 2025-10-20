@@ -104,6 +104,21 @@ class Sequence:
                 f"Valid characters are: {', '.join(sorted(self._valid_chars))}"
             )
 
+    @property 
+    def metadata(self) -> Dict[str, Any]:
+        """
+        Get metadata dictionary with consistent ordering.
+        
+        Returns:
+            Dict with system keys first, then constraint keys in chronological order.
+        """
+        system_keys = ["sequence", "sequence_length"]
+
+        return {
+            **{k: self._metadata[k] for k in system_keys if k in self._metadata},  # System keys first
+            **{k: v for k, v in self._metadata.items() if k not in set(system_keys)}    # Constraint keys
+        }
+
     @property
     def sequence(self) -> str:
         """
@@ -192,18 +207,3 @@ class Sequence:
             valid_chars=subsequences[0]._valid_chars, # assumed to be the same for all subsequences
             metadata=combined_metadata
         )
-
-    @property 
-    def metadata(self) -> Dict[str, Any]:
-        """
-        Get metadata dictionary with consistent ordering.
-        
-        Returns:
-            Dict with system keys first, then constraint keys in chronological order.
-        """
-        system_keys = ["sequence", "sequence_length"]
-
-        return {
-            **{k: self._metadata[k] for k in system_keys if k in self._metadata},  # System keys first
-            **{k: v for k, v in self._metadata.items() if k not in set(system_keys)}    # Constraint keys
-        }

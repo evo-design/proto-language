@@ -27,8 +27,7 @@ class TestEvo2Generator:
         prompts = ["ATCG"]
         config = Evo2GeneratorConfig(
             prompt_seqs=prompts, 
-            sequence_length=100, 
-            batch_size=1
+            sequence_length=100
         )
         evo2_generator = Evo2Generator(config)
 
@@ -37,9 +36,8 @@ class TestEvo2Generator:
         evo2_generator.assign(segment)
         
         assert evo2_generator._is_initialized
-        assert evo2_generator._generator_output is segment
+        assert evo2_generator._assigned_segment is segment
         assert segment._is_assigned
-        assert segment.batch_size == 1
 
         # Sample and check results
         evo2_generator.sample()
@@ -51,11 +49,11 @@ class TestEvo2Generator:
     def test_evo2_batch_sampling(self):
         """Test Evo2 generator with multiple prompt sequences."""
         prompts = ["ATCG", "AAAA"]
-        batch_size = len(prompts)
+        num_candidates = len(prompts)
         config = Evo2GeneratorConfig(
             prompt_seqs=prompts, 
             sequence_length=100, 
-            batch_size=batch_size
+            num_candidates=num_candidates
         )
         evo2_generator = Evo2Generator(config)
 
@@ -64,15 +62,15 @@ class TestEvo2Generator:
         evo2_generator.assign(segment)
         
         assert evo2_generator._is_initialized
-        assert evo2_generator._generator_output is segment
+        assert evo2_generator._assigned_segment is segment
         assert segment._is_assigned
-        assert segment.batch_size == batch_size
+        assert len(segment.candidate_sequences) == num_candidates
 
         # Sample and check results
         evo2_generator.sample()
         
         # Check that each individual sequence is not None
-        for i in range(batch_size):
+        for i in range(num_candidates):
             assert segment[i].sequence is not None
             assert len(segment[i].sequence) > len(prompts[i])  # Should be longer than prompt
             assert segment[i].sequence_type == SequenceType.DNA
@@ -95,8 +93,7 @@ class TestEvo2Generator:
             sequence_length=50,
             temperature=0.8,
             top_k=10,
-            top_p=0.9,
-            batch_size=1
+            top_p=0.9
         )
         evo2_generator = Evo2Generator(config)
 

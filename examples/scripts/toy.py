@@ -24,7 +24,6 @@ construct = Construct([seq1])
 # Generator
 uniform_gen_config = UniformMutationGeneratorConfig(
     sequence_length=20,
-    batch_size=1,
 )
 uniform_gen = UniformMutationGenerator(uniform_gen_config)
 

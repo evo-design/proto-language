@@ -35,7 +35,7 @@ class TestESM3Generator:
         esm3_generator.assign(segment)
         
         assert esm3_generator._is_initialized
-        assert esm3_generator._generator_output is segment
+        assert esm3_generator._assigned_segment is segment
         assert segment._is_assigned
 
         # Sample and check results
@@ -61,7 +61,7 @@ class TestESM3Generator:
         esm3_generator.assign(segment)
         
         assert esm3_generator._is_initialized
-        assert esm3_generator._generator_output is segment
+        assert esm3_generator._assigned_segment is segment
         assert segment._is_assigned
 
         # Sample and check results
@@ -87,7 +87,7 @@ class TestESM3Generator:
         esm3_generator.assign(segment)
         
         assert esm3_generator._is_initialized
-        assert esm3_generator._generator_output is segment
+        assert esm3_generator._assigned_segment is segment
         assert segment._is_assigned
 
         # Sample and check results
@@ -99,14 +99,14 @@ class TestESM3Generator:
 
     def test_esm3_batch_sampling(self):
         """Test ESM3 generator with batch processing."""
-        batch_size = 3
+        num_candidates = 3
         esm3_generator = ESM3Generator(
             ESM3GeneratorConfig(
                 sequence_length=15,
                 temperature=1.0,
                 decoding_method="entropy",
                 top_k=5,
-                batch_size=batch_size,
+                num_candidates=num_candidates,
             )
         )
 
@@ -114,13 +114,13 @@ class TestESM3Generator:
         segment = create_segment("", seq_type=SequenceType.PROTEIN)
         esm3_generator.assign(segment)
         
-        assert segment.batch_size == batch_size
+        assert len(segment.candidate_sequences) == num_candidates
         assert esm3_generator._is_initialized
 
         # Sample and check results
         esm3_generator.sample()
         
-        for i in range(batch_size):
+        for i in range(num_candidates):
             assert segment[i].sequence is not None
             assert len(segment[i].sequence) == 15
             assert segment[i].sequence_type == SequenceType.PROTEIN

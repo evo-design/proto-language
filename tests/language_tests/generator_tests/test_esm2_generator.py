@@ -36,7 +36,7 @@ class TestESM2Generator:
         esm2_generator.assign(segment)
         
         assert esm2_generator._is_initialized
-        assert esm2_generator._generator_output is segment
+        assert esm2_generator._assigned_segment is segment
         assert segment._is_assigned
 
         # Sample and check results
@@ -63,7 +63,7 @@ class TestESM2Generator:
         esm2_generator.assign(segment)
         
         assert esm2_generator._is_initialized
-        assert esm2_generator._generator_output is segment
+        assert esm2_generator._assigned_segment is segment
         assert segment._is_assigned
 
         # Sample and check results
@@ -90,7 +90,7 @@ class TestESM2Generator:
         esm2_generator.assign(segment)
         
         assert esm2_generator._is_initialized
-        assert esm2_generator._generator_output is segment
+        assert esm2_generator._assigned_segment is segment
         assert segment._is_assigned
 
         # Sample and check results
@@ -102,7 +102,7 @@ class TestESM2Generator:
 
     def test_esm2_batch_sampling(self):
         """Test ESM2 generator with batch processing."""
-        batch_size = 3
+        num_candidates = 3
         esm2_generator = ESM2Generator(
             ESM2GeneratorConfig(
                 esm2_type="esm2_t33_650M_UR50D",
@@ -110,7 +110,7 @@ class TestESM2Generator:
                 temperature=1.0,
                 decoding_method="entropy",
                 top_k=5,
-                batch_size=batch_size,
+                num_candidates=num_candidates,
             )
         )
 
@@ -118,13 +118,13 @@ class TestESM2Generator:
         segment = create_segment("", seq_type=SequenceType.PROTEIN)
         esm2_generator.assign(segment)
         
-        assert segment.batch_size == batch_size
+        assert len(segment.candidate_sequences) == num_candidates
         assert esm2_generator._is_initialized
 
         # Sample and check results
         esm2_generator.sample()
         
-        for i in range(batch_size):
+        for i in range(num_candidates):
             assert segment[i].sequence is not None
             assert len(segment[i].sequence) == 15
             assert segment[i].sequence_type == SequenceType.PROTEIN

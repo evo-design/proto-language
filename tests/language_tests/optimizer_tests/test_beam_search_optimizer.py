@@ -44,24 +44,24 @@ class MockAutoregressiveGenerator(Generator):
     """Mock autoregressive generator for testing."""
     
     def __init__(self, sequence_length: int, prepend_prompt: bool = False):
-        super().__init__(batch_size=1)
+        super().__init__()
         self.sequence_length = sequence_length
         self.prepend_prompt = prepend_prompt
         self.autoregressive = True
     
     def assign(self, segment: Segment):
-        self._generator_output = segment
+        self._assigned_segment = segment
         self._is_initialized = True
     
     def sample(self, prompt_seqs=None):
         """Generate random DNA sequences."""
         if prompt_seqs is None:
-            prompt_seqs = [""] * len(self._generator_output.candidate_sequences)
+            prompt_seqs = [""] * len(self._assigned_segment.candidate_sequences)
         
         bases = ['A', 'C', 'G', 'T']
         for i, prompt in enumerate(prompt_seqs):
             new_seq = ''.join(np.random.choice(bases) for _ in range(self.sequence_length))
-            self._generator_output.candidate_sequences[i].sequence = new_seq
+            self._assigned_segment.candidate_sequences[i].sequence = new_seq
 
 
 class TestBeamSearchOptimizerInitialization:
@@ -233,12 +233,6 @@ class TestSetSelectedSequences:
     def test_selection_by_indices(self):
         """Test that sequences are selected by provided indices."""
         segment = create_segment("")
-        segment.create_candidates(10)
-        
-        # Set unique sequences for testing (valid DNA sequences)
-        unique_seqs = ["AAAA", "AAAT", "AATA", "AATT", "ATAA", "ATAT", "ATTA", "ATTT", "TAAA", "TAAT"]
-        for i, seq in enumerate(segment.candidate_sequences):
-            seq.sequence = unique_seqs[i]
         
         # Create minimal optimizer to test method
         construct = Construct([segment])
@@ -258,6 +252,14 @@ class TestSetSelectedSequences:
             config=config
         )
         
+        # After optimizer init, recreate candidates with more slots
+        segment.create_candidates(10)
+        
+        # Set unique sequences for testing (valid DNA sequences)
+        unique_seqs = ["AAAA", "AAAT", "AATA", "AATT", "ATAA", "ATAT", "ATTA", "ATTT", "TAAA", "TAAT"]
+        for i, seq in enumerate(segment.candidate_sequences):
+            seq.sequence = unique_seqs[i]
+        
         top_idx = [2, 5, 9]
         optimizer._set_selected_sequences(segment, top_idx)
         
@@ -273,12 +275,6 @@ class TestUpdateRunningPrompts:
     def test_prompt_extension(self):
         """Test that prompts are extended with new tokens."""
         segment = create_segment("")
-        segment.create_candidates(6)  # 2 beams * 3 candidates
-        
-        # Set generated sequences (new tokens only, valid DNA sequences)
-        new_tokens = ["AAAA", "AAAT", "AATA", "AATT", "ATAA", "ATAT"]
-        for i, seq in enumerate(segment.candidate_sequences):
-            seq.sequence = new_tokens[i]
         
         construct = Construct([segment])
         generator = MockAutoregressiveGenerator(sequence_length=4)
@@ -296,6 +292,12 @@ class TestUpdateRunningPrompts:
             constraints=[constraint],
             config=config
         )
+        
+        # Create candidates and set sequences (beam search creates these during sample())
+        segment.create_candidates(6)  # 2 beams * 3 candidates
+        new_tokens = ["AAAA", "AAAT", "AATA", "AATT", "ATAA", "ATAT"]
+        for i, seq in enumerate(segment.candidate_sequences):
+            seq.sequence = new_tokens[i]
         
         # Set initial prompts (valid DNA sequences)
         optimizer.running_prompts = ["GGGG", "CCCC"]
@@ -316,12 +318,6 @@ class TestUpdateRunningPrompts:
     def test_beam_tracking_correctness(self):
         """Test that beam indices correctly track parent beams."""
         segment = create_segment("")
-        segment.create_candidates(9)  # 3 beams * 3 candidates
-        
-        # Use valid DNA sequences for each candidate
-        candidate_seqs = ["AAAA", "AAAT", "AATA", "AATT", "ATAA", "ATAT", "ATTA", "ATTT", "TAAA"]
-        for i, seq in enumerate(segment.candidate_sequences):
-            seq.sequence = candidate_seqs[i]
         
         construct = Construct([segment])
         generator = MockAutoregressiveGenerator(sequence_length=4)
@@ -339,6 +335,12 @@ class TestUpdateRunningPrompts:
             constraints=[constraint],
             config=config
         )
+        
+        # Create candidates and set sequences (beam search creates these during sample())
+        segment.create_candidates(9)  # 3 beams * 3 candidates
+        candidate_seqs = ["AAAA", "AAAT", "AATA", "AATT", "ATAA", "ATAT", "ATTA", "ATTT", "TAAA"]
+        for i, seq in enumerate(segment.candidate_sequences):
+            seq.sequence = candidate_seqs[i]
         
         optimizer.running_prompts = ["GGGG", "CCCC", "TTTT"]
         beam_indices = [0, 0, 0, 1, 1, 1, 2, 2, 2]
@@ -515,16 +517,17 @@ class TestScoreEnergyFiltered:
             config=config
         )
         
-        # Only seg1 has candidates, seg2 is empty
+        # Simulate processing seg1 first: only seg1 has candidates
         seg1.create_candidates(6)
-        # seg2 has no candidates yet
+        # seg2 has no candidates yet (beam search processes segments sequentially)
+        seg2.candidate_sequences = []
         
         optimizer._populate_previous_segments_for_scoring(0)
         optimizer._score_energy_filtered()
         
-        # Should assign zero energy to all candidates
-        assert len(optimizer.energy_scores) == 6
-        assert all(e == 0.0 for e in optimizer.energy_scores)
+        # Should assign zero energy to all candidates since constraint requires seg2
+        assert len(optimizer.energy_scores) == 6, f"Expected 6 scores, got {len(optimizer.energy_scores)}"
+        assert all(e == 0.0 for e in optimizer.energy_scores), f"Expected all 0.0, got {optimizer.energy_scores}"
     
     def test_partial_constraint_applicability(self):
         """Test when some constraints are applicable and others aren't."""
@@ -656,7 +659,7 @@ class TestBeamSearchIntegration:
         # Generator that returns known sequences
         class DeterministicGenerator(MockAutoregressiveGenerator):
             def sample(self, prompt_seqs=None):
-                for i, seq in enumerate(self._generator_output.candidate_sequences):
+                for i, seq in enumerate(self._assigned_segment.candidate_sequences):
                     seq.sequence = "A"  # Always generate "A"
         
         generator = DeterministicGenerator(sequence_length=1)
