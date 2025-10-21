@@ -107,7 +107,7 @@ class Evo2Generator(Generator):
         """
         super().__init__()
         self.config = config
-        self.prompt_seqs = config.get_prompts()
+        self.prompt_seqs = config.prompt_seqs
         self.evo2_type = config.evo2_type
         self.evo2_local_path = config.evo2_local_path
         self.n_tokens = config.sequence_length

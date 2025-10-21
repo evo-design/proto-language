@@ -34,7 +34,7 @@ class TestTopKOptimizer:
             scoring_function_config={"target_length": 4}
         )
 
-        config = TopKOptimizerConfig(rounds=10, k=5, verbose=False)
+        config = TopKOptimizerConfig(total_candidates=10, k=5, batch_size=1, verbose=False)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen],
@@ -42,6 +42,8 @@ class TestTopKOptimizer:
             config=config,
         )
 
+        assert optimizer.total_candidates == 10
+        assert optimizer.batch_size == 1
         assert optimizer.rounds == 10
         assert optimizer.k == 5
         assert optimizer.num_selected == 5
@@ -67,7 +69,7 @@ class TestTopKOptimizer:
             scoring_function_config={"min_gc": 40.0, "max_gc": 60.0}
         )
 
-        config = TopKOptimizerConfig(rounds=20, k=3, verbose=False)
+        config = TopKOptimizerConfig(total_candidates=20, k=3, batch_size=1, verbose=False)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen],
@@ -105,7 +107,7 @@ class TestTopKOptimizer:
             scoring_function_config={"min_gc": 80.0, "max_gc": 100.0}
         )
 
-        config = TopKOptimizerConfig(rounds=50, k=5, verbose=False)
+        config = TopKOptimizerConfig(total_candidates=50, k=5, batch_size=1, verbose=False)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen],
@@ -122,30 +124,10 @@ class TestTopKOptimizer:
         assert best_energy <= worst_energy
 
     def test_topk_k_capped_at_rounds(self):
-        """Test that k cannot exceed number of rounds."""
-        segment = Segment(sequence="ATCG", sequence_type=SequenceType.DNA)
-        construct = Construct([segment])
-
-        gen = UniformMutationGenerator(
-            UniformMutationGeneratorConfig(sequence_length=4, num_mutations=1)
-        )
-        gen.assign(segment)
-
-        constraint = Constraint(
-            inputs=[segment],
-            scoring_function=sequence_length_constraint,
-            scoring_function_config={"target_length": 4}
-        )
-
-        config = TopKOptimizerConfig(rounds=10, k=100, verbose=False)
-
-        with pytest.raises(ValueError, match="k \\(100\\) cannot be greater than rounds \\(10\\)"):
-            optimizer = TopKOptimizer(
-                constructs=[construct],
-                generators=[gen],
-                constraints=[constraint],
-                config=config,
-            )
+        """Test that k cannot exceed number of candidates."""
+        # Validation now happens at config creation time
+        with pytest.raises(ValueError, match="k \\(100\\) cannot exceed total_candidates \\(10\\)"):
+            config = TopKOptimizerConfig(total_candidates=10, k=100, batch_size=1, verbose=False)
 
     def test_topk_with_multiple_generators(self):
         """Test TopK with multiple generators applied sequentially."""
@@ -174,7 +156,7 @@ class TestTopKOptimizer:
             scoring_function_config={"min_gc": 40.0, "max_gc": 60.0}
         )
 
-        config = TopKOptimizerConfig(rounds=10, k=3, verbose=False)
+        config = TopKOptimizerConfig(total_candidates=10, k=3, batch_size=1, verbose=False)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen1, gen2],
@@ -209,7 +191,7 @@ class TestTopKOptimizer:
             scoring_function_config={"target_length": 8}
         )
 
-        config = TopKOptimizerConfig(rounds=5, k=5, verbose=False)
+        config = TopKOptimizerConfig(total_candidates=5, k=5, batch_size=1, verbose=False)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen],
@@ -225,3 +207,127 @@ class TestTopKOptimizer:
             seq = segment.selected_sequences[i].sequence
             diff_count = sum(1 for a, b in zip(initial_seq, seq) if a != b)
             assert diff_count == 1, f"Expected 1 mutation, got {diff_count} differences"
+
+    def test_topk_with_batch_size(self):
+        """Test TopK with batch_size > 1 for efficient batching."""
+        segment = Segment(sequence="ATCGATCG", sequence_type=SequenceType.DNA)
+        construct = Construct([segment])
+
+        gen = UniformMutationGenerator(
+            UniformMutationGeneratorConfig(
+                sequence_length=8,
+                num_mutations=1
+            )
+        )
+        gen.assign(segment)
+
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=gc_content_constraint,
+            scoring_function_config={"min_gc": 40.0, "max_gc": 60.0}
+        )
+
+        # Generate 20 total candidates in batches of 5
+        # Should result in 4 rounds × 5 candidates per round = 20 total
+        config = TopKOptimizerConfig(total_candidates=20, k=3, batch_size=5, verbose=False)
+        optimizer = TopKOptimizer(
+            constructs=[construct],
+            generators=[gen],
+            constraints=[constraint],
+            config=config,
+        )
+
+        # Verify derived parameters
+        assert optimizer.total_candidates == 20
+        assert optimizer.batch_size == 5
+        assert optimizer.rounds == 4  # 20 / 5 = 4 rounds
+        assert optimizer.k == 3
+
+        optimizer.run()
+
+        # Should return exactly k=3 best candidates
+        assert len(segment.selected_sequences) == 3
+        assert len(optimizer.energy_scores) == 3
+
+        # Verify energies are sorted (best first)
+        for i in range(len(optimizer.energy_scores) - 1):
+            assert optimizer.energy_scores[i] <= optimizer.energy_scores[i + 1]
+
+    def test_topk_batch_size_validation(self):
+        """Test that total_candidates must be divisible by batch_size."""
+        with pytest.raises(ValueError, match="total_candidates \\(10\\) must be divisible by batch_size \\(3\\)"):
+            config = TopKOptimizerConfig(total_candidates=10, k=5, batch_size=3, verbose=False)
+
+    def test_topk_with_energy_threshold(self):
+        """Test TopK with energy_threshold for adaptive stopping."""
+        segment = Segment(sequence="AAAA", sequence_type=SequenceType.DNA)
+        construct = Construct([segment])
+
+        gen = UniformMutationGenerator(
+            UniformMutationGeneratorConfig(
+                sequence_length=4,
+                num_mutations=1
+            )
+        )
+        gen.assign(segment)
+
+        # Constraint that prefers GC content (penalizes sequences with all As)
+        constraint = Constraint(
+            inputs=[segment],
+            scoring_function=gc_content_constraint,
+            scoring_function_config={"min_gc": 40.0, "max_gc": 60.0}
+        )
+
+        # Start with minimum 10 candidates, but continue until worst < 1.0 or hit 100 max
+        config = TopKOptimizerConfig(
+            total_candidates=10,
+            k=3,
+            batch_size=2,
+            energy_threshold=1.0,
+            max_candidates=100,
+            verbose=False
+        )
+        optimizer = TopKOptimizer(
+            constructs=[construct],
+            generators=[gen],
+            constraints=[constraint],
+            config=config,
+        )
+
+        # Verify config and derived parameters
+        assert optimizer.energy_threshold == 1.0
+        assert optimizer.max_candidates == 100
+
+        optimizer.run()
+
+        # Should return exactly k=3 candidates
+        assert len(segment.selected_sequences) == 3
+        assert len(optimizer.energy_scores) == 3
+
+        # Worst in top-k should be below threshold (or max candidates reached)
+        worst_energy = optimizer.energy_scores[-1]
+        assert worst_energy < 1.0 or optimizer.total_candidates >= 100
+
+    def test_topk_threshold_validation(self):
+        """Test validation of threshold-related parameters."""
+        # max_candidates must be divisible by batch_size
+        with pytest.raises(ValueError, match="max_candidates \\(15\\) must be divisible by batch_size \\(4\\)"):
+            config = TopKOptimizerConfig(
+                total_candidates=8,
+                k=3,
+                batch_size=4,
+                energy_threshold=0.5,
+                max_candidates=15,
+                verbose=False
+            )
+
+        # max_candidates must be >= total_candidates
+        with pytest.raises(ValueError, match="max_candidates \\(50\\) must be >= total_candidates \\(100\\)"):
+            config = TopKOptimizerConfig(
+                total_candidates=100,
+                k=10,
+                batch_size=10,
+                energy_threshold=0.5,
+                max_candidates=50,
+                verbose=False
+            )
