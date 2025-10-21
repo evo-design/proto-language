@@ -83,7 +83,7 @@ class TestBeamSearchOptimizerInitialization:
             scoring_function_config=GCContentConfig(min_gc=40.0, max_gc=60.0)
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=3, num_candidates=5)
+        config = BeamSearchOptimizerConfig(beam_width=3, candidates_per_beam=5)
         
         optimizer = BeamSearchOptimizer(
             construct=construct,
@@ -116,7 +116,7 @@ class TestBeamSearchOptimizerInitialization:
             scoring_function_config={}
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=2, num_candidates=3)
+        config = BeamSearchOptimizerConfig(beam_width=2, candidates_per_beam=3)
         
         with pytest.raises(ValueError, match="requires autoregressive generators"):
             BeamSearchOptimizer(
@@ -141,7 +141,7 @@ class TestBeamSearchOptimizerInitialization:
             scoring_function_config={}
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=5, num_candidates=2)
+        config = BeamSearchOptimizerConfig(beam_width=5, candidates_per_beam=2)
         
         optimizer = BeamSearchOptimizer(
             construct=construct,
@@ -171,7 +171,7 @@ class TestPrepareBeamPrompts:
             scoring_function_config={}
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=3, num_candidates=4)
+        config = BeamSearchOptimizerConfig(beam_width=3, candidates_per_beam=4)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -210,7 +210,7 @@ class TestPrepareBeamPrompts:
             scoring_function_config={}
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=1, num_candidates=5)
+        config = BeamSearchOptimizerConfig(beam_width=1, candidates_per_beam=5)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -227,53 +227,11 @@ class TestPrepareBeamPrompts:
         assert all(idx == 0 for idx in beam_indices)
 
 
-class TestSetSelectedSequences:
-    """Test _set_selected_sequences helper method."""
+class TestSelectTopCandidates:
+    """Test _select_topk helper method (merges selection, prompt update, and replication)."""
     
-    def test_selection_by_indices(self):
-        """Test that sequences are selected by provided indices."""
-        segment = create_segment("")
-        
-        # Create minimal optimizer to test method
-        construct = Construct([segment])
-        generator = MockAutoregressiveGenerator(sequence_length=4)
-        generator.assign(segment)
-        constraint = Constraint(
-            inputs=[segment],
-            scoring_function=lambda seq, **kwargs: 0.0,
-            scoring_function_config={}
-        )
-        config = BeamSearchOptimizerConfig(beam_width=3, num_candidates=2)
-        optimizer = BeamSearchOptimizer(
-            construct=construct,
-            generator=generator,
-            prompt="",
-            constraints=[constraint],
-            config=config
-        )
-        
-        # After optimizer init, recreate candidates with more slots
-        segment.create_candidates(10)
-        
-        # Set unique sequences for testing (valid DNA sequences)
-        unique_seqs = ["AAAA", "AAAT", "AATA", "AATT", "ATAA", "ATAT", "ATTA", "ATTT", "TAAA", "TAAT"]
-        for i, seq in enumerate(segment.candidate_sequences):
-            seq.sequence = unique_seqs[i]
-        
-        top_idx = [2, 5, 9]
-        optimizer._set_selected_sequences(segment, top_idx)
-        
-        assert len(segment.selected_sequences) == 3
-        assert segment.selected_sequences[0].sequence == unique_seqs[2]
-        assert segment.selected_sequences[1].sequence == unique_seqs[5]
-        assert segment.selected_sequences[2].sequence == unique_seqs[9]
-
-
-class TestUpdateRunningPrompts:
-    """Test _update_running_prompts helper method."""
-    
-    def test_prompt_extension(self):
-        """Test that prompts are extended with new tokens."""
+    def test_combined_operations(self):
+        """Test that _select_topk performs all three operations correctly."""
         segment = create_segment("")
         
         construct = Construct([segment])
@@ -284,7 +242,7 @@ class TestUpdateRunningPrompts:
             scoring_function=lambda seq, **kwargs: 0.0,
             scoring_function_config={}
         )
-        config = BeamSearchOptimizerConfig(beam_width=2, num_candidates=3)
+        config = BeamSearchOptimizerConfig(beam_width=2, candidates_per_beam=3)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -293,30 +251,47 @@ class TestUpdateRunningPrompts:
             config=config
         )
         
-        # Create candidates and set sequences (beam search creates these during sample())
+        # Create candidates and set sequences
         segment.create_candidates(6)  # 2 beams * 3 candidates
-        new_tokens = ["AAAA", "AAAT", "AATA", "AATT", "ATAA", "ATAT"]
+        candidate_seqs = ["AAAA", "AAAT", "AATA", "AATT", "ATAA", "ATAT"]
         for i, seq in enumerate(segment.candidate_sequences):
-            seq.sequence = new_tokens[i]
+            seq.sequence = candidate_seqs[i]
         
-        # Set initial prompts (valid DNA sequences)
+        # Set initial prompts
         optimizer.running_prompts = ["GGGG", "CCCC"]
         
         # Beam indices: [0,0,0,1,1,1]
         beam_indices = [0, 0, 0, 1, 1, 1]
         
-        # Select candidates 1 and 4 (from beam 0 and beam 1)
-        top_idx = [1, 4]
+        # Mock energy scores (select candidates 1 and 4)
+        optimizer.energy_scores = [5.0, 1.0, 3.0, 4.0, 2.0, 6.0]
         
-        optimizer._update_running_prompts(segment, top_idx, beam_indices)
+        top_idx = optimizer._select_topk(segment, beam_indices)
         
-        # Should extend original prompts with new tokens
+        # Verify top_idx are the two lowest energy scores
+        assert top_idx == [1, 4]
+        
+        # Verify selected sequences
+        assert len(segment.selected_sequences) == 2
+        assert segment.selected_sequences[0].sequence == candidate_seqs[1]
+        assert segment.selected_sequences[1].sequence == candidate_seqs[4]
+        
+        # Verify candidate replication (2 selected * 3 candidates_per_beam)
+        assert len(segment.candidate_sequences) == 6
+        assert segment.candidate_sequences[0].sequence == candidate_seqs[1]
+        assert segment.candidate_sequences[1].sequence == candidate_seqs[1]
+        assert segment.candidate_sequences[2].sequence == candidate_seqs[1]
+        assert segment.candidate_sequences[3].sequence == candidate_seqs[4]
+        assert segment.candidate_sequences[4].sequence == candidate_seqs[4]
+        assert segment.candidate_sequences[5].sequence == candidate_seqs[4]
+        
+        # Verify running prompts updated
         assert len(optimizer.running_prompts) == 2
-        assert optimizer.running_prompts[0] == "GGGG" + new_tokens[1]  # From beam 0, candidate 1
-        assert optimizer.running_prompts[1] == "CCCC" + new_tokens[4]  # From beam 1, candidate 4
+        assert optimizer.running_prompts[0] == "GGGG" + candidate_seqs[1]
+        assert optimizer.running_prompts[1] == "CCCC" + candidate_seqs[4]
     
-    def test_beam_tracking_correctness(self):
-        """Test that beam indices correctly track parent beams."""
+    def test_beam_tracking_with_multiple_beams(self):
+        """Test beam tracking correctness with 3 beams."""
         segment = create_segment("")
         
         construct = Construct([segment])
@@ -327,7 +302,7 @@ class TestUpdateRunningPrompts:
             scoring_function=lambda seq, **kwargs: 0.0,
             scoring_function_config={}
         )
-        config = BeamSearchOptimizerConfig(beam_width=3, num_candidates=3)
+        config = BeamSearchOptimizerConfig(beam_width=3, candidates_per_beam=3)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -336,7 +311,7 @@ class TestUpdateRunningPrompts:
             config=config
         )
         
-        # Create candidates and set sequences (beam search creates these during sample())
+        # Create candidates
         segment.create_candidates(9)  # 3 beams * 3 candidates
         candidate_seqs = ["AAAA", "AAAT", "AATA", "AATT", "ATAA", "ATAT", "ATTA", "ATTT", "TAAA"]
         for i, seq in enumerate(segment.candidate_sequences):
@@ -345,119 +320,22 @@ class TestUpdateRunningPrompts:
         optimizer.running_prompts = ["GGGG", "CCCC", "TTTT"]
         beam_indices = [0, 0, 0, 1, 1, 1, 2, 2, 2]
         
-        # Select one from each beam
-        top_idx = [2, 4, 8]  # Last candidate from each beam (indices 2, 4, 8)
+        # Select one from each beam (indices 2, 4, 8)
+        optimizer.energy_scores = [5.0, 4.0, 1.0, 6.0, 2.0, 5.0, 7.0, 8.0, 3.0]
         
-        optimizer._update_running_prompts(segment, top_idx, beam_indices)
+        top_idx = optimizer._select_topk(segment, beam_indices)
         
-        # Each prompt should be extended with the corresponding candidate sequence
-        assert optimizer.running_prompts[0] == "GGGG" + candidate_seqs[2]  # Beam 0 + AATA
-        assert optimizer.running_prompts[1] == "CCCC" + candidate_seqs[4]  # Beam 1 + ATAA
-        assert optimizer.running_prompts[2] == "TTTT" + candidate_seqs[8]  # Beam 2 + TAAA
-
-
-class TestPopulatePreviousSegments:
-    """Test _populate_previous_segments_for_scoring helper method."""
-    
-    def test_single_previous_segment(self):
-        """Test population with one previous segment."""
-        seg1 = create_segment("A")
-        seg2 = create_segment("T")
-        construct = Construct([seg1, seg2])
+        # Should select indices 2, 4, 8 (lowest energies)
+        assert set(top_idx) == {2, 4, 8}
         
-        generator = MockAutoregressiveGenerator(sequence_length=1)
-        generator.assign(seg1)
-        generator.assign(seg2)
-        
-        constraint = Constraint(
-            inputs=[seg1],
-            scoring_function=lambda seq, **kwargs: 0.0,
-            scoring_function_config={}
-        )
-        
-        config = BeamSearchOptimizerConfig(beam_width=2, num_candidates=3)
-        optimizer = BeamSearchOptimizer(
-            construct=construct,
-            generator=generator,
-            prompt="",
-            constraints=[constraint],
-            config=config
-        )
-        
-        # Simulate segment 1 processing complete with selected sequences (valid DNA)
-        seg1.selected_sequences = [
-            Segment(sequence="AAAA", sequence_type=SequenceType.DNA).selected_sequences[0],
-            Segment(sequence="TTTT", sequence_type=SequenceType.DNA).selected_sequences[0]
-        ]
-        
-        # Now processing segment 2
-        seg2.create_candidates(6)  # 2 * 3
-        
-        optimizer._populate_previous_segments_for_scoring(1)
-        
-        # Seg1 should now have 6 candidates (2 selected * 3 replication)
-        assert len(seg1.candidate_sequences) == 6
-        assert seg1.candidate_sequences[0].sequence == "AAAA"
-        assert seg1.candidate_sequences[1].sequence == "AAAA"
-        assert seg1.candidate_sequences[2].sequence == "AAAA"
-        assert seg1.candidate_sequences[3].sequence == "TTTT"
-        assert seg1.candidate_sequences[4].sequence == "TTTT"
-        assert seg1.candidate_sequences[5].sequence == "TTTT"
-    
-    def test_multiple_previous_segments(self):
-        """Test population with multiple previous segments."""
-        seg1 = create_segment("A")
-        seg2 = create_segment("T")
-        seg3 = create_segment("C")
-        construct = Construct([seg1, seg2, seg3])
-        
-        generator = MockAutoregressiveGenerator(sequence_length=1)
-        for seg in [seg1, seg2, seg3]:
-            generator.assign(seg)
-        
-        constraint = Constraint(
-            inputs=[seg1],
-            scoring_function=lambda seq, **kwargs: 0.0,
-            scoring_function_config={}
-        )
-        
-        config = BeamSearchOptimizerConfig(beam_width=2, num_candidates=2)
-        optimizer = BeamSearchOptimizer(
-            construct=construct,
-            generator=generator,
-            prompt="",
-            constraints=[constraint],
-            config=config
-        )
-        
-        # Simulate segments 1 and 2 complete (valid DNA)
-        seg1.selected_sequences = [
-            Segment(sequence="A", sequence_type=SequenceType.DNA).selected_sequences[0],
-            Segment(sequence="C", sequence_type=SequenceType.DNA).selected_sequences[0]
-        ]
-        seg2.selected_sequences = [
-            Segment(sequence="G", sequence_type=SequenceType.DNA).selected_sequences[0],
-            Segment(sequence="T", sequence_type=SequenceType.DNA).selected_sequences[0]
-        ]
-        
-        # Processing segment 3
-        seg3.create_candidates(4)  # 2 * 2
-        
-        optimizer._populate_previous_segments_for_scoring(2)
-        
-        # Both seg1 and seg2 should be populated
-        assert len(seg1.candidate_sequences) == 4
-        assert len(seg2.candidate_sequences) == 4
-        
-        # Check replication pattern for seg1
-        assert seg1.candidate_sequences[0].sequence == "A"
-        assert seg1.candidate_sequences[1].sequence == "A"
-        assert seg1.candidate_sequences[2].sequence == "C"
-        assert seg1.candidate_sequences[3].sequence == "C"
+        # Verify prompts extended correctly based on beam tracking
+        assert optimizer.running_prompts[0] == "GGGG" + candidate_seqs[2]
+        assert optimizer.running_prompts[1] == "CCCC" + candidate_seqs[4]
+        assert optimizer.running_prompts[2] == "TTTT" + candidate_seqs[8]
 
 
 class TestScoreEnergyFiltered:
-    """Test _score_energy_filtered constraint filtering logic."""
+    """Test _score_energy_active_constraints constraint filtering logic."""
     
     def test_single_segment_constraint(self):
         """Test with constraint on only current segment."""
@@ -473,7 +351,7 @@ class TestScoreEnergyFiltered:
             scoring_function_config=GCContentConfig(min_gc=40.0, max_gc=60.0)
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=2, num_candidates=3, verbose=False)
+        config = BeamSearchOptimizerConfig(beam_width=2, candidates_per_beam=3, verbose=False)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -486,7 +364,7 @@ class TestScoreEnergyFiltered:
         for seq in segment.candidate_sequences:
             seq.sequence = "GCGCGCGC"  # 100% GC
         
-        optimizer._score_energy_filtered()
+        optimizer._score_energy_active_constraints()
         
         assert len(optimizer.energy_scores) == 6
         assert all(isinstance(e, float) for e in optimizer.energy_scores)
@@ -508,7 +386,7 @@ class TestScoreEnergyFiltered:
             scoring_function_config=GCContentConfig(min_gc=40.0, max_gc=60.0)
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=2, num_candidates=3, verbose=False)
+        config = BeamSearchOptimizerConfig(beam_width=2, candidates_per_beam=3, verbose=False)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -522,8 +400,7 @@ class TestScoreEnergyFiltered:
         # seg2 has no candidates yet (beam search processes segments sequentially)
         seg2.candidate_sequences = []
         
-        optimizer._populate_previous_segments_for_scoring(0)
-        optimizer._score_energy_filtered()
+        optimizer._score_energy_active_constraints()
         
         # Should assign zero energy to all candidates since constraint requires seg2
         assert len(optimizer.energy_scores) == 6, f"Expected 6 scores, got {len(optimizer.energy_scores)}"
@@ -551,7 +428,7 @@ class TestScoreEnergyFiltered:
             scoring_function_config=GCContentConfig(min_gc=40.0, max_gc=60.0)
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=2, num_candidates=2, verbose=False)
+        config = BeamSearchOptimizerConfig(beam_width=2, candidates_per_beam=2, verbose=False)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -566,8 +443,7 @@ class TestScoreEnergyFiltered:
         for seq in seg1.candidate_sequences:
             seq.sequence = "GC"
         
-        optimizer._populate_previous_segments_for_scoring(0)
-        optimizer._score_energy_filtered()
+        optimizer._score_energy_active_constraints()
         
         # Should only apply constraint1 (only on seg1)
         assert len(optimizer.energy_scores) == 4
@@ -592,7 +468,7 @@ class TestBeamSearchIntegration:
             scoring_function_config={}
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=2, num_candidates=3, verbose=False)
+        config = BeamSearchOptimizerConfig(beam_width=2, candidates_per_beam=3, verbose=False)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -603,7 +479,7 @@ class TestBeamSearchIntegration:
         
         # Set random seed for reproducibility
         np.random.seed(42)
-        optimizer.sample()
+        optimizer.run()
         
         # Should have 2 selected sequences (beam_width)
         assert len(segment.selected_sequences) == 2
@@ -627,7 +503,7 @@ class TestBeamSearchIntegration:
             scoring_function_config={}
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=3, num_candidates=4, verbose=False)
+        config = BeamSearchOptimizerConfig(beam_width=3, candidates_per_beam=4, verbose=False)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -637,7 +513,7 @@ class TestBeamSearchIntegration:
         )
         
         np.random.seed(42)
-        optimizer.sample()
+        optimizer.run()
         
         # Each segment should have beam_width selected sequences
         for seg in [seg1, seg2, seg3]:
@@ -672,7 +548,7 @@ class TestBeamSearchIntegration:
             scoring_function_config={}
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=2, num_candidates=2, verbose=False)
+        config = BeamSearchOptimizerConfig(beam_width=2, candidates_per_beam=2, verbose=False)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -681,7 +557,7 @@ class TestBeamSearchIntegration:
             config=config
         )
         
-        optimizer.sample()
+        optimizer.run()
         
         # After segment 1, prompts should be "GGGG" + "A"
         # After segment 2, prompts should be "GGGG" + "A" + "A"
@@ -716,7 +592,7 @@ class TestBeamSearchIntegration:
             scoring_function_config=SequenceLengthConfig(target_length=10)
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=3, num_candidates=5, verbose=False)
+        config = BeamSearchOptimizerConfig(beam_width=3, candidates_per_beam=5, verbose=False)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -727,7 +603,7 @@ class TestBeamSearchIntegration:
         )
         
         np.random.seed(42)
-        optimizer.sample()
+        optimizer.run()
         
         assert len(segment.selected_sequences) == 3
         assert all(len(seq.sequence) == 10 for seq in segment.selected_sequences)
@@ -757,7 +633,7 @@ class TestBeamSearchIntegration:
             scoring_function_config={}
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=2, num_candidates=3, verbose=True)
+        config = BeamSearchOptimizerConfig(beam_width=2, candidates_per_beam=3, verbose=True)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -768,7 +644,7 @@ class TestBeamSearchIntegration:
         
         np.random.seed(42)
         # This should work without errors
-        optimizer.sample()
+        optimizer.run()
         
         # All segments should have beam_width selected sequences
         for seg in [seg1, seg2, seg3]:
@@ -792,7 +668,7 @@ class TestBeamSearchEdgeCases:
             scoring_function_config={}
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=1, num_candidates=10, verbose=False)
+        config = BeamSearchOptimizerConfig(beam_width=1, candidates_per_beam=10, verbose=False)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -802,7 +678,7 @@ class TestBeamSearchEdgeCases:
         )
         
         np.random.seed(42)
-        optimizer.sample()
+        optimizer.run()
         
         assert len(segment.selected_sequences) == 1
         assert len(optimizer.running_prompts) == 1
@@ -821,7 +697,7 @@ class TestBeamSearchEdgeCases:
             scoring_function_config={}
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=2, num_candidates=3, verbose=False)
+        config = BeamSearchOptimizerConfig(beam_width=2, candidates_per_beam=3, verbose=False)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -833,7 +709,7 @@ class TestBeamSearchEdgeCases:
         assert all(p == "" for p in optimizer.running_prompts)
         
         np.random.seed(42)
-        optimizer.sample()
+        optimizer.run()
         
         # Should work fine with empty initial prompt
         assert len(segment.selected_sequences) == 2
@@ -852,7 +728,7 @@ class TestBeamSearchEdgeCases:
             scoring_function_config={}
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=50, num_candidates=2, verbose=False)
+        config = BeamSearchOptimizerConfig(beam_width=50, candidates_per_beam=2, verbose=False)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -862,7 +738,7 @@ class TestBeamSearchEdgeCases:
         )
         
         np.random.seed(42)
-        optimizer.sample()
+        optimizer.run()
         
         assert len(segment.selected_sequences) == 50
         assert len(optimizer.running_prompts) == 50
@@ -882,7 +758,7 @@ class TestBeamSearchEdgeCases:
             scoring_function_config={}
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=3, num_candidates=4, verbose=False)
+        config = BeamSearchOptimizerConfig(beam_width=3, candidates_per_beam=4, verbose=False)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -892,7 +768,7 @@ class TestBeamSearchEdgeCases:
         )
         
         np.random.seed(42)
-        optimizer.sample()
+        optimizer.run()
         
         # Should still select beam_width sequences (arbitrary which ones)
         assert len(segment.selected_sequences) == 3
@@ -916,7 +792,7 @@ class TestBeamSearchEdgeCases:
             scoring_function_config={}
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=4, num_candidates=5, verbose=False)
+        config = BeamSearchOptimizerConfig(beam_width=4, candidates_per_beam=5, verbose=False)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -926,7 +802,7 @@ class TestBeamSearchEdgeCases:
         )
         
         np.random.seed(42)
-        optimizer.sample()
+        optimizer.run()
         
         # Get top sequences
         top_seqs = construct.joined_sequences
@@ -953,7 +829,7 @@ class TestBeamSearchVerboseOutput:
             scoring_function_config={}
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=2, num_candidates=3, verbose=True)
+        config = BeamSearchOptimizerConfig(beam_width=2, candidates_per_beam=3, verbose=True)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -964,7 +840,7 @@ class TestBeamSearchVerboseOutput:
         
         np.random.seed(42)
         # Should not crash with verbose=True
-        optimizer.sample()
+        optimizer.run()
         
         assert len(segment.selected_sequences) == 2
     
@@ -983,7 +859,7 @@ class TestBeamSearchVerboseOutput:
         )
         
         # Small enough to trigger detailed printing (<= 10)
-        config = BeamSearchOptimizerConfig(beam_width=2, num_candidates=3, verbose=True)
+        config = BeamSearchOptimizerConfig(beam_width=2, candidates_per_beam=3, verbose=True)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -993,7 +869,7 @@ class TestBeamSearchVerboseOutput:
         )
         
         np.random.seed(42)
-        optimizer.sample()
+        optimizer.run()
         
         assert len(segment.selected_sequences) == 2
 
@@ -1025,7 +901,7 @@ class TestBeamSearchConstraintInteraction:
             scoring_function_config=GCContentConfig(min_gc=30.0, max_gc=70.0)
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=3, num_candidates=4, verbose=False)
+        config = BeamSearchOptimizerConfig(beam_width=3, candidates_per_beam=4, verbose=False)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -1035,7 +911,7 @@ class TestBeamSearchConstraintInteraction:
         )
         
         np.random.seed(42)
-        optimizer.sample()
+        optimizer.run()
         
         assert len(seg1.selected_sequences) == 3
         assert len(seg2.selected_sequences) == 3
@@ -1059,7 +935,7 @@ class TestBeamSearchConstraintInteraction:
             concatenate=True
         )
         
-        config = BeamSearchOptimizerConfig(beam_width=2, num_candidates=5, verbose=False)
+        config = BeamSearchOptimizerConfig(beam_width=2, candidates_per_beam=5, verbose=False)
         optimizer = BeamSearchOptimizer(
             construct=construct,
             generator=generator,
@@ -1069,7 +945,7 @@ class TestBeamSearchConstraintInteraction:
         )
         
         np.random.seed(42)
-        optimizer.sample()
+        optimizer.run()
         
         # All segments should be processed
         for seg in [seg1, seg2, seg3]:
@@ -1088,30 +964,30 @@ class TestBeamSearchConfigValidation:
         from pydantic import ValidationError
         
         with pytest.raises(ValidationError):
-            BeamSearchOptimizerConfig(beam_width=0, num_candidates=5)
+            BeamSearchOptimizerConfig(beam_width=0, candidates_per_beam=5)
         
         with pytest.raises(ValidationError):
-            BeamSearchOptimizerConfig(beam_width=-1, num_candidates=5)
+            BeamSearchOptimizerConfig(beam_width=-1, candidates_per_beam=5)
     
-    def test_invalid_num_candidates(self):
-        """Test that invalid num_candidates raises error."""
+    def test_invalid_candidates_per_beam(self):
+        """Test that invalid candidates_per_beam raises error."""
         from pydantic import ValidationError
         
         with pytest.raises(ValidationError):
-            BeamSearchOptimizerConfig(beam_width=2, num_candidates=0)
+            BeamSearchOptimizerConfig(beam_width=2, candidates_per_beam=0)
         
         with pytest.raises(ValidationError):
-            BeamSearchOptimizerConfig(beam_width=2, num_candidates=-5)
+            BeamSearchOptimizerConfig(beam_width=2, candidates_per_beam=-5)
     
     def test_valid_config_values(self):
         """Test that valid configurations are accepted."""
-        config1 = BeamSearchOptimizerConfig(beam_width=1, num_candidates=1)
+        config1 = BeamSearchOptimizerConfig(beam_width=1, candidates_per_beam=1)
         assert config1.beam_width == 1
-        assert config1.num_candidates == 1
+        assert config1.candidates_per_beam == 1
         
-        config2 = BeamSearchOptimizerConfig(beam_width=100, num_candidates=100)
+        config2 = BeamSearchOptimizerConfig(beam_width=100, candidates_per_beam=100)
         assert config2.beam_width == 100
-        assert config2.num_candidates == 100
+        assert config2.candidates_per_beam == 100
         
-        config3 = BeamSearchOptimizerConfig(beam_width=5, num_candidates=10, verbose=False)
+        config3 = BeamSearchOptimizerConfig(beam_width=5, candidates_per_beam=10, verbose=False)
         assert config3.verbose is False

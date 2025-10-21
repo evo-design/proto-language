@@ -70,25 +70,25 @@ def _setup_mcmc_components(
     if num_candidates is not None:
         config.num_candidates = num_candidates
 
-    mcmc_gen = MCMCOptimizer(
+    optimizer = MCMCOptimizer(
         constructs=[construct],
         generators=[proposal_gen],
         constraints=[constraint],
         config=config,
     )
-    return mcmc_gen, proposal_gen, constraint, segment
+    return optimizer, proposal_gen, constraint, segment
 
 
 class TestMCMCOptimizer:
     def test_initialization_and_validation(self):
         """Tests successful initialization and validation of MCMCOptimizer."""
-        mcmc_gen, proposal_gen, constraint, segment = _setup_mcmc_components()
+        optimizer, proposal_gen, constraint, segment = _setup_mcmc_components()
 
-        assert mcmc_gen.generators == [proposal_gen]
-        assert mcmc_gen.constraints == [constraint]
-        assert mcmc_gen.constraint_weights == [1.0]
-        assert mcmc_gen.num_selected == 1
-        assert mcmc_gen.num_candidates == 1  # Defaults to num_selected
+        assert optimizer.generators == [proposal_gen]
+        assert optimizer.constraints == [constraint]
+        assert optimizer.constraint_weights == [1.0]
+        assert optimizer.num_selected == 1
+        assert optimizer.num_candidates == 1  # Defaults to num_selected
 
         # Test validation errors - unassigned generator
         unassigned_gen = UniformMutationGenerator(
@@ -111,9 +111,9 @@ class TestMCMCOptimizer:
         # Mismatched weights and constraints
         with pytest.raises(ValueError, match="must match"):
             MCMCOptimizer(
-                constructs=mcmc_gen.constructs,
-                generators=mcmc_gen.generators,
-                constraints=mcmc_gen.constraints,
+                constructs=optimizer.constructs,
+                generators=optimizer.generators,
+                constraints=optimizer.constraints,
                 constraint_weights=[1.0, 2.0],
                 config=MCMCOptimizerConfig(),
             )
@@ -141,36 +141,36 @@ class TestMCMCOptimizer:
 
     def test_score_energy(self):
         """Tests the score_energy method."""
-        mcmc_gen, _, _, segment = _setup_mcmc_components(gc_target_range=(40.0, 60.0))
+        optimizer, _, _, segment = _setup_mcmc_components(gc_target_range=(40.0, 60.0))
 
         # Test with a sequence within target GC range
         segment.candidate_sequences[0].sequence = "GCGCGAATTA"  # 50% GC
-        mcmc_gen.score_energy()
-        assert len(mcmc_gen.energy_scores) == 1
-        assert mcmc_gen.energy_scores[0] == 0.0
+        optimizer.score_energy()
+        assert len(optimizer.energy_scores) == optimizer.num_candidates
+        assert optimizer.energy_scores[0] == 0.0
 
         # Test with a sequence below target range
         segment.candidate_sequences[0].sequence = "GCTTAATTAA"  # 20% GC
-        mcmc_gen.score_energy()
+        optimizer.score_energy()
         expected_score = (40.0 - 20.0) / 40.0  # 0.5
-        assert abs(mcmc_gen.energy_scores[0] - expected_score) < 1e-9
+        assert abs(optimizer.energy_scores[0] - expected_score) < 1e-9
 
     def test_score_energy_multiply(self):
         """Tests the score_energy method with operation='multiply'."""
-        mcmc_gen, _, _, segment = _setup_mcmc_components(gc_target_range=(40.0, 60.0))
+        optimizer, _, _, segment = _setup_mcmc_components(gc_target_range=(40.0, 60.0))
         segment.candidate_sequences[0].sequence = "GCTTAATTAA"  # 20% GC -> score 0.5
 
         # With one constraint, multiply and add should be the same
-        mcmc_gen.score_energy(operation="add")
-        energy_add = mcmc_gen.energy_scores[0]
-        mcmc_gen.score_energy(operation="multiply")
-        energy_mul = mcmc_gen.energy_scores[0]
+        optimizer.score_energy(operation="add")
+        energy_add = optimizer.energy_scores[0]
+        optimizer.score_energy(operation="multiply")
+        energy_mul = optimizer.energy_scores[0]
         assert abs(energy_add - 0.5) < 1e-9
         assert abs(energy_mul - 0.5) < 1e-9
 
     def test_sample_improves_energy(self):
         """Tests that sampling can improve the energy score over time."""
-        mcmc_gen, _, _, segment = _setup_mcmc_components(
+        optimizer, _, _, segment = _setup_mcmc_components(
             seq_length=50,
             gc_target_range=(80.0, 90.0),  # Encourage high GC
             num_mcmc_steps=100,
@@ -182,20 +182,20 @@ class TestMCMCOptimizer:
             seq.sequence = initial_seq
         
         # Score initial state
-        for i in range(mcmc_gen.num_selected):
-            mcmc_gen.segments[0].candidate_sequences[i] = copy.deepcopy(
-                mcmc_gen.segments[0].selected_sequences[i]
+        for i in range(optimizer.num_selected):
+            optimizer.segments[0].candidate_sequences[i] = copy.deepcopy(
+                optimizer.segments[0].selected_sequences[i]
             )
-        mcmc_gen.score_energy()
-        initial_energy = mcmc_gen.energy_scores[0]
+        optimizer.score_energy()
+        initial_energy = optimizer.energy_scores[0]
         assert initial_energy > 0.99  # Should be max penalty
 
         # Sample and check for improvement
-        mcmc_gen.sample()
-        final_energy = min(mcmc_gen.energy_scores)
+        optimizer.run()
+        final_energy = min(optimizer.energy_scores)
 
         assert final_energy < initial_energy
-        assert len(mcmc_gen.history) > 1  # Check history is tracked
+        assert len(optimizer.history) > 1  # Check history is tracked
 
     def test_multiple_constraints(self):
         """Tests the MCMC Optimizer with multiple constraints and weights."""
@@ -214,7 +214,7 @@ class TestMCMCOptimizer:
             [segment], sequence_length_constraint, SequenceLengthConfig(target_length=seq_len)
         )
 
-        mcmc_gen = MCMCOptimizer(
+        optimizer = MCMCOptimizer(
             constructs=[construct],
             generators=[proposal_gen],
             constraints=[gc_con, len_con],
@@ -228,13 +228,13 @@ class TestMCMCOptimizer:
 
         # E = 1.0 * 1.0 + 2.0 * 0.333...
         expected_energy = gc_score * 1.0 + len_score * 2.0
-        mcmc_gen.score_energy("add")
-        assert abs(mcmc_gen.energy_scores[0] - expected_energy) < 1e-9
+        optimizer.score_energy("add")
+        assert abs(optimizer.energy_scores[0] - expected_energy) < 1e-9
 
         # Test multiply operation
         expected_energy_mul = (gc_score * 1.0) * (len_score * 2.0)
-        mcmc_gen.score_energy("multiply")
-        assert abs(mcmc_gen.energy_scores[0] - expected_energy_mul) < 1e-9
+        optimizer.score_energy("multiply")
+        assert abs(optimizer.energy_scores[0] - expected_energy_mul) < 1e-9
 
     def test_with_multiple_generators(self):
         """Tests MCMC with more than one proposal generator."""
@@ -258,7 +258,7 @@ class TestMCMCOptimizer:
             scoring_function_config=SequenceLengthConfig(target_length=seq_len * 2),
         )
 
-        mcmc_gen = MCMCOptimizer(
+        optimizer = MCMCOptimizer(
             constructs=[construct],
             generators=[mut_gen, inv_gen],
             constraints=[constraint],
@@ -268,7 +268,7 @@ class TestMCMCOptimizer:
         initial_seq1 = segment1[0].sequence
         initial_seq2 = segment2[0].sequence
 
-        mcmc_gen.sample()
+        optimizer.run()
 
         final_seq1 = segment1[0].sequence
         final_seq2 = segment2[0].sequence
@@ -278,15 +278,15 @@ class TestMCMCOptimizer:
 
     def test_topk_initialization(self):
         """Tests initialization of top-k MCMC with num_selected > 1."""
-        mcmc_gen, _, _, _ = _setup_mcmc_components(
+        optimizer, _, _, _ = _setup_mcmc_components(
             num_selected=3, num_candidates=10
         )
 
-        assert mcmc_gen.num_selected == 3
+        assert optimizer.num_selected == 3
         # mcmc_width is the number of proposals per selected sequence
-        assert mcmc_gen.mcmc_width == 10
+        assert optimizer.mcmc_width == 10
         # num_candidates is the total pool size (num_selected * mcmc_width)
-        assert mcmc_gen.num_candidates == 30
+        assert optimizer.num_candidates == 30
 
     def test_topk_maintains_k_sequences(self):
         """Tests that top-k MCMC maintains exactly k sequences."""
@@ -307,7 +307,7 @@ class TestMCMCOptimizer:
             scoring_function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
         )
 
-        mcmc_gen = MCMCOptimizer(
+        optimizer = MCMCOptimizer(
             constructs=[construct],
             generators=[proposal_gen],
             constraints=[constraint],
@@ -321,10 +321,11 @@ class TestMCMCOptimizer:
             ),
         )
 
-        mcmc_gen.sample()
+        optimizer.run()
 
         # Should maintain num_selected sequences
-        assert len(mcmc_gen.energy_scores) == num_selected
+        # energy_scores is kept at constant length num_candidates (total pool size)
+        assert len(optimizer.energy_scores) == optimizer.num_candidates
         assert len(segment.selected_sequences) == num_selected
 
     def test_history_tracking(self):
@@ -334,21 +335,21 @@ class TestMCMCOptimizer:
         track_step_size = 10
         seq_length = 10
 
-        mcmc_gen, _, _, _ = _setup_mcmc_components(
+        optimizer, _, _, _ = _setup_mcmc_components(
             seq_length=seq_length,
             num_selected=num_selected,
             num_mcmc_steps=num_steps,
         )
-        mcmc_gen.track_step_size = track_step_size
+        optimizer.track_step_size = track_step_size
 
-        mcmc_gen.sample()
+        optimizer.run()
 
         # History should have snapshots: 0 (initial), 10, 20, 30 (final)
         expected_snapshots = 4
-        assert len(mcmc_gen.history) == expected_snapshots
+        assert len(optimizer.history) == expected_snapshots
 
         # Each history entry should have proper structure
-        for entry in mcmc_gen.history:
+        for entry in optimizer.history:
             assert "time_step" in entry
             assert "energy_scores" in entry
             assert "constructs" in entry
@@ -360,16 +361,16 @@ class TestMCMCOptimizer:
         num_steps = 35
         track_step_size = 10
 
-        mcmc_gen, _, _, _ = _setup_mcmc_components(
+        optimizer, _, _, _ = _setup_mcmc_components(
             num_selected=num_selected, num_mcmc_steps=num_steps
         )
-        mcmc_gen.track_step_size = track_step_size
+        optimizer.track_step_size = track_step_size
 
-        mcmc_gen.sample()
+        optimizer.run()
 
         # Expected timesteps: 0 (initial), 10, 20, 30, 35 (final)
         expected_timesteps = [0, 10, 20, 30, 35]
-        actual_timesteps = [entry["time_step"] for entry in mcmc_gen.history]
+        actual_timesteps = [entry["time_step"] for entry in optimizer.history]
 
         assert actual_timesteps == expected_timesteps
 
@@ -383,15 +384,15 @@ class TestMCMCOptimizer:
         temperature = 10.0
         temperature_min = 0.01
 
-        mcmc_gen, _, _, _ = _setup_mcmc_components(num_mcmc_steps=num_steps)
-        mcmc_gen.temperature = temperature
-        mcmc_gen.temperature_min = temperature_min
-        mcmc_gen.num_steps = num_steps
+        optimizer, _, _, _ = _setup_mcmc_components(num_mcmc_steps=num_steps)
+        optimizer.temperature = temperature
+        optimizer.temperature_min = temperature_min
+        optimizer.num_steps = num_steps
 
         # Test temperature at key steps
-        step_1_temp = mcmc_gen._calculate_temperature(1)
-        step_50_temp = mcmc_gen._calculate_temperature(50)
-        step_100_temp = mcmc_gen._calculate_temperature(100)
+        step_1_temp = optimizer._compute_temperature(1)
+        step_50_temp = optimizer._compute_temperature(50)
+        step_100_temp = optimizer._compute_temperature(100)
 
         # Step 1 should be exactly T_max
         assert abs(step_1_temp - temperature) < 1e-10
@@ -404,7 +405,7 @@ class TestMCMCOptimizer:
 
         # Temperatures should decrease monotonically
         temperatures = [
-            mcmc_gen._calculate_temperature(step) for step in range(1, num_steps + 1)
+            optimizer._compute_temperature(step) for step in range(1, num_steps + 1)
         ]
         for i in range(1, len(temperatures)):
             assert temperatures[i] <= temperatures[i - 1]
@@ -415,48 +416,48 @@ class TestMCMCOptimizer:
         temperature_min = 0.001
 
         # Test num_steps=1 (should return T_max)
-        mcmc_gen, _, _, _ = _setup_mcmc_components(num_mcmc_steps=1)
-        mcmc_gen.temperature = temperature
-        mcmc_gen.temperature_min = temperature_min
-        mcmc_gen.num_steps = 1
+        optimizer, _, _, _ = _setup_mcmc_components(num_mcmc_steps=1)
+        optimizer.temperature = temperature
+        optimizer.temperature_min = temperature_min
+        optimizer.num_steps = 1
 
-        step_1_temp = mcmc_gen._calculate_temperature(1)
+        step_1_temp = optimizer._compute_temperature(1)
         assert abs(step_1_temp - temperature) < 1e-10
 
         # Test num_steps=2 (should go from T_max to T_min)
-        mcmc_gen.num_steps = 2
-        step_1_temp = mcmc_gen._calculate_temperature(1)
-        step_2_temp = mcmc_gen._calculate_temperature(2)
+        optimizer.num_steps = 2
+        step_1_temp = optimizer._compute_temperature(1)
+        step_2_temp = optimizer._compute_temperature(2)
 
         assert abs(step_1_temp - temperature) < 1e-10
         assert abs(step_2_temp - temperature_min) < 1e-10
 
     def test_mcmc_acceptance_probability(self):
         """Tests Metropolis-Hastings acceptance probability computation."""
-        mcmc_gen, _, _, _ = _setup_mcmc_components()
+        optimizer, _, _, _ = _setup_mcmc_components()
 
         # Better proposal (lower energy) should always be accepted
-        alpha = mcmc_gen._compute_mcmc_acceptance_prob(1.0, 0.5, 1)
+        alpha = optimizer._compute_mcmc_acceptance_prob(1.0, 0.5, 1)
         assert alpha == 1.0
 
         # Equal energy should be accepted
-        alpha = mcmc_gen._compute_mcmc_acceptance_prob(0.5, 0.5, 1)
+        alpha = optimizer._compute_mcmc_acceptance_prob(0.5, 0.5, 1)
         assert alpha == 1.0
 
         # Worse proposal should have probability < 1
-        alpha = mcmc_gen._compute_mcmc_acceptance_prob(0.5, 1.0, 1)
+        alpha = optimizer._compute_mcmc_acceptance_prob(0.5, 1.0, 1)
         assert 0.0 < alpha < 1.0
 
     def test_overflow_protection(self):
         """Test that MAX_EXP_ARG prevents overflow in acceptance computation."""
-        mcmc_gen, _, _, _ = _setup_mcmc_components()
+        optimizer, _, _, _ = _setup_mcmc_components()
 
         # Very large energy improvement should be clamped to 1.0
-        alpha = mcmc_gen._compute_mcmc_acceptance_prob(1000.0, 0.0, 1)
+        alpha = optimizer._compute_mcmc_acceptance_prob(1000.0, 0.0, 1)
         assert alpha == 1.0
 
         # Very large energy increase should give very small probability
-        alpha = mcmc_gen._compute_mcmc_acceptance_prob(0.0, 1000.0, 1)
+        alpha = optimizer._compute_mcmc_acceptance_prob(0.0, 1000.0, 1)
         assert 0.0 <= alpha < 1e-10
 
     def test_energy_non_regression(self):
@@ -479,7 +480,7 @@ class TestMCMCOptimizer:
             scoring_function_config=GCContentConfig(min_gc=50.0, max_gc=50.0),
         )
 
-        mcmc_gen = MCMCOptimizer(
+        optimizer = MCMCOptimizer(
             constructs=[construct],
             generators=[proposal_gen],
             constraints=[constraint],
@@ -494,11 +495,11 @@ class TestMCMCOptimizer:
             ),
         )
 
-        mcmc_gen.sample()
+        optimizer.run()
 
         # Extract best energy at each step from history
         best_energies_over_time = [
-            min(entry["energy_scores"]) for entry in mcmc_gen.history
+            min(entry["energy_scores"]) for entry in optimizer.history
         ]
 
         # Best energy should never increase
@@ -530,7 +531,7 @@ class TestMCMCOptimizer:
             scoring_function_config={},
         )
 
-        mcmc_gen = MCMCOptimizer(
+        optimizer = MCMCOptimizer(
             constructs=[construct],
             generators=[proposal_gen],
             constraints=[constraint],
@@ -545,15 +546,15 @@ class TestMCMCOptimizer:
         )
 
         # Score initial state
-        for i in range(mcmc_gen.num_selected):
-            mcmc_gen.segments[0].candidate_sequences[i] = copy.deepcopy(
-                mcmc_gen.segments[0].selected_sequences[i]
+        for i in range(optimizer.num_selected):
+            optimizer.segments[0].candidate_sequences[i] = copy.deepcopy(
+                optimizer.segments[0].selected_sequences[i]
             )
-        mcmc_gen.score_energy()
-        initial_best_energy = min(mcmc_gen.energy_scores[:num_selected])
+        optimizer.score_energy()
+        initial_best_energy = min(optimizer.energy_scores[:num_selected])
 
-        mcmc_gen.sample()
-        final_best_energy = min(mcmc_gen.energy_scores)
+        optimizer.run()
+        final_best_energy = min(optimizer.energy_scores)
 
         # Should get significant improvement
         assert final_best_energy < initial_best_energy * 0.5
@@ -581,7 +582,7 @@ class TestMCMCOptimizer:
             scoring_function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
         )
 
-        mcmc_gen = MCMCOptimizer(
+        optimizer = MCMCOptimizer(
             constructs=[construct],
             generators=[proposal_gen],
             constraints=[constraint],
@@ -593,7 +594,7 @@ class TestMCMCOptimizer:
             custom_logging=custom_log,
         )
 
-        mcmc_gen.sample()
+        optimizer.run()
 
         expected_steps = [5, 10, 15, 20, 25]
         actual_steps = [call["step"] for call in log_calls]
@@ -619,7 +620,7 @@ class TestMCMCOptimizer:
             scoring_function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
         )
 
-        mcmc_gen1 = MCMCOptimizer(
+        optimizer1 = MCMCOptimizer(
             constructs=[construct1],
             generators=[proposal_gen1],
             constraints=[constraint1],
@@ -631,7 +632,7 @@ class TestMCMCOptimizer:
         captured_output1 = io.StringIO()
         sys.stdout = captured_output1
         try:
-            mcmc_gen1.sample()
+            optimizer1.run()
         finally:
             sys.stdout = sys.__stdout__
 
@@ -652,7 +653,7 @@ class TestMCMCOptimizer:
             scoring_function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
         )
 
-        mcmc_gen2 = MCMCOptimizer(
+        optimizer2 = MCMCOptimizer(
             constructs=[construct2],
             generators=[proposal_gen2],
             constraints=[constraint2],
@@ -664,7 +665,7 @@ class TestMCMCOptimizer:
         captured_output2 = io.StringIO()
         sys.stdout = captured_output2
         try:
-            mcmc_gen2.sample()
+            optimizer2.run()
         finally:
             sys.stdout = sys.__stdout__
 
@@ -696,7 +697,7 @@ class TestMCMCOptimizer:
             scoring_function_config={},
         )
 
-        mcmc_gen = MCMCOptimizer(
+        optimizer = MCMCOptimizer(
             constructs=[construct],
             generators=[proposal_gen],
             constraints=[constraint],
@@ -708,7 +709,7 @@ class TestMCMCOptimizer:
             ),
         )
 
-        mcmc_gen.sample()
+        optimizer.run()
 
         # Verify sequences are independent objects
         for i in range(len(segment.selected_sequences)):
@@ -743,7 +744,7 @@ class TestMCMCOptimizer:
             scoring_function_config=GCContentConfig(min_gc=45.0, max_gc=55.0),
         )
 
-        mcmc_gen = MCMCOptimizer(
+        optimizer = MCMCOptimizer(
             constructs=[construct],
             generators=[gen1, gen2],
             constraints=[gc_constraint],
@@ -755,8 +756,9 @@ class TestMCMCOptimizer:
             ),
         )
 
-        mcmc_gen.sample()
+        optimizer.run()
         
-        assert len(mcmc_gen.energy_scores) == num_selected
+        # energy_scores is kept at constant length num_candidates (total pool size)
+        assert len(optimizer.energy_scores) == optimizer.num_candidates
         assert len(segment1.selected_sequences) == num_selected
         assert len(segment2.selected_sequences) == num_selected

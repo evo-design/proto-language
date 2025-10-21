@@ -44,7 +44,7 @@ class TestTopKOptimizer:
 
         assert optimizer.rounds == 10
         assert optimizer.k == 5
-        assert optimizer.num_selected == 1
+        assert optimizer.num_selected == 5
         assert len(optimizer.constraints) == 1
         assert len(optimizer.generators) == 1
 
@@ -75,7 +75,7 @@ class TestTopKOptimizer:
             config=config,
         )
 
-        optimizer.sample()
+        optimizer.run()
 
         assert len(segment.selected_sequences) == 3
         assert len(optimizer.energy_scores) == 3
@@ -113,7 +113,7 @@ class TestTopKOptimizer:
             config=config,
         )
 
-        optimizer.sample()
+        optimizer.run()
 
         # Best candidate should have lower energy than worst
         best_energy = optimizer.energy_scores[0]
@@ -182,7 +182,7 @@ class TestTopKOptimizer:
             config=config,
         )
 
-        optimizer.sample()
+        optimizer.run()
 
         assert len(segment.selected_sequences) == 3
         assert len(optimizer.energy_scores) == 3
@@ -217,7 +217,7 @@ class TestTopKOptimizer:
             config=config,
         )
 
-        optimizer.sample()
+        optimizer.run()
 
         # All top-k sequences should differ from initial by only 1 mutation
         # (since each round starts fresh and applies 1 mutation)

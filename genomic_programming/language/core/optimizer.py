@@ -62,12 +62,12 @@ class Optimizer(ABC):
         return tuple(seg for construct in self.constructs for seg in construct.segments)
 
     @abstractmethod
-    def sample(self) -> None:
+    def run(self) -> None:
         """
         Subclasses should implement this method to run the optimization process.
         Implementations should modify generator outputs in-place.
         """
-        raise NotImplementedError("Subclasses must implement the sample method.")
+        raise NotImplementedError("Subclasses must implement the run method.")
 
     def score_energy(self, operation: str = "add") -> None:
         """

@@ -1,7 +1,5 @@
 """
-TopK Optimizer
-
-Optimizer that runs multiple independent sampling rounds and returns the top-k best constructs.
+TopK Optimizer that runs multiple independent sampling rounds and returns the top-k best constructs.
 """
 
 from typing import List, Optional, final
@@ -17,11 +15,7 @@ from .optimizer_registry import OptimizerRegistry
 
 
 class TopKOptimizerConfig(BaseConfig):
-    """Configuration for TopKOptimizer algorithm parameters.
-
-    The TopK optimizer runs multiple independent sampling rounds, where each round
-    applies all generators sequentially, then evaluates and keeps the top-k best.
-    """
+    """Configuration for TopKOptimizer"""
     rounds: int = Field(
         default=100,
         ge=1,
@@ -34,7 +28,7 @@ class TopKOptimizerConfig(BaseConfig):
         description="Number of top candidates to keep and return (must be <= rounds)"
     )
     verbose: bool = Field(
-        default=True,
+        default=False,
         description="Whether to print progress information"
     )
 
@@ -47,8 +41,6 @@ class TopKOptimizerConfig(BaseConfig):
 )
 @final
 class TopKOptimizer(Optimizer):
-    # Class attribute: Config class for this optimizer
-    config_class = TopKOptimizerConfig
     """
     TopK Optimizer for sequence optimization.
 
@@ -64,7 +56,6 @@ class TopKOptimizer(Optimizer):
     - Each round is independent, starting from the original constructs
 
     Examples:
-        Basic usage:
         >>> config = TopKOptimizerConfig(
         ...     rounds=100,      # Run 100 sampling rounds
         ...     k=10,            # Keep top 10 constructs
@@ -76,9 +67,11 @@ class TopKOptimizer(Optimizer):
         ...     config=config,
         ...     constraint_weights=[1.0, 2.0]
         ... )
-        >>> optimizer.sample()  # Runs 100 rounds, keeps best 10
+        >>> optimizer.run()  # Runs 100 rounds, keeps best 10
         >>> best_constructs = optimizer.constructs  # Contains top 10
     """
+    # Class attribute required by OptimizerRegistry
+    config_class = TopKOptimizerConfig
 
     def __init__(
         self,
@@ -109,13 +102,12 @@ class TopKOptimizer(Optimizer):
             generators=generators,
             constraints=constraints,
             num_candidates=1,
-            num_selected=1,
+            num_selected=config.k,
             constraint_weights=constraint_weights,
         )
-
-        # Store config
-        self.config = config
         self.rounds = config.rounds
+
+        # TODO: Remove this and use self.num_selected directly
         self.k = config.k
         self.verbose = config.verbose
 
@@ -124,16 +116,10 @@ class TopKOptimizer(Optimizer):
         # This keeps the worst (highest) energy at the root for easy replacement
         self.top_k_heap: List[tuple] = []
 
-        # Validate optimizer
-        self._validate_optimizer()
-
         if self.k > self.rounds:
-            raise ValueError(
-                f"k ({self.k}) cannot be greater than rounds ({self.rounds}). "
-                f"You can only select top-k from the {self.rounds} rounds."
-            )
+            raise ValueError(f"k ({self.k}) cannot be greater than rounds ({self.rounds}). There needs to be at least {self.k} rounds.")
 
-    def sample(self) -> None:
+    def run(self) -> None:
         """
         Execute TopK optimization through multiple sampling rounds.
 
@@ -151,28 +137,25 @@ class TopKOptimizer(Optimizer):
 
         # Run sampling rounds
         for round_idx in range(self.rounds):
-            # Reset candidate pool to original state at the start of each round
+            # 1. Reset candidate pool to original state at the start of each round
             for segment in self.segments:
                 segment.candidate_sequences[0] = copy.deepcopy(segment.original_sequence)
 
-            if self.verbose and (round_idx + 1) % max(1, self.rounds // 10) == 0:
-                print(f"  Round {round_idx + 1}/{self.rounds}")
-
-            # Sample each generator in sequence
+            # 2. Sample each generator in sequence
             for generator in self.generators:
                 generator.sample()
 
-            # Evaluate the constructs after all generators
+            # 3. Evaluate the constructs after all generators
             self.score_energy()
             energy = self.energy_scores[0]  # Only one (num_candidates=1)
 
-            # Save the resulting sequences from this round 
+            # 4. Save the resulting sequences from this round 
             round_sequences = {
                 id(segment): copy.deepcopy(segment.candidate_sequences[0])
                 for segment in self.segments
             }
 
-            # Maintain a max-heap of size k to track the k smallest energies
+            # 5. Maintain a max-heap of size k to track the k smallest energies
             if len(self.top_k_heap) < self.k:
                 # Haven't filled top-k yet, just add (negate energy for max-heap)
                 heapq.heappush(self.top_k_heap, (-energy, round_idx, round_sequences))
@@ -181,9 +164,12 @@ class TopKOptimizer(Optimizer):
                 # Replace the worst with this better one
                 heapq.heapreplace(self.top_k_heap, (-energy, round_idx, round_sequences))
 
-        # Convert heap to sorted list (best first: lowest energy to highest)
+        # 6. Convert heap to sorted list (best first: lowest energy to highest)
         # Sort by actual energy (un-negate the first element)
         top_k_list = sorted(self.top_k_heap, key=lambda x: -x[0])
+
+        # 7. Update constructs with top-k
+        self.set_topk_constructs(top_k_list)
 
         # Log statistics
         if self.verbose:
@@ -208,13 +194,9 @@ class TopKOptimizer(Optimizer):
                     for i, (neg_energy, round_idx, _) in enumerate(top_k_list):
                         energy = -neg_energy  # Un-negate to get actual energy
                         print(f"  Rank {i+1}: Energy={energy:.6f} (from round {round_idx + 1})")
+                print(f"\nTopK optimization complete. Returned {len(top_k_list)} best constructs.")
 
-        # Update constructs with top-k
-        self.set_topk_constructs(top_k_list)
-
-        if self.verbose:
-            print(f"\nTopK optimization complete. Returned {len(top_k_list)} best constructs.")
-
+    # TODO: Remove this method and use self.selected_sequences directly
     def set_topk_constructs(self, top_k_list: List[tuple]) -> None:
         """
         Set the top-k constructs to segments' selected_sequences pool.
@@ -228,7 +210,7 @@ class TopKOptimizer(Optimizer):
 
         # Build selected_sequences by appending top-k results
         energies = []
-        for i, (neg_energy, _round_idx, round_sequences) in enumerate(top_k_list):
+        for neg_energy, _, round_sequences in top_k_list:
             energy = -neg_energy  # Un-negate to get actual energy
             energies.append(energy)
 
@@ -239,6 +221,3 @@ class TopKOptimizer(Optimizer):
 
         # Update energy scores
         self.energy_scores = energies
-
-        # Update num_selected to k to reflect the number of results
-        self.num_selected = self.k

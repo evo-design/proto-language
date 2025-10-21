@@ -1,7 +1,5 @@
 """
-MCMC Optimizer
-
-Metropolis-Hastings MCMC optimizer for constraint-driven sequence optimization.
+Metropolis-Hastings MCMC Optimizer that uses multiple sub-generators as proposal distributions and constraints to define the energy function.
 """
 
 from typing import Any, Callable, Dict, List, Optional, Tuple, final
@@ -12,13 +10,12 @@ import sys
 import numpy as np
 from pydantic import Field, model_validator
 
-from ..core import Optimizer, Construct, Generator, Constraint, Sequence, Segment
+from ..core import Optimizer, Construct, Generator, Constraint, Sequence
 from proto_language.base_config import BaseConfig
 from .optimizer_registry import OptimizerRegistry
 
 # Maximum safe exponent for np.exp() to prevent overflow
 MAX_EXP_ARG = 700.0
-
 
 class MCMCOptimizerConfig(BaseConfig):
     """Configuration for MCMCOptimizer"""
@@ -39,7 +36,7 @@ class MCMCOptimizerConfig(BaseConfig):
     num_steps: int = Field(
         default=1,
         ge=1,
-        description="Number of MCMC steps per sample() call"
+        description="Number of MCMC steps per run() call"
     )
     temperature: float = Field(
         default=1.0,
@@ -57,7 +54,7 @@ class MCMCOptimizerConfig(BaseConfig):
         description="Interval for progress tracking"
     )
     verbose: bool = Field(
-        default=True,
+        default=False,
         description="Whether to print progress information"
     )
 
@@ -66,16 +63,11 @@ class MCMCOptimizerConfig(BaseConfig):
         """Validate cross-field constraints."""
         # Validate temperature_min < temperature for annealing
         if self.temperature_min >= self.temperature:
-            raise ValueError(
-                f"temperature_min ({self.temperature_min}) must be less than temperature ({self.temperature}) for annealing to work properly"
-            )
+            raise ValueError(f"temperature_min ({self.temperature_min}) must be less than temperature ({self.temperature}) for annealing to work properly")
 
         # Validate num_selected <= num_candidates for diversity (only if num_candidates is set)
         if self.num_candidates is not None and self.num_selected > self.num_candidates:
-            raise ValueError(
-                f"num_selected ({self.num_selected}) cannot be greater than num_candidates ({self.num_candidates}). "
-                f"This ensures enough proposal diversity."
-            )
+            raise ValueError(f"num_selected ({self.num_selected}) cannot be greater than num_candidates ({self.num_candidates}). This ensures enough proposal diversity.")
 
         return self
 
@@ -88,8 +80,6 @@ class MCMCOptimizerConfig(BaseConfig):
 )
 @final
 class MCMCOptimizer(Optimizer):
-    # Class attribute: Config class for this optimizer
-    config_class = MCMCOptimizerConfig
     """
     Metropolis-Hastings MCMC optimizer for constraint-driven sequence optimization.
 
@@ -116,26 +106,9 @@ class MCMCOptimizer(Optimizer):
         ...     config=config,
         ...     constraint_weights=[1.0, 2.0]
         ... )
-        >>> mcmc.sample()  # Uses default: num_selected=1, num_candidates=1
+        >>> mcmc.run()  # Uses default: num_selected=1, num_candidates=1
         >>> final_constructs = mcmc.constructs
 
-        Top-k MCMC optimization (default num_candidates):
-        >>> config = MCMCOptimizerConfig(
-        ...     num_selected=5,  # Maintain top-5 sequences
-        ...     # num_candidates defaults to 5 (same as num_selected)
-        ...     num_steps=100,
-        ...     temperature=1.0,
-        ... )
-        >>> mcmc_topk = MCMCOptimizer(
-        ...     constructs=constructs,
-        ...     generators=[mutation_gen],
-        ...     constraints=[energy_constraint],
-        ...     config=config
-        ... )
-        >>> # Each step generates 5 proposals per sequence (25 total proposals)
-        >>> mcmc_topk.sample()
-
-        Custom exploration strategy (explicit num_candidates):
         >>> config = MCMCOptimizerConfig(
         ...     num_selected=3,
         ...     num_candidates=20,  # Deep local search: 20 proposals per selected sequence
@@ -148,14 +121,16 @@ class MCMCOptimizer(Optimizer):
         ...     config=config
         ... )
         >>> # Each step generates 20 proposals per sequence (3 x 20 = 60 total proposals)
-        >>> mcmc_deep.sample()
+        >>> mcmc_deep.run()
     """
+    # Class attribute required by OptimizerRegistry
+    config_class = MCMCOptimizerConfig
 
     def __init__(
         self,
-        constructs: List['Construct'],
-        generators: List['Generator'],
-        constraints: List['Constraint'],
+        constructs: List[Construct],
+        generators: List[Generator],
+        constraints: List[Constraint],
         config: MCMCOptimizerConfig,
         constraint_weights: Optional[List[float]] = None,
         custom_logging: Optional[Callable] = None,
@@ -199,7 +174,7 @@ class MCMCOptimizer(Optimizer):
         self.custom_logging = custom_logging
         self.history: List[Dict[str, Any]] = []  # Each entry are deep copies: {"time_step": int, "energy_scores": List[float], "constructs": List[Construct]}
 
-    def sample(self) -> None:
+    def run(self) -> None:
         """
         Execute Metropolis-Hastings MCMC sampling for sequence optimization.
 
@@ -215,59 +190,62 @@ class MCMCOptimizer(Optimizer):
             - Total proposals per step: num_selected x mcmc_width
             - Snapshots of constructs at tracked timesteps are stored in self.history.
         """
-        # Initialize: Score initial sequences (all identical at start, so all scores will be the same)
+        # Score candidate_sequences to populate energy_scores with candidate_sequences copies of inital energy score
         self.score_energy()
-        # Keep only num_selected scores to align with selected_sequences
-        self.energy_scores = [self.energy_scores[0]] * self.num_selected
 
         if self.verbose:
             print(f"MCMC initialization:")
             print(f"  num_selected={self.num_selected}, mcmc_width={self.mcmc_width}")
-            print(f"  Initial energies: {[f'{e:.4f}' for e in self.energy_scores]}")
+            print(f"  Initial energy: {self.energy_scores[0]:.4f}")
             print()
 
         # Track initial state
-        self.history.append({
-            "time_step": 0,
-            "energy_scores": self.energy_scores.copy(),
-            "constructs": copy.deepcopy(self.constructs)
-        })
+        self._save_history_snapshot(time_step=0)
 
         # MCMC loop
         for step in range(1, self.num_steps + 1):
-            #1. Save state of selected sequences
+            #1. Save state of selected_sequences to revert if rejected by Metropolis-Hastings acceptance criterion
             old_selected_sequences = self._save_sequence_state()
 
-            # 2. Populate candidate_sequences by replicating each selected_sequence num_candidates times
+            # 2. Populate candidate_sequences by replicating each selected_sequence mcmc_width times
             self._populate_candidate_sequences()
 
-            # 3. Generate proposals (mutate candidate_sequences in-place) by randomly sampling a generator
+            # 3. Generate proposals for candidate_sequences in-place by randomly sampling a generator
             generator = random.choice(self.generators)
             generator.sample()
 
-            # 4. Score the candidate_sequences
-            self.score_energy() # energy_scores are now populated for all candidate_sequences energies
+            # 4. Score candidate_sequences
+            self.score_energy()
 
-            # 5. Apply MCMC acceptance and move top-k to selected_sequences
+            # 5. Metropolis-Hastings acceptance and update energy score, candidate_sequences, and selected_sequences state
             self._select_topk_with_mcmc_acceptance(step, old_selected_sequences)
 
             # Logging and history tracking
             if step % self.track_step_size == 0:
+                self._save_history_snapshot(time_step=step)
                 if self.verbose:
                     self._log_topk_progress(step)
-                self.history.append({
-                    "time_step": step,
-                    "energy_scores": self.energy_scores.copy(),
-                    "constructs": copy.deepcopy(self.constructs)
-                })
 
         # Track final state
         if self.num_steps % self.track_step_size != 0:
-            self.history.append({
-                "time_step": self.num_steps,
-                "energy_scores": self.energy_scores.copy(),
-                "constructs": copy.deepcopy(self.constructs)
-            })
+            self._save_history_snapshot(time_step=self.num_steps)
+
+    def _save_sequence_state(self) -> List[Tuple[Dict[int, Sequence], float]]:
+        """Save state of selected sequences.
+
+        Returns:
+            List of tuples, one per selected sequence, each containing:
+                - segments dict: {segment_id -> deepcopied Sequence object}
+                - energy: float (from first num_selected entries of energy_scores after sorting)
+        """
+        sequence_state = []
+        for selected_idx in range(self.num_selected):
+            segments_dict = {}
+            for segment in self.segments:
+                seg_id = id(segment)
+                segments_dict[seg_id] = copy.deepcopy(segment.selected_sequences[selected_idx])
+            sequence_state.append((segments_dict, self.energy_scores[selected_idx]))
+        return sequence_state
 
     def _populate_candidate_sequences(self) -> None:
         """Populate candidate_sequences by replicating each selected_sequence mcmc_width times.
@@ -281,41 +259,24 @@ class MCMCOptimizer(Optimizer):
                 for offset in range(self.mcmc_width):
                     segment.candidate_sequences[start_idx + offset] = copy.deepcopy(segment.selected_sequences[selected_idx])
 
-    def _save_sequence_state(self) -> List[Tuple[Dict[int, Sequence], float]]:
-        """Save state of selected sequences.
-
-        Returns:
-            List of tuples, one per selected sequence, each containing:
-                - segments dict: {segment_id -> deepcopied Sequence object}
-                - energy: float (aligned with selected_sequences)
-        """
-        sequence_state = []
-        for selected_idx in range(self.num_selected):
-            segments_dict = {}
-            for segment in self.segments:
-                seg_id = id(segment)
-                segments_dict[seg_id] = copy.deepcopy(segment.selected_sequences[selected_idx])
-            sequence_state.append((segments_dict, self.energy_scores[selected_idx]))
-        return sequence_state
-
     def _select_topk_with_mcmc_acceptance(
         self,
         step: int,
         old_selected_sequences: List[Tuple[Dict[int, Sequence], float]]
     ) -> None:
-        """Apply Metropolis-Hastings acceptance and move top-k to selected_sequences.
+        """Apply Metropolis-Hastings acceptance and sort candidates by energy in place.
 
         For each proposal in candidate_sequences:
-        1. Compute acceptance probability vs its old selected sequence
-        2. If rejected, restore old selected sequence to that candidate position
-        3. After all proposals evaluated, select top num_selected by energy
-        4. Move selected candidates to selected_sequences
+        1. Compute Metropolis-Hastings acceptance probability
+        2. If rejected, restore the old selected_sequence state
+        3. Sort candidate_sequences and energy_scores by energy in place
+        4. Copy top num_selected to selected_sequences
         
         Args:
             step: Current MCMC step for temperature annealing
-            old_selected_sequences: Saved state of selected sequences before proposals
+            old_selected_sequences: Saved state of selected_sequences before proposals
         """
-        # Process each selected sequence's proposals
+        # 1. Metropolis-Hastings acceptance for each selected sequence's proposals
         for selected_idx in range(self.num_selected):
             old_segments_dict, old_selected_energy = old_selected_sequences[selected_idx]
             start_idx = selected_idx * self.mcmc_width
@@ -332,69 +293,59 @@ class MCMCOptimizer(Optimizer):
                         segment.candidate_sequences[candidate_idx] = copy.deepcopy(old_segments_dict[seg_id])
                     self.energy_scores[candidate_idx] = old_selected_energy
 
-        # Select top-k candidates by energy and move to selected_sequences
-        top_k_idx = np.argsort(self.energy_scores)[:self.num_selected]
+        # 2. Sort candidate_sequences and energy_scores by energy in place
+        sorted_idx = np.argsort(self.energy_scores)
+        self.energy_scores = [self.energy_scores[idx] for idx in sorted_idx]
         for segment in self.segments:
-            segment.selected_sequences = [copy.deepcopy(segment.candidate_sequences[idx]) for idx in top_k_idx]
+            segment.candidate_sequences = [segment.candidate_sequences[idx] for idx in sorted_idx]
 
-        # Update energy_scores to match selected_sequences
-        self.energy_scores = [self.energy_scores[idx] for idx in top_k_idx]
+        # 3. Copy top num_selected to selected_sequences (copy by reference since _populate_candidate_sequences does deepcopy)
+        for segment in self.segments:
+            segment.selected_sequences = [segment.candidate_sequences[idx] for idx in range(self.num_selected)]
 
-    def _calculate_temperature(self, step: int) -> float:
-        """Calculate annealed temperature using exponential cooling schedule.
+    def _compute_temperature(self, step: int) -> float:
+        """Calculate annealed temperature: T(step) = T_max * (T_min/T_max)^((step-1)/(num_steps-1))
         
-        Formula: T(step) = T_max * (T_min/T_max)^((step-1)/(num_steps-1))
-        
-        This ensures:
-        - At step=1: T = T_max (start hot)
-        - At step=num_steps: T = T_min (end cold)
-        - Exponential decay between these bounds
-        
-        Args:
-            step: Current MCMC step (1-indexed, range: 1 to num_steps)
-            
-        Returns:
-            Temperature for the current step
-            
         Note:
-            For num_steps=1, returns T_max (no annealing).
-            The (step-1) term ensures proper boundary conditions since steps are 1-indexed.
+        - At step=1: T = T_max (start hot), at step=num_steps: T = T_min (end cold)
+        - Exponential decay between T_max and T_min
+        - (step-1) ensures proper boundary conditions since steps are 1-indexed (range: 1 to num_steps)
         """
-        # Handle division by 0 for num_steps=1
         if self.num_steps == 1:
             return self.temperature
-        return self.temperature * (self.temperature_min / self.temperature) ** ((step - 1) / (self.num_steps - 1))
+        else:
+            return self.temperature * (self.temperature_min / self.temperature) ** ((step - 1) / (self.num_steps - 1))
 
     def _compute_mcmc_acceptance_prob(self, current_energy: float, proposed_energy: float, step: int) -> float:
-        """Compute Metropolis-Hastings acceptance probability.
-        
-        Uses the standard MH acceptance criterion: alpha = min(1, exp(-(E_new - E_old) / T))
-        where lower energy is better (constraint scores: 0.0 = perfect, higher = worse).
-        
-        This always accepts improvements (proposed_energy < current_energy) and accepts
-        worse proposals with probability exp(-(ΔE / T)) where ΔE = proposed - current.
-        
-        Args:
-            current_energy: Energy of current state (lower is better)
-            proposed_energy: Energy of proposed state (lower is better)
-            step: Current MCMC step for temperature annealing
-            
-        Returns:
-            Acceptance probability in [0, 1]
+        """Compute Metropolis-Hastings acceptance probability: alpha = min(1, exp(-(E_new - E_old) / T))
+
+        Note:
+        - Always accepts improvements (proposed_energy < current_energy)
+        - Accepts worse proposals with probability exp(-(ΔE / T)) where ΔE = proposed - current
         """
-        temperature = self._calculate_temperature(step)
+        temperature = self._compute_temperature(step)
         log_acceptance_ratio = -(proposed_energy - current_energy) / temperature
         # Cap to prevent overflow in exp()
         log_acceptance_ratio = min(log_acceptance_ratio, MAX_EXP_ARG)
         return min(1.0, np.exp(log_acceptance_ratio))
 
+    def _save_history_snapshot(self, time_step: int) -> None:
+        """Save snapshot of current state to history"""
+        self.history.append({
+            "time_step": time_step,
+            "energy_scores": self.energy_scores[:self.num_selected].copy(),
+            "constructs": copy.deepcopy(self.constructs)
+        })
+
     def _log_topk_progress(self, step: int) -> None:
         """Log optimization progress"""
-        best_energy = min(self.energy_scores)
-        mean_energy = np.mean(self.energy_scores)
-        worst_energy = max(self.energy_scores)
-        std_energy = np.std(self.energy_scores) if len(self.energy_scores) > 1 else 0.0
-        current_temp = self._calculate_temperature(step)
+        # Use first num_selected energies (after sorting, these are the selected sequences)
+        selected_energies = self.energy_scores[:self.num_selected]
+        best_energy = min(selected_energies)
+        mean_energy = np.mean(selected_energies)
+        worst_energy = max(selected_energies)
+        std_energy = np.std(selected_energies) if len(selected_energies) > 1 else 0.0
+        current_temp = self._compute_temperature(step)
 
         # Format output based on num_selected
         if self.num_selected == 1:

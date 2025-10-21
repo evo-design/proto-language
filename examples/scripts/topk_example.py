@@ -51,7 +51,7 @@ optimizer = TopKOptimizer(
 )
 
 # Run optimization
-optimizer.sample()
+optimizer.run()
 
 # Access results
 print("\nTop 10 sequences found:")

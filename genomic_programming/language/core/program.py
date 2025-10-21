@@ -96,28 +96,6 @@ class Program:
             List of energy scores where lower values indicate better solutions.
         """
         return self.optimizer.energy_scores
-    
-    @property
-    def time_step(self) -> int:
-        """
-        Get current time step from the underlying optimizer.
-
-        Returns:
-            Current iteration step number (latest time_step from history, or 0 if no history).
-        """
-        if self.optimizer.history:
-            return self.optimizer.history[-1]["time_step"]
-        return 0
-
-    @property
-    def history(self) -> List[Dict[str, Any]]:
-        """
-        Get optimization history from the underlying optimizer.
-
-        Returns:
-            List of history entries, each containing time_step, energy_scores, and constructs.
-        """
-        return self.optimizer.history
 
     def _validate_program(self) -> None:
         """
@@ -142,7 +120,7 @@ class Program:
 
     def run(self) -> None:
         """
-        Execute the sequence optimization process and stores the optimization history in self.history.
+        Execute the sequence optimization process.
 
         Prints initial and final sequence states and energies for monitoring progress.
         The actual optimization is performed by the underlying Optimizer.
@@ -152,58 +130,27 @@ class Program:
         self.optimizer.score_energy()
 
         # Print initial sequences and energies for all batch elements
-        print("Initial constructs for all batch elements:")
-        if self.energy_scores:
-            # For BeamSearchOptimizer: one energy per construct
-            # For other optimizers: one energy per batch element across all constructs
-            if len(self.energy_scores) == len(self.constructs):
-                for construct_idx, construct in enumerate(self.constructs):
-                    print(f"  Construct {construct_idx}:")
-                    energy = self.energy_scores[construct_idx]
-                    for batch_idx, batch_sequence in enumerate(construct.joined_sequences):
-                        sequence = batch_sequence.sequence
-                        print(f"    Batch {batch_idx}: {sequence} (energy: {energy})")
-            else:
-                global_batch_idx = 0
-                for construct_idx, construct in enumerate(self.constructs):
-                    print(f"  Construct {construct_idx}:")
-                    for batch_idx, batch_sequence in enumerate(construct.joined_sequences):
-                        sequence = batch_sequence.sequence
-                        if global_batch_idx < len(self.energy_scores):
-                            energy = self.energy_scores[global_batch_idx]
-                        else:
-                            energy = float('inf')  # Fallback if index out of range
-                        print(f"    Batch {batch_idx}: {sequence} (energy: {energy})")
-                        global_batch_idx += 1
-        else:
-            print("  No energy scores available yet")
+        print("Optimization started. Initial constructs for all batch elements:")
+        num_seqs = len(self.constructs[0].joined_sequences)
+        for seq_idx in range(num_seqs):
+            energy = self.energy_scores[seq_idx]
+            print(f"  [{seq_idx}] Energy: {energy:.4f}")
+            for construct_idx, construct in enumerate(self.constructs):
+                seq = construct.joined_sequences[seq_idx]
+                seq_preview = seq[:80] + ('...' if len(seq) > 80 else '')
+                print(f"    Construct {construct_idx}: {seq_preview}")
 
         # Run optimization
-        self.optimizer.sample()
-
+        self.optimizer.run()
+        
         # Print final sequences and energies for all batch elements
-        print("Final constructs for all batch elements:")
-        if self.energy_scores:
-            # For BeamSearchOptimizer: one energy per construct
-            # For other optimizers: one energy per batch element across all constructs
-            if len(self.energy_scores) == len(self.constructs):
-                for construct_idx, construct in enumerate(self.constructs):
-                    print(f"  Construct {construct_idx}:")
-                    energy = self.energy_scores[construct_idx]
-                    for batch_idx, batch_sequence in enumerate(construct.joined_sequences):
-                        sequence = batch_sequence.sequence
-                        print(f"    Batch {batch_idx}: {sequence} (energy: {energy})")
-            else:
-                global_batch_idx = 0
-                for construct_idx, construct in enumerate(self.constructs):
-                    print(f"  Construct {construct_idx}:")
-                    for batch_idx, batch_sequence in enumerate(construct.joined_sequences):
-                        sequence = batch_sequence.sequence
-                        if global_batch_idx < len(self.energy_scores):
-                            energy = self.energy_scores[global_batch_idx]
-                        else:
-                            energy = float('inf')  # Fallback if index out of range
-                        print(f"    Batch {batch_idx}: {sequence} (energy: {energy})")
-                        global_batch_idx += 1
-        else:
-            print("  No energy scores available after sampling")
+        print("Optimization complete. Final constructs for all batch elements:")
+        num_seqs = len(self.constructs[0].joined_sequences)
+        for seq_idx in range(num_seqs):
+            energy = self.energy_scores[seq_idx]
+            print(f"  [{seq_idx}] Energy: {energy:.4f}")
+            for construct_idx, construct in enumerate(self.constructs):
+                seq = construct.joined_sequences[seq_idx]
+                seq_preview = seq[:80] + ('...' if len(seq) > 80 else '')
+                print(f"    Construct {construct_idx}: {seq_preview}")
+    
