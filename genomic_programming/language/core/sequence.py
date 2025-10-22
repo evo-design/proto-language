@@ -169,6 +169,18 @@ class Sequence:
         """
         return self._sequence
 
+    def __getitem__(self, key):
+        """
+        Support subscripting and slicing of the sequence.
+
+        Args:
+            key: Index or slice object.
+
+        Returns:
+            Character at index or substring for slice.
+        """
+        return self._sequence[key]
+
     @staticmethod
     def from_sequences(
         subsequences: List['Sequence'],

@@ -2,21 +2,21 @@
 from .generator_registry import GeneratorRegistry, GeneratorSpec
 
 # Simple mutation generators
-from .uniform_mutation import (
+from .uniform_mutation_generator import (
     UniformMutationGenerator,
     UniformMutationGeneratorConfig,
 )
 
 # Language model generators
-from .evo2 import (
+from .evo2_generator import (
     Evo2Generator,
     Evo2GeneratorConfig,
 )
-from .esm2 import (
+from .esm2_generator import (
     ESM2Generator,
     ESM2GeneratorConfig,
 )
-from .esm3 import (
+from .esm3_generator import (
     ESM3Generator,
     ESM3GeneratorConfig,
 )

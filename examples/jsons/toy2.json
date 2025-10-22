@@ -7,7 +7,7 @@
       "num_steps": 100,
       "track_step_size": 5,
       "temperature": 1.0,
-      "num_candidates": 2
+      "mcmc_width": 2
   },
   "constructs": [
     {

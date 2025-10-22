@@ -35,10 +35,7 @@ from ..test_utils import (
 )
 
 
-@pytest.mark.skipif(not pd, reason="Pandas not installed, skipping ORF/MMseqs tests")
-@pytest.mark.skipif(
-    not ORFIPY_AVAILABLE, reason="orfipy not installed, skipping ORF tests"
-)
+@pytest.mark.skipif(not ORFIPY_AVAILABLE, reason="orfipy not installed, skipping ORF tests")
 class TestOrfipyMmseqsConstraints:
     @pytest.fixture
     def hit_count_config(self, dummy_db_path):

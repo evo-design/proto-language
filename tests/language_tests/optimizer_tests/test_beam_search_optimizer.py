@@ -51,7 +51,6 @@ class MockAutoregressiveGenerator(Generator):
     
     def assign(self, segment: Segment):
         self._assigned_segment = segment
-        self._is_initialized = True
     
     def sample(self, prompt_seqs=None):
         """Generate random DNA sequences."""

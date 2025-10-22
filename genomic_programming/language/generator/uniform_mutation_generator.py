@@ -1,7 +1,5 @@
 """
 UniformMutationGenerator for random point mutations.
-
-A sequence generator that proposes random point mutations.
 """
 
 from typing import final
@@ -69,11 +67,11 @@ class UniformMutationGenerator(Generator):
             config: Configuration object containing all generator parameters.
         """
         super().__init__()
-        self.config = config
         self.sequence_length = config.sequence_length
         self.num_mutations = config.num_mutations
         self.debug_with_sleep_calls = config.debug_with_sleep_calls
         self.mutation_scheduler = None  # Can be set after initialization if needed
+        self.iteration_count = 0 # TODO: Fix?
         self.autoregressive = False
 
     def assign(self, assigned_segment: Segment) -> None:
@@ -103,8 +101,6 @@ class UniformMutationGenerator(Generator):
                     f"Provided sequence length ({len(initial_sequence)}) must match "
                     f"configured sequence_length ({self.sequence_length})"
                 )
-
-        self._is_initialized = True
 
     def sample(self) -> None:
         """

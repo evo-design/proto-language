@@ -68,7 +68,7 @@ def _setup_mcmc_components(
         verbose=False,
     )
     if num_candidates is not None:
-        config.num_candidates = num_candidates
+        config.mcmc_width = num_candidates
 
     optimizer = MCMCOptimizer(
         constructs=[construct],
@@ -123,13 +123,9 @@ class TestMCMCOptimizer:
         from pydantic import ValidationError
 
         # Valid configs
-        config = MCMCOptimizerConfig(num_selected=5, num_candidates=10)
+        config = MCMCOptimizerConfig(num_selected=5, mcmc_width=10)
         assert config.num_selected == 5
-        assert config.num_candidates == 10
-
-        # num_selected > num_candidates should fail
-        with pytest.raises(ValidationError):
-            MCMCOptimizerConfig(num_selected=10, num_candidates=5)
+        assert config.mcmc_width == 10
 
         # temperature_min >= temperature should fail
         with pytest.raises(ValidationError):
@@ -313,7 +309,7 @@ class TestMCMCOptimizer:
             constraints=[constraint],
             config=MCMCOptimizerConfig(
                 num_selected=num_selected,
-                num_candidates=num_candidates,
+                mcmc_width=num_candidates,
                 num_steps=20,
                 temperature=1.0,
                 temperature_min=0.01,
@@ -486,7 +482,7 @@ class TestMCMCOptimizer:
             constraints=[constraint],
             config=MCMCOptimizerConfig(
                 num_selected=num_selected,
-                num_candidates=num_candidates,
+                mcmc_width=num_candidates,
                 num_steps=num_steps,
                 track_step_size=1,
                 temperature=0.5,
@@ -537,7 +533,7 @@ class TestMCMCOptimizer:
             constraints=[constraint],
             config=MCMCOptimizerConfig(
                 num_selected=num_selected,
-                num_candidates=num_candidates,
+                mcmc_width=num_candidates,
                 num_steps=200,
                 temperature=2.0,
                 temperature_min=0.01,
@@ -703,7 +699,7 @@ class TestMCMCOptimizer:
             constraints=[constraint],
             config=MCMCOptimizerConfig(
                 num_selected=num_selected,
-                num_candidates=num_candidates,
+                mcmc_width=num_candidates,
                 num_steps=1,
                 verbose=False,
             ),
@@ -750,7 +746,7 @@ class TestMCMCOptimizer:
             constraints=[gc_constraint],
             config=MCMCOptimizerConfig(
                 num_selected=num_selected,
-                num_candidates=num_candidates,
+                mcmc_width=num_candidates,
                 num_steps=num_steps,
                 verbose=False,
             ),

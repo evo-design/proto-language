@@ -5,7 +5,7 @@ Provides the abstract interface for sequence generation algorithms.
 """
 
 from abc import ABC, abstractmethod
-from typing import Iterable, Optional
+from typing import Optional
 
 from .segment import Segment
 
@@ -21,8 +21,7 @@ class Generator(ABC):
         """
         Initialize the generator with configuration parameters.
         """
-        self._is_initialized: bool = False
-        self.iteration_count: int = 0
+        # TODO: add logic to handle multiple assigned segments (if necessary)
         self._assigned_segment: Optional[Segment] = None
 
     def _validate_generator(self) -> None:
@@ -32,7 +31,7 @@ class Generator(ABC):
         Raises:
             RuntimeError: If generator hasn't been assigned.
         """
-        if not self._is_initialized or self._assigned_segment is None:
+        if self._assigned_segment is None:
             raise RuntimeError(f"Generator {self.__class__.__name__} has not been assigned a Segment via assign().")
 
     @abstractmethod

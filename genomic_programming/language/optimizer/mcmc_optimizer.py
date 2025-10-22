@@ -26,12 +26,10 @@ class MCMCOptimizerConfig(BaseConfig):
                    "When num_selected=1 (default), behaves like standard single-chain MCMC. "
                    "When num_selected>1, maintains top-k sequences and generates num_candidates proposals per sequence each step."
     )
-    num_candidates: Optional[int] = Field(
-        default=None,
+    mcmc_width: Optional[int] = Field(
+        default=1,
         ge=1,
-        description="Number of candidate proposals to generate per sequence each step. "
-                   "If None (default), automatically set to num_selected for balanced exploration. "
-                   "Can be explicitly set for custom exploration strategies."
+        description="Number of candidate proposals to generate per sequence each step, similar to beam_width in beam search."
     )
     num_steps: int = Field(
         default=1,
@@ -64,10 +62,6 @@ class MCMCOptimizerConfig(BaseConfig):
         # Validate temperature_min < temperature for annealing
         if self.temperature_min >= self.temperature:
             raise ValueError(f"temperature_min ({self.temperature_min}) must be less than temperature ({self.temperature}) for annealing to work properly")
-
-        # Validate num_selected <= num_candidates for diversity (only if num_candidates is set)
-        if self.num_candidates is not None and self.num_selected > self.num_candidates:
-            raise ValueError(f"num_selected ({self.num_selected}) cannot be greater than num_candidates ({self.num_candidates}). This ensures enough proposal diversity.")
 
         return self
 
@@ -149,23 +143,18 @@ class MCMCOptimizer(Optimizer):
         Raises:
             ValueError: If any validation checks fail.
         """
-        # mcmc_width is number of proposals per sequence in mcmc loop
-        mcmc_width = config.num_candidates or config.num_selected
-        # Base class expects total candidates for to store all proposals for all sequences
-        total_candidates = config.num_selected * mcmc_width
-        
         super().__init__(
             constructs=constructs,
             generators=generators,
             constraints=constraints,
             constraint_weights=constraint_weights,
-            num_candidates=total_candidates,
+            num_candidates=config.num_selected * config.mcmc_width,
             num_selected=config.num_selected,
         )
         
         # Store MCMC-specific interpretation (proposals per selected sequence)
         # Note: self.num_candidates from parent = total_candidates (num_selected * mcmc_width)
-        self.mcmc_width = mcmc_width
+        self.mcmc_width = config.mcmc_width
         self.num_steps = config.num_steps
         self.temperature = config.temperature
         self.temperature_min = config.temperature_min

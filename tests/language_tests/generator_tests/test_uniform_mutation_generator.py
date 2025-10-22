@@ -26,7 +26,6 @@ class TestUniformMutationGenerator:
         config = UniformMutationGeneratorConfig(sequence_length=15)
         gen = UniformMutationGenerator(config)
         assert gen.sequence_length == 15
-        assert not gen._is_initialized
 
     def test_assign_and_initialization(self):
         """Tests the assign method initializes the output segment correctly."""
@@ -37,7 +36,6 @@ class TestUniformMutationGenerator:
         gen = UniformMutationGenerator(config)
         gen.assign(segment)
 
-        assert gen._is_initialized
         assert gen._assigned_segment is segment
         assert segment._is_assigned
         assert segment.num_selected == 1  # assign() initializes one selected sequence
