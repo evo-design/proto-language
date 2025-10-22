@@ -45,6 +45,7 @@ class Program:
         constraints: List[Constraint],
         constraint_weights: Optional[List[float]] = None,
         custom_logging: Optional[Callable] = None,
+        clear_tool_cache: bool | List[str] = True,
     ) -> None:
         """
         Initialize a Program with an optimizer class and its dependencies.
@@ -57,6 +58,8 @@ class Program:
             constraints: List of Constraint objects for evaluation.
             constraint_weights: Optional weights for constraints. If None, all weights are 1.0.
             custom_logging: Optional custom logging function for tracking optimization progress.
+            clear_tool_cache: (bool) Whether to clear the tool cache on each iteration.
+                              (List[str]) Restrict clearing cache to a list of tool names.
 
         Raises:
             ValueError: If optimizer_type is not a valid Optimizer subclass.
@@ -80,6 +83,7 @@ class Program:
             "constraints": constraints,
             "config": optimizer_config,
             "constraint_weights": constraint_weights,
+            "clear_tool_cache": clear_tool_cache,
         }
         
         if custom_logging is not None:
@@ -153,4 +157,3 @@ class Program:
                 seq = construct.joined_sequences[seq_idx]
                 seq_preview = seq[:80] + ('...' if len(seq) > 80 else '')
                 print(f"    Construct {construct_idx}: {seq_preview}")
-    

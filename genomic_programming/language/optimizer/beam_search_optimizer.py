@@ -81,6 +81,7 @@ class BeamSearchOptimizer(Optimizer):
         constraints: List[Constraint],
         config: BeamSearchOptimizerConfig,
         constraint_weights: Optional[List[float]] = None,
+        clear_tool_cache: bool | List[str] = True,
     ) -> None:
         """
         Initialize the Beam Search Optimizer.
@@ -92,6 +93,8 @@ class BeamSearchOptimizer(Optimizer):
             constraints: List of Constraint objects for evaluation (lower scores are better).
             config: Configuration object containing algorithm parameters (beam_width, candidates_per_beam, etc.).
             constraint_weights: Optional weights for constraints. If None, all weights are 1.0.
+            clear_tool_cache: (bool) Whether to clear the tool cache on each iteration.
+                              (List[str]) Restrict clearing cache to a list of tool names.
         """
         if not generator.autoregressive:
             raise ValueError(f"BeamSearchOptimizer requires autoregressive generators. The provided generator '{generator.__class__.__name__}' is not autoregressive.")
@@ -107,6 +110,7 @@ class BeamSearchOptimizer(Optimizer):
             constraint_weights=constraint_weights,
             num_candidates=config.beam_width * config.candidates_per_beam,
             num_selected=config.beam_width,
+            clear_tool_cache=clear_tool_cache,
         )
         self.construct = construct
         self.generator = generator

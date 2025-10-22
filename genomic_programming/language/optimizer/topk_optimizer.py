@@ -145,6 +145,7 @@ class TopKOptimizer(Optimizer):
         constraints: List[Constraint],
         config: TopKOptimizerConfig,
         constraint_weights: Optional[List[float]] = None,
+        clear_tool_cache: bool | List[str] = True,
     ) -> None:
         """
         Initialize the TopK Optimizer.
@@ -155,6 +156,8 @@ class TopKOptimizer(Optimizer):
             constraints: List of Constraint objects for evaluation.
             config: Configuration object containing algorithm parameters.
             constraint_weights: Optional weights for constraints. If None, all weights are 1.0.
+            clear_tool_cache: (bool) Whether to clear the tool cache on each iteration.
+                              (List[str]) Restrict clearing cache to a list of tool names.
 
         Raises:
             ValueError: If any validation checks fail.
@@ -169,6 +172,7 @@ class TopKOptimizer(Optimizer):
             num_candidates=config.batch_size,
             num_selected=config.k,
             constraint_weights=constraint_weights,
+            clear_tool_cache=clear_tool_cache,
         )
 
         # Store TopK-specific parameters

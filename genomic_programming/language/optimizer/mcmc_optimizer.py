@@ -128,6 +128,7 @@ class MCMCOptimizer(Optimizer):
         config: MCMCOptimizerConfig,
         constraint_weights: Optional[List[float]] = None,
         custom_logging: Optional[Callable] = None,
+        clear_tool_cache: bool | List[str] = True,
     ) -> None:
         """
         Initialize the MCMC Optimizer with sub-generators and constraints.
@@ -139,6 +140,8 @@ class MCMCOptimizer(Optimizer):
             config: Configuration object containing algorithm parameters (temperature, num_steps, etc.).
             constraint_weights: Optional weights for constraints. If None, all weights are 1.0.
             custom_logging: Optional custom logging function called at tracked steps.
+            clear_tool_cache: (bool) Whether to clear the tool cache on each iteration.
+                              (List[str]) Restrict clearing cache to a list of tool names.
 
         Raises:
             ValueError: If any validation checks fail.
@@ -150,6 +153,7 @@ class MCMCOptimizer(Optimizer):
             constraint_weights=constraint_weights,
             num_candidates=config.num_selected * config.mcmc_width,
             num_selected=config.num_selected,
+            clear_tool_cache=clear_tool_cache,
         )
         
         # Store MCMC-specific interpretation (proposals per selected sequence)
@@ -356,4 +360,3 @@ class MCMCOptimizer(Optimizer):
         if self.custom_logging:
             self.custom_logging(step, self.segments)
         sys.stdout.flush()
-        

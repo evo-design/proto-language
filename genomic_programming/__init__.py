@@ -31,10 +31,6 @@ from .language.optimizer import (
 )
 from .language.core import Program
 from .tools import (
-    # Tool cache functions
-    tool_cache,
-    clear_cache,
-    get_cache_info,
     # BLAST tools
     online_blast,
     local_blast,
@@ -98,10 +94,6 @@ __all__ = [
     "ESM2Generator",
     "MCMCOptimizer",
     "BeamSearchOptimizer",
-    # Tool cache functions
-    "tool_cache",
-    "clear_cache",
-    "get_cache_info",
     # Tools
     "online_blast",
     "local_blast",

@@ -13,6 +13,7 @@ import math
 from .constraint import Constraint
 from .construct import Construct
 from .generator import Generator
+from ...tools import clear_cache as _clear_cache, clear_tool_cache as _clear_tool_cache
 
 
 class Optimizer(ABC):
@@ -34,6 +35,7 @@ class Optimizer(ABC):
         num_candidates: int,
         num_selected: int,
         constraint_weights: Optional[List[float]] = None,
+        clear_tool_cache: bool | List[str] = True,
     ) -> None:
         """
         Initialize the Optimizer with dual-pool semantics.
@@ -45,6 +47,8 @@ class Optimizer(ABC):
             num_candidates: Number of candidate proposals to generate per iteration.
             num_selected: Number of sequences to select and maintain as results.
             constraint_weights: Optional weights for constraints. If None, all weights are 1.0.
+            clear_tool_cache: (bool) Whether to clear the tool cache on each iteration.
+                              (List[str]) Restrict clearing cache to a list of tool names.
         """
         self.constructs = constructs
         self.generators = generators
@@ -52,6 +56,7 @@ class Optimizer(ABC):
         self.constraint_weights = constraint_weights or [1.0] * len(constraints)
         self.num_candidates = num_candidates
         self.num_selected = num_selected
+        self.clear_tool_cache = clear_tool_cache
         self.energy_scores: List[float] = []  # Each index corresponds to a candidate, empty until first score_energy() call
         self._initialize_sequence_pools()
         self._validate_optimizer()
@@ -99,6 +104,16 @@ class Optimizer(ABC):
             self.energy_scores = [prod(scores) for scores in zip(*weighted_scores)]
         else:
             raise ValueError(f"Operation must be 'multiply' or 'add', got {operation}")
+
+        # After evaluating all constraints, optionally clear the cache.
+        if self.clear_tool_cache:
+            if isinstance(self.clear_tool_cache, bool):
+                _clear_cache()
+            elif isinstance(self.clear_tool_cache, list):
+                for tool in self.clear_tool_cache:
+                    _clear_tool_cache(tool)
+            else:
+                raise ValueError(f"Invalid type of clear_tool_cache: {type(self.clear_tool_cache)}")
 
     def _validate_optimizer(self) -> None:
         """
