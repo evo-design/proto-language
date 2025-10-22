@@ -2,7 +2,7 @@
 UniformMutationGenerator for random point mutations.
 """
 
-from typing import final
+from typing import final, Optional, Tuple
 import random
 import time
 
@@ -17,6 +17,13 @@ class UniformMutationGeneratorConfig(BaseConfig):
     """Configuration for UniformMutationGenerator."""
     sequence_length: int = Field(default=100, ge=1, description="Length of sequences to generate")
     num_mutations: int = Field(default=1, ge=0, description="Number of mutations per sequence per sample")
+    mutation_window: Optional[Tuple[int, int]] = Field(
+        default=None,
+        description=(
+            "Only mutate the sequence within this range. Uses Python conventions for "
+            "defining the range, i.e., start:end."
+        )
+    )
     debug_with_sleep_calls: bool = Field(default=False, description="Enable debug mode with sleep calls (for testing purposes only)")
 
 
@@ -73,6 +80,20 @@ class UniformMutationGenerator(Generator):
         self.mutation_scheduler = None  # Can be set after initialization if needed
         self.iteration_count = 0 # TODO: Fix?
         self.autoregressive = False
+
+        # Validate the mutation window argument.
+        if config.mutation_window is not None:
+            if len(config.mutation_window) != 2:
+                raise ValueError(
+                    f"Mutation window must have two entries, found: {config.mutation_window}"
+                )
+            if config.mutation_window[0] >= self.sequence_length or \
+               config.mutation_window[1] >= self.sequence_length:
+                raise ValueError(
+                    f"Mutation window incompatible with a sequence length of {self.sequence_length}, "
+                    f"found: {config.mutation_window}"
+           )
+        self.mutation_window = config.mutation_window
 
     def assign(self, assigned_segment: Segment) -> None:
         """
@@ -133,8 +154,14 @@ class UniformMutationGenerator(Generator):
             # Ensure we don't try to mutate more positions than available
             actual_mutations = min(current_mutations, sequence_length)
 
+            # Define the positions to mutate
+            if self.mutation_window is None:
+                window_range = range(sequence_length)
+            else:
+                window_range = range(self.mutation_window[0], self.mutation_window[1])
+
             # Select random positions to mutate (without replacement)
-            positions_to_mutate = random.sample(range(sequence_length), actual_mutations)
+            positions_to_mutate = random.sample(window_range, actual_mutations)
 
             # Apply mutations
             for pos in positions_to_mutate:
