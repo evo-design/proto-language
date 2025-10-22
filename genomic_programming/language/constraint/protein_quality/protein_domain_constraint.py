@@ -4,8 +4,6 @@ Protein domain constraint function.
 
 from __future__ import annotations
 
-import os
-import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -15,7 +13,7 @@ from ...core import Sequence, SequenceType
 from proto_language.base_config import BaseConfig
 from ..constraint_registry import ConstraintRegistry
 from ....tools.orf_prediction.prodigal import run_prodigal_prediction, ProdigalConfig
-from ....tools.gene_annotation.hmmer import _run_hmmer
+from ....tools.gene_annotation.pyhmmer import pyhmmer_hmmscan, PyHmmscanConfig
 from ....utils import MIN_ENERGY, MAX_ENERGY
 
 
@@ -39,9 +37,9 @@ class ProteinDomainConfig(BaseConfig):
         default=False,
         description="If True, require ALL keywords to be found. If False, require ANY keyword (default)."
     )
-    hmmer_kwargs: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Additional HMMER parameters to pass to hmmscan (e.g., cpu, domE, etc.)."
+    hmmscan_config: Optional[PyHmmscanConfig] = Field(
+        default=None,
+        description="Optional configuration for PyHMMER hmmscan. If None, uses default configuration. Sequences field will be set programmatically from the input sequence. Hmm_db field will be set to the provided hmm_db.",
     )
 
 
@@ -96,7 +94,10 @@ def protein_domain_constraint(
         ... )
         >>> score = protein_domain_constraint(seq, config=cfg)
     """
-    hmmer_kwargs = config.hmmer_kwargs or {}
+    # Note: hmmscan_config will be created in _check_protein_domains
+    # with the appropriate sequences and hmm_db values
+    hmmscan_config = config.hmmscan_config
+
     hmm_db = Path(config.hmm_db)
     if not hmm_db.exists():
         raise ValueError(f"HMM database not found: {hmm_db}")
@@ -113,7 +114,7 @@ def protein_domain_constraint(
             prodigal_config = ProdigalConfig(input_sequence=input_sequence.sequence)
             result = run_prodigal_prediction(prodigal_config)
             proteins_df = result.results_df
-            
+
             input_sequence._metadata["prodigal_proteins"] = proteins_df
             input_sequence._metadata["prodigal_protein_count"] = result.num_genes
         except Exception as e:
@@ -138,8 +139,8 @@ def protein_domain_constraint(
                 str(hmm_db),
                 keywords_lower,
                 config.evalue_threshold,
+                hmmscan_config,
                 config.query_coverage,
-                hmmer_kwargs,
             )
 
             result["protein_id"] = protein_row["id"]
@@ -171,8 +172,8 @@ def protein_domain_constraint(
                 str(hmm_db),
                 keywords_lower,
                 config.evalue_threshold,
+                hmmscan_config,
                 config.query_coverage,
-                hmmer_kwargs,
             )
         except Exception as e:
             raise RuntimeError(f"HMMER execution failed: {e}")
@@ -193,13 +194,14 @@ def protein_domain_constraint(
     else:
         raise ValueError(f"Unsupported sequence type: {input_sequence.sequence_type}")
 
+
 def _check_protein_domains(
     protein_sequence: Sequence,
     hmm_db: str,
     keywords_lower: List[str],
     evalue_threshold: float,
+    hmmscan_config: PyHmmscanConfig,
     query_coverage: float = None,
-    hmmer_kwargs: Dict[str, Any] = None,
 ) -> Dict[str, Any]:
     """
     Helper function to check a single protein sequence for domain matches.
@@ -210,92 +212,84 @@ def _check_protein_domains(
         keywords_lower: Lowercase keywords to search for.
         evalue_threshold: E-value threshold for significance.
         query_coverage: Minimum query coverage (optional).
-        hmmer_kwargs: Additional HMMER parameters.
+        hmmscan_config: Configuration for PyHMMER hmmscan.
 
     Returns:
         Dictionary with analysis results including hits and keywords found.
     """
-    hmmer_kwargs = hmmer_kwargs or {}
 
-    # Write sequence to temporary file for HMMER
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".faa", delete=False) as temp_seq:
-        temp_seq.write(f">query\n{protein_sequence.sequence}\n")
-        temp_seq_path = temp_seq.name
-
-    with tempfile.NamedTemporaryFile(suffix=".out", delete=False) as temp_out:
-        temp_out_path = temp_out.name
-
-    try:
-        # Run hmmscan
-        results = _run_hmmer(
-            "hmmscan",
-            hmm_db,
-            temp_seq_path,
-            output_path=temp_out_path,
-            **hmmer_kwargs,
+    # Create PyHMMER config with direct sequence input (no temporary files needed)
+    # Copy the configuration to avoid mutating the original
+    if hmmscan_config is None:
+        final_config = PyHmmscanConfig(
+            sequences=protein_sequence.sequence,
+            hmm_db=hmm_db
         )
-        if isinstance(results, dict) and "domain" in results:
-            hits_df = results["domain"]
-        else:
-            hits_df = results
+    else:
+        # Copy existing config with new sequences and hmm_db
+        config_dict = hmmscan_config.model_dump(exclude={"sequences", "hmm_db"})
+        final_config = PyHmmscanConfig(
+            sequences=protein_sequence.sequence,
+            hmm_db=hmm_db,
+            **config_dict
+        )
 
-        if len(hits_df) == 0:
-            return {
-                "all_hits": hits_df,
-                "significant_hits": hits_df,
-                "matching_hits": hits_df,
-                "keywords_found": [],
-            }
+    # Run PyHMMER hmmscan
+    result = pyhmmer_hmmscan(final_config)
 
-        # Filter by E-value threshold
-        significant_hits = hits_df[hits_df["evalue"] <= evalue_threshold].copy()
+    if not result.success:
+        raise RuntimeError(f"PyHMMER execution failed: {result.errors}")
 
-        # Apply query coverage filter if specified
-        if query_coverage is not None:
-            query_len = len(
-                protein_sequence.sequence
-            )  # Note: .sequence to get the string
-            if query_len > 0:
-                coverage_pct = (
-                    (significant_hits["ali_to"] - significant_hits["ali_from"] + 1)
-                    / query_len
-                    * 100
-                )
-                significant_hits = significant_hits[coverage_pct >= query_coverage]
-
-        # Find hits matching keywords
-        if len(significant_hits) > 0:
-            keyword_pattern = "|".join(keywords_lower)
-            matching_mask = (
-                significant_hits["description"]
-                .str.lower()
-                .str.contains(keyword_pattern, na=False, regex=True)
-            )
-            matching_hits = significant_hits[matching_mask]
-        else:
-            matching_hits = significant_hits
-
-        # Extract found keywords
-        found_keywords = []
-        if len(matching_hits) > 0:
-            for _, hit in matching_hits.iterrows():
-                description_lower = str(hit["description"]).lower()
-                for keyword in keywords_lower:
-                    if keyword in description_lower and keyword not in found_keywords:
-                        found_keywords.append(keyword)
-
+    if result.num_domain_hits == 0:
         return {
-            "all_hits": hits_df,
-            "significant_hits": significant_hits,
-            "matching_hits": matching_hits,
-            "keywords_found": found_keywords,
+            "all_hits": None,
+            "significant_hits": None,
+            "matching_hits": None,
+            "keywords_found": [],
         }
 
-    finally:
-        # Clean up temporary files
-        for path in [temp_seq_path, temp_out_path]:
-            if os.path.exists(path):
-                try:
-                    os.unlink(path)
-                except OSError:
-                    pass
+    # Filter by E-value threshold
+    significant_hits = result.domain_hits_df[
+        result.domain_hits_df["i_evalue"] <= evalue_threshold
+    ].copy()
+
+    # Apply query coverage filter if specified
+    if query_coverage is not None:
+        query_len = len(
+            protein_sequence.sequence
+        )  # Note: .sequence to get the string
+        if query_len > 0:
+            coverage_pct = (
+                (significant_hits["target_to"] - significant_hits["target_from"] + 1)
+                / query_len
+                * 100
+            )
+            significant_hits = significant_hits[coverage_pct >= query_coverage]
+
+    # Find hits matching keywords
+    if len(significant_hits) > 0:
+        keyword_pattern = "|".join(keywords_lower)
+        matching_mask = (
+            significant_hits["target_description"]
+            .str.lower()
+            .str.contains(keyword_pattern, na=False, regex=True)
+        )
+        matching_hits = significant_hits[matching_mask]
+    else:
+        matching_hits = significant_hits
+
+    # Extract found keywords
+    found_keywords = []
+    if len(matching_hits) > 0:
+        for _, hit in matching_hits.iterrows():
+            description_lower = str(hit["target_description"]).lower()
+            for keyword in keywords_lower:
+                if keyword in description_lower and keyword not in found_keywords:
+                    found_keywords.append(keyword)
+
+    return {
+        "all_hits": result.domain_hits_df,
+        "significant_hits": significant_hits,
+        "matching_hits": matching_hits,
+        "keywords_found": found_keywords,
+    }
