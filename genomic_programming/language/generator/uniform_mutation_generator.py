@@ -6,7 +6,7 @@ from typing import final, Optional, Tuple
 import random
 import time
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from ..core import Generator, Segment
 from proto_language.base_config import BaseConfig
@@ -25,6 +25,22 @@ class UniformMutationGeneratorConfig(BaseConfig):
         )
     )
     debug_with_sleep_calls: bool = Field(default=False, description="Enable debug mode with sleep calls (for testing purposes only)")
+
+    @model_validator(mode='after')
+    def validate_mutation_window(self):
+        """Validate that the mutation window has reasonable values."""
+        if self.mutation_window is not None:
+            if len(self.mutation_window) != 2:
+                raise ValueError(
+                    f"Mutation window must have two entries, found: {self.mutation_window}"
+                )
+            if self.mutation_window[0] >= self.sequence_length or \
+               self.mutation_window[1] >= self.sequence_length:
+                raise ValueError(
+                    f"Mutation window incompatible with a sequence length of {self.sequence_length}, "
+                    f"found: {self.mutation_window}"
+           )
+        return self
 
 
 @GeneratorRegistry.register(
@@ -80,19 +96,6 @@ class UniformMutationGenerator(Generator):
         self.mutation_scheduler = None  # Can be set after initialization if needed
         self.iteration_count = 0 # TODO: Fix?
         self.autoregressive = False
-
-        # Validate the mutation window argument.
-        if config.mutation_window is not None:
-            if len(config.mutation_window) != 2:
-                raise ValueError(
-                    f"Mutation window must have two entries, found: {config.mutation_window}"
-                )
-            if config.mutation_window[0] >= self.sequence_length or \
-               config.mutation_window[1] >= self.sequence_length:
-                raise ValueError(
-                    f"Mutation window incompatible with a sequence length of {self.sequence_length}, "
-                    f"found: {config.mutation_window}"
-           )
         self.mutation_window = config.mutation_window
 
     def assign(self, assigned_segment: Segment) -> None:
