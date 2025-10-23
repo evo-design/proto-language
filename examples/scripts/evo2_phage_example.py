@@ -58,7 +58,6 @@ evo2_config = Evo2GeneratorConfig(
     local_path="/scratch/hielab/gbrixi/evo2/vortex_interleaved/7b_phage/iter_12000.pt",
     num_tokens=5500,
     temperature=0.9,
-    prepend_prompt=True,
 )
 evo2_generator = Evo2Generator(evo2_config)
 

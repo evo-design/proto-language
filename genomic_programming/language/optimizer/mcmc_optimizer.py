@@ -158,14 +158,15 @@ class MCMCOptimizer(Optimizer):
         
         # Store MCMC-specific interpretation (proposals per selected sequence)
         # Note: self.num_candidates from parent = total_candidates (num_selected * mcmc_width)
-        self.mcmc_width = config.mcmc_width
-        self.num_steps = config.num_steps
-        self.temperature = config.temperature
-        self.temperature_min = config.temperature_min
-        self.track_step_size = config.track_step_size
-        self.verbose = config.verbose
-        self.custom_logging = custom_logging
+        self.mcmc_width: int = config.mcmc_width
+        self.num_steps: int = config.num_steps
+        self.temperature: float = config.temperature
+        self.temperature_min: float = config.temperature_min
+        self.track_step_size: int = config.track_step_size
+        self.verbose: bool = config.verbose
+        self.custom_logging: Optional[Callable] = custom_logging
         self.history: List[Dict[str, Any]] = []  # Each entry are deep copies: {"time_step": int, "energy_scores": List[float], "constructs": List[Construct]}
+
 
     def run(self) -> None:
         """
@@ -217,11 +218,12 @@ class MCMCOptimizer(Optimizer):
             if step % self.track_step_size == 0:
                 self._save_history_snapshot(time_step=step)
                 if self.verbose:
-                    self._log_topk_progress(step)
+                    self._log_mcmc_progress(step)
 
         # Track final state
         if self.num_steps % self.track_step_size != 0:
             self._save_history_snapshot(time_step=self.num_steps)
+
 
     def _save_sequence_state(self) -> List[Tuple[Dict[int, Sequence], float]]:
         """Save state of selected sequences.
@@ -240,6 +242,7 @@ class MCMCOptimizer(Optimizer):
             sequence_state.append((segments_dict, self.energy_scores[selected_idx]))
         return sequence_state
 
+
     def _populate_candidate_sequences(self) -> None:
         """Populate candidate_sequences by replicating each selected_sequence mcmc_width times.
         
@@ -251,6 +254,7 @@ class MCMCOptimizer(Optimizer):
                 start_idx = selected_idx * self.mcmc_width
                 for offset in range(self.mcmc_width):
                     segment.candidate_sequences[start_idx + offset] = copy.deepcopy(segment.selected_sequences[selected_idx])
+
 
     def _select_topk_with_mcmc_acceptance(
         self,
@@ -296,6 +300,7 @@ class MCMCOptimizer(Optimizer):
         for segment in self.segments:
             segment.selected_sequences = [segment.candidate_sequences[idx] for idx in range(self.num_selected)]
 
+
     def _compute_temperature(self, step: int) -> float:
         """Calculate annealed temperature: T(step) = T_max * (T_min/T_max)^((step-1)/(num_steps-1))
         
@@ -308,6 +313,7 @@ class MCMCOptimizer(Optimizer):
             return self.temperature
         else:
             return self.temperature * (self.temperature_min / self.temperature) ** ((step - 1) / (self.num_steps - 1))
+
 
     def _compute_mcmc_acceptance_prob(self, current_energy: float, proposed_energy: float, step: int) -> float:
         """Compute Metropolis-Hastings acceptance probability: alpha = min(1, exp(-(E_new - E_old) / T))
@@ -322,6 +328,7 @@ class MCMCOptimizer(Optimizer):
         log_acceptance_ratio = min(log_acceptance_ratio, MAX_EXP_ARG)
         return min(1.0, np.exp(log_acceptance_ratio))
 
+
     def _save_history_snapshot(self, time_step: int) -> None:
         """Save snapshot of current state to history"""
         self.history.append({
@@ -330,7 +337,8 @@ class MCMCOptimizer(Optimizer):
             "constructs": copy.deepcopy(self.constructs)
         })
 
-    def _log_topk_progress(self, step: int) -> None:
+
+    def _log_mcmc_progress(self, step: int) -> None:
         """Log optimization progress"""
         # Use first num_selected energies (after sorting, these are the selected sequences)
         selected_energies = self.energy_scores[:self.num_selected]

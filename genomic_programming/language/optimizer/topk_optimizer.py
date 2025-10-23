@@ -176,15 +176,15 @@ class TopKOptimizer(Optimizer):
         )
 
         # Store TopK-specific parameters
-        self.min_candidates = config.min_candidates
-        self.batch_size = config.batch_size
-        self.k = config.k
-        self.rounds = config.min_candidates // config.batch_size  # Derived from total and batch
-        self.verbose = config.verbose
+        self.min_candidates: int = config.min_candidates
+        self.batch_size: int = config.batch_size
+        self.k: int = config.k
+        self.rounds: int = config.min_candidates // config.batch_size  # Derived from total and batch
+        self.verbose: bool = config.verbose
 
         # Threshold-based stopping parameters
-        self.energy_threshold = config.energy_threshold
-        self.max_candidates = config.max_candidates or (config.min_candidates * 10 if config.energy_threshold else None)
+        self.energy_threshold: Optional[float] = config.energy_threshold
+        self.max_candidates: Optional[int] = config.max_candidates or (config.min_candidates * 10 if config.energy_threshold else None)
 
         # Storage for top-k candidates using a max-heap of size k
         # We negate energies since heapq is a min-heap but we want max-heap behavior

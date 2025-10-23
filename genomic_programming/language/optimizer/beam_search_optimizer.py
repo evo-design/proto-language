@@ -2,8 +2,9 @@
 Beam Search Optimizer that uses the beam search algorithm to optimize a single Construct.
 """
 
-from typing import List, Optional, Tuple
+from typing import List, Optional, Dict
 import warnings
+import copy
 import numpy as np
 
 from pydantic import Field
@@ -22,6 +23,10 @@ class BeamSearchOptimizerConfig(BaseConfig):
     candidates_per_beam: int = Field(
         ge=1,
         description="Number of candidates to generate per beam sequence (N)"
+    )
+    use_kv_caching: bool = Field(
+        default=True,
+        description="Whether to use KV caching for generation. Enables faster sequential generation."
     )
     verbose: bool = Field(
         default=False,
@@ -51,7 +56,7 @@ class BeamSearchOptimizer(Optimizer):
         Basic beam search with Evo2:
         >>> from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
         >>>
-        >>> gen_config = Evo2GeneratorConfig(n_tokens=100, prepend_prompt=False)
+        >>> gen_config = Evo2GeneratorConfig(num_tokens=100)
         >>> generator = Evo2Generator(config=gen_config)
         >>>
         >>> construct = Construct([segment1, segment2, segment3])
@@ -89,19 +94,26 @@ class BeamSearchOptimizer(Optimizer):
         Args:
             construct: A single Construct object to optimize.
             generator: A single autoregressive Generator object (must have autoregressive=True).
-            prompt: The initial prompt to start the beam search from (typically empty string).
+            prompt: The DNA sequence prompt to start the beam search.
             constraints: List of Constraint objects for evaluation (lower scores are better).
             config: Configuration object containing algorithm parameters (beam_width, candidates_per_beam, etc.).
             constraint_weights: Optional weights for constraints. If None, all weights are 1.0.
             clear_tool_cache: (bool) Whether to clear the tool cache on each iteration.
                               (List[str]) Restrict clearing cache to a list of tool names.
         """
+        # Beam Search only works with autoregressive generators with non-empty prompts
         if not generator.autoregressive:
             raise ValueError(f"BeamSearchOptimizer requires autoregressive generators. The provided generator '{generator.__class__.__name__}' is not autoregressive.")
         
+        if not prompt:
+            raise ValueError("BeamSearchOptimizer requires a non-empty prompt to start beam search.")
+
         # Required for validation in base class. Each segment is assigned to the single generator for beam search.
         for segment in construct.segments:
             segment._is_assigned = True
+            # BeamSearch overwrites segment.candidate_sequences during run()
+            if any(seq.sequence for seq in segment.candidate_sequences):
+                warnings.warn(f"BeamSearchOptimizer will overwrite {segment.num_candidates} existing candidate(s) in segment '{segment.label or 'unlabeled'}' during run()")
         
         super().__init__(
             constructs=[construct],
@@ -112,19 +124,19 @@ class BeamSearchOptimizer(Optimizer):
             num_selected=config.beam_width,
             clear_tool_cache=clear_tool_cache,
         )
-        self.construct = construct
-        self.generator = generator
-        self.beam_width = config.beam_width
-        self.candidates_per_beam = config.candidates_per_beam
-        self.verbose = config.verbose
-        self.running_prompts = [prompt] * self.beam_width
+        self.construct: Construct = construct
+        self.generator: Generator = generator
+        self.beam_width: int = config.beam_width
+        self.candidates_per_beam: int = config.candidates_per_beam
+        self.use_kv_caching: bool = config.use_kv_caching
+        self.verbose: bool = config.verbose
 
-        # Warn and clear candidate sequence content - BeamSearch overwrites during run()
-        for segment in self.segments:
-            if any(seq.sequence for seq in segment.candidate_sequences):
-                warnings.warn(f"BeamSearchOptimizer will overwrite {segment.num_candidates} existing candidate(s) in segment '{segment.label or 'unlabeled'}' during run()")
-            for seq in segment.candidate_sequences:
-                seq.sequence = ""
+        # Beam search state parameters (running prompts and corresponding KV caches)
+        self.running_prompts: List[str] = [prompt] * self.beam_width
+        self.top_beam_kv_caches: List[Optional[Dict]] = [None] * self.beam_width
+        
+        # IMPORTANT: set max_seqlen to the total construct length!!
+        self.generator.max_seqlen = len(prompt) + len(self.segments) * self.generator.num_tokens
 
     def run(self) -> None:
         """
@@ -139,79 +151,85 @@ class BeamSearchOptimizer(Optimizer):
         if self.verbose:
             print(f"Processing {len(self.construct.segments)} segments with beam search")
             print(f"Beam width: {self.beam_width}, Candidates per beam: {self.candidates_per_beam}")
+            print(f"KV caching: {'enabled' if self.use_kv_caching else 'disabled'}")
 
         # Beam search across each segment
         for segment_idx, segment in enumerate(self.construct.segments):
             # 1. Assign generator to this segment
-            self.generator._assigned_segment = segment
+            self.generator.assign(segment)
 
-            # 2. Prepare prompts: replicate each running prompt candidates_per_beam times
-            all_prompts, beam_indices = self._prepare_beam_prompts()
+            # 2. Generate candidates in-place for each beam sequentially and accumulate all candidates and corresponding KV caches
+            all_kv_caches = self._generate_candidates(segment)
 
-            # 3. Generate candidates (writes to candidate_sequences)
-            self.generator.sample(prompt_seqs=all_prompts)
-
-            # 4. Score all candidates with applicable constraints
+            # 3. Score all candidates with applicable constraints
             self._score_energy_active_constraints()
 
-            # 5. Select top beam_width candidates and update state
-            top_idx = self._select_topk(segment, beam_indices)
+            # 4. Select top beam_width candidates and update running prompts and corresponding KV caches
+            top_idx = self._select_topk(segment, all_kv_caches)
 
             # Log progress
             if self.verbose:
-                self._log_beamsearch_progress(segment_idx, segment, len(all_prompts), top_idx, beam_indices)
+                self._log_beamsearch_progress(segment_idx, segment, top_idx)
 
-    def _prepare_beam_prompts(self) -> Tuple[List[str], List[int]]:
-        """
-        Prepare prompts for beam search by replicating each beam's accumulated prompt N times.
-        
-        Returns:
-            Tuple of (prompts, beam_indices) where:
-                - prompts: List of KxN prompt strings for generation
-                - beam_indices: List tracking which beam (0 to K-1) each candidate originated from
-        """
-        prompts = []
-        beam_indices = []
-        for beam_idx, prompt in enumerate(self.running_prompts):
-            prompts.extend([prompt] * self.candidates_per_beam)
-            beam_indices.extend([beam_idx] * self.candidates_per_beam)
-        return prompts, beam_indices
 
-    def _select_topk(self, segment: Segment, beam_indices: List[int]) -> List[int]:
+    def _generate_candidates(self, segment: Segment) -> List[Dict]:
         """
-        Select top beam_width candidates by energy and update all beam search state.
+        Generate candidates in-place for each beam sequentially and accumulate all candidates.
         
-        This performs three operations:
-        1. Identifies top beam_width candidates by energy (lower is better)
-        2. Sets segment's selected_sequences and replicates them as candidates
-        3. Updates running prompts by extending with new tokens from selected sequences
+        For each beam in running_prompts:
+        1. Replicate the prompt and KV cache
+        2. Generate candidates_per_beam new sequences
+        3. Store candidates and updated KV cache
+        
+        Finally, sets segment.candidate_sequences to all generated candidates.
         
         Args:
             segment: The current segment being processed
-            beam_indices: List tracking which beam (0 to beam_width-1) each candidate originated from
-            
-        Returns:
-            List of indices for the top beam_width candidates
         """
-        # 1. Get top beam_width candidates by energy
-        top_idx = np.argsort(self.energy_scores)[:self.beam_width].tolist()
+        all_candidates = []
+        all_kv_caches = []
         
-        # 2. Set selected sequences
-        segment.selected_sequences = [segment.candidate_sequences[i] for i in top_idx]
+        for beam_idx, prompt in enumerate(self.running_prompts):
+            # Replicate the current beam's prompt to sample candidates
+            replicated_prompts = [prompt] * self.candidates_per_beam
 
-        # 3. Replicate selected sequences as candidates (for subsequent evaluation of constraints applied across multiple segments)
-        segment.candidate_sequences = [
-            seq for selected_seq in segment.selected_sequences
-            for seq in [selected_seq] * self.candidates_per_beam
-        ]
-        
-        # 4. Update running prompts from selected sequences
-        self.running_prompts = [
-            self.running_prompts[beam_indices[idx]] + selected_seq.sequence
-            for idx, selected_seq in zip(top_idx, segment.selected_sequences)
-        ]
-        return top_idx
-    
+            # Replicate the current beam's KV cache if KV caching is enabled
+            if self.use_kv_caching:
+                cur_kv_cache = self.top_beam_kv_caches[beam_idx]
+                replicated_kv_cache = self.generator.replicate_cache(cur_kv_cache, self.candidates_per_beam)
+            else:
+                replicated_kv_cache = None
+
+            if self.verbose and self.use_kv_caching and replicated_kv_cache is not None:
+                kv = next(iter(replicated_kv_cache['mha'].key_value_memory_dict.values()))
+                print(f"\nBeam {beam_idx} cache stats:")
+                print(f"  KV shape: {kv.shape}")
+                print(f"  KV dtype: {kv.dtype}")
+                print(f"  KV device: {kv.device}")
+                print(f"  KV is_contiguous: {kv.is_contiguous()}")
+                print(f"  max_batch_size: {replicated_kv_cache['mha'].max_batch_size}")
+                print(f"  seqlen_offset: {replicated_kv_cache['mha'].seqlen_offset}")
+                print(f"  num prompts: {len(replicated_prompts)}")
+
+            self.generator.sample(
+                prompts=replicated_prompts,
+                prepend_prompt=False,
+                cached_generation=self.use_kv_caching,
+                old_kv_cache=replicated_kv_cache
+            )
+
+            # Store generated candidates
+            all_candidates.extend([copy.deepcopy(seq) for seq in segment.candidate_sequences[:self.candidates_per_beam]])
+
+            # Store corresponding KV caches if KV caching is enabled
+            if self.use_kv_caching:
+                all_kv_caches.extend(self.generator.kv_caches)
+
+        # In-place sampling requires manually setting the segment's candidate_sequences
+        segment.candidate_sequences = all_candidates
+        return all_kv_caches
+
+
     def _score_energy_active_constraints(self) -> None:
         """
         Score energy using only active constraints with all input segments populated.
@@ -240,24 +258,68 @@ class BeamSearchOptimizer(Optimizer):
         # Restore original constraints and weights
         self.constraints, self.constraint_weights = orig_constraints, orig_weights
 
-    def _log_beamsearch_progress(
-        self, 
-        segment_idx: int, 
-        segment: Segment, 
-        num_prompts: int, 
-        top_idx: List[int], 
-        beam_indices: List[int]
-    ) -> None:
+
+    def _select_topk(self, segment: Segment, all_kv_caches: List[Dict]) -> List[int]:
+        """
+        Select top beam_width candidates by energy and update all beam search state.
+
+        1. Identifies top beam_width candidates by energy (lower is better)
+        2. Sets segment's selected_sequences and replicates them as candidates
+        3. Updates running prompts by extending with new tokens from selected sequences
+        4. Replicates energy_scores to match replicated candidate_sequences
+        
+        Args:
+            segment: Current segment being processed
+            all_kv_caches: Updated KV caches for all generated candidates. Empty if KV caching is disabled.
+
+        Returns:
+            List of indices for the top beam_width candidates
+        """
+        # 1. Get top beam_width candidates by energy
+        top_idx = np.argsort(self.energy_scores)[:self.beam_width].tolist()
+        
+        # 2. Set selected sequences
+        segment.selected_sequences = [segment.candidate_sequences[i] for i in top_idx]
+
+        # 3. Replicate selected sequences as candidates
+        # This is required for subsequent evaluation of constraints applied across multiple segments
+        # since constraints applied across multiple segments concatenate across the candidate_sequences (batch) dimension.
+        segment.candidate_sequences = [
+            seq for selected_seq in segment.selected_sequences
+            for seq in [selected_seq] * self.candidates_per_beam
+        ]
+        
+        # 4. Update running prompts from top candidates (stored in segment.selected_sequences)
+        # Candidates are generated sequentially per beam, so: beam_idx = candidate_idx // candidates_per_beam
+        self.running_prompts = [
+            self.running_prompts[idx // self.candidates_per_beam] + selected_seq.sequence
+            for idx, selected_seq in zip(top_idx, segment.selected_sequences)
+        ]
+
+        # 5. Replicate energy scores to match replicated candidates
+        selected_energies = [self.energy_scores[i] for i in top_idx]
+        self.energy_scores = [
+            energy for selected_energy in selected_energies
+            for energy in [selected_energy] * self.candidates_per_beam
+        ]
+
+        # 6. Update top beam KV caches if KV caching is enabled
+        if self.use_kv_caching:
+            self.top_beam_kv_caches = [all_kv_caches[idx] for idx in top_idx]
+
+        return top_idx
+
+
+    def _log_beamsearch_progress(self, segment_idx: int, segment: Segment, top_idx: List[int]) -> None:
         """
         Log progress information for a segment during beam search.
         
         Args:
             segment_idx: Index of the current segment
             segment: The current segment being processed
-            num_prompts: Number of prompts used for generation
             top_idx: Indices of the top beam_width selected candidates
-            beam_indices: List tracking which beam each candidate originated from
         """
+        num_prompts = self.beam_width * self.candidates_per_beam
         print(f"\n--- Segment {segment_idx + 1}/{len(self.construct.segments)} ---")
         print(f"Generated {segment.num_candidates} candidates using {num_prompts} prompts ({self.beam_width} beams x {self.candidates_per_beam} candidates per beam)")
         
@@ -273,5 +335,6 @@ class BeamSearchOptimizer(Optimizer):
         for rank, idx in enumerate(top_idx):
             seq = segment.candidate_sequences[idx]
             energy = self.energy_scores[idx]
+            beam_idx = idx // self.candidates_per_beam
             seq_preview = seq.sequence[:50] + ('...' if len(seq.sequence) > 50 else '')
-            print(f"  [{rank+1}] From beam {beam_indices[idx]}: '{seq_preview}' (energy: {energy:.4f})")
+            print(f"  [{rank+1}] From beam {beam_idx}: '{seq_preview}' (energy: {energy:.4f})")

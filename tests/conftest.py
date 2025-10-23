@@ -22,6 +22,18 @@ def pytest_addoption(parser):
         default=False,
         help="Run only GPU tests, skip CPU tests",
     )
+    parser.addoption(
+        "--all",
+        action="store_true",
+        default=False,
+        help="Run all tests including slow tests",
+    )
+    parser.addoption(
+        "--slow",
+        action="store_true",
+        default=False,
+        help="Run only slow tests",
+    )
 
 
 def pytest_configure(config):
@@ -51,6 +63,23 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if "uses_cpu" in item.keywords and "uses_gpu" not in item.keywords:
                 item.add_marker(skip_cpu)
+    
+    # Handle slow test filtering
+    run_all = config.getoption("--all")
+    run_slow_only = config.getoption("--slow")
+    
+    if run_slow_only:
+        # When --slow is specified, skip tests NOT marked as slow
+        skip_non_slow = pytest.mark.skip(reason="--slow specified, skipping non-slow tests")
+        for item in items:
+            if "slow" not in item.keywords:
+                item.add_marker(skip_non_slow)
+    elif not run_all:
+        # By default (no --all flag), skip slow tests
+        skip_slow = pytest.mark.skip(reason="slow test (use --all to run, or --slow to run only slow tests)")
+        for item in items:
+            if "slow" in item.keywords:
+                item.add_marker(skip_slow)
 
 
 @pytest.fixture(scope="session", autouse=True)

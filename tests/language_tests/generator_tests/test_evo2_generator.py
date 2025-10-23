@@ -80,8 +80,8 @@ class TestEvo2Generator:
         segment_two_candidates.create_candidates(2)
         evo2_generator.assign(segment_two_candidates)
         
-        with pytest.raises(ValueError, match="Number of prompts"):
-            evo2_generator.sample()  # Will fail because 1 prompt but 2 candidates
+        with pytest.warns(UserWarning, match="Number of prompts"):
+            evo2_generator.sample()  # Will warn because 1 prompt but 2 candidates
 
     def test_evo2_custom_parameters(self):
         """Test Evo2 generator with custom generation parameters."""
@@ -109,6 +109,7 @@ class TestEvo2Generator:
         assert segment[0].sequence is not None
         assert segment[0].sequence_type == SequenceType.DNA
 
+    @pytest.mark.slow
     def test_evo2_caching_speedup(self):
         """Test that KV caching provides speedup and verify cache is actually used."""
         from proto_language.tools.models.language_models.evo2 import (
