@@ -51,8 +51,7 @@ class MockAutoregressiveGenerator(Generator):
     def sample(
         self,
         prompts: Optional[List[str]] = None,
-        prepend_prompt: bool = True,
-        cached_generation: bool = False,
+        prepend_prompt: Optional[bool] = None,
         old_kv_cache: Optional[Dict] = None,
     ) -> None:
         """
@@ -61,7 +60,6 @@ class MockAutoregressiveGenerator(Generator):
         Args:
             prompts: List of prompt strings to condition generation on
             prepend_prompt: Whether to prepend the prompt to the generated sequence
-            cached_generation: Whether to use KV caching
             old_kv_cache: Previous KV cache to continue from
         """
         if prompts is None:
@@ -84,7 +82,8 @@ class MockAutoregressiveGenerator(Generator):
         ]
 
         # Generate mock KV caches if caching is enabled
-        if self.use_kv_caching and cached_generation:
+        # Check both use_kv_caching and the store_kv_cache attribute (set by BeamSearchOptimizer)
+        if self.use_kv_caching and getattr(self, 'store_kv_cache', False):
             self.kv_caches = [create_mock_kv_cache() for _ in range(num_samples)]
         else:
             self.kv_caches = []
@@ -724,11 +723,12 @@ class TestBeamSearchOptimizer:
         segment = segments[0]
 
         # Mock the generator's sample method
-        def mock_sample(prompts, prepend_prompt, cached_generation, old_kv_cache):
+        def mock_sample(prompts=None, prepend_prompt=None, old_kv_cache=None):
             # Generate mock sequences
             segment.candidate_sequences = [
                 Sequence(sequence="ATCGATCGATCGATCG", sequence_type=SequenceType.DNA) for _ in range(len(prompts))
             ]
+            generator.kv_caches = []
 
         generator.sample = mock_sample
 
@@ -760,7 +760,7 @@ class TestBeamSearchOptimizer:
         optimizer.top_beam_kv_caches = [mock_cache, None]
 
         # Mock the generator's sample and kv_caches
-        def mock_sample(prompts, prepend_prompt, cached_generation, old_kv_cache):
+        def mock_sample(prompts=None, prepend_prompt=None, old_kv_cache=None):
             segment.candidate_sequences = [
                 Sequence(sequence="ATCGATCGATCG", sequence_type=SequenceType.DNA) for _ in range(len(prompts))
             ]
