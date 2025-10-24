@@ -76,8 +76,8 @@ class TestESMFoldPLDDTConstraint:
             # Verify the sequence was replicated 3 times
             # After Pydantic validation, sequences becomes a list
             mock_esmfold.assert_called_once()
-            passed_config = mock_esmfold.call_args[0][0]
-            assert passed_config.sequences == ["MKTAYIAK", "MKTAYIAK", "MKTAYIAK"]
+            passed_input = mock_esmfold.call_args.kwargs['inputs']  # Function called with keyword args
+            assert passed_input.sequences == ["MKTAYIAK", "MKTAYIAK", "MKTAYIAK"]
     
     def test_esmfold_config_passthrough(self):
         """Test that custom ESMFold config parameters are passed through."""
@@ -106,7 +106,8 @@ class TestESMFoldPLDDTConstraint:
             constraint.evaluate()
             
             # Verify config parameters were passed through
-            passed_config = mock_esmfold.call_args[0][0]
+            passed_input = mock_esmfold.call_args.kwargs['inputs']  # Function called with keyword args
+            passed_config = mock_esmfold.call_args.kwargs['config']
             assert passed_config.verbose == True
             assert passed_config.residue_idx_offset == 256
             assert passed_config.chain_linker == "GGGGG"
@@ -226,8 +227,8 @@ class TestESMFoldPTMConstraint:
             # Verify the sequence was replicated 2 times
             # After Pydantic validation, sequences becomes a list
             mock_esmfold.assert_called_once()
-            passed_config = mock_esmfold.call_args[0][0]
-            assert passed_config.sequences == ["MKTAYIAK", "MKTAYIAK"]
+            passed_input = mock_esmfold.call_args.kwargs['inputs']  # Function called with keyword args
+            assert passed_input.sequences == ["MKTAYIAK", "MKTAYIAK"]
     
     def test_esmfold_config_passthrough(self):
         """Test that custom ESMFold config parameters are passed through."""
@@ -256,7 +257,8 @@ class TestESMFoldPTMConstraint:
             constraint.evaluate()
             
             # Verify config parameters were passed through
-            passed_config = mock_esmfold.call_args[0][0]
+            passed_input = mock_esmfold.call_args.kwargs['inputs']  # Function called with keyword args
+            passed_config = mock_esmfold.call_args.kwargs['config']
             assert passed_config.verbose == False
             assert passed_config.residue_idx_offset == 1024
             assert passed_config.chain_linker == "AAAAA"

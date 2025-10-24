@@ -105,5 +105,5 @@ ATOM      5  CA  LYS A   2       4.000   4.000   4.000  1.00 90.00           C""
             
             # Verify sequence was replicated 3 times
             mock_run.assert_called_once()
-            passed_config = mock_run.call_args[0][0]
-            assert passed_config.sequences == ["MKTAYIAK", "MKTAYIAK", "MKTAYIAK"]
+            passed_input = mock_run.call_args.kwargs['inputs']  # Function called with keyword args
+            assert passed_input.sequences == ["MKTAYIAK", "MKTAYIAK", "MKTAYIAK"]

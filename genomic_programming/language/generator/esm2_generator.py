@@ -121,10 +121,11 @@ class ESM2Generator(Generator):
         sequences = [seq.sequence for seq in self._assigned_segment.candidate_sequences]
 
         # Use ESM2 sampling tool
-        from ...tools.models.language_models.esm2.esm2 import run_esm2_sample, ESM2SampleConfig
-        
+        from ...tools.models.language_models.esm2.esm2 import run_esm2_sample, ESM2SampleConfig, LanguageModelInput
+
+        # Create input and config objects
+        esm2_input = LanguageModelInput(sequences=sequences)
         config = ESM2SampleConfig(
-            sequences=sequences,
             model_name=self.esm2_type,
             sequence_length=self.sequence_length,
             temperature=self.temperature,
@@ -133,8 +134,8 @@ class ESM2Generator(Generator):
             keep_on_device=True,  # Keep for repeated calls
             verbose=False
         )
-        
-        result = run_esm2_sample(config)
+
+        result = run_esm2_sample(inputs=esm2_input, config=config)
         mutated_sequences = result.sequences
 
         # Update sequences in the batch

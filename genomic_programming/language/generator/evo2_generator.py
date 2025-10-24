@@ -9,7 +9,11 @@ from pydantic import Field, model_validator
 
 from ..core import Generator, Segment
 from proto_language.base_config import BaseConfig
-from proto_language.tools.models.language_models.evo2 import run_evo2_sample, Evo2SampleConfig
+from proto_language.tools.models.language_models.evo2 import (
+    run_evo2_sample,
+    Evo2SampleInput,
+    Evo2SampleConfig,
+)
 from .generator_registry import GeneratorRegistry
 
 
@@ -127,8 +131,8 @@ class Evo2Generator(Generator):
             warnings.warn(f"Number of prompts ({len(sampling_prompts)}) does not match candidate pool size ({len(self._assigned_segment.candidate_sequences)})")
 
         # Create config for the tool
+        inputs = Evo2SampleInput(prompts=sampling_prompts)
         sample_config = Evo2SampleConfig(
-            prompts=sampling_prompts,
             prepend_prompt=prepend_prompt,
             model_name=self.model_name,
             local_path=self.local_path,
@@ -146,7 +150,7 @@ class Evo2Generator(Generator):
         )
 
         # Run the sampling tool
-        evo2_output = run_evo2_sample(sample_config)
+        evo2_output = run_evo2_sample(inputs=inputs, config=sample_config)
         generated_sequences = evo2_output.sequences
         self.kv_caches = evo2_output.kv_caches if cached_generation else None
 

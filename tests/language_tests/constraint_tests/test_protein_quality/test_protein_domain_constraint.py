@@ -181,7 +181,7 @@ class TestProteinDomainConstraint:
             )
 
             scores = constraint.evaluate()
-            # No proteins predicted -> score = 1.0
+            # Proteins should be predicted, so score should be 0.0
             assert scores[0] == 0.0
 
     def test_dna_sequence_no_proteins(self):

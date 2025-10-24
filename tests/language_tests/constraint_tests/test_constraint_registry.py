@@ -300,8 +300,9 @@ class TestFactoryMethod:
             config_dict={
                 "min_hits": 1,
                 "max_hits": 10,
-                "orfipy_config": {"input_fasta": "", "output_dir": "", "min_len": 30},
-                "mmseqs_config": {"query_fasta": "", "mmseqs_db": str(dummy_db), "results_dir": ""}
+                "mmseqs_db": str(dummy_db),
+                "orfipy_config": {"output_dir": "", "min_len": 30},
+                "mmseqs_config": {"results_dir": ""}
             }
         )
         

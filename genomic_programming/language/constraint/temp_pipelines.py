@@ -14,12 +14,17 @@ import pandas as pd
 
 from ..core import Sequence, DNA_NUCLEOTIDES
 from ...utils import resolve_paths
-from ...tools.orf_prediction import run_orfipy_prediction, OrfipyConfig
-from ...tools.gene_annotation.mmseqs import mmseqs_search_proteins, MmseqsSearchProteinsConfig
+from ...tools.orf_prediction import run_orfipy_prediction, OrfipyInput, OrfipyConfig
+from ...tools.gene_annotation.mmseqs import (
+    mmseqs_search_proteins,
+    MmseqsSearchProteinsInput,
+    MmseqsSearchProteinsConfig,
+)
 
 
 def run_orfipy_mmseqs_pipeline(
     input_sequence: Sequence,
+    mmseqs_db: str,
     orfipy_config: Optional[OrfipyConfig] = None,
     mmseqs_config: Optional[MmseqsSearchProteinsConfig] = None,
 ) -> None:
@@ -28,6 +33,7 @@ def run_orfipy_mmseqs_pipeline(
 
     Args:
         input_sequence: The sequence to evaluate.
+        mmseqs_db: Path to MMseqs2 database for homology search.
         orfipy_config: ORFipy configuration arguments.
         mmseqs_config: MMseqs configuration arguments.
 
@@ -37,7 +43,7 @@ def run_orfipy_mmseqs_pipeline(
     """
     # Use defaults if not provided
     if orfipy_config is None:
-        orfipy_config = OrfipyConfig(input_fasta="", output_dir="")
+        orfipy_config = OrfipyConfig(output_dir="")
     if mmseqs_config is None:
         raise ValueError("MMseqs configuration with database path is required")
 
@@ -61,13 +67,15 @@ def run_orfipy_mmseqs_pipeline(
         with open(input_fasta, "w") as f:
             f.write(f">input_sequence\n{sequence_to_analyze}\n")
 
-        # Run ORFipy - create new config with updated paths
+        # Run ORFipy - create input and config objects
         orfipy_output = temp_path / "orfipy_output"
-        orfipy_run_config = orfipy_config.model_copy(update={
-            "input_fasta": str(input_fasta),
-            "output_dir": str(orfipy_output)
-        })
-        result = run_orfipy_prediction(orfipy_run_config)  # Cached by decorator
+        orfipy_input = OrfipyInput(input_fasta=str(input_fasta))
+        orfipy_run_config = orfipy_config.model_copy(
+            update={"output_dir": str(orfipy_output)}
+        )
+        result = run_orfipy_prediction(
+            inputs=orfipy_input, config=orfipy_run_config
+        )  # Cached by decorator
 
         # Get parsed ORFs from result
         orfs_df = result.results_df if result.results_df is not None else pd.DataFrame()
@@ -83,13 +91,15 @@ def run_orfipy_mmseqs_pipeline(
         else:
             # Run MMseqs search - resolve GCS paths to local paths
             mmseqs_output = temp_path / "mmseqs_output"
-            resolved_db = resolve_paths(mmseqs_config.mmseqs_db)
+            resolved_db = resolve_paths(mmseqs_db)
+            mmseqs_input = MmseqsSearchProteinsInput(
+                query_fasta=str(aa_fasta),
+                mmseqs_db=resolved_db
+            )
             mmseqs_run_config = mmseqs_config.model_copy(update={
-                "query_fasta": str(aa_fasta),
-                "mmseqs_db": resolved_db,
                 "results_dir": str(mmseqs_output)
             })
-            result = mmseqs_search_proteins(mmseqs_run_config)  # Cached by decorator
+            result = mmseqs_search_proteins(mmseqs_input, mmseqs_run_config)  # Cached by decorator
 
             # Extract DataFrame from result
             mmseqs_results = result.results_df if result.results_df is not None else pd.DataFrame()

@@ -123,9 +123,12 @@ class ESM3Generator(Generator):
 
         # Use ESM3 sampling tool
         from ...tools.models.language_models.esm3.esm3 import run_esm3_sample, ESM3SampleConfig
-        
+        from ...tools.models.language_models.schemas import LanguageModelInput
+
+        # Create input and config objects
+        esm3_input = LanguageModelInput(sequences=sequences)
         config = ESM3SampleConfig(
-            sequences=sequences,
+            model_name=self.esm3_type,
             sequence_length=self.sequence_length,
             temperature=self.temperature,
             decoding_method=self.decoding_method,
@@ -133,8 +136,8 @@ class ESM3Generator(Generator):
             keep_on_device=True,  # Keep for repeated calls
             verbose=False
         )
-        
-        result = run_esm3_sample(config)
+
+        result = run_esm3_sample(inputs=esm3_input, config=config)
         mutated_sequences = result.sequences
 
         # Update sequences in the batch

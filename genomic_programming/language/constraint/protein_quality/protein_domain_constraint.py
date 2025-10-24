@@ -12,8 +12,12 @@ from pydantic import Field
 from ...core import Sequence, SequenceType
 from proto_language.base_config import BaseConfig
 from ..constraint_registry import ConstraintRegistry
-from ....tools.orf_prediction.prodigal import run_prodigal_prediction, ProdigalConfig
-from ....tools.gene_annotation.pyhmmer import pyhmmer_hmmscan, PyHmmscanConfig
+from ....tools.orf_prediction.prodigal import (
+    run_prodigal_prediction,
+    ProdigalInput,
+    ProdigalConfig,
+)
+from ....tools.gene_annotation.pyhmmer import pyhmmer_hmmscan, PyHmmscanInput, PyHmmerConfig
 from ....utils import MIN_ENERGY, MAX_ENERGY
 
 
@@ -37,7 +41,7 @@ class ProteinDomainConfig(BaseConfig):
         default=False,
         description="If True, require ALL keywords to be found. If False, require ANY keyword (default)."
     )
-    hmmscan_config: Optional[PyHmmscanConfig] = Field(
+    hmmscan_config: Optional[PyHmmerConfig] = Field(
         default=None,
         description="Optional configuration for PyHMMER hmmscan. If None, uses default configuration. Sequences field will be set programmatically from the input sequence. Hmm_db field will be set to the provided hmm_db.",
     )
@@ -111,8 +115,9 @@ def protein_domain_constraint(
     if input_sequence.sequence_type == SequenceType.DNA:
         # Run Prodigal to get predicted proteins
         try:
-            prodigal_config = ProdigalConfig(input_sequence=input_sequence.sequence)
-            result = run_prodigal_prediction(prodigal_config)
+            prodigal_inputs = ProdigalInput(input_sequence=input_sequence.sequence)
+            prodigal_config = ProdigalConfig()
+            result = run_prodigal_prediction(prodigal_inputs, prodigal_config)
             proteins_df = result.results_df
 
             input_sequence._metadata["prodigal_proteins"] = proteins_df
@@ -200,7 +205,7 @@ def _check_protein_domains(
     hmm_db: str,
     keywords_lower: List[str],
     evalue_threshold: float,
-    hmmscan_config: PyHmmscanConfig,
+    hmmscan_config: PyHmmerConfig,
     query_coverage: float = None,
 ) -> Dict[str, Any]:
     """
@@ -219,23 +224,17 @@ def _check_protein_domains(
     """
 
     # Create PyHMMER config with direct sequence input (no temporary files needed)
-    # Copy the configuration to avoid mutating the original
-    if hmmscan_config is None:
-        final_config = PyHmmscanConfig(
-            sequences=protein_sequence.sequence,
-            hmm_db=hmm_db
-        )
-    else:
-        # Copy existing config with new sequences and hmm_db
-        config_dict = hmmscan_config.model_dump(exclude={"sequences", "hmm_db"})
-        final_config = PyHmmscanConfig(
-            sequences=protein_sequence.sequence,
-            hmm_db=hmm_db,
-            **config_dict
-        )
+    # Create input and config for PyHMMER hmmscan
+    hmmscan_input = PyHmmscanInput(
+        sequences=protein_sequence.sequence,
+        hmm_db=hmm_db
+    )
+
+    # Use provided config or default
+    final_config = hmmscan_config if hmmscan_config is not None else PyHmmerConfig()
 
     # Run PyHMMER hmmscan
-    result = pyhmmer_hmmscan(final_config)
+    result = pyhmmer_hmmscan(inputs=hmmscan_input, config=final_config)
 
     if not result.success:
         raise RuntimeError(f"PyHMMER execution failed: {result.errors}")

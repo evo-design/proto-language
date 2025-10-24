@@ -13,7 +13,7 @@ from pydantic import Field
 from ...core import Sequence
 from proto_language.base_config import BaseConfig
 from ..constraint_registry import ConstraintRegistry
-from ....tools.models.structure_prediction.esmfold import ESMFoldConfig
+from ....tools.models.structure_prediction.esmfold import ESMFoldInput, ESMFoldConfig
 from ....utils import (
     distances_to_centroid,
     get_backbone_atoms,
@@ -31,7 +31,7 @@ class ProteinGlobularityConfig(BaseConfig):
     )
     esmfold_config: Optional[ESMFoldConfig] = Field(
         default=None,
-        description="Advanced ESMFold configuration parameters. Leave as None to use defaults."
+        description="Advanced ESMFold configuration parameters. Leave as None to use defaults. Sequences are handled separately via ESMFoldInput.",
     )
 
 
@@ -67,18 +67,17 @@ def protein_globularity_constraint(
         >>> cfg = ProteinGlobularityConfig(n_replications=1, esmfold_config=config)
         >>> score = protein_globularity_constraint(seq, config=cfg)
     """
-    # Create or copy ESMFold config
-    if config.esmfold_config is None:
-        esmfold_config = ESMFoldConfig()
-    else:
-        esmfold_config = ESMFoldConfig(**config.esmfold_config.model_dump(exclude={'sequences'}))
-
     # Prepare replicated sequence for multimer prediction
     replicated_sequence = ":".join([input_sequence.sequence] * config.n_replications)
-    esmfold_config.sequences = replicated_sequence
+
+    # Create ESMFoldInput and ESMFoldConfig
+    esmfold_input = ESMFoldInput(sequences=replicated_sequence)
+    esmfold_config = (
+        config.esmfold_config if config.esmfold_config is not None else ESMFoldConfig()
+    )
 
     # Run ESMFold prediction (caching handled transparently by decorator)
-    output = run_esmfold(esmfold_config)
+    output = run_esmfold(inputs=esmfold_input, config=esmfold_config)
 
     # Store results in metadata
     input_sequence._metadata.update({

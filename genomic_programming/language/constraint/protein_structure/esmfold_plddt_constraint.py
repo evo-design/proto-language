@@ -11,7 +11,11 @@ from pydantic import Field
 from ...core import Sequence
 from proto_language.base_config import BaseConfig
 from ..constraint_registry import ConstraintRegistry
-from ....tools.models.structure_prediction.esmfold import run_esmfold, ESMFoldConfig
+from ....tools.models.structure_prediction.esmfold import (
+    run_esmfold,
+    ESMFoldInput,
+    ESMFoldConfig,
+)
 
 
 class ESMFoldPLDDTConfig(BaseConfig):
@@ -23,7 +27,7 @@ class ESMFoldPLDDTConfig(BaseConfig):
     )
     esmfold_config: Optional[ESMFoldConfig] = Field(
         default=None,
-        description="Optional ESMFold configuration (residue_idx_offset, chain_linker, verbose). If None, uses defaults. Sequences field will be set programmatically from the input sequence."
+        description="Optional ESMFold configuration (residue_idx_offset, chain_linker, verbose). If None, uses defaults.",
     )
 
 
@@ -63,19 +67,17 @@ def esmfold_plddt_constraint(
         >>> cfg = ESMFoldPLDDTConfig(n_replications=2, esmfold_config=esmfold_cfg)
         >>> score = esmfold_plddt_constraint(seq, config=cfg)
     """
-    # Create or copy ESMFold config
-    if config.esmfold_config is None:
-        esmfold_config = ESMFoldConfig()
-    else:
-        # Copy to avoid mutating the input
-        esmfold_config = ESMFoldConfig(**config.esmfold_config.model_dump(exclude={'sequences'}))
-
     # Prepare replicated sequence for multimer prediction
     replicated_sequence = ":".join([input_sequence.sequence] * config.n_replications)
-    esmfold_config.sequences = replicated_sequence
+
+    # Create ESMFoldInput and ESMFoldConfig
+    esmfold_input = ESMFoldInput(sequences=replicated_sequence)
+    esmfold_config = (
+        config.esmfold_config if config.esmfold_config is not None else ESMFoldConfig()
+    )
 
     # Run ESMFold prediction (caching handled transparently by decorator)
-    output = run_esmfold(esmfold_config)
+    output = run_esmfold(inputs=esmfold_input, config=esmfold_config)
 
     # Store results in metadata
     input_sequence._metadata.update({

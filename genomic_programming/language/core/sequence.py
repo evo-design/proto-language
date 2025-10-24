@@ -97,7 +97,7 @@ class Sequence:
         Raises:
             ValueError: If sequence contains invalid characters for this sequence type.
         """
-        invalid_chars = set(sequence) - self._valid_chars
+        invalid_chars = _return_invalid_chars(sequence, self._valid_chars)
         if invalid_chars:
             raise ValueError(
                 f"Invalid characters found: {', '.join(invalid_chars)}. "
@@ -219,3 +219,148 @@ class Sequence:
             valid_chars=subsequences[0]._valid_chars, # assumed to be the same for all subsequences
             metadata=combined_metadata
         )
+
+
+# =============================================================================
+# Sequence Validation Helpers
+# =============================================================================
+def _return_invalid_chars(sequence: str, valid_chars: Set[str]) -> Set[str]:
+    """
+    Return the invalid characters in a sequence given a set of valid characters.
+
+    Args:
+        sequence: The sequence string to validate.
+        valid_chars: The set of valid characters.
+
+    Returns:
+        The set of invalid characters.
+    """
+    invalid_chars = set(sequence) - valid_chars
+    return invalid_chars
+
+
+def return_invalid_dna_chars(sequence: str, additional_valid_chars: Optional[str] = None) -> Set[str]:
+    """
+    Helper function that returns the invalid characters in a DNA sequence.
+
+    Args:
+        sequence (str): The sequence string to validate.
+        additional_valid_chars (Optional[str]): Additional valid characters to add to the default DNA characters.
+
+    Returns:
+        Set[str]: The set of invalid characters.
+    """
+    if additional_valid_chars is None:
+        additional_valid_chars = ""
+
+    valid_chars = DNA_NUCLEOTIDES + additional_valid_chars
+    
+    return _return_invalid_chars(sequence, set(valid_chars))
+
+def return_invalid_rna_chars(sequence: str, additional_valid_chars: Optional[str] = None) -> Set[str]:
+    """
+    Helper function that returns the invalid characters in a RNA sequence.
+
+    Args:
+        sequence (str): The sequence string to validate.
+        additional_valid_chars (Optional[str]): Additional valid characters to add to the default RNA characters.
+
+    Returns:
+        Set[str]: The set of invalid characters.
+    """
+    if additional_valid_chars is None:
+        additional_valid_chars = ""
+
+    valid_chars = RNA_NUCLEOTIDES + additional_valid_chars
+    return _return_invalid_chars(sequence, set(valid_chars))
+
+
+def return_invalid_nucleotide_chars(sequence: str, additional_valid_chars: Optional[str] = None) -> Set[str]:
+    """
+    Helper function that returns the invalid characters in a nucleotide sequence.
+
+    Args:
+        sequence (str): The sequence string to validate.
+        additional_valid_chars (Optional[str]): Additional valid characters to add to the default nucleotide characters.
+
+    Returns:
+        Set[str]: The set of invalid characters.
+    """
+    if additional_valid_chars is None:
+        additional_valid_chars = ""
+
+    valid_chars = DNA_NUCLEOTIDES + RNA_NUCLEOTIDES + additional_valid_chars
+    return _return_invalid_chars(sequence, set(valid_chars))
+
+def return_invalid_protein_chars(sequence: str, additional_valid_chars: Optional[str] = None) -> Set[str]:
+    """
+    Return the invalid characters in a protein sequence.
+
+    Args:
+        sequence (str): The sequence string to validate.
+        additional_valid_chars (Optional[str]): Additional valid characters to add to the default protein amino acids.
+
+    Returns:
+        Set[str]: The set of invalid characters.
+    """
+    if additional_valid_chars is None:
+        additional_valid_chars = ""
+
+    valid_chars = PROTEIN_AMINO_ACIDS + additional_valid_chars
+    return _return_invalid_chars(sequence, set(valid_chars))
+
+def return_invalid_ligand_chars(sequence: str, additional_valid_chars: Optional[str] = None) -> Set[str]:
+    """
+    Helper function that returns the invalid characters in a ligand sequence.
+
+    Args:
+        sequence (str): The sequence string to validate.
+        additional_valid_chars (Optional[str]): Additional valid characters to add to the default ligand characters.
+
+    Returns:
+        Set[str]: The set of invalid characters.
+    """
+    if additional_valid_chars is None:
+        additional_valid_chars = ""
+
+    valid_chars = LIGAND_CHARS + additional_valid_chars
+    return _return_invalid_chars(sequence, set(valid_chars))
+
+
+
+def detect_sequence_type(sequence: str) -> str:
+    """
+    Attempts to determine the type of a sequence based on the characters it contains.
+    Starts with more specific sequence types (less characters allowed) and works
+    its way down to the least specific. Returns "unknown" if the sequence type
+    cannot be determined.
+
+    Args:
+        sequence (str): The sequence string to detect the type of.
+
+    Returns:
+       string: The type of the sequence.
+    """
+
+    # DNA ================================================================
+    invalid_chars = return_invalid_dna_chars(sequence, additional_valid_chars="N")
+    if not invalid_chars:
+        return SequenceType.DNA.value
+
+    # RNA ================================================================
+    invalid_chars = return_invalid_rna_chars(sequence, additional_valid_chars="TN")
+    if not invalid_chars:
+        return SequenceType.RNA.value
+
+    # Protein =============================================================
+    invalid_chars = return_invalid_protein_chars(sequence, additional_valid_chars="X*")
+    if not invalid_chars:
+        return SequenceType.PROTEIN.value
+
+    # Ligand ==============================================================
+    invalid_chars = return_invalid_ligand_chars(sequence)
+    if not invalid_chars:
+        return SequenceType.LIGAND.value
+
+    # Otherwise, return unknown
+    return "unknown"

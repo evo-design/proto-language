@@ -23,8 +23,9 @@ class ORFipyMMseqsGeneHomologyConfig(BaseConfig):
     """Configuration for ORFipy + MMseqs gene homology constraint."""
     min_homology: float = Field(ge=0.0, le=100.0, description="Minimum acceptable percent identity (0-100) for each ORF. Lower values are more permissive.")
     max_homology: float = Field(ge=0.0, le=100.0, description="Maximum acceptable percent identity (0-100) for each ORF. Higher values allow more similar hits.")
+    mmseqs_db: str = Field(description="Path to MMseqs2 database for homology search")
     orfipy_config: Optional[OrfipyConfig] = Field(default=None, description="ORFipy configuration for ORF prediction")
-    mmseqs_config: Optional[MmseqsSearchProteinsConfig] = Field(default=None, description="MMseqs configuration for homology search (mmseqs_db path REQUIRED)")
+    mmseqs_config: Optional[MmseqsSearchProteinsConfig] = Field(default=None, description="MMseqs configuration for homology search (threads, sensitivity, etc.)")
 
 
 @ConstraintRegistry.register(
@@ -65,7 +66,7 @@ def orfipy_mmseqs_gene_homology_constraint(
         >>> score = orfipy_mmseqs_gene_homology_constraint(seq, config=cfg)
     """
     # Run the pipeline
-    run_orfipy_mmseqs_pipeline(input_sequence, config.orfipy_config, config.mmseqs_config)
+    run_orfipy_mmseqs_pipeline(input_sequence, config.mmseqs_db, config.orfipy_config, config.mmseqs_config)
 
     # Get the MMseqs results (convert from dict records if needed)
     mmseqs_results_data = input_sequence._metadata.get("mmseqs_results", [])

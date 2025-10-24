@@ -6,6 +6,12 @@ from .sequence import (
     RNA_NUCLEOTIDES,
     PROTEIN_AMINO_ACIDS,
     LIGAND_CHARS,
+    return_invalid_dna_chars,
+    return_invalid_rna_chars,
+    return_invalid_nucleotide_chars,
+    return_invalid_protein_chars,
+    return_invalid_ligand_chars,
+    detect_sequence_type,
 )
 from .segment import Segment
 from .construct import Construct
@@ -23,6 +29,12 @@ __all__ = [
     "RNA_NUCLEOTIDES",
     "PROTEIN_AMINO_ACIDS",
     "LIGAND_CHARS",
+    "return_invalid_dna_chars",
+    "return_invalid_rna_chars",
+    "return_invalid_nucleotide_chars",
+    "return_invalid_protein_chars",
+    "return_invalid_ligand_chars",
+    "detect_sequence_type",
     "Segment",
     "Construct",
     "Constraint",

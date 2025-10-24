@@ -36,12 +36,12 @@ from ..test_utils import create_segment
 
 class TestBoltzBindingStrengthConstraint:
     """Tests for Boltz Binding Strength constraint."""
-    
+
     def test_config_with_custom_return_component(self):
         """Test config with custom return component."""
         config = BoltzBindingStrengthConfig(return_component="iptm")
         assert config.return_component == "iptm"
-    
+
     def test_config_with_custom_params(self):
         """Test config with custom parameters."""
         config = BoltzBindingStrengthConfig(
@@ -54,36 +54,36 @@ class TestBoltzBindingStrengthConstraint:
         assert config.weights["iptm"] == 0.5
         assert config.on_error == "raise"
         assert config.return_component == "iptm"
-    
+
     def test_via_registry_minimal(self):
         """Test constraint creation via registry with minimal config."""
         segment = create_segment("MKTAYIAKQRQISFVK", SequenceType.PROTEIN)
-        
+
         constraint = ConstraintRegistry.create(
             key="boltz-binding-strength",
             segments=[segment],
             config_dict={}
         )
-        
+
         assert constraint.scoring_function_config.return_component == "total_penalty"
         assert constraint.scoring_function_config.boltz_config is None
-    
+
     def test_via_registry_with_return_component(self):
         """Test registry with custom return component."""
         segment = create_segment("MVLSPADK", SequenceType.PROTEIN)
-        
+
         constraint = ConstraintRegistry.create(
             key="boltz-binding-strength",
             segments=[segment],
             config_dict={"return_component": "ligand_iptm"}
         )
-        
+
         assert constraint.scoring_function_config.return_component == "ligand_iptm"
-    
+
     def test_via_registry_with_full_config(self):
         """Test registry with full config parameters."""
         segment = create_segment("MKTAYIAKQRQISFVK", SequenceType.PROTEIN)
-        
+
         constraint = ConstraintRegistry.create(
             key="boltz-binding-strength",
             segments=[segment],
@@ -98,10 +98,10 @@ class TestBoltzBindingStrengthConstraint:
                 "return_component": "total_penalty"
             }
         )
-        
+
         assert constraint.scoring_function_config.desired_higher["iptm"] == 0.90
         assert constraint.scoring_function_config.weights["iptm"] == 0.50
-    
+
     def test_config_with_batch_size(self):
         """Test config with batch_size."""
         config = BoltzBindingStrengthConfig(
@@ -110,30 +110,29 @@ class TestBoltzBindingStrengthConstraint:
         )
         assert config.batch_size == 4
         assert config.on_error == "penalize"
-    
+
     def test_config_with_boltz_params(self):
         """Test config with Boltz prediction parameters."""
         from proto_language.tools.models.structure_prediction.boltz import BoltzConfig
-        
+
         boltz_cfg = BoltzConfig(
-            sequences=["DUMMY"],  # Will be overridden
             recycling_steps=3,
             diffusion_samples=1,
         )
         config = BoltzBindingStrengthConfig(boltz_config=boltz_cfg)
         assert config.boltz_config.recycling_steps == 3
         assert config.boltz_config.diffusion_samples == 1
-    
+
     def test_constraint_spec_not_vectorized(self):
         """Test that constraint is registered as not vectorized."""
         spec = ConstraintRegistry.get("boltz-binding-strength")
         assert spec.vectorized == False
-    
+
     def test_constraint_spec_not_concatenate(self):
         """Test that constraint is registered with concatenate=False."""
         spec = ConstraintRegistry.get("boltz-binding-strength")
         assert spec.concatenate == False
-    
+
     def test_constraint_description(self):
         """Test that constraint has a meaningful description."""
         spec = ConstraintRegistry.get("boltz-binding-strength")

@@ -22,8 +22,8 @@ from proto_language.language.constraint import (
 )
 from proto_language.language.constraint.sequence_annotation.orfipy_mmseqs_gene_hit_count_constraint import ORFipyMMseqsGeneHitCountConfig
 from proto_language.language.constraint.sequence_annotation.orfipy_mmseqs_gene_homology_constraint import ORFipyMMseqsGeneHomologyConfig
-from proto_language.tools.orf_prediction.orfipy import OrfipyConfig
-from proto_language.tools.gene_annotation.mmseqs import MmseqsSearchProteinsConfig
+from proto_language.tools.orf_prediction.orfipy import OrfipyInput, OrfipyConfig
+from proto_language.tools.gene_annotation.mmseqs import MmseqsSearchProteinsInput, MmseqsSearchProteinsConfig
 from ..test_utils import (
     create_segment,
     create_batched_segment,
@@ -42,15 +42,13 @@ class TestOrfipyMmseqsConstraints:
         return ORFipyMMseqsGeneHitCountConfig(
             min_hits=1,
             max_hits=3,
+            mmseqs_db=dummy_db_path,
             mmseqs_config=MmseqsSearchProteinsConfig(
-                query_fasta="",  # Filled in by pipeline
-                mmseqs_db=dummy_db_path,
                 results_dir="",  # Filled in by pipeline
                 threads=1,
                 sensitivity=1.0
             ),
             orfipy_config=OrfipyConfig(
-                input_fasta="",  # Filled in by pipeline
                 output_dir="",  # Filled in by pipeline
                 threads=1,
                 min_len=30
@@ -62,15 +60,13 @@ class TestOrfipyMmseqsConstraints:
         return ORFipyMMseqsGeneHomologyConfig(
             min_homology=80.0,
             max_homology=100.0,
+            mmseqs_db=dummy_db_path,
             mmseqs_config=MmseqsSearchProteinsConfig(
-                query_fasta="",  # Filled in by pipeline
-                mmseqs_db=dummy_db_path,
                 results_dir="",  # Filled in by pipeline
                 threads=1,
                 sensitivity=1.0
             ),
             orfipy_config=OrfipyConfig(
-                input_fasta="",  # Filled in by pipeline
                 output_dir="",  # Filled in by pipeline
                 threads=1,
                 min_len=30
@@ -219,6 +215,7 @@ class TestOrfipyMmseqsConstraints:
         # First call, should compute
         run_orfipy_mmseqs_pipeline(
             seq,
+            hit_count_config.mmseqs_db,
             orfipy_config=hit_count_config.orfipy_config,
             mmseqs_config=hit_count_config.mmseqs_config,
         )
@@ -239,6 +236,7 @@ class TestOrfipyMmseqsConstraints:
         )
         run_orfipy_mmseqs_pipeline(
             seq2,
+            hit_count_config.mmseqs_db,
             orfipy_config=hit_count_config.orfipy_config,
             mmseqs_config=hit_count_config.mmseqs_config,
         )
@@ -250,8 +248,6 @@ class TestOrfipyMmseqsConstraints:
 
         # Different config should recompute when pipeline parameters change
         new_mmseqs_config = MmseqsSearchProteinsConfig(
-            query_fasta="",
-            mmseqs_db=hit_count_config.mmseqs_config.mmseqs_db,
             results_dir="",
             threads=1,
             sensitivity=2.0,  # Different sensitivity
@@ -265,6 +261,7 @@ class TestOrfipyMmseqsConstraints:
         # This should compute with different parameters
         run_orfipy_mmseqs_pipeline(
             seq3,
+            hit_count_config.mmseqs_db,
             orfipy_config=hit_count_config.orfipy_config,
             mmseqs_config=new_mmseqs_config,
         )

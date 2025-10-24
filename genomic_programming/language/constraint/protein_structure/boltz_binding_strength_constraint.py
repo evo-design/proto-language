@@ -11,7 +11,11 @@ from pydantic import Field
 from ...core import Sequence, SequenceType
 from proto_language.base_config import BaseConfig
 from ..constraint_registry import ConstraintRegistry
-from ....tools.models.structure_prediction.boltz import run_boltz, BoltzConfig
+from ....tools.models.structure_prediction.boltz import (
+    run_boltz,
+    BoltzInput,
+    BoltzConfig,
+)
 
 
 # Default target values and tolerances for binding strength metrics
@@ -48,7 +52,7 @@ DEFAULT_TOL_LOWER = {
 
 class BoltzBindingStrengthConfig(BaseConfig):
     """Configuration for Boltz binding strength constraint."""
-    
+
     # Constraint-specific parameters
     desired_higher: Dict[str, float] = Field(
         default_factory=lambda: DEFAULT_DESIRED_HIGHER.copy(),
@@ -86,11 +90,11 @@ class BoltzBindingStrengthConfig(BaseConfig):
         default="total_penalty",
         description="Component to return: 'total_penalty' (weighted combination) or specific metric name like 'iptm', 'ligand_iptm', 'complex_iplddt', etc."
     )
-    
+
     # Nested Boltz2 configuration
     boltz_config: Optional[BoltzConfig] = Field(
         default=None,
-        description="Optional Boltz2 configuration (use_msa_server, msa_server_url, recycling_steps, sampling_steps, diffusion_samples, num_workers, devices, verbose). If None, uses defaults. Sequences and entity_types will be set programmatically from input."
+        description="Optional Boltz2 configuration (use_msa_server, msa_server_url, recycling_steps, sampling_steps, diffusion_samples, num_workers, devices, verbose). If None, uses defaults.",
     )
 
 
@@ -156,7 +160,7 @@ def boltz_binding_strength_constraint(
 
     complexes = _normalize(complexes)
     is_single = len(complexes) == 1
-    
+
     # Merge user overrides with defaults (allows partial specification)
     desired_higher = {**DEFAULT_DESIRED_HIGHER, **config.desired_higher}
     desired_lower = {**DEFAULT_DESIRED_LOWER, **config.desired_lower}
@@ -194,38 +198,20 @@ def boltz_binding_strength_constraint(
     # Batch processing
     def _process_batch(batch):
         try:
-            if len(batch) == 1:
-                # Create or copy Boltz config
-                if config.boltz_config is None:
-                    boltz_cfg = BoltzConfig(
-                        sequences=batch[0]["sequences"],
-                        entity_types=batch[0]["entity_types"],
-                    )
-                else:
-                    # Copy to avoid mutating the input
-                    boltz_cfg = BoltzConfig(
-                        **config.boltz_config.model_dump(exclude={'sequences', 'entity_types'}),
-                        sequences=batch[0]["sequences"],
-                        entity_types=batch[0]["entity_types"],
-                    )
-                out_list = [run_boltz(boltz_cfg)]
-            else:
-                # Note: Boltz doesn't support batch processing in the new API yet
-                # Process sequentially
-                out_list = []
-                for b in batch:
-                    if config.boltz_config is None:
-                        boltz_cfg = BoltzConfig(
-                            sequences=b["sequences"],
-                            entity_types=b["entity_types"],
-                        )
-                    else:
-                        boltz_cfg = BoltzConfig(
-                            **config.boltz_config.model_dump(exclude={'sequences', 'entity_types'}),
-                            sequences=b["sequences"],
-                            entity_types=b["entity_types"],
-                        )
-                    out_list.append(run_boltz(boltz_cfg))
+            # Note: Boltz doesn't support batch processing in the new API yet
+            # Process sequentially
+            out_list = []
+            for b in batch:
+                boltz_input = BoltzInput(
+                    sequences=b["sequences"],
+                    entity_types=b["entity_types"],
+                )
+                boltz_cfg = (
+                    config.boltz_config
+                    if config.boltz_config is not None
+                    else BoltzConfig()
+                )
+                out_list.append(run_boltz(boltz_input, boltz_cfg))
         except Exception:
             if config.on_error.lower() == "raise":
                 raise

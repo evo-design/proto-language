@@ -21,8 +21,9 @@ class ORFipyMMseqsGeneHitCountConfig(BaseConfig):
     """Configuration for ORFipy + MMseqs gene hit count constraint."""
     min_hits: int = Field(ge=0, description="Minimum acceptable number of unique ORFs with database hits (must be non-negative)")
     max_hits: int = Field(ge=0, description="Maximum acceptable number of unique ORFs with database hits (must be non-negative)")
+    mmseqs_db: str = Field(description="Path to MMseqs2 database for homology search")
     orfipy_config: Optional[OrfipyConfig] = Field(default=None, description="ORFipy configuration for ORF prediction (threads, start/stop codons, strand, min/max length, etc.)")
-    mmseqs_config: Optional[MmseqsSearchProteinsConfig] = Field(default=None, description="MMseqs configuration for homology search (mmseqs_db path REQUIRED, plus threads, sensitivity, etc.)")
+    mmseqs_config: Optional[MmseqsSearchProteinsConfig] = Field(default=None, description="MMseqs configuration for homology search (threads, sensitivity, etc.)")
 
 
 @ConstraintRegistry.register(
@@ -63,7 +64,7 @@ def orfipy_mmseqs_gene_hit_count_constraint(
         >>> score = orfipy_mmseqs_gene_hit_count_constraint(seq, config=cfg)
     """
     # Run the pipeline
-    run_orfipy_mmseqs_pipeline(input_sequence, config.orfipy_config, config.mmseqs_config)
+    run_orfipy_mmseqs_pipeline(input_sequence, config.mmseqs_db, config.orfipy_config, config.mmseqs_config)
 
     # Get the count of unique ORFs with hits (directly from metadata)
     unique_orfs_with_hits = input_sequence._metadata.get("unique_orfs_with_hits", 0)
