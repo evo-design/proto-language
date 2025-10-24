@@ -379,7 +379,7 @@ class TestBeamSearchOptimizer:
                 config=config,
             )
 
-    @pytest.mark.gpu
+    @pytest.mark.uses_gpu
     @pytest.mark.slow
     def test_replicate_cache(self):
         """Tests the replicate_cache method."""
@@ -442,7 +442,7 @@ class TestBeamSearchOptimizer:
         with pytest.raises(ValueError, match="must be at least 1"):
             optimizer.generator.replicate_cache(mock_cache, 0)
 
-    @pytest.mark.gpu
+    @pytest.mark.uses_gpu
     @pytest.mark.slow
     def test_replicate_cache_validates_batch_size(self):
         """Tests that replicate_cache validates cache has batch size 1."""
@@ -823,7 +823,7 @@ class TestBeamSearchOptimizer:
         assert all(len(prompt) == full_length for prompt in optimizer.running_prompts)
 
     @pytest.mark.slow
-    @pytest.mark.gpu
+    @pytest.mark.uses_gpu
     def test_kv_caching_speedup(self):
         """Tests that KV caching provides a speedup using real Evo2 generator."""
         from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
@@ -1080,7 +1080,7 @@ class TestBeamSearchOptimizer:
         assert len(optimizer_small.construct.joined_sequences) == 2
         assert len(optimizer_large.construct.joined_sequences) == 10
 
-    @pytest.mark.gpu
+    @pytest.mark.uses_gpu
     @pytest.mark.slow
     def test_memory_cleanup(self):
         """Tests that KV caches are properly cleaned up (requires GPU)."""

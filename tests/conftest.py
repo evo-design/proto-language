@@ -58,7 +58,7 @@ def pytest_collection_modifyitems(config, items):
                 item.add_marker(skip_gpu)
     
     # Skip CPU tests when --gpu is specified
-    if config.getoption("--gpu"):
+    elif config.getoption("--gpu"):
         skip_cpu = pytest.mark.skip(reason="--gpu specified")
         for item in items:
             if "uses_cpu" in item.keywords and "uses_gpu" not in item.keywords:

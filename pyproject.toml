@@ -37,6 +37,7 @@ dependencies = [
     "torch>=2.0.0",
     "transformers>=4.30.0",
     "huggingface_hub>=0.16.0",
+    "accelerate",
     
     # Cloud compute
 
@@ -74,6 +75,11 @@ dependencies = [
     
     # Sequence scoring (CPU-only)
     "alphagenome>=0.2.0",
+
+    # Testing
+    "pytest>=7.3.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
 ]
 
 [project.optional-dependencies]
@@ -86,9 +92,6 @@ gpu = [
 
 # Development dependencies for contributors
 dev = [
-    "pytest>=7.3.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.1.0",
     "black>=23.0.0",
     "isort>=5.12.0",
     "flake8>=6.0.0",

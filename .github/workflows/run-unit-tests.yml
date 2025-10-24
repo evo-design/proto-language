@@ -16,18 +16,18 @@ jobs:
       with:
         auto-activate-base: false
         activate-environment: proto-language
-        python-version: 3.11
+        python-version: 3.12
         channels: conda-forge,bioconda
         mamba-version: "*"
 
     - name: Install dependencies
       shell: bash -l {0}  # ensures conda env is activated
       run: |
-        conda install -c conda-forge -c bioconda mmseqs2 blast -y
+        conda install -c conda-forge -c bioconda -c nvidia mmseqs2 blast cuda-nvcc cuda-cudart-dev transformer-engine-torch=2.3.0 -y
         pip install uv
-        uv pip install -e .[dev]
+        uv pip install -e .
 
     - name: Run CPU unit tests
       shell: bash -l {0}
       run: |
-        pytest -sv --cpu
+        pytest --cpu

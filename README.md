@@ -1,5 +1,8 @@
 # Proto Language
 
+[![Unit Tests](https://github.com/evo-design/proto-language/actions/workflows/run-unit-tests.yml/badge.svg)](https://github.com/evo-design/proto-language/actions/workflows/run-unit-tests.yml)
+[![Integration Tests](https://github.com/evo-design/proto-language/actions/workflows/integration_tests.yml/badge.svg)](https://github.com/evo-design/proto-language/actions/workflows/integration_tests.yml)
+
 A framework for designing biological sequences (DNA, RNA, proteins) with constraint-based optimization.
 
 ## Installation
@@ -10,7 +13,7 @@ The package is now structured with `pyproject.toml`. Install with:
 ```bash
 conda create --name proto-language python=3.12 -y
 conda activate proto-language
-conda install -c conda-forge -c bioconda mmseqs2 blast -y
+conda install -c conda-forge -c bioconda -c nvidia mmseqs2 blast cuda-nvcc cuda-cudart-dev transformer-engine-torch=2.3.0 -y
 ```
 
 2. Install as an editable package:
@@ -25,6 +28,8 @@ conda install -c conda-forge -c bioconda mmseqs2 blast -y
     ```bash
     pip install uv
     uv pip install -e .[gpu]
+    uv pip install flash-attn==2.8.0.post2 --no-build-isolation
+    pip install evo2
     ```
 
 ## Running the API
@@ -45,23 +50,23 @@ API will be available at http://localhost:8000
 
 ## Tests
 
-```bash
-pytest -sv
-```
-
-For CPU-specific tests:
+Tests can be run with various filtering options based on hardware utilization and execution time.  
+See [tests/README.md](tests/README.md) for more details. A few commonly used commands are listed below.
 
 ```bash
-pytest -sv --cpu
-```
-NOTE: CPU tests require the installation of the `dev` dependencies.
+# Run all tests that are not marked as slow (both CPU and GPU based)
+pytest
 
-For GPU-specific tests:
+# Run all tests, including slow ones (both CPU and GPU based)
+pytest --all
 
-```bash
-pytest -sv --gpu
+# Run fast CPU-based tests
+pytest --cpu
+
+# Run all GPU-based tests
+pytest --gpu --all
 ```
-NOTE: GPU tests require the installation of the `gpu` dependencies.
+
 
 ## Running the Toy Example
 
