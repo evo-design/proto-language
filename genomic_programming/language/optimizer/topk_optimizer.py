@@ -2,7 +2,7 @@
 TopK Optimizer that runs multiple independent sampling rounds and returns the top-k best constructs.
 """
 
-from typing import List, Optional, final
+from typing import Callable, List, Optional, final
 import copy
 import heapq
 
@@ -145,6 +145,7 @@ class TopKOptimizer(Optimizer):
         constraints: List[Constraint],
         config: TopKOptimizerConfig,
         constraint_weights: Optional[List[float]] = None,
+        custom_logging: Optional[Callable] = None,
         clear_tool_cache: bool | List[str] = True,
     ) -> None:
         """
@@ -156,6 +157,7 @@ class TopKOptimizer(Optimizer):
             constraints: List of Constraint objects for evaluation.
             config: Configuration object containing algorithm parameters.
             constraint_weights: Optional weights for constraints. If None, all weights are 1.0.
+            custom_logging: Optional custom logging function called after each round.
             clear_tool_cache: (bool) Whether to clear the tool cache on each iteration.
                               (List[str]) Restrict clearing cache to a list of tool names.
 
@@ -181,6 +183,7 @@ class TopKOptimizer(Optimizer):
         self.k: int = config.k
         self.rounds: int = config.min_candidates // config.batch_size  # Derived from total and batch
         self.verbose: bool = config.verbose
+        self.custom_logging: Optional[Callable] = custom_logging
 
         # Threshold-based stopping parameters
         self.energy_threshold: Optional[float] = config.energy_threshold
@@ -228,6 +231,15 @@ class TopKOptimizer(Optimizer):
                 # This energy is smaller (better) than the worst in our top-k
                 # Replace the worst with this better one
                 heapq.heapreplace(self.top_k_heap, (-energy, round_idx, candidate_idx, candidate_sequences))
+
+        # 6. Sync selected_sequences with current top-k heap for custom logging
+        if self.top_k_heap:
+            top_k_sorted = sorted(self.top_k_heap, key=lambda x: -x[0])
+            self.set_topk_constructs(top_k_sorted)
+
+        # 7. Custom logging after selected_sequences are synced
+        if self.custom_logging:
+            self.custom_logging(round_idx, self.segments)
 
     def run(self) -> None:
         """
@@ -326,7 +338,6 @@ class TopKOptimizer(Optimizer):
                         print(f"  Rank {i+1}: Energy={energy:.6f}")
                 print(f"\nTopK optimization complete. Returned {len(top_k_list)} best constructs.")
 
-    # TODO: Remove this method and use self.selected_sequences directly
     def set_topk_constructs(self, top_k_list: List[tuple]) -> None:
         """
         Set the top-k constructs to segments' selected_sequences pool.

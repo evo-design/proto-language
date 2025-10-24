@@ -35,11 +35,22 @@ inputs=[dna_segment],
     scoring_function_config={"min_gc": 80, "max_gc": 100},
 )
 
+
+# Define custom logging function
+def custom_logger(round_idx, segments):
+    print(f"After round {round_idx + 1}:")
+    for i, segment in enumerate(segments):
+        print(f"Selected sequences for Segment {i + 1}:")
+        # show metadata of each sequence in the segment
+        for j, seq in enumerate(segment.selected_sequences):
+            print(seq._metadata)
+
 # Configure TopK optimizer
 topk_config = TopKOptimizerConfig(
-    rounds=1000,      # Run 1000 sampling rounds
-    k=10,            # Keep top 10 candidates
-    verbose=True,    # Show progress
+    min_candidates=100, 
+    k=3,            
+    batch_size=20,
+    verbose=True, 
 )
 
 # Create and run optimizer
@@ -48,6 +59,8 @@ optimizer = TopKOptimizer(
     generators=[mutation_generator],
     constraints=[gc_constraint],
     config=topk_config,
+    custom_logging=custom_logger
+
 )
 
 # Run optimization
@@ -56,7 +69,7 @@ optimizer.run()
 # Access results
 print("\nTop 10 sequences found:")
 for i in range(optimizer.k):
-    sequence = dna_segment.batch_sequences[i]
+    sequence = dna_segment.selected_sequences[i]
     energy = optimizer.energy_scores[i]
 
     # Calculate actual GC content
