@@ -10,7 +10,7 @@ import sys
 import numpy as np
 from pydantic import Field, model_validator
 
-from ..core import Optimizer, Construct, Generator, Constraint, Sequence
+from ..core import Optimizer, Construct, Generator, GeneratorType, Constraint, Sequence
 from proto_language.base_config import BaseConfig
 from .optimizer_registry import OptimizerRegistry
 
@@ -166,6 +166,9 @@ class MCMCOptimizer(Optimizer):
         self.verbose: bool = config.verbose
         self.custom_logging: Optional[Callable] = custom_logging
         self.history: List[Dict[str, Any]] = []  # Each entry are deep copies: {"time_step": int, "energy_scores": List[float], "constructs": List[Construct]}
+        for generator in generators:
+            if generator.type != GeneratorType.MUTATION:
+                raise ValueError(f"MCMCOptimizer requires mutation generators. The provided generator '{generator.__class__.__name__}' is not a mutation generator.")
 
 
     def run(self) -> None:

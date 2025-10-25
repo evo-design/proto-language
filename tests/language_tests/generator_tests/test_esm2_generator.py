@@ -26,7 +26,7 @@ class TestESM2Generator:
                 sequence_length=20,
                 temperature=1.0,
                 decoding_method="entropy",
-                top_k=5,
+                num_mutations=5,
             )
         )
 
@@ -52,7 +52,7 @@ class TestESM2Generator:
                 sequence_length=20,
                 temperature=1.0,
                 decoding_method="max_logit",
-                top_k=5,
+                num_mutations=5,
             )
         )
 
@@ -78,7 +78,7 @@ class TestESM2Generator:
                 sequence_length=20,
                 temperature=1.0,
                 decoding_method="random",
-                top_k=5,
+                num_mutations=5,
             )
         )
 
@@ -105,7 +105,7 @@ class TestESM2Generator:
                 sequence_length=15,
                 temperature=1.0,
                 decoding_method="entropy",
-                top_k=5,
+                num_mutations=5,
             )
         )
 

@@ -2,10 +2,10 @@
 ESM2 Generator for protein sequence generation
 """
 
-from typing import final
+from typing import final, Literal
 from pydantic import Field, field_validator
 
-from ..core import Generator, Segment
+from ..core import Generator, GeneratorType, Segment
 from proto_language.base_config import BaseConfig
 from proto_language.tools.models.language_models.esm2.esm2 import run_esm2_sample, ESM2SampleConfig, LanguageModelInput
 from .generator_registry import GeneratorRegistry
@@ -19,14 +19,14 @@ class ESM2GeneratorConfig(BaseConfig):
     # Optional parameters (have defaults)
     esm2_type: str = Field(default="esm2_t33_650M_UR50D", description="ESM2 model variant")
     temperature: float = Field(default=1.0, gt=0.0, description="Sampling temperature")
-    decoding_method: str = Field(default="entropy", description="Position selection strategy: 'entropy', 'max_logit', or 'random'")
-    top_k: int = Field(default=5, ge=1, description="Number of positions to sample per iteration")
+    decoding_method: Literal["entropy", "max_logit", "random"] = Field(default="entropy", description="Position selection strategy: 'entropy', 'max_logit', or 'random'")
+    num_mutations: int = Field(default=1, ge=1, description="Number of positions to mutate per iteration")
     
-    @field_validator('top_k')
+    @field_validator('num_mutations')
     @classmethod
-    def validate_top_k(cls, v, info):
+    def validate_num_mutations(cls, v, info):
         if 'sequence_length' in info.data and v > info.data['sequence_length']:
-            raise ValueError(f"top_k ({v}) cannot exceed sequence_length ({info.data['sequence_length']})")
+            raise ValueError(f"num_mutations ({v}) cannot exceed sequence_length ({info.data['sequence_length']})")
         return v
 
 
@@ -35,9 +35,8 @@ class ESM2GeneratorConfig(BaseConfig):
     label="ESM2 Protein Language Model",
     config=ESM2GeneratorConfig,
     description="ESM-2 protein language model for protein sequence generation",
-    category="language_model",
+    type=GeneratorType.MUTATION,
     requires_gpu=True,
-    autoregressive=False,
 )
 @final
 class ESM2Generator(Generator):
@@ -57,7 +56,7 @@ class ESM2Generator(Generator):
         ...     sequence_length=100,
         ...     temperature=1.0,
         ...     decoding_method="entropy",
-        ...     top_k=5
+        ...     num_mutations=5
         ... )
         >>> gen = ESM2Generator(config)
         >>> segment = Segment(sequence="", sequence_type=SequenceType.PROTEIN)
@@ -77,8 +76,8 @@ class ESM2Generator(Generator):
         self.sequence_length = config.sequence_length
         self.temperature = config.temperature
         self.decoding_method = config.decoding_method
-        self.top_k = config.top_k
-        self.autoregressive = False
+        self.num_mutations = config.num_mutations
+        self.type = GeneratorType.MUTATION
 
     def assign(
         self, assigned_segment: Segment
@@ -111,7 +110,7 @@ class ESM2Generator(Generator):
             sequence_length=self.sequence_length,
             temperature=self.temperature,
             decoding_method=self.decoding_method,
-            top_k=self.top_k,
+            num_mutations=self.num_mutations,
             keep_on_device=True,  # Keep for repeated calls
             verbose=False
         )

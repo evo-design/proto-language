@@ -7,7 +7,7 @@ import warnings
 
 from pydantic import Field, model_validator
 
-from ..core import Generator, Segment
+from ..core import Generator, GeneratorType, Segment
 from proto_language.base_config import BaseConfig
 from proto_language.tools.models.language_models.evo2 import run_evo2_sample, Evo2SampleInput, Evo2SampleConfig
 from .generator_registry import GeneratorRegistry
@@ -48,9 +48,8 @@ class Evo2GeneratorConfig(BaseConfig):
     label="Evo2 DNA Language Model",
     config=Evo2GeneratorConfig,
     description="Evo2 genome language model for DNA sequence generation",
-    category="language_model",
+    type=GeneratorType.AUTOREGRESSIVE,
     requires_gpu=True,
-    autoregressive=True,
 )
 @final
 class Evo2Generator(Generator):
@@ -97,7 +96,7 @@ class Evo2Generator(Generator):
         self.batched = config.batched
         self.store_kv_cache = config.store_kv_cache
         self.prepend_prompt = config.prepend_prompt
-        self.autoregressive = True
+        self.type = GeneratorType.AUTOREGRESSIVE
 
         # store old KV caches for cached generation
         self.kv_caches: List[Dict] = []

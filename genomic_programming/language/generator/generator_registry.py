@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Type
 from pydantic import BaseModel, Field
 
 from proto_language.base_registry import BaseRegistry, BaseSpec
-from proto_language.language.core import Generator
+from proto_language.language.core import Generator, GeneratorType
 
 
 class GeneratorSpec(BaseSpec):
@@ -19,10 +19,9 @@ class GeneratorSpec(BaseSpec):
 
     Extends BaseSpec with generator-specific metadata for discovery and schema generation.
     """
-
-    category: str = Field(description="Generator category (e.g., 'mutation', 'language_model')")
-    requires_gpu: bool = Field(default=False, description="Whether generator requires GPU")
-    autoregressive: bool = Field(default=False, description="Whether generator is autoregressive")
+    
+    type: GeneratorType = Field(description="Type of generator (AUTOREGRESSIVE or MUTATION)")
+    requires_gpu: bool = Field(description="Whether generator requires GPU")
 
     # Private field - excluded from serialization
     generator_class: Type[Generator] = Field(exclude=True)
@@ -33,7 +32,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
     Registry for generator discovery and schema generation.
     
     Inherits common registry functionality from BaseRegistry and adds
-    generator-specific metadata (category, requires_gpu).
+    generator-specific metadata (type, requires_gpu).
     
     Public Methods:
     - register(): Decorator to register generator classes
@@ -49,7 +48,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
         ...     key="uniform-mutation",
         ...     config=UniformMutationConfig,
         ...     description="Random point mutations",
-        ...     category="mutation",
+        ...     type=GeneratorType.MUTATION,
         ...     requires_gpu=False,
         ... )
         ... class UniformMutationGenerator(Generator):
@@ -85,9 +84,8 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
         label: str,
         config: Type[BaseModel],
         description: str,
-        category: str,
-        requires_gpu: bool = False,
-        autoregressive: bool = False,
+        type: GeneratorType,
+        requires_gpu: bool,
     ):
         """
         Decorator to register a generator class.
@@ -100,8 +98,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
             label: Readable external name (e.g., "Uniform Mutation Generator", "EVO2 Generator")
             config: Pydantic model class for configuration validation
             description: Readable description
-            category: Generator category (e.g., "mutation", "language_model",
-                     "optimization", "pipeline")
+            type: Type of generator (autoregressive or mutation)
             requires_gpu: If True, generator requires GPU for computation
 
         Returns:
@@ -113,7 +110,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
             ...     label="Uniform Mutation",
             ...     config=UniformMutationConfig,
             ...     description="Random point mutations",
-            ...     category="mutation",
+            ...     type=GeneratorType.MUTATION,
             ...     requires_gpu=False,
             ... )
             ... class UniformMutationGenerator(Generator):
@@ -131,9 +128,8 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
                 description=description,
                 config_model=config,
                 generator_class=generator_class,
-                category=category,
+                type=type,
                 requires_gpu=requires_gpu,
-                autoregressive=autoregressive,
             )
             return generator_class
         return decorator
@@ -186,8 +182,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
         List all registered generators as Pydantic models.
 
         Returns list of GeneratorSpec models that FastAPI automatically serializes to JSON.
-        Each spec includes key, label, description, parameters (via computed field),
-        category and requires_gpu.
+        Each spec includes key, label, description, parameters (via computed field), type and requires_gpu.
 
         Returns:
             List of GeneratorSpec Pydantic models
@@ -196,9 +191,8 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
             >>> generators = GeneratorRegistry.list_all()
             >>> for spec in generators:
             ...     print(f"{spec.label} ({spec.key})")
-            ...     print(f"  Category: {spec.category}")
+            ...     print(f"  Type: {spec.type}")
             ...     print(f"  GPU Required: {spec.requires_gpu}")
-            ...     print(f"  Autoregressive: {spec.autoregressive}")
         """
         return list(cls._registry.values())
 

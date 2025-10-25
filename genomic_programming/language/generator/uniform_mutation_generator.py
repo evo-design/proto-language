@@ -8,7 +8,7 @@ import time
 
 from pydantic import Field, model_validator
 
-from ..core import Generator, Segment
+from ..core import Generator, GeneratorType, Segment
 from proto_language.base_config import BaseConfig
 from .generator_registry import GeneratorRegistry
 
@@ -16,7 +16,7 @@ from .generator_registry import GeneratorRegistry
 class UniformMutationGeneratorConfig(BaseConfig):
     """Configuration for UniformMutationGenerator."""
     sequence_length: int = Field(default=100, ge=1, description="Length of sequences to generate")
-    num_mutations: int = Field(default=1, ge=0, description="Number of mutations per sequence per sample")
+    num_mutations: int = Field(default=1, ge=0, description="Number of positions to mutate per sample")
     mutation_window: Optional[Tuple[int, int]] = Field(
         default=None,
         description=(
@@ -48,9 +48,8 @@ class UniformMutationGeneratorConfig(BaseConfig):
     label="Uniform Mutation Generator",
     config=UniformMutationGeneratorConfig,
     description="Random point mutations for sequence diversity",
-    category="mutation",
+    type=GeneratorType.MUTATION,
     requires_gpu=False,
-    autoregressive=False,
 )
 @final
 class UniformMutationGenerator(Generator):
@@ -95,8 +94,8 @@ class UniformMutationGenerator(Generator):
         self.debug_with_sleep_calls = config.debug_with_sleep_calls
         self.mutation_scheduler = None  # Can be set after initialization if needed
         self.iteration_count = 0 # TODO: Fix?
-        self.autoregressive = False
         self.mutation_window = config.mutation_window
+        self.type = GeneratorType.MUTATION
 
     def assign(self, assigned_segment: Segment) -> None:
         """

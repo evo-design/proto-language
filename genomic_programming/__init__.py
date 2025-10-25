@@ -6,6 +6,7 @@ from .language.core import (
     Generator,
     Optimizer,
     SequenceType,
+    GeneratorType,
 )
 from .language.constraint import (
     sequence_length_constraint,
@@ -73,6 +74,7 @@ __all__ = [
     "Construct",
     "Constraint",
     "Generator",
+    "GeneratorType",
     "Optimizer",
     "SequenceType",
     "Program",

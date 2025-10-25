@@ -9,7 +9,7 @@ import numpy as np
 
 from pydantic import Field
 
-from ..core import Optimizer, Construct, Constraint, Generator, Segment
+from ..core import Optimizer, Construct, Constraint, Generator, GeneratorType, Segment
 from proto_language.base_config import BaseConfig
 from .optimizer_registry import OptimizerRegistry
 
@@ -93,7 +93,7 @@ class BeamSearchOptimizer(Optimizer):
 
         Args:
             construct: A single Construct object to optimize.
-            generator: A single autoregressive Generator object (must have autoregressive=True).
+            generator: A single autoregressive Generator object (must have type=GeneratorType.AUTOREGRESSIVE).
             prompt: The DNA sequence prompt to start the beam search.
             constraints: List of Constraint objects for evaluation (lower scores are better).
             config: Configuration object containing algorithm parameters (beam_width, candidates_per_beam, etc.).
@@ -102,7 +102,7 @@ class BeamSearchOptimizer(Optimizer):
                               (List[str]) Restrict clearing cache to a list of tool names.
         """
         # Beam Search only works with autoregressive generators with non-empty prompts
-        if not generator.autoregressive:
+        if generator.type != GeneratorType.AUTOREGRESSIVE:
             raise ValueError(f"BeamSearchOptimizer requires autoregressive generators. The provided generator '{generator.__class__.__name__}' is not autoregressive.")
         
         if not prompt:

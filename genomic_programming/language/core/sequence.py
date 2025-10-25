@@ -20,7 +20,6 @@ LIGAND_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890'- "
 
 class SequenceType(Enum):
     """Enumeration of supported biological sequence types."""
-
     DNA = "dna"
     RNA = "rna"
     PROTEIN = "protein"
