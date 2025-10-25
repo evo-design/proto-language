@@ -60,8 +60,8 @@ class Evo2Generator(Generator):
         >>> from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
         >>> config = Evo2GeneratorConfig(
         ...     prompts="ATG",
-        ...     evo2_type="evo2_7b",
-        ...     sequence_length=1000,
+        ...     num_tokens=1000,
+        ...     model_name="evo2_7b",
         ...     temperature=0.8
         ... )
         >>> gen = Evo2Generator(config)

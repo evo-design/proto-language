@@ -146,6 +146,7 @@ class BeamSearchOptimizer(Optimizer):
         self.generator.store_kv_cache = self.use_kv_caching
         # Always use cached generation internally
         self.generator.cached_generation = True
+        self.generator.batched = True
 
     def run(self) -> None:
         """
@@ -168,7 +169,7 @@ class BeamSearchOptimizer(Optimizer):
             self.generator.assign(segment)
 
             # 2. Generate candidates in-place for each beam sequentially and accumulate all candidates and corresponding KV caches
-            all_kv_caches = self._generate_candidates(segment)
+            all_kv_caches = self._generate_candidates(segment, is_first_segment=(segment_idx == 0))
 
             # 3. Score all candidates with applicable constraints
             self._score_energy_active_constraints()
@@ -181,7 +182,7 @@ class BeamSearchOptimizer(Optimizer):
                 self._log_beamsearch_progress(segment_idx, segment, top_idx)
 
 
-    def _generate_candidates(self, segment: Segment) -> List[Dict]:
+    def _generate_candidates(self, segment: Segment, is_first_segment: bool) -> List[Dict]:
         """
         Generate candidates in-place for each beam sequentially and accumulate all candidates.
         
@@ -222,8 +223,8 @@ class BeamSearchOptimizer(Optimizer):
 
             self.generator.sample(
                 prompts=replicated_prompts,
-                prepend_prompt=self.prepend_prompt if beam_idx == 0 else False,
-                old_kv_cache=replicated_kv_cache
+                prepend_prompt=self.prepend_prompt and is_first_segment,
+                old_kv_cache=replicated_kv_cache,
             )
 
             # Store generated candidates
