@@ -2,9 +2,10 @@
 Beam Search Optimizer that uses the beam search algorithm to optimize a single Construct.
 """
 
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Callable
 import warnings
 import copy
+import sys
 import numpy as np
 
 from pydantic import Field
@@ -90,6 +91,7 @@ class BeamSearchOptimizer(Optimizer):
         constraints: List[Constraint],
         config: BeamSearchOptimizerConfig,
         constraint_weights: Optional[List[float]] = None,
+        custom_logging: Optional[Callable] = None,
         clear_tool_cache: bool | List[str] = True,
     ) -> None:
         """
@@ -102,6 +104,7 @@ class BeamSearchOptimizer(Optimizer):
             constraints: List of Constraint objects for evaluation (lower scores are better).
             config: Configuration object containing algorithm parameters (beam_width, candidates_per_beam, etc.).
             constraint_weights: Optional weights for constraints. If None, all weights are 1.0.
+            custom_logging: Optional custom logging function called after each segment.
             clear_tool_cache: (bool) Whether to clear the tool cache on each iteration.
                               (List[str]) Restrict clearing cache to a list of tool names.
         """
@@ -135,6 +138,7 @@ class BeamSearchOptimizer(Optimizer):
         self.candidates_per_beam: int = config.candidates_per_beam
         self.use_kv_caching: bool = config.use_kv_caching
         self.verbose: bool = config.verbose
+        self.custom_logging: Optional[Callable] = custom_logging
         
         # Beam search state parameters (running prompts and corresponding KV caches)
         self.running_prompts: List[str] = [prompt] * self.beam_width
@@ -348,3 +352,7 @@ class BeamSearchOptimizer(Optimizer):
             beam_idx = idx // self.candidates_per_beam
             seq_preview = seq.sequence[:50] + ('...' if len(seq.sequence) > 50 else '')
             print(f"  [{rank+1}] From beam {beam_idx}: '{seq_preview}' (energy: {energy:.4f})")
+
+        if self.custom_logging:
+            self.custom_logging(segment_idx, self.segments)
+        sys.stdout.flush()
