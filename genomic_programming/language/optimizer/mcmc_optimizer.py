@@ -188,7 +188,7 @@ class MCMCOptimizer(Optimizer):
             - Snapshots of constructs at tracked timesteps are stored in self.history.
         """
         # Score candidate_sequences to populate energy_scores with candidate_sequences copies of inital energy score
-        self.score_energy()
+        self.score_energy(verbose=self.verbose)
 
         if self.verbose:
             print(f"MCMC initialization:")
@@ -212,7 +212,7 @@ class MCMCOptimizer(Optimizer):
             generator.sample()
 
             # 4. Score candidate_sequences
-            self.score_energy()
+            self.score_energy(verbose=self.verbose)
 
             # 5. Metropolis-Hastings acceptance and update energy score, candidate_sequences, and selected_sequences state
             self._select_topk_with_mcmc_acceptance(step, old_selected_sequences)

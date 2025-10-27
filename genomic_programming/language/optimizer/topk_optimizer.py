@@ -211,7 +211,7 @@ class TopKOptimizer(Optimizer):
             generator.sample()
 
         # 3. Evaluate all batch_size candidates after all generators
-        self.score_energy()  # Returns list of length batch_size
+        self.score_energy(verbose=self.verbose)  # Returns list of length batch_size
 
         # 4. Process each candidate in the batch
         for candidate_idx in range(self.batch_size):

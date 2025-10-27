@@ -80,7 +80,7 @@ class Optimizer(ABC):
         """
         raise NotImplementedError("Subclasses must implement the run method.")
 
-    def score_energy(self, operation: str = "add") -> None:
+    def score_energy(self, operation: str = "add", verbose: bool = False) -> None:
         """
         Compute energy scores by combining all constraint evaluation scores.
         Evaluates the current state of all Sequence objects stored in segments.candidate_sequences.
@@ -89,6 +89,7 @@ class Optimizer(ABC):
             operation: How to combine constraint scores across constraints:
                 - 'add': Sum weighted constraint scores (default)
                 - 'multiply': Multiply weighted constraint scores
+            verbose: If True, print detailed energy score calculations for each constraint
 
         Raises:
             ValueError: If optimizer is not properly initialized or operation is not 'add' or 'multiply'.
@@ -96,11 +97,31 @@ class Optimizer(ABC):
         # Ensure generator is properly initialized
         self._validate_optimizer()
 
+        if verbose:
+            print("\n" + "="*60)
+            print("Energy Scoring")
+            print("="*60)
+            if operation == "add":
+                print("Formula: energy = Σ(weight_i x constraint_score_i)")
+            else:
+                print("Formula: energy = Π(weight_i x constraint_score_i)")
+            print()
+
         # Get weighted scores from all constraints: list of lists (n_constraints, n_samples)
-        weighted_scores = [
-            [score * weight for score in constraint.evaluate()]
-            for constraint, weight in zip(self.constraints, self.constraint_weights)
-        ]
+        weighted_scores = []
+        for idx, (constraint, weight) in enumerate(zip(self.constraints, self.constraint_weights)):
+            # Evaluate constraint and get raw scores
+            raw_scores = constraint.evaluate()
+            
+            if verbose:
+                print(f"Constraint {idx+1}: {constraint.__class__.__name__} (weight={weight})")
+                for i, score in enumerate(raw_scores):
+                    print(f"  Candidate {i}: {score:.4f}")
+                print()
+            
+            # Apply weight
+            weighted = [score * weight for score in raw_scores]
+            weighted_scores.append(weighted)
 
         # Combine across constraints for each sample
         if operation == "add":
@@ -110,6 +131,13 @@ class Optimizer(ABC):
             self.energy_scores = [prod(scores) for scores in zip(*weighted_scores)]
         else:
             raise ValueError(f"Operation must be 'multiply' or 'add', got {operation}")
+        
+        if verbose:
+            print(f"Final Energy Scores:")
+            for i, score in enumerate(self.energy_scores):
+                print(f"  Candidate {i}: {score:.4f}")
+            print("="*60)
+            print()
 
         # After evaluating all constraints, optionally clear the cache.
         if self.clear_tool_cache:

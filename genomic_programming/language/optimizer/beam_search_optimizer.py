@@ -267,7 +267,7 @@ class BeamSearchOptimizer(Optimizer):
         # Temporarily use filtered constraints for scoring
         orig_constraints, orig_weights = self.constraints, self.constraint_weights
         self.constraints, self.constraint_weights = zip(*active_constraints)
-        self.score_energy()
+        self.score_energy(verbose=self.verbose)
 
         # Restore original constraints and weights
         self.constraints, self.constraint_weights = orig_constraints, orig_weights
