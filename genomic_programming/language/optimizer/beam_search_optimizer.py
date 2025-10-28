@@ -122,6 +122,9 @@ class BeamSearchOptimizer(Optimizer):
             if any(seq.sequence for seq in segment.candidate_sequences):
                 warnings.warn(f"BeamSearchOptimizer will overwrite {segment.num_candidates} existing candidate(s) in segment '{segment.label or 'unlabeled'}' during run()")
         
+        # Required for validation in base class. Assign the generator to the first segment to pass validation
+        generator.assign(construct.segments[0])
+        
         super().__init__(
             constructs=[construct],
             generators=[generator],
@@ -172,21 +175,23 @@ class BeamSearchOptimizer(Optimizer):
             # 1. Assign generator to this segment
             self.generator.assign(segment)
 
+            prepend_prompt_to_first_segment = self.prepend_prompt and segment_idx == 0
+
             # 2. Generate candidates in-place for each beam sequentially and accumulate all candidates and corresponding KV caches
-            all_kv_caches = self._generate_candidates(segment, is_first_segment=(segment_idx == 0))
+            all_kv_caches = self._generate_candidates(segment, prepend_prompt_to_first_segment)
 
             # 3. Score all candidates with applicable constraints
             self._score_energy_active_constraints()
 
             # 4. Select top beam_width candidates and update running prompts and corresponding KV caches
-            top_idx = self._select_topk(segment, all_kv_caches)
+            top_idx = self._select_topk(segment, all_kv_caches, prepend_prompt_to_first_segment)
 
             # Log progress
             if self.verbose:
                 self._log_beamsearch_progress(segment_idx, segment, top_idx)
 
 
-    def _generate_candidates(self, segment: Segment, is_first_segment: bool = False) -> List[Dict]:
+    def _generate_candidates(self, segment: Segment, prepend_prompt: bool = False) -> List[Dict]:
         """
         Generate candidates in-place for each beam sequentially and accumulate all candidates.
         
@@ -215,25 +220,32 @@ class BeamSearchOptimizer(Optimizer):
             else:
                 replicated_kv_cache = None
 
-            if self.verbose and self.use_kv_caching and replicated_kv_cache is not None:
-                kv = next(iter(replicated_kv_cache['mha'].key_value_memory_dict.values()))
-                print(f"\nBeam {beam_idx} cache stats:")
-                print(f"  KV shape: {kv.shape}")
-                print(f"  KV dtype: {kv.dtype}")
-                print(f"  KV device: {kv.device}")
-                print(f"  KV is_contiguous: {kv.is_contiguous()}")
-                print(f"  max_batch_size: {replicated_kv_cache['mha'].max_batch_size}")
-                print(f"  seqlen_offset: {replicated_kv_cache['mha'].seqlen_offset}")
-                print(f"  num prompts: {len(replicated_prompts)}")
+            if self.verbose:
+                print(f"\n[Beam {beam_idx}] Generating {self.candidates_per_beam} candidates")
+                print(f"  Prompt: '{prompt[:50]}...' (len={len(prompt)})")
+                if self.use_kv_caching and replicated_kv_cache is not None:
+                    kv = next(iter(replicated_kv_cache['mha'].key_value_memory_dict.values()))
+                    offset = replicated_kv_cache['mha'].seqlen_offset
+                    print(f"  Cache provided:")
+                    print(f"    KV shape: {kv.shape}")
+                    print(f"    KV device: {kv.device}")
+                    print(f"    seqlen_offset: {offset}")
+                else:
+                    print(f"  Cache: None (first segment, will build cache)")
+                print(f"  prepend_prompt: {prepend_prompt}")
 
             self.generator.sample(
                 prompts=replicated_prompts,
-                prepend_prompt=self.prepend_prompt and is_first_segment,
+                prepend_prompt=prepend_prompt,
                 old_kv_cache=replicated_kv_cache,
             )
 
             # Store generated candidates
             all_candidates.extend([copy.deepcopy(seq) for seq in segment.candidate_sequences[:self.candidates_per_beam]])
+            
+            if self.verbose:
+                sample_seq = segment.candidate_sequences[0].sequence
+                print(f"  Generated sample: '{sample_seq[:50]}...' (len={len(sample_seq)})")
 
             # Store corresponding KV caches if KV caching is enabled
             if self.use_kv_caching:
@@ -273,7 +285,7 @@ class BeamSearchOptimizer(Optimizer):
         self.constraints, self.constraint_weights = orig_constraints, orig_weights
 
 
-    def _select_topk(self, segment: Segment, all_kv_caches: List[Dict]) -> List[int]:
+    def _select_topk(self, segment: Segment, all_kv_caches: List[Dict], prepend_prompt: bool = False) -> List[int]:
         """
         Select top beam_width candidates by energy and update all beam search state.
 
@@ -285,6 +297,9 @@ class BeamSearchOptimizer(Optimizer):
         Args:
             segment: Current segment being processed
             all_kv_caches: Updated KV caches for all generated candidates. Empty if KV caching is disabled.
+            prepend_prompt: Whether the prompt was prepended to generated sequences in this segment.
+                            If True, selected_seq.sequence already contains the full prompt+generation,
+                            so we replace running_prompts entirely. If False, we concatenate.
 
         Returns:
             List of indices for the top beam_width candidates
@@ -305,10 +320,15 @@ class BeamSearchOptimizer(Optimizer):
         
         # 4. Update running prompts from top candidates (stored in segment.selected_sequences)
         # Candidates are generated sequentially per beam, so: beam_idx = candidate_idx // candidates_per_beam
-        self.running_prompts = [
-            self.running_prompts[idx // self.candidates_per_beam] + selected_seq.sequence
-            for idx, selected_seq in zip(top_idx, segment.selected_sequences)
-        ]
+        if prepend_prompt:
+            # First segment with prepend_prompt=True: selected_seq.sequence already contains prompt+generation so replace running_prompts entirely (avoid duplication)
+            self.running_prompts = [selected_seq.sequence for selected_seq in segment.selected_sequences]
+        else:
+            # Subsequent segments: selected_seq.sequence contains only new tokens, concatenate
+            self.running_prompts = [
+                self.running_prompts[idx // self.candidates_per_beam] + selected_seq.sequence
+                for idx, selected_seq in zip(top_idx, segment.selected_sequences)
+            ]
 
         # 5. Replicate energy scores to match replicated candidates
         selected_energies = [self.energy_scores[i] for i in top_idx]

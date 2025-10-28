@@ -1,7 +1,7 @@
 """
 Timing comparison for Evo2 beam search with and without KV caching.
 
-This script compares the performance of beam search optimization with cached_generation
+This script compares the performance of beam search optimization with use_kv_caching
 enabled vs disabled to demonstrate the speedup from KV caching.
 """
 
