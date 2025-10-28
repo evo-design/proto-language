@@ -6,7 +6,7 @@ Provides shared infrastructure for ConstraintRegistry, GeneratorRegistry, and To
 
 from typing import Any, Dict, Generic, List, Type, TypeVar
 from abc import ABC, abstractmethod
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, field_serializer
 
 
 SpecType = TypeVar('SpecType', bound='BaseSpec')
@@ -28,58 +28,37 @@ class BaseSpec(BaseModel):
     label: str = Field(description="External UI display name (e.g., 'MCMC Optimizer', 'GC Content Range')")
     description: str = Field(description="Detailed description of component functionality")
 
-    # Private field - excluded from serialization
-    config_model: Type[BaseModel] = Field(exclude=True)
+    # Configuration model
+    config_model: Type[BaseModel] = Field(
+        description="Pydantic model for configuration validation and schema generation"
+    )
 
     model_config = {
         "extra": "allow",  # Allow subclasses to add fields
         "arbitrary_types_allowed": True,  # Allow Type[BaseModel] in config_model
     }
 
-    # TODO: we can remove this and use standard json schema once client is synced.
-    @computed_field
-    @property
-    def parameters(self) -> Dict[str, Any]:
+    @field_serializer('config_model')
+    def serialize_config_model(self, config_model: Type[BaseModel]) -> Dict[str, Any]:
         """
-        Parameter schema in flattened, form-friendly format.
+        Serialize config_model as standard JSON Schema.
 
-        Transforms Pydantic's standard JSON Schema (which has 'properties' and 'required'
-        at the top level) into a flattened format where each parameter name maps directly
-        to its schema with 'required' as a boolean field. This format is more convenient
-        for client form generators.
+        Returns the full Pydantic JSON Schema including properties, required fields,
+        and metadata. This provides a standard format for client form generation
+        and validation.
 
         Returns:
-            Dict mapping parameter names to their schema definitions:
+            Standard JSON Schema dict with structure:
             {
-                "param_name": {
-                    "type": "number",
-                    "description": "Parameter description",
-                    "required": true,
-                    "default": 42,
-                    "minimum": 0,
-                    "maximum": 100,
-                    ...
-                }
+                "properties": {
+                    "param_name": {"type": "number", "description": "...", ...}
+                },
+                "required": ["param1", "param2"],
+                "title": "ConfigModelName",
+                "type": "object"
             }
-
-        Note:
-            This is a convenience transformation of the standard JSON Schema from
-            config_model.model_json_schema(). For the full JSON Schema, access
-            spec.config_model.model_json_schema() directly.
         """
-        # Get standard JSON Schema from Pydantic
-        schema = self.config_model.model_json_schema()
-        properties = schema.get("properties", {})
-        required_set = set(schema.get("required", []))
-
-        # Transform to parameter-centric format by adding 'required' field
-        return {
-            param_name: {
-                **param_schema,  # Spread all fields from JSON Schema
-                "required": param_name in required_set,  # Add required as boolean
-            }
-            for param_name, param_schema in properties.items()
-        }
+        return config_model.model_json_schema()
 
 
 class BaseRegistry(ABC, Generic[SpecType]):

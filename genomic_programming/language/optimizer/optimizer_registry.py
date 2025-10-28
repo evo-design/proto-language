@@ -131,7 +131,7 @@ class OptimizerRegistry(BaseRegistry[OptimizerSpec]):
         List all registered optimizers as Pydantic models.
 
         Returns list of OptimizerSpec models that FastAPI automatically serializes to JSON.
-        Each spec includes key, label, description, and parameters (via computed field).
+        Each spec includes key, label, description, and config_model (serialized as JSON Schema).
 
         Returns:
             List of OptimizerSpec Pydantic models
@@ -140,6 +140,7 @@ class OptimizerRegistry(BaseRegistry[OptimizerSpec]):
             >>> optimizers = OptimizerRegistry.list_all()
             >>> for spec in optimizers:
             ...     print(f"{spec.label} ({spec.key})")
-            ...     print(f"  Parameters: {list(spec.parameters.keys())}")
+            ...     schema = spec.config_model.model_json_schema()
+            ...     print(f"  Parameters: {list(schema['properties'].keys())}")
         """
         return list(cls._registry.values())

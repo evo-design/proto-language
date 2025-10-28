@@ -182,7 +182,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
         List all registered generators as Pydantic models.
 
         Returns list of GeneratorSpec models that FastAPI automatically serializes to JSON.
-        Each spec includes key, label, description, parameters (via computed field), type and requires_gpu.
+        Each spec includes key, label, description, config_model (serialized as JSON Schema), type, and requires_gpu.
 
         Returns:
             List of GeneratorSpec Pydantic models

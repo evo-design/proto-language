@@ -197,7 +197,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         List all registered constraints as Pydantic models.
 
         Returns list of ConstraintSpec models that FastAPI automatically serializes to JSON.
-        Each spec includes key, label, description, parameters (via computed field),
+        Each spec includes key, label, description, config_model (serialized as JSON Schema),
         vectorized, concatenate, and gpu_required flags.
 
         Returns:
@@ -208,6 +208,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             >>> for spec in constraints:
             ...     print(f"{spec.label} ({spec.key})")
             ...     print(f"  Vectorized: {spec.vectorized}")
-            ...     print(f"  Parameters: {list(spec.parameters.keys())}")
+            ...     schema = spec.config_model.model_json_schema()
+            ...     print(f"  Parameters: {list(schema['properties'].keys())}")
         """
         return list(cls._registry.values())

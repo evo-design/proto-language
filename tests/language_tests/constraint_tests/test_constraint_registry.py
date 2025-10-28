@@ -175,7 +175,11 @@ class TestDiscovery:
             assert hasattr(spec, "vectorized")
             assert hasattr(spec, "concatenate")
             assert hasattr(spec, "gpu_required")
-            assert isinstance(spec.parameters, dict)
+            # Verify config_model is present and can generate JSON schema
+            assert spec.config_model is not None
+            schema = spec.config_model.model_json_schema()
+            assert isinstance(schema, dict)
+            assert "properties" in schema
             assert isinstance(spec.gpu_required, bool)
     
     def test_count_returns_correct_number(self):
