@@ -155,6 +155,21 @@ class BeamSearchOptimizer(Optimizer):
         self.generator.cached_generation = True
         self.generator.batched = True
 
+    def _save_progress_snapshot(self, time_step: int) -> None:
+        """
+        Save snapshot with final optimization state.
+
+        Args:
+            time_step: Current step index (always 0 for single final snapshot)
+        """
+        self.history.append({
+            "time_step": time_step,
+            "segments_completed": len(self.construct.segments),
+            "total_segments": len(self.construct.segments),
+            "energy_scores": self.energy_scores[:self.beam_width].copy() if self.energy_scores else [],
+            "constructs": copy.deepcopy(self.constructs)
+        })
+
     def run(self) -> None:
         """
         Run beam search across all segments with context accumulation.
@@ -189,6 +204,9 @@ class BeamSearchOptimizer(Optimizer):
             # Log progress
             if self.verbose:
                 self._log_beamsearch_progress(segment_idx, segment, top_idx)
+
+        # Save progress snapshot once at the end
+        self._save_progress_snapshot(time_step=0)
 
 
     def _generate_candidates(self, segment: Segment, prepend_prompt: bool = False) -> List[Dict]:

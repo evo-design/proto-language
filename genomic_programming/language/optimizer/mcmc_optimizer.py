@@ -165,11 +165,9 @@ class MCMCOptimizer(Optimizer):
         self.track_step_size: int = config.track_step_size
         self.verbose: bool = config.verbose
         self.custom_logging: Optional[Callable] = custom_logging
-        self.history: List[Dict[str, Any]] = []  # Each entry are deep copies: {"time_step": int, "energy_scores": List[float], "constructs": List[Construct]}
         for generator in generators:
             if generator.type != GeneratorType.MUTATION:
                 raise ValueError(f"MCMCOptimizer requires mutation generators. The provided generator '{generator.__class__.__name__}' is not a mutation generator.")
-
 
     def run(self) -> None:
         """
@@ -197,7 +195,7 @@ class MCMCOptimizer(Optimizer):
             print()
 
         # Track initial state
-        self._save_history_snapshot(time_step=0)
+        self._save_progress_snapshot(time_step=0)
 
         # MCMC loop
         for step in range(1, self.num_steps + 1):
@@ -219,13 +217,13 @@ class MCMCOptimizer(Optimizer):
 
             # Logging and history tracking
             if step % self.track_step_size == 0:
-                self._save_history_snapshot(time_step=step)
+                self._save_progress_snapshot(time_step=step)
                 if self.verbose:
                     self._log_mcmc_progress(step)
 
         # Track final state
         if self.num_steps % self.track_step_size != 0:
-            self._save_history_snapshot(time_step=self.num_steps)
+            self._save_progress_snapshot(time_step=self.num_steps)
 
 
     def _save_sequence_state(self) -> List[Tuple[Dict[int, Sequence], float]]:
@@ -330,15 +328,6 @@ class MCMCOptimizer(Optimizer):
         # Cap to prevent overflow in exp()
         log_acceptance_ratio = min(log_acceptance_ratio, MAX_EXP_ARG)
         return min(1.0, np.exp(log_acceptance_ratio))
-
-
-    def _save_history_snapshot(self, time_step: int) -> None:
-        """Save snapshot of current state to history"""
-        self.history.append({
-            "time_step": time_step,
-            "energy_scores": self.energy_scores[:self.num_selected].copy(),
-            "constructs": copy.deepcopy(self.constructs)
-        })
 
 
     def _log_mcmc_progress(self, step: int) -> None:

@@ -6,7 +6,7 @@ generators and constraints to search for optimal biological sequences.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 import copy
 import math
 
@@ -59,6 +59,11 @@ class Optimizer(ABC):
         self.num_selected = num_selected
         self.clear_tool_cache = clear_tool_cache
         self.energy_scores: List[float] = []  # Each index corresponds to a candidate, empty until first score_energy() call
+        self.history: List[Dict[str, Any]] = []
+
+        # Default values for progress tracking (can be overridden by subclasses)
+        self.num_steps: int = 1
+        self.track_step_size: int = 1
 
         # Create program-scoped tool cache
         self.tool_cache = ToolCache()
@@ -79,6 +84,22 @@ class Optimizer(ABC):
         Implementations should modify generator outputs in-place.
         """
         raise NotImplementedError("Subclasses must implement the run method.")
+
+    def _save_progress_snapshot(self, time_step: int) -> None:
+        """
+        Save current optimization state to history.
+
+        Default implementation saves time_step, energy_scores, and constructs.
+        Subclasses can override to add optimizer-specific metadata.
+
+        Args:
+            time_step: Current step/round/segment index
+        """
+        self.history.append({
+            "time_step": time_step,
+            "energy_scores": self.energy_scores[:self.num_selected].copy(),
+            "constructs": copy.deepcopy(self.constructs)
+        })
 
     def score_energy(self, operation: str = "add", verbose: bool = False) -> None:
         """
