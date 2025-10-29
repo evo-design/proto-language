@@ -15,7 +15,7 @@ from proto_language.language.constraint import gc_content_constraint
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
-BATCH_SIZE = 200
+BATCH_SIZE = 10
 PROMPTS = ["ATG"] * BATCH_SIZE # 200 prompts of 3 tokens each
 NUM_TOKENS: int = 1000 # Number of tokens to generate for each prompt
 MIN_GC: float = 80 # Minimum GC content
