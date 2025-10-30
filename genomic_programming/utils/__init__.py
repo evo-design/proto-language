@@ -27,7 +27,6 @@ from .helpers import (
     mask_p,
     mask_assigned_positions,
     run_subprocess_command,
-    suppress_console_output,
 )
 
 # Infrastructure utilities (compute and file resolution)
@@ -80,5 +79,4 @@ __all__ = [
     "mask_p",
     "mask_assigned_positions",
     "run_subprocess_command",
-    "suppress_console_output",
 ]

@@ -6,13 +6,9 @@ calculations used across the proto-language framework.
 """
 
 import io
-import os
 import random
 import subprocess
-import sys
-import tempfile
 import warnings
-from contextlib import contextmanager, redirect_stdout, redirect_stderr
 from io import StringIO
 from typing import Any, Dict, List, Optional, Union
 
@@ -389,24 +385,3 @@ def run_subprocess_command(cmd: List[str], tool_name: str) -> None:
             f"{tool_name} failed (exit {proc.returncode})\n"
             f"STDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
         )
-
-
-@contextmanager
-def suppress_console_output(stdout=True, stderr=True):
-    """
-    Suppress stdout and/or stderr output.
-
-    Args:
-        stdout (bool): Whether to suppress stdout
-        stderr (bool): Whether to suppress stderr
-    """
-    stdout_redirect = (
-        redirect_stdout(StringIO()) if stdout else redirect_stdout(sys.stdout)
-    )
-    stderr_redirect = (
-        redirect_stderr(StringIO()) if stderr else redirect_stderr(sys.stderr)
-    )
-
-    with stdout_redirect, stderr_redirect:
-        yield
-
