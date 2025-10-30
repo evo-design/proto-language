@@ -1,27 +1,13 @@
 import numpy as np
-import pandas as pd
 import pytest
 import sys
-import shutil
-import tempfile
-from typing import List, Tuple
-from pathlib import Path
 
 sys.path.append(".")
 
-from proto_language.language.core import (
-    Construct,
-    Segment,
-    Constraint,
-    Sequence,
-    SequenceType,
-)
-from proto_language.language.constraint import max_homopolymer_constraint, ConstraintRegistry
+from proto_language.language.core import Constraint, SequenceType
+from proto_language.language.constraint import max_homopolymer_constraint
 from proto_language.language.constraint.sequence_composition.max_homopolymer_constraint import MaxHomopolymerConfig
-from ..test_utils import (
-    create_segment,
-    create_batched_segment,
-)
+from ..utils import create_segment
 
 
 # Tests for max_homopolymer_constraint
@@ -52,6 +38,7 @@ class TestMaxHomopolymerConstraint:
             inputs=[segment],
             scoring_function=max_homopolymer_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
         score = constraint.evaluate()[0]
         assert abs(score - expected_score) < 1e-9

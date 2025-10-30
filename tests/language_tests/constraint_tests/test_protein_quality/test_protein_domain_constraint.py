@@ -11,19 +11,19 @@ Tests cover:
 7. Error handling
 """
 
+import pandas as pd
 import pytest
 import sys
-import pandas as pd
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 sys.path.append(".")
 
 from Bio import SeqIO
-from proto_language.language.core import Constraint, SequenceType, Sequence
-from proto_language.language.constraint import ConstraintRegistry, protein_domain_constraint
+from proto_language.language.core import Constraint, SequenceType
+from proto_language.language.constraint import protein_domain_constraint
 from proto_language.language.constraint.protein_quality.protein_domain_constraint import ProteinDomainConfig
-from ..test_utils import create_segment
+from ..utils import create_segment
 
 TEST_HMM = (
     Path(__file__).parent.parent.parent.parent / "dummy_data" / "test_multiple_hmm.hmm"
@@ -60,6 +60,7 @@ class TestProteinDomainConstraint:
             inputs=[segment],
             scoring_function=protein_domain_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
         scores = constraint.evaluate()
 
@@ -89,6 +90,7 @@ class TestProteinDomainConstraint:
             inputs=[segment],
             scoring_function=protein_domain_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
 
         # Evaluate the constraint
@@ -120,6 +122,7 @@ class TestProteinDomainConstraint:
             inputs=[segment],
             scoring_function=protein_domain_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
 
         scores = constraint.evaluate()
@@ -144,6 +147,7 @@ class TestProteinDomainConstraint:
                 inputs=[segment],
                 scoring_function=protein_domain_constraint,
                 scoring_function_config=config,
+            vectorized=True,
             )
 
             with pytest.raises(ValueError, match="HMM database not found"):
@@ -159,12 +163,14 @@ class TestProteinDomainConstraint:
             {
                 "id": ["gene_1"],
                 "description": ["test_description"],
-                "sequence": [SAMPLE_SEQUENCE],
+                "protein_sequence": [SAMPLE_SEQUENCE],
             }
         )
         mock_prodigal_output = Mock()
         mock_prodigal_output.results_df = proteins_df
         mock_prodigal_output.num_genes = 1
+        mock_prodigal_output.results_per_sequence = [proteins_df]
+        mock_prodigal_output.total_num_genes_per_sequence = [1]
 
         with (
             patch(
@@ -178,6 +184,7 @@ class TestProteinDomainConstraint:
                 inputs=[segment],
                 scoring_function=protein_domain_constraint,
                 scoring_function_config=config,
+            vectorized=True,
             )
 
             scores = constraint.evaluate()
@@ -194,6 +201,8 @@ class TestProteinDomainConstraint:
         mock_prodigal_output = Mock()
         mock_prodigal_output.results_df = empty_df
         mock_prodigal_output.num_genes = 0
+        mock_prodigal_output.results_per_sequence = [empty_df]
+        mock_prodigal_output.total_num_genes_per_sequence = [0]
 
         with patch('proto_language.language.constraint.protein_quality.protein_domain_constraint.Path') as mock_path, \
              patch('proto_language.language.constraint.protein_quality.protein_domain_constraint.run_prodigal_prediction') as mock_prodigal:
@@ -208,6 +217,7 @@ class TestProteinDomainConstraint:
                 inputs=[segment],
                 scoring_function=protein_domain_constraint,
                 scoring_function_config=config,
+            vectorized=True,
             )
 
             scores = constraint.evaluate()

@@ -5,15 +5,18 @@ GC content constraint for evaluating sequence GC content properties.
 from __future__ import annotations
 
 from pydantic import Field
+from typing import List
 
-from ...core import Sequence, SequenceType
+from proto_language.language.core import Sequence, SequenceType
 from proto_language.base_config import BaseConfig
-from ..constraint_registry import ConstraintRegistry
-from ....utils import (
+from proto_language.language.constraint.constraint_registry import ConstraintRegistry
+from proto_language.utils import (
     MIN_GC_CONTENT,
     MAX_GC_CONTENT,
     validate_range,
     calculate_percentage_range_deviation,
+    MAX_ENERGY,
+    MIN_ENERGY
 )
 
 
@@ -28,21 +31,21 @@ class GCContentConfig(BaseConfig):
     label="GC Content",
     config=GCContentConfig,
     description="Enforce GC content within specified range",
-    vectorized=False,
+    vectorized=True,
     concatenate=True
 )
 def gc_content_constraint(
-    input_sequence: Sequence, config: GCContentConfig
-) -> float:
+    sequences: List[Sequence], config: GCContentConfig
+) -> List[float]:
     """
     Evaluate whether a sequence's GC content falls within a target range.
 
     Args:
-        input_sequence: The sequence to evaluate.
+        sequences: The sequence to evaluate.
         config: Configuration containing min_gc and max_gc parameters.
 
     Returns:
-        Constraint score where 0.0 indicates GC content is within acceptable range
+        Constraint scores where 0.0 indicates GC content is within acceptable range
         and higher values indicate greater deviation from acceptable range.
 
     Raises:
@@ -57,20 +60,31 @@ def gc_content_constraint(
         >>> score = gc_content_constraint(seq, config=cfg)
         >>> print(score)  # 0.0 (50% GC content is within acceptable range)
     """
-    assert input_sequence.sequence_type in {
-        SequenceType.DNA,
-        SequenceType.RNA,
-    }, "Input must be a DNA or RNA sequence"
-
+    if not sequences:
+        raise ValueError("Input sequence list must not be empty")
+    
     validate_range(config.min_gc, MIN_GC_CONTENT, MAX_GC_CONTENT, "min_gc")
     validate_range(config.max_gc, MIN_GC_CONTENT, MAX_GC_CONTENT, "max_gc")
+   
+    scores = []
+   
+    for seq in sequences: 
+        if seq.sequence_type not in {SequenceType.DNA, SequenceType.RNA}:
+            raise ValueError(f"Input must be DNA or RNA sequence, found {seq.sequence_type}")
+        if len(seq.sequence) == 0:
+            seq._metadata["gc_content"] = 0.0
+            scores.append(MAX_ENERGY)
+            continue
 
-    gc_content = (
-        100.0
-        * sum(nt in "GC" for nt in input_sequence.sequence.upper())
-        / max(len(input_sequence), 1)
-    )
+        gc_content = (
+            100.0
+            * sum(nt in "GC" for nt in seq.sequence.upper())
+            / max(len(seq.sequence), 1)
+        )
 
-    input_sequence._metadata["gc_content"] = gc_content
+        seq._metadata["gc_content"] = gc_content
+        
+        deviation = calculate_percentage_range_deviation(gc_content, config.min_gc, config.max_gc)
+        scores.append(min(MAX_ENERGY,deviation))
 
-    return calculate_percentage_range_deviation(gc_content, config.min_gc, config.max_gc)
+    return scores

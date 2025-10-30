@@ -4,12 +4,15 @@ Protein diversity constraint function.
 
 from __future__ import annotations
 
+from typing import List
+import numpy as np
+
 from pydantic import Field
 
-from ...core import Sequence, SequenceType
+from proto_language.language.core import Sequence, SequenceType
 from proto_language.base_config import BaseConfig
-from ..constraint_registry import ConstraintRegistry
-from ....utils import MIN_ENERGY, MAX_ENERGY
+from proto_language.language.constraint.constraint_registry import ConstraintRegistry
+from proto_language.utils import MIN_ENERGY, MAX_ENERGY
 
 
 class ProteinDiversityConfig(BaseConfig):
@@ -25,12 +28,12 @@ class ProteinDiversityConfig(BaseConfig):
     label="Protein Diversity",
     config=ProteinDiversityConfig,
     description="Evaluate amino acid diversity in a protein sequence",
-    vectorized=False,
+    vectorized=True,
     concatenate=True
 )
 def protein_diversity_constraint(
-    input_sequence: Sequence, config: ProteinDiversityConfig
-) -> float:
+    sequences: List[Sequence], config: ProteinDiversityConfig
+) -> List[float]:
     """
     Evaluate amino acid diversity in a protein sequence.
 
@@ -45,25 +48,31 @@ def protein_diversity_constraint(
     Raises:
         ValueError: If sequence has length 0
     """
-    assert input_sequence.sequence_type == SequenceType.PROTEIN, "Input must be protein"
+    for seq in sequences:
+        assert seq.sequence_type == SequenceType.PROTEIN, "Input must be protein"
 
-    seq = input_sequence.sequence
+    seq_strings = [seq.sequence for seq in sequences]
+    seq_lengths = np.array([len(s) for s in seq_strings])
 
     # Calculate amino acid diversity score
-    if len(seq) == 0:
+    if np.any(seq_lengths == 0):
         raise ValueError("Sequence is non-existent.")
 
-    unique_aas = len(set(seq))
-    diversity_score = unique_aas / 20.0  # 20 standard amino acids
+    unique_aa_counts = np.array([len(set(s)) for s in seq_strings])
+    diversity_scores = unique_aa_counts / 20.0  # 20 standard amino acids
+
+    deficits = config.min_diversity - diversity_scores
+
+    scores_array = np.where(
+        diversity_scores >= config.min_diversity,
+        MIN_ENERGY,
+        np.minimum(MAX_ENERGY, deficits / config.min_diversity)
+    )
 
     # Store metadata
-    input_sequence._metadata["aa_diversity_score"] = diversity_score
-    input_sequence._metadata["unique_amino_acid_count"] = unique_aas
-    input_sequence._metadata["unique_amino_acids"] = sorted(list(set(seq)))
+    for i, input_sequence in enumerate(sequences):
+        input_sequence._metadata["aa_diversity_score"] = float(diversity_scores[i])
+        input_sequence._metadata["unique_amino_acid_count"] = int(unique_aa_counts[i])
+        input_sequence._metadata["unique_amino_acids"] = sorted(list(set(seq_strings[i])))
 
-    # Return constraint score
-    if diversity_score >= config.min_diversity:
-        return MIN_ENERGY
-
-    deficit = config.min_diversity - diversity_score
-    return min(MAX_ENERGY, deficit / config.min_diversity)
+    return scores_array.tolist()

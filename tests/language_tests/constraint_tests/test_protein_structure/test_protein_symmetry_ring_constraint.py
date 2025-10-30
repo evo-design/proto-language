@@ -10,31 +10,19 @@ Tests cover:
 6. Metadata propagation
 """
 
-import numpy as np
-import pandas as pd
 import pytest
 import sys
-import shutil
-import tempfile
-from typing import List, Tuple
-from pathlib import Path
 from unittest.mock import patch
-from io import StringIO
 
 sys.path.append(".")
 
-from proto_language.language.core import (
-    Construct,
-    Segment,
-    Constraint,
-    Sequence,
-    SequenceType,
-)
-from proto_language.language.constraint import ConstraintRegistry, protein_symmetry_ring_constraint
+from proto_language.language.core import Constraint, SequenceType
+from proto_language.language.constraint import protein_symmetry_ring_constraint, ConstraintRegistry
 from proto_language.language.constraint.protein_structure.protein_symmetry_ring_constraint import ProteinSymmetryRingConfig
 from proto_language.tools.models.structure_prediction.esmfold import ESMFoldOutput
+from proto_language.tools.models.structure_prediction.esmfold.esmfold import ESMFoldStructureOutput
 from unittest.mock import Mock
-from ..test_utils import create_segment
+from ..utils import create_segment
 
 
 class TestProteinSymmetryRingConstraint:
@@ -51,16 +39,22 @@ ATOM      2  CA  ALA B   1       5.000   0.000   0.000  1.00 90.00           C
 ATOM      3  CA  ALA C   1       2.500   4.330   0.000  1.00 90.00           C"""
 
         with patch('proto_language.language.constraint.protein_structure.protein_symmetry_ring_constraint.run_esmfold') as mock_run:
+            # Create mock structure
+            mock_structure = Mock(spec=ESMFoldStructureOutput)
+            mock_structure.avg_plddt = 0.9
+            mock_structure.ptm = 0.9
+            mock_structure.structure_pdb_output = mock_pdb
+            
+            # Create mock output with structures list
             mock_output = Mock(spec=ESMFoldOutput)
-            mock_output.avg_plddt = 0.9
-            mock_output.ptm = 0.9
-            mock_output.structure_pdb_output = mock_pdb
+            mock_output.structures = [mock_structure]
             mock_run.return_value = mock_output
 
             constraint = Constraint(
                 inputs=[segment],
                 scoring_function=protein_symmetry_ring_constraint,
                 scoring_function_config=config,
+                vectorized=True,
             )
 
             scores = constraint.evaluate()
@@ -84,19 +78,35 @@ ATOM      3  CA  ALA C   1       2.500   4.330   0.000  1.00 90.00           C""
         assert constraint.scoring_function_config.all_to_all_protomer_symmetry == True
 
     def test_wrong_sequence_type(self):
-        """Test that DNA/RNA sequences raise errors (ESMFold validates entity types)."""
-        segment = create_segment("ATCGATCG", SequenceType.DNA)
+        """Test that DNA/RNA sequences work via translation to protein."""
+        segment = create_segment("ATGAAAAAACGT", SequenceType.DNA)  # Codes for MKR
         config = ProteinSymmetryRingConfig(n_replications=3)
 
-        constraint = Constraint(
-            inputs=[segment],
-            scoring_function=protein_symmetry_ring_constraint,
-            scoring_function_config=config,
-        )
+        mock_pdb = "ATOM      1  CA  ALA A   1       0.000   0.000   0.000  1.00 90.00           C"
 
-        # ESMFold config validation should fail when setting sequences
-        with pytest.raises(ValueError, match="Invalid entity type 'dna' for ESMFold"):
-            constraint.evaluate()
+        with patch('proto_language.language.constraint.protein_structure.protein_symmetry_ring_constraint.run_esmfold') as mock_run:
+            # Create mock structure
+            mock_structure = Mock(spec=ESMFoldStructureOutput)
+            mock_structure.avg_plddt = 0.9
+            mock_structure.ptm = 0.9
+            mock_structure.structure_pdb_output = mock_pdb
+            
+            # Create mock output with structures list
+            mock_output = Mock(spec=ESMFoldOutput)
+            mock_output.structures = [mock_structure]
+            mock_run.return_value = mock_output
+
+            constraint = Constraint(
+                inputs=[segment],
+                scoring_function=protein_symmetry_ring_constraint,
+                scoring_function_config=config,
+                vectorized=True,
+            )
+
+            # DNA sequences are translated to protein before evaluation
+            scores = constraint.evaluate()
+            assert len(scores) == 1
+            assert scores[0] >= 0.0
 
     def test_n_replications_parameter(self):
         """Test that n_replications correctly replicates the sequence."""
@@ -111,16 +121,22 @@ ATOM      4  CA  ALA D   1      -2.500   4.330   0.000  1.00 90.00           C
 ATOM      5  CA  ALA E   1      -5.000   0.000   0.000  1.00 90.00           C"""
 
         with patch('proto_language.language.constraint.protein_structure.protein_symmetry_ring_constraint.run_esmfold') as mock_run:
+            # Create mock structure
+            mock_structure = Mock(spec=ESMFoldStructureOutput)
+            mock_structure.avg_plddt = 0.9
+            mock_structure.ptm = 0.9
+            mock_structure.structure_pdb_output = mock_pdb
+            
+            # Create mock output with structures list
             mock_output = Mock(spec=ESMFoldOutput)
-            mock_output.avg_plddt = 0.9
-            mock_output.ptm = 0.9
-            mock_output.structure_pdb_output = mock_pdb
+            mock_output.structures = [mock_structure]
             mock_run.return_value = mock_output
 
             constraint = Constraint(
                 inputs=[segment],
                 scoring_function=protein_symmetry_ring_constraint,
                 scoring_function_config=config,
+                vectorized=True,
             )
 
             constraint.evaluate()
@@ -128,4 +144,4 @@ ATOM      5  CA  ALA E   1      -5.000   0.000   0.000  1.00 90.00           C""
             # Verify sequence was replicated 5 times
             mock_run.assert_called_once()
             passed_input = mock_run.call_args.kwargs['inputs']  # Function called with keyword args
-            assert passed_input.sequences == ["MKTAYIAK"] * 5
+            assert passed_input.sequences == [["MKTAYIAK", "MKTAYIAK", "MKTAYIAK", "MKTAYIAK", "MKTAYIAK"]]

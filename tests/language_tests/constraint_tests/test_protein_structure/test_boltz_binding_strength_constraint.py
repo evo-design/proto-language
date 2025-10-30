@@ -11,27 +11,15 @@ Note: Actual Boltz predictions are not tested here as they require
 heavy computation. These tests focus on configuration and structure.
 """
 
-import numpy as np
-import pandas as pd
 import pytest
 import sys
-import shutil
-import tempfile
-from typing import List, Tuple
-from pathlib import Path
 
 sys.path.append(".")
 
-from proto_language.language.core import (
-    Construct,
-    Segment,
-    Constraint,
-    Sequence,
-    SequenceType,
-)
+from proto_language.language.core import SequenceType
 from proto_language.language.constraint import ConstraintRegistry
 from proto_language.language.constraint.protein_structure.boltz_binding_strength_constraint import BoltzBindingStrengthConfig
-from ..test_utils import create_segment
+from ..utils import create_segment
 
 
 class TestBoltzBindingStrengthConstraint:

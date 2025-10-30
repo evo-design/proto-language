@@ -1,210 +1,14 @@
-import numpy as np
-import pandas as pd
+"""
+Unit tests for proto_language.utils constraint utility functions.
+
+Tests cover:
+1. validate_range() - Range validation for constraint parameters
+2. calculate_range_deviation() - Deviation calculation for range-based constraints
+3. calculate_percentage_range_deviation() - Deviation for percentage-based ranges
+4. calculate_normalized_deviation() - Normalized deviation from target values
+"""
+
 import pytest
-import sys
-import shutil
-import tempfile
-from typing import List, Tuple
-from pathlib import Path
-
-sys.path.append(".")
-
-from proto_language.language.core import (
-    Construct,
-    Segment,
-    Constraint,
-    Sequence,
-    SequenceType,
-)
-
-
-# Helper functions
-def create_segment(sequence: str, seq_type: SequenceType = SequenceType.DNA) -> Segment:
-    """Helper to create a Segment with candidate sequence populated for constraint evaluation."""
-    segment = Segment(sequence=sequence, sequence_type=seq_type)
-    # Constraints evaluate candidate_sequences, so populate with one candidate
-    segment.create_candidates(1)
-    segment.candidate_sequences[0].sequence = sequence
-    return segment
-
-
-def create_batched_segment(
-    sequences: List[str], seq_type: SequenceType = SequenceType.DNA
-) -> Segment:
-    """Helper to create a Segment with candidate sequences (for constraint evaluation)."""
-    segment = Segment(sequence=sequences[0], sequence_type=seq_type)
-    segment.create_candidates(len(sequences))
-    for i, seq_str in enumerate(sequences):
-        segment.candidate_sequences[i].sequence = seq_str
-    return segment
-
-
-# Mock scoring functions
-def mock_single_input_scoring_function(sequence: Sequence, config=None) -> float:
-    """
-    Mock scoring function that takes in a single sequence and returns a score
-    corresponding to the number of T characters in the sequence
-    """
-    score = sequence.sequence.count("T") / len(sequence)
-    # Add metadata to demonstrate propagation
-    sequence._metadata["t_count"] = sequence.sequence.count("T")
-    sequence._metadata["total_length"] = len(sequence)
-    sequence._metadata["t_fraction"] = score
-    return score
-
-
-def mock_multi_input_scoring_function(sequences: List[Sequence], config=None) -> List[float]:
-    """
-    Mock scoring function that takes in a list of sequences and returns a list of scores
-    corresponding to the number of T characters in each sequence
-    """
-    scores = []
-    for sequence in sequences:
-        score = sequence.sequence.count("T") / len(sequence)
-        # Add metadata to demonstrate propagation
-        sequence._metadata["t_count"] = sequence.sequence.count("T")
-        sequence._metadata["total_length"] = len(sequence)
-        sequence._metadata["t_fraction"] = score
-        scores.append(score)
-    return scores
-
-
-def mock_single_input_scoring_function_disjoint(
-    sequence_tuple: Tuple[Sequence, Sequence],
-    config=None
-) -> float:
-    """
-    Mock scoring function that takes in a tuple of sequences and returns a score
-    corresponding to the number of T characters in the sequences. Expects two sequences in the tuple.
-    """
-    # Compute percent of T in first and percent of C in second
-    t_percent = sequence_tuple[0].sequence.count("T") / len(sequence_tuple[0])
-    c_percent = sequence_tuple[1].sequence.count("C") / len(sequence_tuple[1])
-    # Add metadata
-    sequence_tuple[0]._metadata["t_percent"] = t_percent
-    sequence_tuple[1]._metadata["c_percent"] = c_percent
-
-    score = (t_percent + c_percent) / 2
-    return score
-
-
-def mock_multi_input_scoring_function_disjoint(
-    sequence_tuples: List[Tuple[Sequence, Sequence]],
-    config=None
-) -> float:
-    """
-    Mock scoring function that takes in a tuple of sequences and returns a score
-    corresponding to the number of T characters in the sequences. Expects two sequences in the tuple.
-    """
-    scores = []
-    for sequence_tuple in sequence_tuples:
-        t_percent = sequence_tuple[0].sequence.count("T") / len(sequence_tuple[0])
-        c_percent = sequence_tuple[1].sequence.count("C") / len(sequence_tuple[1])
-        scores.append((t_percent + c_percent) / 2)
-        sequence_tuple[0]._metadata["t_percent"] = t_percent
-        sequence_tuple[1]._metadata["c_percent"] = c_percent
-    return scores
-
-
-# Test data file paths
-TEST_DATA_DIR = Path("tests/dummy_data")
-PROTEIN_DB_PATH = TEST_DATA_DIR / "test_proteins_database.faa"
-DNA_FASTA_PATH = TEST_DATA_DIR / "test_dna_sequences.fna"
-ORFIPY_AA_PATH = TEST_DATA_DIR / "test_orfipy_aa.faa"
-ORFIPY_NT_PATH = TEST_DATA_DIR / "test_orfipy_nt.fna"
-M8_RESULTS_PATH = TEST_DATA_DIR / "test_mmseqs_results.m8"
-
-
-def get_test_sequences_with_real_hits():
-    """Returns DNA sequences that should produce hits against our dummy database."""
-    # These sequences correspond to the test data files we created
-    sequences = []
-    with open(DNA_FASTA_PATH, "r") as f:
-        current_seq = ""
-        for line in f:
-            if line.startswith(">"):
-                if current_seq:
-                    sequences.append(current_seq)
-                current_seq = ""
-            else:
-                current_seq += line.strip()
-        if current_seq:
-            sequences.append(current_seq)
-    return sequences
-
-
-@pytest.fixture(scope="module")
-def dummy_db_path():
-    return str(PROTEIN_DB_PATH)
-
-
-# Sample data for constraint tests
-SAMPLE_ORFIPY_AA_FASTA = """>dna_seq_1_ORF.1 [0-180](+)
-MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGK*
->dna_seq_2_ORF.1 [0-540](+)
-MKALIVLGLVLLSVTVQGKVFGRCELAAAAMKRHGLDNYRGYSLGNWVCAAKFESNFNTQATNRNTDGSTDYGILQINSRWWCNDGRTPGSRNLCNIPCSALLSSDITASVNCAKKIVSDGNGMNAWVAWRNRCKGTDVQAWIRGCRL*
-"""
-
-SAMPLE_ORFIPY_NT_FASTA = """>dna_seq_1_ORF.1 [0-180](+)
-ATGGTGCTGAGCCCGGCGGACAAGACCAACGTGAAGGCGGCGTGGGGCAAGGTGGGCGCGCACGCCGGCGAATATGGCGCAGAAGCCTTGGAAAGAATGTTTTTGAGCTTTCCAACCACCAAGACCTATTTCCCACACTTTGATTTGAGCCACGGCAGCGCACAGGTGAAAGGCCACGGCAAA
->dna_seq_2_ORF.1 [0-540](+)
-ATGAAAGCCTTGATCGTGTTGGGCTTGGTGTTGTTGAGCGTGACCGTGCAGGGCAAAGTGTTCGGCAGATGCGAATTGGCCGCAGCCGCAATGAAGAGACACGGCTTGGATAACTACAGAGGCTACAGCTTGGGCAACTGGGTGTGCGCAGCAAAGTTTGAAAGCAACTTCAACACACAGGCCACCAACAGAAACACCGATGGCAGCACCGATTATGGCATCTTGCAGATCAACAGCAGATGGTGGTGCAACGATGGCAGAACCCCAGGCAGCAGAAACTTGTGCAACATCCCATGCAGCGCCTTGTTGAGCAGCGATATTACCGCAAGCGTGAACTGCGCAAAGAAAATCGTGAGCGATGGCAACGGCATGAACGCATGGGTGGCATGGAGAAACAGATGCAAAGGCACCGATGTGCAGGCATGGATCAGAGGCTGCAGATTGTAA
-"""
-
-SAMPLE_M8_OUTPUT = """protein_seq_1	test_protein_1	95.2	1.5e-35
-protein_seq_2	test_protein_2	87.3	2.1e-28
-protein_seq_3	test_protein_5	100.0	1.0e-3
-protein_seq_4	test_protein_1	98.1	3.2e-42
-"""
-
-
-@pytest.fixture
-def temp_dir():
-    """Create a temporary directory for test files."""
-    d = Path(tempfile.mkdtemp())
-    yield d
-    shutil.rmtree(d)
-
-
-def setup_test_files(temp_dir: Path, sequence: str) -> dict:
-    """Set up test files for orfipy and mmseqs tests using real files."""
-    # Create input DNA file
-    dna_file = temp_dir / "input.fna"
-    dna_file.write_text(f">test_seq\n{sequence}\n")
-
-    # Create orfipy output directory and files
-    orfipy_dir = temp_dir / "orfipy_output"
-    orfipy_dir.mkdir()
-
-    # Use real test data files
-    shutil.copy(ORFIPY_AA_PATH, orfipy_dir / "orfipy_aa.faa")
-    shutil.copy(ORFIPY_NT_PATH, orfipy_dir / "orfipy_nt.fna")
-
-    # Create mmseqs output file
-    mmseqs_file = temp_dir / "mmseqs_results.m8"
-    shutil.copy(M8_RESULTS_PATH, mmseqs_file)
-
-    return {
-        "dna_file": dna_file,
-        "orfipy_dir": orfipy_dir,
-        "mmseqs_file": mmseqs_file,
-    }
-
-
-# Check if orfipy is available
-try:
-    import subprocess
-
-    subprocess.run(["orfipy", "--help"], capture_output=True, check=True)
-    ORFIPY_AVAILABLE = True
-except (subprocess.CalledProcessError, FileNotFoundError):
-    ORFIPY_AVAILABLE = False
-
-
-# =============================================================================
-# UNIT TESTS FOR CONSTRAINT UTILITY FUNCTIONS
-# =============================================================================
-
 from proto_language.utils import (
     validate_range,
     calculate_range_deviation,
@@ -220,11 +24,10 @@ class TestValidateRange:
     
     def test_value_within_range(self):
         """Test that values within range pass validation."""
-        # Should not raise any exception
         validate_range(50.0, 0.0, 100.0, "test_param")
-        validate_range(0.0, 0.0, 100.0, "test_param")
-        validate_range(100.0, 0.0, 100.0, "test_param")
-        validate_range(-5.0, -10.0, 10.0, "test_param")
+        validate_range(0.0, 0.0, 100.0, "test_param")  # Lower boundary
+        validate_range(100.0, 0.0, 100.0, "test_param")  # Upper boundary
+        validate_range(-5.0, -10.0, 10.0, "test_param")  # Negative ranges
     
     def test_value_below_range(self):
         """Test that values below range raise ValueError."""
@@ -244,7 +47,7 @@ class TestValidateRange:
     
     def test_edge_cases(self):
         """Test edge cases for validation."""
-        # Boundary values should pass
+        # Zero range (min == max)
         validate_range(0.0, 0.0, 0.0, "zero_range")
         
         # Negative ranges
@@ -255,10 +58,10 @@ class TestCalculateRangeDeviation:
     """Tests for calculate_range_deviation() utility function."""
     
     def test_value_within_range(self):
-        """Test that values within range have zero deviation."""
+        """Test that values within range have zero deviation (MIN_ENERGY)."""
         assert calculate_range_deviation(50.0, 40.0, 60.0) == MIN_ENERGY
-        assert calculate_range_deviation(40.0, 40.0, 60.0) == MIN_ENERGY
-        assert calculate_range_deviation(60.0, 40.0, 60.0) == MIN_ENERGY
+        assert calculate_range_deviation(40.0, 40.0, 60.0) == MIN_ENERGY  # Lower boundary
+        assert calculate_range_deviation(60.0, 40.0, 60.0) == MIN_ENERGY  # Upper boundary
         assert calculate_range_deviation(55.5, 50.0, 60.0) == MIN_ENERGY
     
     def test_value_below_range(self):
@@ -286,16 +89,17 @@ class TestCalculateRangeDeviation:
     
     def test_capping_at_max_energy(self):
         """Test that deviation is capped at MAX_ENERGY."""
-        # Very large deviation
+        # Very large deviation below range
         deviation = calculate_range_deviation(0.0, 100.0, 200.0)
         assert deviation <= MAX_ENERGY
         
+        # Very large deviation above range
         deviation = calculate_range_deviation(1000.0, 10.0, 20.0)
         assert deviation <= MAX_ENERGY
     
     def test_edge_cases(self):
-        """Test edge cases."""
-        # Zero minimum
+        """Test edge cases for range deviation."""
+        # Value below range with min=10
         assert calculate_range_deviation(5.0, 10.0, 20.0) == 0.5
         
         # Exact match at boundaries
@@ -307,7 +111,7 @@ class TestCalculatePercentageRangeDeviation:
     """Tests for calculate_percentage_range_deviation() utility function."""
     
     def test_value_within_range(self):
-        """Test that values within range have zero deviation."""
+        """Test that values within range have zero deviation (MIN_ENERGY)."""
         assert calculate_percentage_range_deviation(50.0, 40.0, 60.0) == MIN_ENERGY
         assert calculate_percentage_range_deviation(40.0, 40.0, 60.0) == MIN_ENERGY
         assert calculate_percentage_range_deviation(60.0, 40.0, 60.0) == MIN_ENERGY
@@ -319,10 +123,6 @@ class TestCalculatePercentageRangeDeviation:
         
         # actual=0, min=50, max=70 -> deviation = (50-0)/max(50,1) = 1.0
         assert abs(calculate_percentage_range_deviation(0.0, 50.0, 70.0) - 1.0) < 1e-9
-        
-        # Edge case: min_val is 0 (use 1 as denominator)
-        # actual=0, min=0, max=50 -> deviation = (0-0)/max(0,1) = 0.0
-        assert calculate_percentage_range_deviation(0.0, 0.0, 50.0) == MIN_ENERGY
     
     def test_value_above_range(self):
         """Test deviation for values above range."""
@@ -331,31 +131,39 @@ class TestCalculatePercentageRangeDeviation:
         
         # actual=100, min=40, max=60 -> deviation = (100-60)/max(100-60,1) = 40/40 = 1.0
         assert abs(calculate_percentage_range_deviation(100.0, 40.0, 60.0) - 1.0) < 1e-9
+    
+    def test_edge_case_min_zero(self):
+        """Test edge case when min_val is 0."""
+        # actual=0, min=0, max=50 -> deviation = (0-0)/max(0,1) = 0.0
+        assert calculate_percentage_range_deviation(0.0, 0.0, 50.0) == MIN_ENERGY
         
-        # Edge case: max_val is 100 (denominator becomes 1)
+        # actual=5, min=0, max=50 -> within range
+        assert calculate_percentage_range_deviation(5.0, 0.0, 50.0) == MIN_ENERGY
+    
+    def test_edge_case_max_hundred(self):
+        """Test edge case when max_val is 100."""
         # actual=105, min=40, max=100 -> deviation = (105-100)/max(0,1) = 5/1 = 1.0 (capped)
         deviation = calculate_percentage_range_deviation(105.0, 40.0, 100.0)
         assert deviation <= MAX_ENERGY
+        
+        # actual=95, min=50, max=100 -> within range
+        assert calculate_percentage_range_deviation(95.0, 50.0, 100.0) == MIN_ENERGY
     
     def test_capping_at_max_energy(self):
         """Test that deviation is capped at MAX_ENERGY."""
-        # Very large deviation
+        # Very large deviation below
         deviation = calculate_percentage_range_deviation(0.0, 90.0, 95.0)
         assert deviation <= MAX_ENERGY
         
+        # Very large deviation above
         deviation = calculate_percentage_range_deviation(100.0, 5.0, 10.0)
         assert deviation <= MAX_ENERGY
     
-    def test_edge_cases(self):
-        """Test edge cases specific to percentage ranges."""
-        # min_val = 0
-        assert calculate_percentage_range_deviation(5.0, 0.0, 50.0) == MIN_ENERGY
-        
-        # max_val = 100
-        assert calculate_percentage_range_deviation(95.0, 50.0, 100.0) == MIN_ENERGY
-        
-        # Full range 0-100
+    def test_full_percentage_range(self):
+        """Test with full percentage range (0-100)."""
         assert calculate_percentage_range_deviation(50.0, 0.0, 100.0) == MIN_ENERGY
+        assert calculate_percentage_range_deviation(0.0, 0.0, 100.0) == MIN_ENERGY
+        assert calculate_percentage_range_deviation(100.0, 0.0, 100.0) == MIN_ENERGY
 
 
 class TestCalculateNormalizedDeviation:
@@ -416,12 +224,20 @@ class TestCalculateNormalizedDeviation:
         assert abs(dev_below - dev_above) < 1e-9
     
     def test_negative_values(self):
-        """Test with negative values."""
+        """Test with negative values (uses 1 as denominator due to max(target, 1))."""
         # actual=-10, target=-20 -> deviation = |-10-(-20)|/max(-20,1) = 10/1 = 1.0 (capped)
-        # Note: max(target, 1) means negative targets use 1 as denominator
         deviation = calculate_normalized_deviation(-10.0, -20.0)
         assert deviation <= MAX_ENERGY
         
         # actual=-30, target=-10 -> deviation = |-30-(-10)|/max(-10,1) = 20/1 = 1.0 (capped)
         deviation = calculate_normalized_deviation(-30.0, -10.0)
         assert deviation <= MAX_ENERGY
+    
+    def test_small_deviations(self):
+        """Test that small deviations are calculated accurately."""
+        # actual=50.5, target=50.0 -> deviation = 0.5/50 = 0.01
+        assert abs(calculate_normalized_deviation(50.5, 50.0) - 0.01) < 1e-9
+        
+        # actual=99.5, target=100.0 -> deviation = 0.5/100 = 0.005
+        assert abs(calculate_normalized_deviation(99.5, 100.0) - 0.005) < 1e-9
+

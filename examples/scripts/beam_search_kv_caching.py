@@ -86,7 +86,8 @@ def run_beam_search(
     constraint = Constraint(
         inputs=[segments[0]],  # Will be updated dynamically by beam search
         scoring_function=gc_content_constraint,
-        scoring_function_config=gc_config
+        scoring_function_config=gc_config,
+        vectorized=True
     )
 
     # Create optimizer

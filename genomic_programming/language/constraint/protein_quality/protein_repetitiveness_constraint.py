@@ -7,12 +7,13 @@ from __future__ import annotations
 from collections import Counter
 
 import numpy as np
+from typing import List
 from pydantic import Field
 
-from ...core import Sequence, SequenceType
+from proto_language.language.core import Sequence, SequenceType
 from proto_language.base_config import BaseConfig
-from ..constraint_registry import ConstraintRegistry
-from ....utils import MIN_ENERGY, MAX_ENERGY
+from proto_language.language.constraint.constraint_registry import ConstraintRegistry
+from proto_language.utils import MIN_ENERGY, MAX_ENERGY
 
 
 class ProteinRepetitivenessConfig(BaseConfig):
@@ -34,12 +35,12 @@ class ProteinRepetitivenessConfig(BaseConfig):
     label="Protein Repetitiveness",
     config=ProteinRepetitivenessConfig,
     description="Evaluate protein sequence repetitiveness based on k-mer analysis",
-    vectorized=False,
+    vectorized=True,
     concatenate=True
 )
 def protein_repetitiveness_constraint(
-    input_sequence: Sequence, config: ProteinRepetitivenessConfig
-) -> float:
+    sequences: List[Sequence], config: ProteinRepetitivenessConfig
+) -> List[float]:
     """
     Evaluate protein sequence repetitiveness based on k-mer analysis.
 
@@ -51,19 +52,25 @@ def protein_repetitiveness_constraint(
         Constraint score where 0.0 indicates acceptable repetitiveness
         and higher values indicate excessive repetitive content.
     """
-    assert input_sequence.sequence_type == SequenceType.PROTEIN, "Input must be protein"
-
-    repetitiveness_score = _calculate_repetitiveness_score(
-        input_sequence.sequence, config.min_repeat_length
+    for seq in sequences:
+        assert seq.sequence_type == SequenceType.PROTEIN, "Input must be protein"
+    seq_strings = [seq.sequence for seq in sequences]
+    repetitiveness_scores = np.array([
+        _calculate_repetitiveness_score(s, config.min_repeat_length) 
+        for s in seq_strings
+    ])
+    excess = repetitiveness_scores - config.max_repetitiveness
+    scores = np.where(
+        repetitiveness_scores <= config.max_repetitiveness,
+        MIN_ENERGY,
+        np.minimum(MAX_ENERGY, excess / (1.0 - config.max_repetitiveness))
     )
-    input_sequence._metadata["repetitiveness_score"] = repetitiveness_score
-    input_sequence._metadata["max_repetitive_fraction"] = repetitiveness_score
-
-    if repetitiveness_score <= config.max_repetitiveness:
-        return MIN_ENERGY
-
-    excess = repetitiveness_score - config.max_repetitiveness
-    return min(MAX_ENERGY, excess / (1.0 - config.max_repetitiveness))
+    
+    for i, input_sequence in enumerate(sequences):
+        input_sequence._metadata["repetitiveness_score"] = float(repetitiveness_scores[i])
+        input_sequence._metadata["max_repetitive_fraction"] = float(repetitiveness_scores[i])
+    
+    return scores.tolist()
 
 
 def _calculate_repetitiveness_score(seq: str, min_repeat_length: int = 3) -> float:

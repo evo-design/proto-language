@@ -12,29 +12,17 @@ Tests cover:
 Note: Actual MEME/FIMO execution is mocked to avoid dependencies.
 """
 
-import numpy as np
-import pandas as pd
 import pytest
 import sys
-import shutil
-import tempfile
-from typing import List, Tuple
-from pathlib import Path
 from unittest.mock import patch, mock_open, Mock
 import os
 
 sys.path.append(".")
 
-from proto_language.language.core import (
-    Construct,
-    Segment,
-    Constraint,
-    Sequence,
-    SequenceType,
-)
-from proto_language.language.constraint import ConstraintRegistry, seq_motif_constraint
+from proto_language.language.core import Constraint, SequenceType
+from proto_language.language.constraint import seq_motif_constraint
 from proto_language.language.constraint.sequence_annotation.seq_motif_constraint import SeqMotifConfig
-from ..test_utils import create_segment
+from ..utils import create_segment
 
 
 class TestSeqMotifConstraint:

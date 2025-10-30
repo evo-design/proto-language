@@ -4,18 +4,24 @@ ESMFold pLDDT constraint for protein structure quality evaluation.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional,List
 
 from pydantic import Field
 
-from ...core import Sequence
+from proto_language.language.core import Sequence, SequenceType
 from proto_language.base_config import BaseConfig
-from ..constraint_registry import ConstraintRegistry
-from ....tools.models.structure_prediction.esmfold import (
+from proto_language.language.constraint.constraint_registry import ConstraintRegistry
+from proto_language.tools.models.structure_prediction.esmfold import (
     run_esmfold,
     ESMFoldInput,
     ESMFoldConfig,
 )
+from proto_language.tools.orf_prediction.prodigal import (
+    run_prodigal_prediction,
+    ProdigalInput,
+    ProdigalConfig,
+)
+from proto_language.utils import MAX_ENERGY
 
 
 class ESMFoldPLDDTConfig(BaseConfig):
@@ -36,19 +42,19 @@ class ESMFoldPLDDTConfig(BaseConfig):
     label="ESMFold pLDDT Score",
     config=ESMFoldPLDDTConfig,
     description="Evaluate protein structure quality using ESMFold predicted LDDT score",
-    vectorized=False,
-    concatenate=True,
+    vectorized=True,
+    concatenate=False,
     gpu_required=True
 )
 def esmfold_plddt_constraint(
-    input_sequence: Sequence,
+    sequences: List[Sequence],
     config: ESMFoldPLDDTConfig
-) -> float:
+) -> List[float]:
     """
     Evaluate protein structure quality using ESMFold's predicted LDDT (pLDDT) score.
 
     Args:
-        input_sequence: The protein sequence to evaluate.
+        sequences: The protein sequences to evaluate.
         config: Configuration containing n_replications and esmfold_config parameters.
 
     Returns:
@@ -58,7 +64,7 @@ def esmfold_plddt_constraint(
     Examples:
         Evaluating protein structure confidence:
 
-        >>> seq = Sequence("MVLSPADKTNVK", SequenceType.PROTEIN)
+        >>> seqs = [Sequence("MVLSPADKTNVK", SequenceType.PROTEIN)]
         >>> # Using defaults:
         >>> cfg = ESMFoldPLDDTConfig()
         >>> score = esmfold_plddt_constraint(seq, config=cfg)
@@ -67,24 +73,117 @@ def esmfold_plddt_constraint(
         >>> cfg = ESMFoldPLDDTConfig(n_replications=2, esmfold_config=esmfold_cfg)
         >>> score = esmfold_plddt_constraint(seq, config=cfg)
     """
-    # Prepare replicated sequence for multimer prediction
-    replicated_sequence = ":".join([input_sequence.sequence] * config.n_replications)
 
-    # Create ESMFoldInput and ESMFoldConfig
-    esmfold_input = ESMFoldInput(sequences=replicated_sequence)
+    by_type = {SequenceType.DNA: [], SequenceType.PROTEIN: []}
+    for seq in sequences:
+        by_type[seq.sequence_type].append(seq)
+    
+    scores = [None] * len(sequences)
+    
+    # Process proteins
+    if by_type[SequenceType.PROTEIN]:
+        protein_scores = _predict_structures(by_type[SequenceType.PROTEIN], config)
+        _map_scores_to_original(sequences, by_type[SequenceType.PROTEIN], protein_scores, scores)
+    
+    # Process DNA
+    if by_type[SequenceType.DNA]:
+        dna_scores = _evaluate_dna_via_prodigal(by_type[SequenceType.DNA], config)
+        _map_scores_to_original(sequences, by_type[SequenceType.DNA], dna_scores, scores)
+    
+    return scores
+
+
+def _predict_structures(
+    sequences: List[Sequence],
+    config: ESMFoldPLDDTConfig
+) -> List[float]:
+    """Predict structures and return pLDDT-based scores."""
+    batch_sequences = [
+        [seq.sequence] * config.n_replications  # Each complex is n_replications of the same sequence
+        for seq in sequences
+    ]
+    
+    esmfold_input = ESMFoldInput(sequences=batch_sequences)
     esmfold_config = (
         config.esmfold_config if config.esmfold_config is not None else ESMFoldConfig()
     )
-
-    # Run ESMFold prediction (caching handled transparently by decorator)
     output = run_esmfold(inputs=esmfold_input, config=esmfold_config)
+    scores = []
+    for i, (seq, structure) in enumerate(zip(sequences, output.structures)):
+        seq._metadata.update({
+            "avg_plddt": structure.avg_plddt,
+            "ptm": structure.ptm,
+            "pdb_output": structure.structure_pdb_output,
+            "esmfolded_sequence": ":".join([seq.sequence] * config.n_replications),
+        })
 
-    # Store results in metadata
-    input_sequence._metadata.update({
-        "avg_plddt": output.avg_plddt,
-        "ptm": output.ptm,
-        "pdb_output": output.structure_pdb_output,
-        "esmfolded_sequence": replicated_sequence,
-    })
+        # Calculate constraint score (lower pLDDT = higher penalty)
+        scores.append(1.0 - structure.avg_plddt)
 
-    return 1.0 - output.avg_plddt
+    return scores
+
+def _evaluate_dna_via_prodigal(
+    dna_sequences: List[Sequence],
+    config: ESMFoldPLDDTConfig
+) -> List[float]:
+    """Evaluate DNA sequences by predicting proteins with Prodigal first."""
+    # Batch predict all DNA sequences at once
+    prodigal_result = run_prodigal_prediction(
+        ProdigalInput(input_sequences=[seq.sequence for seq in dna_sequences]),
+        ProdigalConfig()
+    )
+    
+    scores = []
+    
+    # Process each DNA sequence's results
+    for i, (dna_seq, proteins_df, num_genes) in enumerate(zip(
+        dna_sequences,
+        prodigal_result.results_per_sequence,
+        prodigal_result.total_num_genes_per_sequence
+    )):
+        # Store Prodigal results
+        dna_seq._metadata.update({
+            "prodigal_proteins": proteins_df,
+            "prodigal_protein_count": num_genes
+        })
+        
+        if num_genes == 0:
+            scores.append(MAX_ENERGY)
+            continue
+        
+        if len(proteins_df) == 0:
+            scores.append(MAX_ENERGY)
+            continue
+        
+        # Predict structures for this DNA's proteins
+        protein_seqs = proteins_df['protein_sequence'].tolist()
+        batch = [[seq] * config.n_replications for seq in protein_seqs]
+        
+        esmfold_output = run_esmfold(
+            ESMFoldInput(sequences=batch),
+            config.esmfold_config or ESMFoldConfig()
+        )
+        
+        plddts = [s.avg_plddt for s in esmfold_output.structures]
+        dna_seq._metadata["esmfold_protein_plddts"] = plddts
+        best_plddt = max(plddts)
+        dna_seq._metadata["esmfold_best_plddt"] = best_plddt
+        score = 1.0 - best_plddt
+        
+        scores.append(score)
+    
+    return scores
+
+
+def _map_scores_to_original(
+    all_sequences: List[Sequence],
+    subset_sequences: List[Sequence],
+    subset_scores: List[float],
+    scores: List[Optional[float]]
+) -> None:
+    """Map subset scores back to original sequence order."""
+    subset_idx = 0
+    for i, seq in enumerate(all_sequences):
+        if seq in subset_sequences:
+            scores[i] = subset_scores[subset_idx]
+            subset_idx += 1

@@ -59,6 +59,7 @@ def _setup_mcmc_components(
             min_gc=gc_target_range[0],
             max_gc=gc_target_range[1],
         ),
+        vectorized=True,
     )
 
     # 3. Create the MCMC Optimizer config
@@ -204,10 +205,12 @@ class TestMCMCOptimizer:
         construct = Construct([segment])
 
         gc_con = Constraint(
-            [segment], gc_content_constraint, GCContentConfig(min_gc=40.0, max_gc=60.0)
+            [segment], gc_content_constraint, GCContentConfig(min_gc=40.0, max_gc=60.0),
+            vectorized=True
         )
         len_con = Constraint(
-            [segment], sequence_length_constraint, SequenceLengthConfig(target_length=seq_len)
+            [segment], sequence_length_constraint, SequenceLengthConfig(target_length=seq_len),
+            vectorized=True
         )
 
         optimizer = MCMCOptimizer(
@@ -252,6 +255,7 @@ class TestMCMCOptimizer:
             inputs=[segment1, segment2],
             scoring_function=sequence_length_constraint,
             scoring_function_config=SequenceLengthConfig(target_length=seq_len * 2),
+            vectorized=True,
         )
 
         optimizer = MCMCOptimizer(
@@ -301,6 +305,7 @@ class TestMCMCOptimizer:
             inputs=[segment],
             scoring_function=gc_content_constraint,
             scoring_function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
+            vectorized=True,
         )
 
         optimizer = MCMCOptimizer(
@@ -474,6 +479,7 @@ class TestMCMCOptimizer:
             inputs=[segment],
             scoring_function=gc_content_constraint,
             scoring_function_config=GCContentConfig(min_gc=50.0, max_gc=50.0),
+            vectorized=True,
         )
 
         optimizer = MCMCOptimizer(
@@ -576,6 +582,7 @@ class TestMCMCOptimizer:
             inputs=[segment],
             scoring_function=gc_content_constraint,
             scoring_function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
+            vectorized=True,
         )
 
         optimizer = MCMCOptimizer(
@@ -614,6 +621,7 @@ class TestMCMCOptimizer:
             inputs=[segment1],
             scoring_function=gc_content_constraint,
             scoring_function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
+            vectorized=True,
         )
 
         optimizer1 = MCMCOptimizer(
@@ -647,6 +655,7 @@ class TestMCMCOptimizer:
             inputs=[segment2],
             scoring_function=gc_content_constraint,
             scoring_function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
+            vectorized=True,
         )
 
         optimizer2 = MCMCOptimizer(
@@ -738,6 +747,7 @@ class TestMCMCOptimizer:
             inputs=[segment1, segment2],
             scoring_function=gc_content_constraint,
             scoring_function_config=GCContentConfig(min_gc=45.0, max_gc=55.0),
+            vectorized=True,
         )
 
         optimizer = MCMCOptimizer(

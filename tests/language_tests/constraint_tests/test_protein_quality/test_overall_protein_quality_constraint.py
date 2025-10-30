@@ -2,35 +2,18 @@
 Comprehensive tests for overall_protein_quality_constraint.
 """
 
-import numpy as np
-import pandas as pd
 import pytest
 import sys
-from typing import List, Tuple
-from pathlib import Path
 
 sys.path.append(".")
 
-from proto_language.language.core import (
-    Construct,
-    Segment,
-    Constraint,
-    Sequence,
-    SequenceType,
-)
-from proto_language.language.constraint import overall_protein_quality_constraint, ConstraintRegistry
-from proto_language.language.constraint.protein_quality.overall_protein_quality_constraint import (
-    OverallProteinQualityConfig,
-    ProteinQualitySubConfig,
-)
-from proto_language.language.constraint.protein_quality.protein_length_constraint import ProteinLengthConfig
+from proto_language.language.core import Constraint, SequenceType
+from proto_language.language.constraint import overall_protein_quality_constraint
+from proto_language.language.constraint.protein_quality.overall_protein_quality_constraint import OverallProteinQualityConfig, ProteinQualitySubConfig
+from proto_language.language.constraint.sequence_composition.sequence_length_constraint import SequenceLengthConfig
 from proto_language.language.constraint.protein_quality.protein_diversity_constraint import ProteinDiversityConfig
 from proto_language.language.constraint.protein_quality.protein_repetitiveness_constraint import ProteinRepetitivenessConfig
-from proto_language.language.constraint.protein_quality.balanced_aa_constraint import BalancedAaConfig
-from ..test_utils import (
-    create_segment,
-    create_batched_segment,
-)
+from ..utils import create_segment
 
 
 class TestOverallProteinQualityConstraint:
@@ -42,7 +25,7 @@ class TestOverallProteinQualityConstraint:
         
         # Only check length - protein is 48 amino acids
         sub_config = ProteinQualitySubConfig(
-            length=ProteinLengthConfig(min_length=20, max_length=100),
+            length=SequenceLengthConfig(target_length=50),  # Close to actual length of 48
             quality_threshold=0.5
         )
         config = OverallProteinQualityConfig(
@@ -53,6 +36,7 @@ class TestOverallProteinQualityConstraint:
             inputs=[segment],
             scoring_function=overall_protein_quality_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
         
         scores = constraint.evaluate()
@@ -64,7 +48,7 @@ class TestOverallProteinQualityConstraint:
         segment = create_segment("MVLSP", SequenceType.PROTEIN)
         
         sub_config = ProteinQualitySubConfig(
-            length=ProteinLengthConfig(min_length=20, max_length=100),
+            length=SequenceLengthConfig(target_length=20),  # Much longer than actual length of 5
             quality_threshold=0.1
         )
         config = OverallProteinQualityConfig(
@@ -75,6 +59,7 @@ class TestOverallProteinQualityConstraint:
             inputs=[segment],
             scoring_function=overall_protein_quality_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
         
         scores = constraint.evaluate()
@@ -86,7 +71,7 @@ class TestOverallProteinQualityConstraint:
         segment = create_segment("MVLSPADKTNVKAAWGKVGAHAGEYGAEAL", SequenceType.PROTEIN)
         
         sub_config = ProteinQualitySubConfig(
-            length=ProteinLengthConfig(min_length=20, max_length=100),
+            length=SequenceLengthConfig(target_length=30),
             diversity=ProteinDiversityConfig(min_diversity=0.3),
             quality_threshold=0.5
         )
@@ -98,6 +83,7 @@ class TestOverallProteinQualityConstraint:
             inputs=[segment],
             scoring_function=overall_protein_quality_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
         
         scores = constraint.evaluate()
@@ -127,6 +113,7 @@ class TestOverallProteinQualityConstraint:
             inputs=[segment],
             scoring_function=overall_protein_quality_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
         
         scores = constraint.evaluate()

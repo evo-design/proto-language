@@ -1,30 +1,12 @@
-import numpy as np
-import pandas as pd
 import pytest
 import sys
-import shutil
-import tempfile
-from typing import List, Tuple
-from pathlib import Path
 
 sys.path.append(".")
 
-from proto_language.language.core import (
-    Construct,
-    Segment,
-    Constraint,
-    Sequence,
-    SequenceType,
-)
-from proto_language.language.constraint import (
-    balanced_aa_constraint,
-    ConstraintRegistry,
-)
+from proto_language.language.core import Constraint, SequenceType
+from proto_language.language.constraint import balanced_aa_constraint
 from proto_language.language.constraint.protein_quality.balanced_aa_constraint import BalancedAaConfig
-from ..test_utils import (
-    create_segment,
-    create_batched_segment,
-)
+from ..utils import create_segment
 
 
 # Tests for balanced_aa_constraint
@@ -41,6 +23,7 @@ class TestBalancedAAConstraint:
             inputs=[segment],
             scoring_function=balanced_aa_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
 
         score = constraint.evaluate()[0]
@@ -63,6 +46,7 @@ class TestBalancedAAConstraint:
             inputs=[segment],
             scoring_function=balanced_aa_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
 
         score = constraint.evaluate()[0]
@@ -92,7 +76,10 @@ class TestBalancedAAConstraint:
             inputs=[segment],
             scoring_function=balanced_aa_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
 
-        score = constraint.evaluate()[0]
-        assert score == 1.0
+        scores = constraint.evaluate()
+        assert len(scores) == 1
+        # Empty sequence has no underrepresented amino acids (0 count < 0 threshold is false)
+        assert scores[0] == 0.0

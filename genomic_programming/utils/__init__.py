@@ -27,7 +27,6 @@ from .helpers import (
     mask_p,
     mask_assigned_positions,
     run_subprocess_command,
-    calculate_segmasker_score,
     suppress_console_output,
 )
 
@@ -81,6 +80,5 @@ __all__ = [
     "mask_p",
     "mask_assigned_positions",
     "run_subprocess_command",
-    "calculate_segmasker_score",
     "suppress_console_output",
 ]

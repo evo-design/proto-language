@@ -1,27 +1,12 @@
-import numpy as np
-import pandas as pd
 import pytest
 import sys
-import shutil
-import tempfile
-from typing import List, Tuple
-from pathlib import Path
 
 sys.path.append(".")
 
-from proto_language.language.core import (
-    Construct,
-    Segment,
-    Constraint,
-    Sequence,
-    SequenceType,
-)
-from proto_language.language.constraint import gc_content_constraint, ConstraintRegistry
+from proto_language.language.core import Constraint, SequenceType
+from proto_language.language.constraint import gc_content_constraint
 from proto_language.language.constraint.sequence_composition.gc_content_constraint import GCContentConfig
-from ..test_utils import (
-    create_segment,
-    create_batched_segment,
-)
+from ..utils import create_segment
 
 
 # Tests for gc_content_constraint
@@ -46,6 +31,7 @@ class TestGCContentConstraint:
             inputs=[segment],
             scoring_function=gc_content_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
         assert abs(constraint.evaluate()[0] - expected_score) < 1e-9
         # Check metadata (stored in candidate sequences which constraints evaluate)
@@ -72,17 +58,19 @@ class TestGCContentConstraint:
             inputs=[segment],
             scoring_function=gc_content_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
         assert abs(constraint.evaluate()[0] - expected_score) < 1e-9
 
     def test_wrong_sequence_type(self):
-        """Test that protein sequences raise assertion (constraint-specific check)."""
+        """Test that protein sequences raise ValueError (constraint-specific check)."""
         segment = create_segment("MVLSPADKTNVK", SequenceType.PROTEIN)
         config = GCContentConfig(min_gc=40, max_gc=60)
         constraint = Constraint(
             inputs=[segment],
             scoring_function=gc_content_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             constraint.evaluate()

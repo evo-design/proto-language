@@ -9,28 +9,17 @@ Tests cover:
 5. Metadata propagation
 """
 
-import numpy as np
-import pandas as pd
 import pytest
 import sys
-import shutil
-import tempfile
-from typing import List, Tuple
-from pathlib import Path
 from unittest.mock import patch
 
 sys.path.append(".")
 
-from proto_language.language.core import (
-    Construct,
-    Segment,
-    Constraint,
-    Sequence,
-    SequenceType,
-)
-from proto_language.language.constraint import ConstraintRegistry, protein_complexity_constraint
+from proto_language.language.core import Constraint, SequenceType
+from proto_language.language.constraint import protein_complexity_constraint
 from proto_language.language.constraint.protein_quality.protein_complexity_constraint import ProteinComplexityConfig
-from ..test_utils import create_segment, create_batched_segment
+from proto_language.tools.sequence_scoring.segmasker import SegmaskerOutput
+from ..utils import create_segment
 
 
 class TestProteinComplexityConstraint:
@@ -50,14 +39,24 @@ class TestProteinComplexityConstraint:
         segment = create_segment("MKTAYIAKQRQISFVK", SequenceType.PROTEIN)
         config = ProteinComplexityConfig(max_low_complexity=max_low_complexity)
         
-        # Mock calculate_segmasker_score
-        with patch('proto_language.language.constraint.protein_quality.protein_complexity_constraint.calculate_segmasker_score') as mock_seg:
-            mock_seg.return_value = low_complexity_fraction
+        # Mock run_segmasker
+        with patch('proto_language.language.constraint.protein_quality.protein_complexity_constraint.run_segmasker') as mock_seg:
+            mock_output = SegmaskerOutput(
+                tool_id="segmasker",
+                execution_time=0.1,
+                success=True,
+                low_complexity_fractions=[low_complexity_fraction],
+                low_complexity_counts=[int(low_complexity_fraction * 16)],
+                sequence_lengths=[16],
+                errors=[]
+            )
+            mock_seg.return_value = mock_output
             
             constraint = Constraint(
                 inputs=[segment],
                 scoring_function=protein_complexity_constraint,
                 scoring_function_config=config,
+                vectorized=True,
             )
             
             scores = constraint.evaluate()
@@ -75,13 +74,23 @@ class TestProteinComplexityConstraint:
         segment = create_segment("MKTAYIAKQRQISFVK", SequenceType.PROTEIN)
         config = ProteinComplexityConfig(max_low_complexity=0.3)
         
-        with patch('proto_language.language.constraint.protein_quality.protein_complexity_constraint.calculate_segmasker_score') as mock_seg:
-            mock_seg.side_effect = ValueError("Segmasker execution failed")
+        with patch('proto_language.language.constraint.protein_quality.protein_complexity_constraint.run_segmasker') as mock_seg:
+            mock_output = SegmaskerOutput(
+                tool_id="segmasker",
+                execution_time=0.0,
+                success=False,
+                low_complexity_fractions=[],
+                low_complexity_counts=[],
+                sequence_lengths=[],
+                errors=["Segmasker execution failed"]
+            )
+            mock_seg.return_value = mock_output
             
             constraint = Constraint(
                 inputs=[segment],
                 scoring_function=protein_complexity_constraint,
                 scoring_function_config=config,
+                vectorized=True,
             )
             
             # The constraint should raise ValueError
@@ -97,6 +106,7 @@ class TestProteinComplexityConstraint:
             inputs=[segment],
             scoring_function=protein_complexity_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
         
         with pytest.raises(AssertionError):

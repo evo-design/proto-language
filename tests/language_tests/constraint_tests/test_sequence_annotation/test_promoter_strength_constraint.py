@@ -13,28 +13,16 @@ Tests cover:
 Note: Actual promoter_calculator execution is mocked to avoid dependencies.
 """
 
-import numpy as np
-import pandas as pd
 import pytest
 import sys
-import shutil
-import tempfile
-from typing import List, Tuple
-from pathlib import Path
 from unittest.mock import patch, Mock
 
 sys.path.append(".")
 
-from proto_language.language.core import (
-    Construct,
-    Segment,
-    Constraint,
-    Sequence,
-    SequenceType,
-)
-from proto_language.language.constraint import ConstraintRegistry, promoter_strength_constraint
+from proto_language.language.core import Constraint, SequenceType
+from proto_language.language.constraint import promoter_strength_constraint
 from proto_language.language.constraint.sequence_annotation.promoter_strength_constraint import PromoterStrengthConfig
-from ..test_utils import create_segment, create_batched_segment
+from ..utils import create_segment
 
 
 class TestPromoterStrengthConstraint:

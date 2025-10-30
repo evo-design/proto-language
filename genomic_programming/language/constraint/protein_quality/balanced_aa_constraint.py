@@ -5,12 +5,15 @@ Balanced amino acid constraint function.
 from __future__ import annotations
 
 from collections import Counter
+from typing import List
+import numpy as np
+from Bio.Data import IUPACData
 
 from pydantic import Field
 
-from ...core import Sequence, SequenceType
+from proto_language.language.core import Sequence, SequenceType,PROTEIN_AMINO_ACIDS
 from proto_language.base_config import BaseConfig
-from ..constraint_registry import ConstraintRegistry
+from proto_language.language.constraint.constraint_registry import ConstraintRegistry
 
 
 class BalancedAaConfig(BaseConfig):
@@ -34,12 +37,12 @@ class BalancedAaConfig(BaseConfig):
     label="Balanced Amino Acid Representation",
     config=BalancedAaConfig,
     description="Evaluate the presence of underrepresented amino acids in a protein sequence",
-    vectorized=False,
+    vectorized=True,
     concatenate=True
 )
 def balanced_aa_constraint(
-    input_sequence: Sequence, config: BalancedAaConfig
-) -> float:
+    sequences: List[Sequence], config: BalancedAaConfig
+) -> List[float]:
     """
     Evaluate the presence of underrepresented amino acids in a protein sequence.
 
@@ -51,74 +54,91 @@ def balanced_aa_constraint(
         Constraint score from 0.0 (best, acceptable number of underrepresented amino acids) to 1.0 (worst).
         Score is scaled based on how many excess underrepresented amino acids there are and their severity.
     """
-    assert input_sequence.sequence_type == SequenceType.PROTEIN, "Input must be protein"
+    for seq in sequences:
+        assert seq.sequence_type == SequenceType.PROTEIN, "Input must be protein"
+    
+    seq_strings = [seq.sequence for seq in sequences]
+    seq_lengths = np.array([len(s) for s in seq_strings])
+    aa_alphabet = PROTEIN_AMINO_ACIDS
+    aa_to_idx = {aa: i for i, aa in enumerate(aa_alphabet)}
+    
+    batch_size = len(sequences)
+    aa_count_matrix = np.zeros((batch_size, 20), dtype=np.int32)
+    
+    for seq_idx, seq_str in enumerate(seq_strings):
+        if len(seq_str) > 0:
+            aa_counts = Counter(seq_str)
+            for aa, count in aa_counts.items():
+                if aa in aa_to_idx:
+                    aa_count_matrix[seq_idx, aa_to_idx[aa]] = count
 
-    seq = input_sequence.sequence
+    aa_freq_matrix = aa_count_matrix / seq_lengths[:, np.newaxis].clip(min=1)
+    frequency_thresholds = config.min_aa_frequency * seq_lengths
+    count_thresholds = frequency_thresholds[:, np.newaxis]
 
-    if len(seq) == 0:
-        underrepresented_score = 1.0
-        aa_counts = Counter()
-        underrepresented_aas = []
-        penalty_score = 1.0
-    else:
-        aa_counts = Counter(seq)
-        if len(aa_counts) == 0:
-            underrepresented_score = 1.0
-            underrepresented_aas = []
-            penalty_score = 1.0
-        else:
-            # Identify underrepresented amino acids (below minimum frequency threshold)
-            frequency_threshold = config.min_aa_frequency * len(seq)
-            underrepresented_aas = [
-                aa for aa, count in aa_counts.items() if count < frequency_threshold
-            ]
+    underrepresented_mask = aa_count_matrix < count_thresholds
+    underrepresented_counts = underrepresented_mask.sum(axis=1)
 
-            # Calculate fraction of sequence that consists of underrepresented amino acids
-            underrepresented_total = sum(aa_counts[aa] for aa in underrepresented_aas)
-            underrepresented_score = underrepresented_total / len(seq)
+    underrepresented_totals = (aa_count_matrix * underrepresented_mask).sum(axis=1)
+    underrepresented_scores = underrepresented_totals / seq_lengths.clip(min=1)
 
-            # Calculate penalty score based on count of underrepresented amino acids
-            underrepresented_aa_count = len(underrepresented_aas)
+    penalties = np.zeros(batch_size)
+    excess_mask = underrepresented_counts > config.max_underrepresented_count
 
-            if underrepresented_aa_count <= config.max_underrepresented_count:
-                penalty_score = 0.0
-            else:
-                # Scale penalty based on both excess count and how far amino acids are from threshold
-                excess_count = underrepresented_aa_count - config.max_underrepresented_count
-                max_possible_excess = (
-                    20 - config.max_underrepresented_count
-                )  # 20 standard amino acids
+    if np.any(excess_mask):
+        excess_counts = (underrepresented_counts - config.max_underrepresented_count).clip(min=0)
+        max_possible_excess = 20 - config.max_underrepresented_count
+        deficits = np.zeros(batch_size)
+        
+        for seq_idx in np.where(excess_mask)[0]:
+            if underrepresented_totals[seq_idx] > 0:
+                # Calculate weighted average deficit for sequences
+                underrep_freqs = aa_freq_matrix[seq_idx][underrepresented_mask[seq_idx]]
+                underrep_counts = aa_count_matrix[seq_idx][underrepresented_mask[seq_idx]]
+                
+                aa_deficits = config.min_aa_frequency - underrep_freqs
+                weighted_deficit = (aa_deficits * underrep_counts).sum()
+                deficits[seq_idx] = weighted_deficit / underrepresented_totals[seq_idx]
+        
+        # Calculate penalties for all sequences
+        count_penalties = np.where(
+            max_possible_excess > 0,
+            excess_counts / max_possible_excess,
+            1.0
+        )
+        severity_penalties = np.where(
+            config.min_aa_frequency > 0,
+            deficits / config.min_aa_frequency,
+            0.0
+        )
+        
+        penalties = np.where(
+            excess_mask,
+            np.minimum(1.0, count_penalties * (1.0 + severity_penalties)),
+            0.0
+        )
 
-                # Calculate average "deficit" - how far underrepresented AAs are from threshold
-                total_deficit = 0.0
-                for aa in underrepresented_aas:
-                    current_freq = aa_counts[aa] / len(seq)
-                    deficit = config.min_aa_frequency - current_freq
-                    total_deficit += deficit * aa_counts[aa]  # Weight by actual count
+    for seq_idx, input_sequence in enumerate(sequences):
+        seq_str = seq_strings[seq_idx]
+        aa_counts = {
+            aa_alphabet[aa_idx]: int(aa_count_matrix[seq_idx, aa_idx])
+            for aa_idx in range(20)
+            if aa_count_matrix[seq_idx, aa_idx] > 0
+        }
 
-                avg_deficit = (
-                    total_deficit / underrepresented_total
-                    if underrepresented_total > 0
-                    else 0.0
-                )
+        # Get underrepresented AAs for sequences
+        underrepresented_aas = [
+            aa_alphabet[aa_idx]
+            for aa_idx in range(20)
+            if underrepresented_mask[seq_idx, aa_idx]
+        ]
+        
+        # Store metadata
+        input_sequence._metadata["underrepresented_aa_score"] = float(underrepresented_scores[seq_idx])
+        input_sequence._metadata["amino_acid_counts"] = aa_counts if aa_counts else {}
+        input_sequence._metadata["underrepresented_amino_acids"] = underrepresented_aas if underrepresented_aas else []
+        input_sequence._metadata["underrepresented_aa_count"] = int(underrepresented_counts[seq_idx])
+        input_sequence._metadata["min_aa_frequency_threshold"] = config.min_aa_frequency
 
-                # Combine excess count with severity of underrepresentation
-                count_penalty = (
-                    excess_count / max_possible_excess
-                    if max_possible_excess > 0
-                    else 1.0
-                )
-                severity_penalty = (
-                    avg_deficit / config.min_aa_frequency if config.min_aa_frequency > 0 else 0.0
-                )
-                penalty_score = min(1.0, count_penalty * (1.0 + severity_penalty))
-
-    # Store metadata
-    input_sequence._metadata["underrepresented_aa_score"] = underrepresented_score
-    input_sequence._metadata["amino_acid_counts"] = dict(aa_counts)
-    input_sequence._metadata["underrepresented_amino_acids"] = underrepresented_aas
-    input_sequence._metadata["underrepresented_aa_count"] = len(underrepresented_aas)
-    input_sequence._metadata["min_aa_frequency_threshold"] = config.min_aa_frequency
-
-    # Return penalty score
-    return penalty_score
+    # Return penalty scores
+    return penalties.tolist()

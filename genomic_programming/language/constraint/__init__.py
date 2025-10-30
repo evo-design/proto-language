@@ -6,8 +6,7 @@ from .sequence_composition import (
     sequence_length_constraint,
     gc_content_constraint,
     max_homopolymer_constraint,
-    dinucleotide_frequency_constraint,
-    tetranucleotide_usage_constraint,
+    kmer_frequency_constraint,
 )
 
 # Protein structure constraints
@@ -32,8 +31,7 @@ from .protein_quality import (
 
 # Sequence annotation constraints
 from .sequence_annotation import (
-    orfipy_mmseqs_gene_hit_count_constraint,
-    orfipy_mmseqs_gene_homology_constraint,
+    mmseqs_homology_constraint,
     sigma70_promoter_constraint,
     seq_motif_constraint,
     promoter_strength_constraint,
@@ -47,8 +45,7 @@ __all__ = [
     "sequence_length_constraint",
     "gc_content_constraint",
     "max_homopolymer_constraint",
-    "dinucleotide_frequency_constraint",
-    "tetranucleotide_usage_constraint",
+    "kmer_frequency_constraint",
     # Protein structure
     "esmfold_plddt_constraint",
     "esmfold_ptm_constraint",
@@ -64,8 +61,7 @@ __all__ = [
     "overall_protein_quality_constraint",
     "protein_domain_constraint",
     # Sequence annotation
-    "orfipy_mmseqs_gene_hit_count_constraint",
-    "orfipy_mmseqs_gene_homology_constraint",
+    "mmseqs_homology_constraint",
     "sigma70_promoter_constraint",
     "seq_motif_constraint",
     "promoter_strength_constraint",

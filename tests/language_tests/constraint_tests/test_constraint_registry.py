@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from proto_language.language.constraint import ConstraintRegistry
 from proto_language.language.core import Segment, Sequence, SequenceType, Constraint
-from .test_utils import create_segment
+from .utils import create_segment
 
 
 # ============================================================================
@@ -299,39 +299,38 @@ class TestFactoryMethod:
         dummy_db.mkdir()
         
         constraint = ConstraintRegistry.create(
-            key="orfipy-mmseqs-gene-hit-count",
+            key="mmseqs-gene-homology",
             segments=[dna_segment],
             config_dict={
-                "min_hits": 1,
-                "max_hits": 10,
+                "min_homology": 80.0,
+                "max_homology": 100.0,
                 "mmseqs_db": str(dummy_db),
-                "orfipy_config": {"output_dir": "", "min_len": 30},
                 "mmseqs_config": {"results_dir": ""}
             }
         )
         
         assert isinstance(constraint, Constraint)
         # Nested configs should be Pydantic models, not dicts
-        assert hasattr(constraint.scoring_function_config, 'orfipy_config')
-        assert hasattr(constraint.scoring_function_config.orfipy_config, 'min_len')
+        assert hasattr(constraint.scoring_function_config, 'mmseqs_config')
+        assert hasattr(constraint.scoring_function_config, 'mmseqs_db')
     
     def test_create_preserves_vectorized_flag(self, dna_segment):
         """Test that create preserves the vectorized flag."""
-        # GC content is not vectorized
-        constraint_non_vec = ConstraintRegistry.create(
+        # All constraints are now vectorized
+        constraint = ConstraintRegistry.create(
             key="gc-content",
             segments=[dna_segment],
             config_dict={"min_gc": 40.0, "max_gc": 60.0}
         )
-        assert constraint_non_vec.vectorized == False
+        assert constraint.vectorized == True
         
-        # Sigma70 promoter is vectorized
-        constraint_vec = ConstraintRegistry.create(
+        # Verify another constraint is also vectorized
+        constraint2 = ConstraintRegistry.create(
             key="sigma70-promoter",
             segments=[dna_segment],
             config_dict={}
         )
-        assert constraint_vec.vectorized == True
+        assert constraint2.vectorized == True
     
     def test_create_with_label(self, dna_segment):
         """Test that create accepts and sets label."""
@@ -428,8 +427,7 @@ class TestBuiltinConstraints:
             "gc-content",
             "sequence-length",
             "max-homopolymer",
-            "dinucleotide-frequency",
-            "tetranucleotide-usage"
+            "kmer-frequency",  # Replaces dinucleotide-frequency and tetranucleotide-usage
         ]
         
         registered = sorted(ConstraintRegistry._registry.keys())
@@ -469,8 +467,7 @@ class TestBuiltinConstraints:
     def test_all_sequence_annotation_constraints_registered(self):
         """Test that all sequence annotation constraints are registered."""
         expected = [
-            "orfipy-mmseqs-gene-hit-count",
-            "orfipy-mmseqs-gene-homology",
+            "mmseqs-gene-homology",  # Removed orfipy-mmseqs constraints
             "sigma70-promoter",
             "seq-motif",
             "promoter-strength"
@@ -483,7 +480,8 @@ class TestBuiltinConstraints:
     def test_total_constraint_count(self):
         """Test that we have the expected total number of constraints."""
         count = ConstraintRegistry.count()
-        assert count == 22, f"Expected 22 constraints, got {count}"
+        # 4 sequence composition + 7 protein quality + 5 protein structure + 4 sequence annotation = 20
+        assert count == 20, f"Expected 20 constraints, got {count}"
     
     def test_gpu_constraints_marked_correctly(self):
         """Test that GPU-requiring constraints are properly marked."""

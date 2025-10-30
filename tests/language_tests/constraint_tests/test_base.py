@@ -1,11 +1,6 @@
-import numpy as np
-import pandas as pd
 import pytest
 import sys
-import shutil
-import tempfile
-from typing import List, Tuple
-from pathlib import Path
+from typing import Tuple
 
 sys.path.append(".")
 
@@ -18,7 +13,7 @@ from proto_language.language.core import (
     Sequence,
     SequenceType,
 )
-from .test_utils import (
+from .utils import (
     create_segment,
     create_batched_segment,
     mock_single_input_scoring_function,

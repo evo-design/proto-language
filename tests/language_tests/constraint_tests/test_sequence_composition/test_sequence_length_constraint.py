@@ -1,27 +1,12 @@
-import numpy as np
-import pandas as pd
 import pytest
 import sys
-import shutil
-import tempfile
-from typing import List, Tuple
-from pathlib import Path
 
 sys.path.append(".")
 
-from proto_language.language.core import (
-    Construct,
-    Segment,
-    Constraint,
-    Sequence,
-    SequenceType,
-)
-from proto_language.language.constraint import sequence_length_constraint, ConstraintRegistry
+from proto_language.language.core import Constraint
+from proto_language.language.constraint import sequence_length_constraint
 from proto_language.language.constraint.sequence_composition.sequence_length_constraint import SequenceLengthConfig
-from ..test_utils import (
-    create_segment,
-    create_batched_segment,
-)
+from ..utils import create_segment
 
 
 # Tests for sequence_length_constraint
@@ -37,16 +22,19 @@ class TestSequenceLengthConstraint:
             inputs=[seg_match],
             scoring_function=sequence_length_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
         constraint_short = Constraint(
             inputs=[seg_short],
             scoring_function=sequence_length_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
         constraint_long = Constraint(
             inputs=[seg_long],
             scoring_function=sequence_length_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
 
         assert constraint_match.evaluate()[0] == 0.0
@@ -76,6 +64,7 @@ class TestSequenceLengthConstraint:
             inputs=[seg1, seg2],
             scoring_function=sequence_length_constraint,
             scoring_function_config=config,
+            vectorized=True,
             concatenate=True,
         )
 
@@ -110,6 +99,7 @@ class TestSequenceLengthConstraint:
             inputs=[segment],
             scoring_function=sequence_length_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
         assert abs(constraint.evaluate()[0] - expected_score) < 1e-9
 
@@ -122,8 +112,9 @@ class TestSequenceLengthConstraint:
             inputs=[seg1, seg2],
             scoring_function=sequence_length_constraint,
             scoring_function_config=config,
+            vectorized=True,
             concatenate=False,
         )
-        # The default scoring function expects a single Sequence, not a tuple
-        with pytest.raises(AttributeError):
+        # The constraint doesn't support disjoint mode
+        with pytest.raises((AttributeError, TypeError)):
             constraint.evaluate()

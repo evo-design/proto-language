@@ -21,22 +21,24 @@
   ],
   "constraints": [
     {
-      "id": "orfipy_mmseqs_constraint",
-      "key": "orfipy-mmseqs-gene-hit-count",
+      "id": "mmseqs_homology_constraint",
+      "key": "mmseqs-gene-homology",
       "config": {
-        "min_hits": 1,
-        "max_hits": 10,
-        "orfipy_kwargs": {
+        "min_homology": 50.0,
+        "max_homology": 90.0,
+        "mmseqs_db": "gcs://evo-design/phrogs_mmseqs_db",
+        "orf_predictor": "orfipy",
+        "orfipy_config": {
+          "output_dir": "",
           "min_len": 30,
           "max_len": 1000,
-          "start_codons": "ATG",
-          "stop_codons": "TAA,TAG,TGA"
+          "start_codons": ["ATG"],
+          "stop_codons": ["TAA", "TAG", "TGA"]
         },
-        "mmseqs_kwargs": {
-          "database": "gcs://evo-design/phrogs_mmseqs_db",
+        "mmseqs_config": {
+          "results_dir": "",
           "threads": 4,
-          "sensitivity": 4.0,
-          "only_top_hits": true
+          "sensitivity": 4.0
         }
       },
       "targets": ["test_segment"]

@@ -4,24 +4,34 @@ from .core import (
     Construct,
     Constraint,
     Generator,
+    GeneratorType,
     Optimizer,
+    SequenceType,
     Program,
 )
 
 from .generator import (
-    UniformMutationGenerator,
-    Evo2Generator,
-    ESM2Generator,
-    ESM3Generator,
     GeneratorRegistry,
+    GeneratorSpec,
+    UniformMutationGenerator,
+    UniformMutationGeneratorConfig,
+    Evo2Generator,
+    Evo2GeneratorConfig,
+    ESM2Generator,
+    ESM2GeneratorConfig,
+    ESM3Generator,
+    ESM3GeneratorConfig,
 )
 
 from .optimizer import (
+    OptimizerRegistry,
+    OptimizerSpec,
     MCMCOptimizer,
     MCMCOptimizerConfig,
     BeamSearchOptimizer,
     BeamSearchOptimizerConfig,
-    OptimizerRegistry,
+    TopKOptimizer,
+    TopKOptimizerConfig,
 )
 
 __all__ = [
@@ -31,18 +41,30 @@ __all__ = [
     "Construct",
     "Constraint",
     "Generator",
+    "GeneratorType",
     "Optimizer",
+    "SequenceType",
     "Program",
+    # Generator registry
+    "GeneratorRegistry",
+    "GeneratorSpec",
     # Generators
     "UniformMutationGenerator",
+    "UniformMutationGeneratorConfig",
     "Evo2Generator",
+    "Evo2GeneratorConfig",
     "ESM2Generator",
+    "ESM2GeneratorConfig",
     "ESM3Generator",
-    "GeneratorRegistry",
+    "ESM3GeneratorConfig",
+    # Optimizer registry
+    "OptimizerRegistry",
+    "OptimizerSpec",
     # Optimizers
     "MCMCOptimizer",
     "MCMCOptimizerConfig",
     "BeamSearchOptimizer",
     "BeamSearchOptimizerConfig",
-    "OptimizerRegistry",
+    "TopKOptimizer",
+    "TopKOptimizerConfig",
 ]

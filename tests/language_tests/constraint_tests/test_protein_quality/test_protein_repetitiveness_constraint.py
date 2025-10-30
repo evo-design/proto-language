@@ -1,30 +1,12 @@
-import numpy as np
-import pandas as pd
 import pytest
 import sys
-import shutil
-import tempfile
-from typing import List, Tuple
-from pathlib import Path
 
 sys.path.append(".")
 
-from proto_language.language.core import (
-    Construct,
-    Segment,
-    Constraint,
-    Sequence,
-    SequenceType,
-)
-from proto_language.language.constraint import (
-    protein_repetitiveness_constraint,
-    ConstraintRegistry,
-)
+from proto_language.language.core import Constraint, SequenceType
+from proto_language.language.constraint import protein_repetitiveness_constraint
 from proto_language.language.constraint.protein_quality.protein_repetitiveness_constraint import ProteinRepetitivenessConfig
-from ..test_utils import (
-    create_segment,
-    create_batched_segment,
-)
+from ..utils import create_segment
 
 
 # Tests for protein_repetitiveness_constraint
@@ -40,6 +22,7 @@ class TestProteinRepetitivenessConstraint:
             inputs=[segment],
             scoring_function=protein_repetitiveness_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
 
         score = constraint.evaluate()[0]
@@ -62,6 +45,7 @@ class TestProteinRepetitivenessConstraint:
             inputs=[segment],
             scoring_function=protein_repetitiveness_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
 
         score = constraint.evaluate()[0]
@@ -80,6 +64,7 @@ class TestProteinRepetitivenessConstraint:
             inputs=[segment],
             scoring_function=protein_repetitiveness_constraint,
             scoring_function_config=config,
+            vectorized=True,
         )
 
         score = constraint.evaluate()[0]

@@ -5,11 +5,13 @@ Protein length constraint function.
 from __future__ import annotations
 
 from pydantic import Field
+from typing import List
+import numpy as np
 
-from ...core import Sequence, SequenceType
+from proto_language.language.core import Sequence, SequenceType
 from proto_language.base_config import BaseConfig
-from ..constraint_registry import ConstraintRegistry
-from ....utils import calculate_range_deviation
+from proto_language.language.constraint.constraint_registry import ConstraintRegistry
+from proto_language.utils import calculate_range_deviation
 
 
 class ProteinLengthConfig(BaseConfig):
@@ -23,12 +25,12 @@ class ProteinLengthConfig(BaseConfig):
     label="Protein Length",
     config=ProteinLengthConfig,
     description="Evaluate whether protein length falls within acceptable range",
-    vectorized=False,
+    vectorized=True,
     concatenate=True
 )
 def protein_length_constraint(
-    input_sequence: Sequence, config: ProteinLengthConfig
-) -> float:
+    sequences: List[Sequence], config: ProteinLengthConfig
+) -> List[float]:
     """
     Evaluate whether a protein sequence length falls within acceptable range.
 
@@ -40,11 +42,13 @@ def protein_length_constraint(
         Constraint score where 0.0 indicates length is within acceptable range
         and higher values indicate greater deviation from acceptable range.
     """
-    assert (
-        input_sequence.sequence_type == SequenceType.PROTEIN
-    ), "Input must be a protein sequence"
+    scores = []
+    
+    for seq in sequences:
+        assert seq.sequence_type == SequenceType.PROTEIN, "Input must be protein"
+        actual_length = len(seq)
+        seq._metadata["protein_length"] = actual_length
+        score = calculate_range_deviation(actual_length, config.min_length, config.max_length)
+        scores.append(score)
 
-    actual_length = len(input_sequence)
-    input_sequence._metadata["protein_length"] = actual_length
-
-    return calculate_range_deviation(actual_length, config.min_length, config.max_length)
+    return scores

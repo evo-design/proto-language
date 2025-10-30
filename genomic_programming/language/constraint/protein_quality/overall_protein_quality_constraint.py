@@ -2,38 +2,38 @@
 
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import List, Optional
 
+import numpy as np
 from pydantic import Field, model_validator
 
-from ...core import Sequence, SequenceType
+from proto_language.language.core import Sequence, SequenceType
 from proto_language.base_config import BaseConfig
-from ..constraint_registry import ConstraintRegistry
-from ....tools.orf_prediction.prodigal import run_prodigal_prediction, ProdigalConfig
-from .protein_length_constraint import protein_length_constraint
-from .protein_complexity_constraint import protein_complexity_constraint
-from .protein_repetitiveness_constraint import protein_repetitiveness_constraint
-from .protein_diversity_constraint import protein_diversity_constraint
-from .balanced_aa_constraint import balanced_aa_constraint
-
-if TYPE_CHECKING:
-    from .protein_length_constraint import ProteinLengthConfig
-    from .protein_complexity_constraint import ProteinComplexityConfig
-    from .protein_repetitiveness_constraint import ProteinRepetitivenessConfig
-    from .protein_diversity_constraint import ProteinDiversityConfig
-    from .balanced_aa_constraint import BalancedAaConfig
-else:
-    # Runtime imports to avoid circular dependency issues
-    from .protein_length_constraint import ProteinLengthConfig
-    from .protein_complexity_constraint import ProteinComplexityConfig
-    from .protein_repetitiveness_constraint import ProteinRepetitivenessConfig
-    from .protein_diversity_constraint import ProteinDiversityConfig
-    from .balanced_aa_constraint import BalancedAaConfig
-
+from proto_language.language.constraint.constraint_registry import ConstraintRegistry
+from proto_language.tools.orf_prediction.prodigal import (
+    run_prodigal_prediction,
+    ProdigalInput,
+    ProdigalConfig,
+)
+from proto_language.language.constraint.sequence_composition.sequence_length_constraint import (
+    sequence_length_constraint, SequenceLengthConfig  
+)
+from proto_language.language.constraint.protein_quality.protein_complexity_constraint import (
+    protein_complexity_constraint,ProteinComplexityConfig
+)
+from proto_language.language.constraint.protein_quality.protein_repetitiveness_constraint import (
+    protein_repetitiveness_constraint,ProteinRepetitivenessConfig
+)
+from proto_language.language.constraint.protein_quality.protein_diversity_constraint import (
+    protein_diversity_constraint,ProteinDiversityConfig
+)
+from proto_language.language.constraint.protein_quality.balanced_aa_constraint import (
+    balanced_aa_constraint,BalancedAaConfig
+)
 
 class ProteinQualitySubConfig(BaseConfig):
     """Nested configuration for individual protein quality checks."""
-    length: Optional[ProteinLengthConfig] = Field(default=None, description="Protein length constraints")
+    length: Optional[SequenceLengthConfig] = Field(default=None, description="Sequence length constraints")
     complexity: Optional[ProteinComplexityConfig] = Field(default=None, description="Protein complexity constraints")
     repetitiveness: Optional[ProteinRepetitivenessConfig] = Field(default=None, description="Protein repetitiveness constraints")
     diversity: Optional[ProteinDiversityConfig] = Field(default=None, description="Amino acid diversity constraints")
@@ -43,12 +43,6 @@ class ProteinQualitySubConfig(BaseConfig):
 
 class OverallProteinQualityConfig(BaseConfig):
     """Configuration for overall protein quality constraint."""
-    min_high_quality_fraction: Optional[float] = Field(
-        default=None, 
-        ge=0.0, 
-        le=1.0, 
-        description="Minimum fraction of predicted proteins that must be high quality (required for DNA input)"
-    )
     protein_quality_config: ProteinQualitySubConfig = Field(description="Nested configuration for protein quality checks")
     
     @model_validator(mode='after')
@@ -65,13 +59,13 @@ class OverallProteinQualityConfig(BaseConfig):
     label="Overall Protein Quality",
     config=OverallProteinQualityConfig,
     description="Evaluate overall protein quality using multiple sub-constraints",
-    vectorized=False,
+    vectorized=True,
     concatenate=True
 )
 def overall_protein_quality_constraint(
-    input_sequence: Sequence,
+    sequences: List[Sequence],
     config: OverallProteinQualityConfig
-) -> float:
+) -> List[float]:
     """
     Evaluate protein quality either from predicted proteins (DNA input) or directly (protein input).
 
@@ -79,13 +73,11 @@ def overall_protein_quality_constraint(
     proteins. For protein sequences, checks the sequence directly.
 
     Args:
-        input_sequence: The DNA or protein sequence to analyze.
+        input_sequences: The DNA or protein sequences to analyze.
         config: Configuration dictionary containing:
             For DNA input:
-                - min_high_quality_fraction (float): Minimum fraction of predicted proteins that must be high quality.
                 - protein_quality_config (dict): Configuration dictionary with the following structure:
                 {
-                    "min_high_quality_fraction": 0.8,  # Minimum fraction of predicted proteins that must be high quality (0.0-1.0)
                     "protein_quality_config": {
                         "quality_threshold": 0.1,  # Maximum acceptable constraint score for a protein to be considered "high quality"
 
@@ -127,7 +119,7 @@ def overall_protein_quality_constraint(
                 }
 
     Returns:
-        Constraint score between 0.0 and 1.0 where:
+        Constraint scores between 0.0 and 1.0 where:
         - 0.0 indicates perfect/optimal protein quality (all constraints satisfied)
         - Values closer to 0.0 indicate better constraint satisfaction
         - 1.0 indicates worst possible protein quality (maximum constraint violation)
@@ -135,18 +127,18 @@ def overall_protein_quality_constraint(
     Examples:
         DNA input with multiple quality checks:
 
-        >>> from proto_language.language.constraint import ProteinLengthConfig, ProteinComplexityConfig
-        >>> dna_seq = Sequence("ATGAAACGTATTGCGTCG...", SequenceType.DNA)
+        >>> from proto_language.language.constraint import SequenceLengthConfig, ProteinComplexityConfig
+        >>> dna_seq = [Sequence("ATGAAACGTATTGCGTCG...", SequenceType.DNA)]
         >>> quality_config = ProteinQualitySubConfig(
         ...     quality_threshold=0.2,
-        ...     length=ProteinLengthConfig(min_length=100, max_length=800),
+        ...     length=SequenceLengthConfig(min_length=100, max_length=800),
         ...     complexity=ProteinComplexityConfig(max_low_complexity=0.3)
         ... )
-        >>> score = overall_protein_quality_constraint(dna_seq, quality_config, min_high_quality_fraction=0.5)
+        >>> score = overall_protein_quality_constraint(dna_seq, quality_config)
 
         Protein input with diversity check:
 
-        >>> protein_seq = Sequence("MVLSPADKTNVKAAW...", SequenceType.PROTEIN)
+        >>> protein_seq = [Sequence("MVLSPADKTNVKAAW...", SequenceType.PROTEIN)]
         >>> quality_config = ProteinQualitySubConfig(
         ...     quality_threshold=0.1,
         ...     diversity=ProteinDiversityConfig(min_diversity=0.3)
@@ -155,178 +147,186 @@ def overall_protein_quality_constraint(
     """
     # Extract config parameters
     protein_quality_config = config.protein_quality_config
-    min_high_quality_fraction = config.min_high_quality_fraction
 
-    if input_sequence.sequence_type == SequenceType.DNA:
-        # For DNA sequences: predict proteins first
-        if min_high_quality_fraction is None:
-            raise ValueError("min_high_quality_fraction is required for DNA sequences")
+    # Separate DNA and protein sequences
+    dna_sequences = [seq for seq in sequences if seq.sequence_type == SequenceType.DNA]
+    protein_sequences = [seq for seq in sequences if seq.sequence_type == SequenceType.PROTEIN]
 
-        # Get predicted proteins using Prodigal
-        config = ProdigalConfig(input_sequence=input_sequence.sequence)
-        result = run_prodigal_prediction(config)
-        proteins_df = result.results_df
+    if len(dna_sequences) + len(protein_sequences) != len(sequences):
+        raise ValueError("All sequences must be either DNA or PROTEIN type")
 
-        input_sequence._metadata["prodigal_proteins"] = proteins_df
-        input_sequence._metadata["prodigal_protein_count"] = result.num_genes
+    dna_scores = []
+    protein_scores = []
+    threshold = protein_quality_config.quality_threshold
 
-        if len(proteins_df) == 0:
-            input_sequence._metadata["predicted_protein_count"] = 0
-            input_sequence._metadata["high_quality_protein_count"] = 0
-            input_sequence._metadata["high_quality_protein_fraction"] = 0.0
-            input_sequence._metadata["protein_quality_details"] = []
-            return 1.0  # Maximum penalty for no proteins found
+    if dna_sequences:
+        # For DNA sequences: predict proteins first, get predicted proteins using Prodigal
+        prodigal_input = ProdigalInput(input_sequences=[seq.sequence for seq in dna_sequences])
+        prodigal_config = ProdigalConfig()
+        batch_result = run_prodigal_prediction(inputs=prodigal_input, config=prodigal_config)
 
-        # Evaluate each predicted protein
-        high_quality_count = 0
-        protein_quality_details = []
-        all_protein_avg_scores = []
+        # Process each DNA sequence's results
+        for input_sequence, proteins_df, num_genes in zip(
+            dna_sequences,
+            batch_result.results_per_sequence,
+            batch_result.total_num_genes_per_sequence
+        ):
+            input_sequence._metadata["prodigal_proteins"] = proteins_df
+            input_sequence._metadata["prodigal_protein_count"] = num_genes
 
-        for idx, protein_row in proteins_df.iterrows():
-            protein_seq = Sequence(protein_row["sequence"], SequenceType.PROTEIN)
+            if len(proteins_df) == 0:
+                input_sequence._metadata["predicted_protein_count"] = 0
+                input_sequence._metadata["high_quality_protein_count"] = 0
+                input_sequence._metadata["high_quality_protein_fraction"] = 0.0
+                input_sequence._metadata["protein_quality_details"] = []
+                dna_scores.append(1.0)
+                continue
 
-            # Apply all protein quality constraints
+            # Convert to Sequence objects for batch constraint evaluation
+            predicted_protein_seqs = [
+                Sequence(row["protein_sequence"], SequenceType.PROTEIN)
+                for _, row in proteins_df.iterrows()
+            ]
+
             quality_scores = {}
-            overall_scores = []
-
+            
             if protein_quality_config.length:
-                score = protein_length_constraint(protein_seq, config=protein_quality_config.length)
-                quality_scores["length"] = score
-                overall_scores.append(quality_scores["length"])
+                quality_scores["length"] = sequence_length_constraint(
+                    predicted_protein_seqs, config=protein_quality_config.length
+                )
 
             if protein_quality_config.complexity:
-                score = protein_complexity_constraint(
-                    protein_seq, config=protein_quality_config.complexity
+                quality_scores["complexity"] = protein_complexity_constraint(
+                    predicted_protein_seqs, config=protein_quality_config.complexity
                 )
-                quality_scores["complexity"] = score
-                overall_scores.append(quality_scores["complexity"])
 
             if protein_quality_config.repetitiveness:
-                score = protein_repetitiveness_constraint(
-                    protein_seq, config=protein_quality_config.repetitiveness
+                quality_scores["repetitiveness"] = protein_repetitiveness_constraint(
+                    predicted_protein_seqs, config=protein_quality_config.repetitiveness
                 )
-                quality_scores["repetitiveness"] = score
-                overall_scores.append(quality_scores["repetitiveness"])
 
             if protein_quality_config.diversity:
-                score = protein_diversity_constraint(
-                    protein_seq, config=protein_quality_config.diversity
+                quality_scores["diversity"] = protein_diversity_constraint(
+                    predicted_protein_seqs, config=protein_quality_config.diversity
                 )
-                quality_scores["diversity"] = score
-                overall_scores.append(quality_scores["diversity"])
 
             if protein_quality_config.balanced_aas:
-                score = balanced_aa_constraint(
-                    protein_seq, config=protein_quality_config.balanced_aas
+                quality_scores["balanced_aas"] = balanced_aa_constraint(
+                    predicted_protein_seqs, config=protein_quality_config.balanced_aas
                 )
-                quality_scores["balanced_aas"] = score
-                overall_scores.append(quality_scores["balanced_aas"])
 
-            # Calculate average score for this protein
-            avg_score = (
-                sum(overall_scores) / len(overall_scores) if overall_scores else 0.0
-            )
-            all_protein_avg_scores.append(avg_score)
+            # Vectorized averaging
+            if quality_scores:
+                constraint_score_matrix = np.array(list(quality_scores.values()))
+                avg_scores = constraint_score_matrix.mean(axis=0)
+            else:
+                avg_scores = np.zeros(len(predicted_protein_seqs))
 
-            # Consider protein high quality if average score is below threshold
-            threshold = protein_quality_config.quality_threshold
-            is_high_quality = avg_score <= threshold
+            # Vectorized quality determination
+            is_high_quality = avg_scores <= threshold
 
-            if is_high_quality:
-                high_quality_count += 1
-
-            protein_quality_details.append(
-                {
-                    "protein_id": protein_row["id"],
-                    "length": len(protein_row["sequence"]),
-                    "is_high_quality": is_high_quality,
-                    "avg_constraint_score": avg_score,
-                    "quality_scores": quality_scores,
-                    "metadata": protein_seq._metadata.copy(),
+            # Build details
+            protein_quality_details = []
+            for prot_idx, (protein_row, protein_seq) in enumerate(zip(proteins_df.iterrows(), predicted_protein_seqs)):
+                idx, row = protein_row
+                individual_scores = {
+                    name: scores[prot_idx] 
+                    for name, scores in quality_scores.items()
                 }
-            )
+                
+                protein_quality_details.append({
+                    "protein_id": row["id"],
+                    "length": row["protein_length"],
+                    "is_high_quality": bool(is_high_quality[prot_idx]),
+                    "avg_constraint_score": float(avg_scores[prot_idx]),
+                    "quality_scores": individual_scores,
+                    "metadata": protein_seq._metadata.copy(),
+                })
 
-        high_quality_fraction = high_quality_count / len(proteins_df)
+            overall_avg_protein_score = float(avg_scores.mean())
+            is_dna_high_quality = overall_avg_protein_score <= threshold
 
-        # Store comprehensive metadata
-        input_sequence._metadata["predicted_protein_count"] = len(proteins_df)
-        input_sequence._metadata["high_quality_protein_count"] = high_quality_count
-        input_sequence._metadata["high_quality_protein_fraction"] = (
-            high_quality_fraction
-        )
-        input_sequence._metadata["protein_quality_details"] = protein_quality_details
-        input_sequence._metadata["protein_quality_threshold"] = protein_quality_config.quality_threshold
+            # Store metadata
+            input_sequence._metadata["predicted_protein_count"] = len(proteins_df)
+            input_sequence._metadata["avg_constraint_score"] = overall_avg_protein_score
+            input_sequence._metadata["is_high_quality"] = is_dna_high_quality
+            input_sequence._metadata["protein_quality_details"] = protein_quality_details
+            input_sequence._metadata["protein_quality_threshold"] = threshold
 
-        # If we high quality fraction requirement is met, return 0
-        if high_quality_fraction >= min_high_quality_fraction:
-            return 0.0
+            # Calculate score
+            if is_dna_high_quality:
+                score = 0.0
+            else:
+                score = min(1.0, max(0.0, overall_avg_protein_score))
+            
+            dna_scores.append(score)
 
-        # Otherwise, return a score based on how far we are from meeting the requirement
-        overall_avg_protein_score = sum(all_protein_avg_scores) / len(
-            all_protein_avg_scores
-        )
-        fraction_deficit = (
-            min_high_quality_fraction - high_quality_fraction
-        ) / min_high_quality_fraction
-
-        # Combine the average protein quality with the fraction deficit
-        combined_score = (overall_avg_protein_score + fraction_deficit) / 2.0
-        return min(1.0, max(0.0, combined_score))
-
-    elif input_sequence.sequence_type == SequenceType.PROTEIN:
-        # For protein sequences: evaluate quality directly on input sequence
+    if protein_sequences:
         quality_scores = {}
-        overall_scores = []
 
         if protein_quality_config.length:
-            score = protein_length_constraint(input_sequence, config=protein_quality_config.length)
-            quality_scores["length"] = score
-            overall_scores.append(quality_scores["length"])
+            quality_scores["length"] = sequence_length_constraint(
+                protein_sequences, config=protein_quality_config.length
+            )
 
         if protein_quality_config.complexity:
-            score = protein_complexity_constraint(
-                input_sequence, config=protein_quality_config.complexity
+            quality_scores["complexity"] = protein_complexity_constraint(
+                protein_sequences, config=protein_quality_config.complexity
             )
-            quality_scores["complexity"] = score
-            overall_scores.append(quality_scores["complexity"])
 
         if protein_quality_config.repetitiveness:
-            score = protein_repetitiveness_constraint(
-                input_sequence, config=protein_quality_config.repetitiveness
+            quality_scores["repetitiveness"] = protein_repetitiveness_constraint(
+                protein_sequences, config=protein_quality_config.repetitiveness
             )
-            quality_scores["repetitiveness"] = score
-            overall_scores.append(quality_scores["repetitiveness"])
 
         if protein_quality_config.diversity:
-            score = protein_diversity_constraint(
-                input_sequence, config=protein_quality_config.diversity
+            quality_scores["diversity"] = protein_diversity_constraint(
+                protein_sequences, config=protein_quality_config.diversity
             )
-            quality_scores["diversity"] = score
-            overall_scores.append(quality_scores["diversity"])
 
         if protein_quality_config.balanced_aas:
-            score = balanced_aa_constraint(
-                input_sequence, config=protein_quality_config.balanced_aas
+            quality_scores["balanced_aas"] = balanced_aa_constraint(
+                protein_sequences, config=protein_quality_config.balanced_aas
             )
-            quality_scores["balanced_aas"] = score
-            overall_scores.append(quality_scores["balanced_aas"])
 
-        # Calculate overall quality score as average of individual constraint scores
-        avg_score = sum(overall_scores) / len(overall_scores) if overall_scores else 0.0
-        threshold = protein_quality_config.quality_threshold
-        is_high_quality = avg_score <= threshold
-
-        # Store metadata for protein input
-        input_sequence._metadata["protein_quality_scores"] = quality_scores
-        input_sequence._metadata["avg_constraint_score"] = avg_score
-        input_sequence._metadata["is_high_quality"] = is_high_quality
-        input_sequence._metadata["protein_quality_threshold"] = threshold
-
-        # If protein meets quality threshold, return 0, otherwise return the average score
-        if is_high_quality:
-            return 0.0
+        if quality_scores:
+            constraint_score_matrix = np.array(list(quality_scores.values()))
+            avg_scores = constraint_score_matrix.mean(axis=0)
         else:
-            return min(1.0, max(0.0, avg_score))
+            avg_scores = np.zeros(len(protein_sequences))
 
-    else:
-        raise ValueError("Input sequence must be either DNA or PROTEIN type")
+        # Vectorized quality determination
+        is_high_quality = avg_scores <= threshold
+        
+        # Vectorized score calculation
+        protein_scores = np.where(
+            is_high_quality,
+            0.0,
+            np.clip(avg_scores, 0.0, 1.0)
+        ).tolist()
+        
+        # Store metadata
+        for seq_idx, input_sequence in enumerate(protein_sequences):
+            individual_scores = {
+                name: scores[seq_idx] 
+                for name, scores in quality_scores.items()
+            }
+            
+            input_sequence._metadata["protein_quality_scores"] = individual_scores
+            input_sequence._metadata["avg_constraint_score"] = float(avg_scores[seq_idx])
+            input_sequence._metadata["is_high_quality"] = bool(is_high_quality[seq_idx])
+            input_sequence._metadata["protein_quality_threshold"] = threshold
+    
+    final_scores = []
+    dna_idx = 0
+    protein_idx = 0
+    
+    for seq in sequences:
+        if seq.sequence_type == SequenceType.DNA:
+            final_scores.append(dna_scores[dna_idx])
+            dna_idx += 1
+        else:
+            final_scores.append(protein_scores[protein_idx])
+            protein_idx += 1
+    
+    return final_scores
