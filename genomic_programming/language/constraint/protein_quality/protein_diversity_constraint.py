@@ -31,9 +31,7 @@ class ProteinDiversityConfig(BaseConfig):
     vectorized=True,
     concatenate=True
 )
-def protein_diversity_constraint(
-    sequences: List[Sequence], config: ProteinDiversityConfig
-) -> List[float]:
+def protein_diversity_constraint(sequences: List[Sequence], config: ProteinDiversityConfig) -> List[float]:
     """
     Evaluate amino acid diversity in a protein sequence.
 

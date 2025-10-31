@@ -33,10 +33,7 @@ class PromoterStrengthConfig(BaseConfig):
     vectorized=True,
     concatenate=True
 )
-def promoter_strength_constraint(
-    sequences: List[Sequence],
-    config: PromoterStrengthConfig
-) -> List[float]:
+def promoter_strength_constraint(sequences: List[Sequence], config: PromoterStrengthConfig) -> List[float]:
     """
     Run Barrick Lab Promoter Calculator and return a [0,1] penalty score.
 

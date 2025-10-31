@@ -68,10 +68,7 @@ class MMseqsHomologyConfig(BaseConfig):
     vectorized=True,
     concatenate=True
 )
-def mmseqs_homology_constraint(
-    sequences: List[Sequence],
-    config: MMseqsHomologyConfig
-) -> List[float]:
+def mmseqs_homology_constraint(sequences: List[Sequence], config: MMseqsHomologyConfig) -> List[float]:
     """
     Evaluate homology (percent identity) of sequences or their predicted ORFs.
     

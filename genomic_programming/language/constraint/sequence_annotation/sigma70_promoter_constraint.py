@@ -40,10 +40,7 @@ class Sigma70PromoterConfig(BaseConfig):
     vectorized=True,
     concatenate=True
 )
-def sigma70_promoter_constraint(
-    sequences: List[Sequence],
-    config: Sigma70PromoterConfig
-) -> List[float]:
+def sigma70_promoter_constraint(sequences: List[Sequence], config: Sigma70PromoterConfig) -> List[float]:
     """
     Evaluate σ70 promoter strength for DNA sequences.
     Results are cached in each Sequence's metadata under key 'sigma70'.

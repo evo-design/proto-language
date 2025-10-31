@@ -97,7 +97,7 @@ class BoltzBindingStrengthConfig(BaseConfig):
         description="Optional Boltz2 configuration (use_msa_server, msa_server_url, recycling_steps, sampling_steps, diffusion_samples, num_workers, devices, verbose). If None, uses defaults.",
     )
 
-
+# TODO: Convert complexes to Sequences
 @ConstraintRegistry.register(
     key="boltz-binding-strength",
     label="Boltz Binding Strength",
@@ -107,10 +107,7 @@ class BoltzBindingStrengthConfig(BaseConfig):
     concatenate=False,  # Boltz handles multi-chain complexes
     gpu_required=True
 )
-def boltz_binding_strength_constraint(
-    complexes: Union[Sequence, List[Sequence], List[List[Sequence]]],
-    config: BoltzBindingStrengthConfig
-) -> Union[float, List[float]]:
+def boltz_binding_strength_constraint(complexes: Union[Sequence, List[Sequence], List[List[Sequence]]], config: BoltzBindingStrengthConfig) -> Union[float, List[float]]:
     """
     Run Boltz2 to predict structure(s)/complex(es) and compute a binding-strength
     penalty in [0,1], where:

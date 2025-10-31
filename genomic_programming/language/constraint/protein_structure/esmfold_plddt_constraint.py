@@ -46,10 +46,7 @@ class ESMFoldPLDDTConfig(BaseConfig):
     concatenate=True,
     gpu_required=True
 )
-def esmfold_plddt_constraint(
-    sequences: List[Sequence],
-    config: ESMFoldPLDDTConfig
-) -> List[float]:
+def esmfold_plddt_constraint(sequences: List[Sequence], config: ESMFoldPLDDTConfig) -> List[float]:
     """
     Evaluate protein structure quality using ESMFold's predicted LDDT (pLDDT) score.
 

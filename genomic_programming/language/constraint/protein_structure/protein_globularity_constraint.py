@@ -60,10 +60,7 @@ class ProteinGlobularityConfig(BaseConfig):
     concatenate=True,
     gpu_required=True
 )
-def protein_globularity_constraint(
-    sequences: List[Sequence],
-    config: ProteinGlobularityConfig
-) -> List[float]:
+def protein_globularity_constraint(sequences: List[Sequence], config: ProteinGlobularityConfig) -> List[float]:
     """
     Encourage compact, globular protein structures.
     

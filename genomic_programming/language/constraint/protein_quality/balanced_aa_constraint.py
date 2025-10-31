@@ -40,9 +40,7 @@ class BalancedAaConfig(BaseConfig):
     vectorized=True,
     concatenate=True
 )
-def balanced_aa_constraint(
-    sequences: List[Sequence], config: BalancedAaConfig
-) -> List[float]:
+def balanced_aa_constraint(sequences: List[Sequence], config: BalancedAaConfig) -> List[float]:
     """
     Evaluate the presence of underrepresented amino acids in a protein sequence.
 

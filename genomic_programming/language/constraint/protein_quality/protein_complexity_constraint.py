@@ -38,9 +38,7 @@ class ProteinComplexityConfig(BaseConfig):
     vectorized=True,
     concatenate=True
 )
-def protein_complexity_constraint(
-    sequences: List[Sequence], config: ProteinComplexityConfig
-) -> List[float]:
+def protein_complexity_constraint(sequences: List[Sequence], config: ProteinComplexityConfig) -> List[float]:
     """
     Evaluate protein sequence complexity using segmasker to detect low-complexity regions.
 

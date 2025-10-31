@@ -34,9 +34,7 @@ class GCContentConfig(BaseConfig):
     vectorized=True,
     concatenate=True
 )
-def gc_content_constraint(
-    sequences: List[Sequence], config: GCContentConfig
-) -> List[float]:
+def gc_content_constraint(sequences: List[Sequence], config: GCContentConfig) -> List[float]:
     """
     Evaluate whether a sequence's GC content falls within a target range.
 

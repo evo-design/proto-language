@@ -38,10 +38,7 @@ class SeqMotifConfig(BaseConfig):
     vectorized=True,
     concatenate=True
 )
-def seq_motif_constraint(
-    sequences: List[Sequence],
-    config: SeqMotifConfig
-) -> List[float]:
+def seq_motif_constraint(sequences: List[Sequence], config: SeqMotifConfig) -> List[float]:
     """
     Score DNA sequences against motifs using MEME FIMO.
 

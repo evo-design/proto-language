@@ -109,9 +109,7 @@ class KmerFrequencyConfig(BaseConfig):
     vectorized=True,
     concatenate=True
 )
-def kmer_frequency_constraint(
-    sequences: List[Sequence], config: KmerFrequencyConfig
-) -> List[float]:
+def kmer_frequency_constraint(sequences: List[Sequence], config: KmerFrequencyConfig) -> List[float]:
     """
     Evaluate k-mer frequencies or usage deviations for DNA/RNA sequences.
     

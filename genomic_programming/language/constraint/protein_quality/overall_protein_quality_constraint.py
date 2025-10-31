@@ -62,10 +62,7 @@ class OverallProteinQualityConfig(BaseConfig):
     vectorized=True,
     concatenate=True
 )
-def overall_protein_quality_constraint(
-    sequences: List[Sequence],
-    config: OverallProteinQualityConfig
-) -> List[float]:
+def overall_protein_quality_constraint(sequences: List[Sequence], config: OverallProteinQualityConfig) -> List[float]:
     """
     Evaluate protein quality either from predicted proteins (DNA input) or directly (protein input).
 

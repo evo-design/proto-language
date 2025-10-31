@@ -46,10 +46,7 @@ class ESMFoldPTMConfig(BaseConfig):
     concatenate=True,
     gpu_required=True
 )
-def esmfold_ptm_constraint(
-    sequences: List[Sequence],
-    config: ESMFoldPTMConfig
-) -> List[float]:
+def esmfold_ptm_constraint(sequences: List[Sequence], config: ESMFoldPTMConfig) -> List[float]:
     """
     Evaluate protein structure quality using ESMFold's predicted TM (pTM) score.
 

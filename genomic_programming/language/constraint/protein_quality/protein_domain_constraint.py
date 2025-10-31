@@ -55,10 +55,7 @@ class ProteinDomainConfig(BaseConfig):
     vectorized=True,
     concatenate=True
 )
-def protein_domain_constraint(
-    sequences: List[Sequence],
-    config: ProteinDomainConfig
-) -> List[float]:
+def protein_domain_constraint(sequences: List[Sequence], config: ProteinDomainConfig) -> List[float]:
     """
     Evaluate whether a sequence contains protein domains matching specified keywords.
 
