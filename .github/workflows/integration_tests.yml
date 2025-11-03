@@ -2,9 +2,12 @@ name: Integration Tests
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
   integration-tests:
+    # Only run on non-draft PRs to avoid running tests on every push
+    if: github.event.pull_request.draft == false
     name: Run Integration Tests
     runs-on: ubuntu-latest
 

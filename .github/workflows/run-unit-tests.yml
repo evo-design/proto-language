@@ -2,9 +2,11 @@ name: Run Unit Tests
 
 on:
   pull_request:
-
+    types: [opened, synchronize, reopened, ready_for_review]
 jobs:
   test-cpu:
+    # Only run on non-draft PRs
+    if: github.event.pull_request.draft == false
     name: Run CPU Tests
     runs-on: ubuntu-latest
 
@@ -23,7 +25,7 @@ jobs:
     - name: Install dependencies
       shell: bash -l {0}  # ensures conda env is activated
       run: |
-        conda install -c conda-forge -c bioconda -c nvidia mmseqs2 blast cuda-nvcc cuda-cudart-dev transformer-engine-torch=2.3.0 -y
+        conda install -c conda-forge -c bioconda mmseqs2 blast -y
         pip install uv
         uv pip install -e .
 
