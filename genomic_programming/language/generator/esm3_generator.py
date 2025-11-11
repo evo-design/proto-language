@@ -10,6 +10,7 @@ from ..core import Generator, GeneratorType, Segment
 from proto_language.base_config import BaseConfig
 from proto_language.tools.language_models.esm3.esm3 import run_esm3_sample, ESM3SampleConfig, LanguageModelInput
 from .generator_registry import GeneratorRegistry
+from proto_language.tools.language_models.esm3.inference import ESM3_MODEL_CHECKPOINTS
 
 
 class ESM3GeneratorConfig(BaseConfig):
@@ -22,7 +23,7 @@ class ESM3GeneratorConfig(BaseConfig):
     )
 
     # Optional parameters (have defaults)
-    model_checkpoint: Literal["esm3_sm_open_v1"] = Field(
+    model_checkpoint: ESM3_MODEL_CHECKPOINTS = Field(
         default="esm3_sm_open_v1",
         title="Model type",
         description="ESM3 model checkpoint to use"
