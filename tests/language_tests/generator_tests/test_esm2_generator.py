@@ -22,7 +22,7 @@ class TestESM2Generator:
         """Test ESM2 generator with entropy-based sampling."""
         esm2_generator = ESM2Generator(
             ESM2GeneratorConfig(
-                esm2_type="esm2_t33_650M_UR50D",
+                model_checkpoint="esm2_t33_650M_UR50D",
                 sequence_length=20,
                 temperature=1.0,
                 decoding_method="entropy",
@@ -48,7 +48,7 @@ class TestESM2Generator:
         """Test ESM2 generator with max logit sampling."""
         esm2_generator = ESM2Generator(
             ESM2GeneratorConfig(
-                esm2_type="esm2_t33_650M_UR50D",
+                model_checkpoint="esm2_t33_650M_UR50D",
                 sequence_length=20,
                 temperature=1.0,
                 decoding_method="max_logit",
@@ -74,7 +74,7 @@ class TestESM2Generator:
         """Test ESM2 generator with random sampling."""
         esm2_generator = ESM2Generator(
             ESM2GeneratorConfig(
-                esm2_type="esm2_t33_650M_UR50D",
+                model_checkpoint="esm2_t33_650M_UR50D",
                 sequence_length=20,
                 temperature=1.0,
                 decoding_method="random",
@@ -101,7 +101,7 @@ class TestESM2Generator:
         num_candidates = 3
         esm2_generator = ESM2Generator(
             ESM2GeneratorConfig(
-                esm2_type="esm2_t33_650M_UR50D",
+                model_checkpoint="esm2_t33_650M_UR50D",
                 sequence_length=15,
                 temperature=1.0,
                 decoding_method="entropy",
@@ -128,7 +128,7 @@ class TestESM2Generator:
         """Test error conditions for ESM2 generator assignment."""
         esm2_generator = ESM2Generator(
             ESM2GeneratorConfig(
-                esm2_type="esm2_t33_650M_UR50D",
+                model_checkpoint="esm2_t33_650M_UR50D",
                 sequence_length=10,
             )
         )

@@ -16,39 +16,42 @@ from .optimizer_registry import OptimizerRegistry
 
 class TopKOptimizerConfig(BaseConfig):
     """Configuration for TopKOptimizer"""
+    # Required parameters
     min_num_samples: int = Field(
         ge=1,
-        label="Min samples",
+        title="Min samples",
         description="Minimum number of samples to generate. If energy_threshold is set, "
                     "may generate more candidates until threshold is met."
     )
     k: int = Field(
         ge=1,
-        label="Top-k",
+        title="Top-k",
         description="Number of top samples to keep and return. Must be greater than Num samples."
     )
     batch_size: int = Field(
         ge=1,
-        label="Batch size",
+        title="Batch size",
         description="Number of samples to generate per round (enables batching for generators). "
                     "min_num_samples must be divisible by batch_size."
     )
+
+    # Optional parameters (have defaults)
     energy_threshold: Optional[float] = Field(
         default=None,
         ge=0.0,
-        label="Energy threshold",
+        title="Energy threshold",
         description="Continue sampling until worst energy in top-k is below this threshold. "
                     "If set, optimizer will generate at least min_num_samples, then continue until threshold is met or max_num_samples is reached."
     )
     max_num_samples: Optional[int] = Field(
         default=None,
         ge=1,
-        label="Max samples",
+        title="Max samples",
         description="Maximum number of samples to generate until hard stop. If not set, defaults to min_num_samples * 10. "
     )
     verbose: bool = Field(
         default=False,
-        label="Verbose",
+        title="Verbose",
         description="Whether to print progress information."
     )
 

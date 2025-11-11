@@ -17,33 +17,36 @@ from .optimizer_registry import OptimizerRegistry
 
 class BeamSearchOptimizerConfig(BaseConfig):
     """Configuration for BeamSearchOptimizer"""
+    # Required parameters
     prompt: str = Field(
-        label="Prompt",
+        title="Prompt",
         description="The prompt to start the beam search (e.g. ATCG)"
     )
     beam_width: int = Field(
         ge=1,
-        label="Beam width",
+        title="Beam width",
         description="Number of top sequences to maintain (K)."
     )
     candidates_per_beam: int = Field(
         ge=1,
-        label="Candidates per beam",
+        title="Candidates per beam",
         description="Number of candidates to generate per beam sequence (N)."
     )
+
+    # Optional parameters (have defaults)
     prepend_prompt: bool = Field(
         default=True,
-        label="Prepend prompt",
+        title="Prepend prompt",
         description="Whether to prepend the prompt to the generated sequence in the output."
     )
     use_kv_caching: bool = Field(
         default=True,
-        label="KV cache",
+        title="KV cache",
         description="Whether to use KV caching for generation. Enables faster sequential generation."
     )
     verbose: bool = Field(
         default=False,
-        label="Verbose",
+        title="Verbose",
         description="Whether to print progress information."
     )
 

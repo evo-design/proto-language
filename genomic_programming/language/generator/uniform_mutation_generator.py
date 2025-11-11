@@ -15,16 +15,30 @@ from .generator_registry import GeneratorRegistry
 
 class UniformMutationGeneratorConfig(BaseConfig):
     """Configuration for UniformMutationGenerator."""
-    sequence_length: int = Field(default=100, ge=1, description="Length of sequences to generate")
-    num_mutations: int = Field(default=1, ge=0, description="Number of positions to mutate per sample")
+    # Required parameters
+    sequence_length: int = Field(
+        ge=1,
+        title="Sequence length",
+        description="Target length for generated sequences"
+    )
+
+    # Optional parameters (have defaults)
+    num_mutations: int = Field(
+        default=1,
+        ge=0,
+        title="Num mutations",
+        description="Number of positions to mutate per sample"
+    )
     mutation_window: Optional[Tuple[int, int]] = Field(
         default=None,
-        description=(
-            "Only mutate the sequence within this range. Uses Python conventions for "
-            "defining the range, i.e., start:end."
-        )
+        title="Mutation window",
+        description="Only mutate the sequence within this range. Uses Python conventions for defining the range (start:end)."
     )
-    debug_with_sleep_calls: bool = Field(default=False, description="Enable debug mode with sleep calls (for testing purposes only)")
+    debug_with_sleep_calls: bool = Field(
+        default=False,
+        title="Debug with sleep calls",
+        description="Enable debug mode with sleep calls (for testing purposes only)"
+    )
 
     @model_validator(mode='after')
     def validate_mutation_window(self):

@@ -8,19 +8,42 @@ from pydantic import Field, field_validator
 from ..core import Generator, GeneratorType, Segment
 from proto_language.base_config import BaseConfig
 from proto_language.tools.models.language_models.esm2.esm2 import run_esm2_sample, ESM2SampleConfig, LanguageModelInput
+from proto_language.tools.models.language_models.esm2.inference import ESM2_MODEL_CHECKPOINTS
 from .generator_registry import GeneratorRegistry
 
 
 class ESM2GeneratorConfig(BaseConfig):
     """Configuration for ESM2Generator."""
     # Required parameters
-    sequence_length: int = Field(ge=1, description="Length of protein sequences to generate")
+    sequence_length: int = Field(
+        ge=1, 
+        title="Sequence length",
+        description="Target length for generated sequences"
+    )
 
     # Optional parameters (have defaults)
-    esm2_type: str = Field(default="esm2_t33_650M_UR50D", description="ESM2 model variant")
-    temperature: float = Field(default=1.0, gt=0.0, description="Sampling temperature")
-    decoding_method: Literal["entropy", "max_logit", "random"] = Field(default="entropy", description="Position selection strategy: 'entropy', 'max_logit', or 'random'")
-    num_mutations: int = Field(default=1, ge=1, description="Number of positions to mutate per iteration")
+    model_checkpoint: ESM2_MODEL_CHECKPOINTS = Field(
+        default="esm2_t33_650M_UR50D",
+        title="Model type",
+        description="ESM2 model checkpoint to use"
+    )
+    temperature: float = Field(
+        default=1.0,
+        gt=0.0,
+        title="Temperature",
+        description="Scales the randomness of sampling by adjusting probability distribution sharpness. Lower values (<1) make outputs more deterministic; higher values (>1) produce more varied and creative generations."
+    )
+    decoding_method: Literal["entropy", "max_logit", "random"] = Field(
+        default="entropy",
+        title="Decoding method",
+        description="Position selection strategy for sampling: entropy, max_logit, or random"
+    )
+    num_mutations: int = Field(
+        default=1,
+        ge=1,
+        title="Num mutations",
+        description="Number of positions to mutate per sampling iteration"
+    )
     
     @field_validator('num_mutations')
     @classmethod
@@ -52,7 +75,7 @@ class ESM2Generator(Generator):
         Basic protein generation:
         >>> from proto_language.language.generator import ESM2Generator, ESM2GeneratorConfig
         >>> config = ESM2GeneratorConfig(
-        ...     esm2_type="esm2_t33_650M_UR50D",
+        ...     model_checkpoint="esm2_t33_650M_UR50D",
         ...     sequence_length=100,
         ...     temperature=1.0,
         ...     decoding_method="entropy",
@@ -72,7 +95,7 @@ class ESM2Generator(Generator):
             config: Configuration object containing all generator parameters.
         """
         super().__init__()
-        self.esm2_type = config.esm2_type
+        self.model_checkpoint = config.model_checkpoint
         self.sequence_length = config.sequence_length
         self.temperature = config.temperature
         self.decoding_method = config.decoding_method
@@ -106,8 +129,8 @@ class ESM2Generator(Generator):
         sequences = [seq.sequence for seq in self._assigned_segment.candidate_sequences]
         esm2_input = LanguageModelInput(sequences=sequences)
         config = ESM2SampleConfig(
-            model_name=self.esm2_type,
-            sequence_length=self.sequence_length,
+            model_checkpoint=self.model_checkpoint,
+            sequence_length=self.sequence_length,   
             temperature=self.temperature,
             decoding_method=self.decoding_method,
             num_mutations=self.num_mutations,

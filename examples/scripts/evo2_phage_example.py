@@ -47,7 +47,7 @@ segment = Segment(
 # Initialize ProgramGenerator
 evo2_config = Evo2GeneratorConfig(
     prompts=["+~GAGTTTTA"],
-    model_name="evo2_7b_phage",
+    model_checkpoint="evo2_7b_phage",
     local_path="/scratch/hielab/gbrixi/evo2/vortex_interleaved/7b_phage/iter_12000.pt",
     num_tokens=5500,
     max_temperature=0.9,

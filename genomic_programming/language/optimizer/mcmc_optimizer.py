@@ -19,44 +19,47 @@ MAX_EXP_ARG = 700.0
 
 class MCMCOptimizerConfig(BaseConfig):
     """Configuration for MCMCOptimizer"""
+    # Required parameters
     num_selected: int = Field(
         ge=1,
-        label="Num maintained candidates",
+        title="Num maintained candidates",
         description="Number of candidate sequences to optimize across iterations (the top-k). "
                    "When num_selected=1 (default), behaves like standard single-chain MCMC. "
                    "When num_selected>1, maintains top-k sequences and generates mcmc_width number of proposals per sequence each step."
     )
     mcmc_width: int = Field(
         ge=1,
-        label="Num proposals per candidate",
+        title="Num proposals per candidate",
         description="Number of generated proposals per candidate sequence each step, similar to `beam width` in beam search."
     )
     num_steps: int = Field(
         ge=1,
-        label="Num steps",
+        title="Num steps",
         description="Number of MCMC steps to run."
     )
+
+    # Optional parameters (have defaults)
     max_temperature: float = Field(
         default=1.0,
         gt=0.0,
-        label="Max temperature",
+        title="Max temperature",
         description="Maximum temperature for annealing"
     )
     min_temperature: float = Field(
         default=0.001,
         gt=0.0,
-        label="Min temperature",
+        title="Min temperature",
         description="Minimum temperature for annealing"
     )
     track_step_size: int = Field(
         default=1,
         ge=1,
-        label="Track interval",
+        title="Track interval",
         description="Interval for progress tracking"
     )
     verbose: bool = Field(
         default=False,
-        label="Verbose",
+        title="Verbose",
         description="Whether to print progress information."
     )
 

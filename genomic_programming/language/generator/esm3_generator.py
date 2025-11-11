@@ -15,13 +15,35 @@ from .generator_registry import GeneratorRegistry
 class ESM3GeneratorConfig(BaseConfig):
     """Configuration for ESM3Generator."""
     # Required parameters
-    sequence_length: int = Field(ge=1, description="Length of protein sequences to generate")
+    sequence_length: int = Field(
+        ge=1,
+        title="Sequence length",
+        description="Target length for generated sequences"
+    )
 
     # Optional parameters (have defaults)
-    esm3_type: str = Field(default="esm3_sm_open_v1", description="ESM3 model variant")
-    temperature: float = Field(default=1.0, gt=0.0, description="Sampling temperature")
-    decoding_method: Literal["entropy", "max_logit", "random"] = Field(default="entropy", description="Position selection strategy: 'entropy', 'max_logit', or 'random'")
-    num_mutations: int = Field(default=1, ge=1, description="Number of positions to mutate per iteration")
+    model_checkpoint: Literal["esm3_sm_open_v1"] = Field(
+        default="esm3_sm_open_v1",
+        title="Model type",
+        description="ESM3 model checkpoint to use"
+    )
+    temperature: float = Field(
+        default=1.0,
+        gt=0.0,
+        title="Temperature",
+        description="Scales the randomness of sampling by adjusting probability distribution sharpness. Lower values (<1) make outputs more deterministic; higher values (>1) produce more varied and creative generations."
+    )
+    decoding_method: Literal["entropy", "max_logit", "random"] = Field(
+        default="entropy",
+        title="Decoding method",
+        description="Position selection strategy for sampling: entropy, max_logit, or random"
+    )
+    num_mutations: int = Field(
+        default=1,
+        ge=1,
+        title="Num mutations",
+        description="Number of positions to mutate per sampling iteration"
+    )
     
     @field_validator('num_mutations')
     @classmethod
@@ -72,7 +94,7 @@ class ESM3Generator(Generator):
             config: Configuration object containing all generator parameters.
         """
         super().__init__()
-        self.esm3_type = config.esm3_type
+        self.model_checkpoint = config.model_checkpoint
         self.sequence_length = config.sequence_length
         self.temperature = config.temperature
         self.decoding_method = config.decoding_method
@@ -106,7 +128,7 @@ class ESM3Generator(Generator):
         sequences = [seq.sequence for seq in self._assigned_segment.candidate_sequences]
         esm3_input = LanguageModelInput(sequences=sequences)
         config = ESM3SampleConfig(
-            model_name=self.esm3_type,
+            model_checkpoint=self.model_checkpoint,
             sequence_length=self.sequence_length,
             temperature=self.temperature,
             decoding_method=self.decoding_method,

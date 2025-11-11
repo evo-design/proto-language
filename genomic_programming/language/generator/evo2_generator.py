@@ -10,29 +10,93 @@ from pydantic import Field, model_validator
 from ..core import Generator, GeneratorType, Segment
 from proto_language.base_config import BaseConfig
 from proto_language.tools.models.language_models.evo2 import run_evo2_sample, Evo2SampleInput, Evo2SampleConfig
+from proto_language.tools.models.language_models.evo2.inference import EVO2_MODEL_CHECKPOINTS
 from .generator_registry import GeneratorRegistry
 
 
 class Evo2GeneratorConfig(BaseConfig):
     """Configuration for Evo2Generator."""
     # Required parameters
-    prompts: Union[str, List[str]] = Field(description="Prompts for DNA sequence generation (single prompt or multiple)")
-    num_tokens: int = Field(ge=1, description="Number of tokens to generate after prompt")
+    prompts: Union[str, List[str]] = Field(
+        title="Prompts",
+        description="Prompt sequences for DNA sequence generation (single prompt or multiple)"
+    )
+    num_tokens: int = Field(
+        ge=1,
+        title="Num tokens",
+        description="Number of tokens to generate after prompt"
+    )
 
     # Optional parameters (have defaults)
-    model_name: str = Field(default="evo2_7b", description="Evo2 model variant to use")
-    local_path: Optional[str] = Field(default=None, description="Optional path to local model weights")
-    top_k: int = Field(default=4, ge=1, description="Top-k sampling parameter")
-    top_p: float = Field(default=1, gt=0.0, le=1.0, description="Top-p sampling parameter")
-    temperature: float = Field(default=1.0, gt=0.0, description="Sampling temperature")
-    force_prompt_threshold: Optional[int] = Field(default=None, description="Optional number of tokens to prefill in parallel before switching to prompt forcing. Used to reduce peak memory usage and support longer prompts")
-    max_seqlen: Optional[int] = Field(default=None, description="Optional maximum sequence length to generate. Determines the max size of the cache if larger. Otherwise automatically determined using prompt length + max_tokens")
-    stop_at_eos: bool = Field(default=True, description="Whether to stop at end-of-sequence token")
-    batched: bool = Field(default=True, description="Whether to use batched generation, set to true if # of prompts > 1.")
-    cached_generation: bool = Field(default=True, description="Whether to use cached generation")
-    store_kv_cache: bool = Field(default=False, description="Whether to store and reuse kv cache")
-    prepend_prompt: bool = Field(default=False, description="Whether to prepend prompt to generation")
-    verbose: bool = Field(default=False, description="Whether to print verbose output")
+    model_checkpoint: EVO2_MODEL_CHECKPOINTS = Field(
+        default="evo2_7b",
+        title="Model name",
+        description="Evo2 model checkpoint to use"
+    )
+    local_path: Optional[str] = Field(
+        default=None,
+        title="Local checkpoint path",
+        description="Path to local checkpoint weights for custom or finetuned models"
+    )
+    top_k: int = Field(
+        default=4,
+        ge=1,
+        title="Top-k",
+        description="Limits sampling to the top-k most probable tokens at each generation step. Lower values make output more deterministic, higher values increase diversity."
+    )
+    top_p: float = Field(
+        default=1,
+        gt=0.0,
+        le=1.0,
+        title="Top-p",
+        description="Nucleus sampling threshold. Chooses the smallest set of tokens whose cumulative probability mass ≥ top-p. Lower values yield more conservative, focused output; higher values allow more randomness."
+    )
+    temperature: float = Field(
+        default=1.0,
+        gt=0.0,
+        title="Temperature",
+        description="Scales the randomness of sampling by adjusting probability distribution sharpness. Lower values (<1) make outputs more deterministic; higher values (>1) produce more varied and creative generations."
+    )
+    force_prompt_threshold: Optional[int] = Field(
+        default=None,
+        title="Force prompt threshold",
+        description="Optional number of tokens to prefill in parallel before switching to prompt forcing. Used to reduce peak memory usage and support longer prompts"
+    )
+    max_seqlen: Optional[int] = Field(
+        default=None,
+        title="Max sequence length",
+        description="Optional maximum sequence length to generate. Determines the max size of the cache if larger. Otherwise automatically determined using prompt length + max_tokens"
+    )
+    stop_at_eos: bool = Field(
+        default=True,
+        title="Stop at EOS",
+        description="Whether to stop at end-of-sequence token"
+    )
+    batched: bool = Field(
+        default=True,
+        title="Batched",
+        description="Whether to use batched generation, set to true if # of prompts > 1."
+    )
+    cached_generation: bool = Field(
+        default=True,
+        title="Cached generation",
+        description="Whether to use cached generation"
+    )
+    store_kv_cache: bool = Field(
+        default=False,
+        title="KV caching",
+        description="Whether to store and reuse kv cache"
+    )
+    prepend_prompt: bool = Field(
+        default=False,
+        title="Prepend prompt",
+        description="Whether to prepend prompt to generation"
+    )
+    verbose: bool = Field(
+        default=False,
+        title="Verbose",
+        description="Whether to print verbose output"
+    )
     
     @model_validator(mode='after')
     def validate_prompts_length(self):
@@ -61,7 +125,7 @@ class Evo2Generator(Generator):
         >>> config = Evo2GeneratorConfig(
         ...     prompts="ATG",
         ...     num_tokens=1000,
-        ...     model_name="evo2_7b",
+        ...     model_checkpoint="evo2_7b",
         ...     temperature=0.8
         ... )
         >>> gen = Evo2Generator(config)
@@ -82,7 +146,7 @@ class Evo2Generator(Generator):
         """
         super().__init__()
         self.prompts = config.prompts
-        self.model_name = config.model_name
+        self.model_checkpoint = config.model_checkpoint
         self.local_path = config.local_path
         self.top_k = config.top_k
         self.top_p = config.top_p
@@ -135,7 +199,7 @@ class Evo2Generator(Generator):
         sample_config = Evo2SampleConfig(
             prompts=sampling_prompts,
             prepend_prompt=prepend_prompt if prepend_prompt is not None else self.prepend_prompt,
-            model_name=self.model_name,
+            model_checkpoint=self.model_checkpoint,
             local_path=self.local_path,
             top_k=self.top_k,
             top_p=self.top_p,
