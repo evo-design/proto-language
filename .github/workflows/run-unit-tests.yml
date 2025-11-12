@@ -30,7 +30,7 @@ jobs:
       run: |
         conda install -c conda-forge -c bioconda mmseqs2 blast -y
         pip install uv
-        uv pip install -e .
+        uv pip install -e ".[tools,api,dev]"
 
     - name: Run CPU unit tests
       shell: bash -l {0}

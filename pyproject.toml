@@ -14,104 +14,107 @@ authors = [
 
 requires-python = ">=3.10"
 
-# Core dependencies (CPU-only, minimal for running the framework)
+# Core dependencies (language + basic constraints + infrastructure)
 dependencies = [
-    # Agents
-    "openai",
-
     # Core framework
     "pydantic>=2.0.0",
-    
+
     # Scientific computing
     "numpy>=1.24.0",
     "pandas>=2.0.0",
     "scipy>=1.10.0",
     "scikit-learn>=1.3.0",
-    
+
     # Bioinformatics
     "biopython>=1.81",
     "biotite>=0.38.0",
+
+    # Infrastructure
+    "torch>=2.0.0",
+    "google-cloud-storage>=2.0.0",
+
+    # Utilities
+    "pyyaml>=6.0",
+    "requests>=2.31.0",
+    "tqdm>=4.65.0",
+]
+
+[project.optional-dependencies]
+# CPU bioinformatics tools
+tools = [
     "orfipy>=0.0.4",
     "pyrodigal>=3.0.0",
     "promotercalculator>=1.0.0",
     "pyhmmer",
-    
-    # Machine Learning (CPU-only)
-    "torch>=2.0.0",
-    "transformers>=4.30.0",
-    "huggingface_hub>=0.16.0",
-    "accelerate",
-    
-    # Cloud compute
-
-    
-    # API & Web Server
-    "fastapi>=0.104.0",
-    "uvicorn[standard]>=0.24.0",
-    "python-dotenv>=1.0.0",
-    "sse-starlette>=1.6.5",
-    
-    # Database
-    "sqlmodel>=0.0.8",
-    "sqlalchemy>=2.0.0",
-    "aiosqlite>=0.19.0",
-    "asyncpg>=0.28.0",
-    "psycopg2-binary>=2.9.0",
-    "greenlet>=2.0.0",
-
-    
-    # Task queue & async processing
-    "worker>=5.3.0",
-    "cache>=5.0.0",
-    "kombu>=5.3.0",
-    
-    # Storage & utilities
-    "google-cloud-storage==3.2.0",
-    "pyyaml>=6.0",
-    "requests>=2.31.0",
-    "httpx>=0.25.0",
-    
-    # Visualization (minimal)
-    "matplotlib>=3.7.0",
-    "seaborn>=0.13.0",
-    "py3Dmol>=2.0.0",
-    
-    # Sequence scoring (CPU-only)
-    "alphagenome>=0.2.0",
-
-    # Splice Transformer
     "sinkhorn-transformer",
+    "huggingface_hub>=0.16.0",
 
-
-    # Testing
-    "pytest>=7.3.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.1.0",
 ]
 
-[project.optional-dependencies]
-# GPU dependencies for structure prediction and sequence scoring models
+# GPU dependencies
 gpu = [
+    # ML frameworks
+    "transformers>=4.30.0",
+
+    # Sequence scoring models
+    "alphagenome>=0.2.0",
+    "sinkhorn-transformer",
+
+    # Structure prediction and scoring models
     "esm @ git+https://github.com/bviggiano/esm.git@fix/178",  # See: https://github.com/evolutionaryscale/esm/issues/178
     "borzoi-pytorch",
     "enformer-pytorch",
 ]
 
-# Development dependencies for contributors
+# API dependencies
+api = [
+    # API server
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "python-dotenv>=1.0.0",
+    "sse-starlette>=1.6.5",
+
+    # Database
+    "sqlmodel>=0.0.8",
+    "sqlalchemy>=2.0.0",
+    "aiosqlite>=0.19.0",
+
+    # Task queue
+    "worker>=5.3.0",
+    "cache>=5.0.0",
+
+    # AI agents
+    "openai",
+
+    # Structure visualization
+    "py3Dmol>=2.0.0",
+
+    # Remote GPU execution
+
+]
+
+# Development dependencies
 dev = [
+    "pytest>=7.3.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
     "black>=23.0.0",
     "isort>=5.12.0",
     "flake8>=6.0.0",
     "mypy>=1.5.0",
     "pre-commit>=3.3.0",
-]
-
-# Jupyter notebook dependencies for running examples
-notebooks = [
     "jupyter>=1.1.1",
     "ipykernel>=6.25.0",
     "ipywidgets>=8.0.0",
-    "ipymol>=0.9.0",
+    "ipymol>=0.5",
+    "matplotlib>=3.7.0",
+    "seaborn>=0.13.0",    
+]
+
+
+# All dependenciesis
+all = [
+    "proto-language[tools,gpu,api,dev]",
 ]
 
 [project.urls]

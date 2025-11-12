@@ -7,31 +7,38 @@ A framework for designing biological sequences (DNA, RNA, proteins) with constra
 
 ## Installation
 
-The package is now structured with `pyproject.toml`. Install with:
 
-1. Create the conda environment:
+1. Create the conda environment: 
 ```bash
 conda create --name proto-language python=3.12 -y
 conda activate proto-language
 conda install -c conda-forge -c bioconda -c nvidia mmseqs2 blast cuda-nvcc cuda-cudart-dev transformer-engine-torch=2.3.0 -y
 git submodule update --init --recursive
 ```
-
 2. Install as an editable package:
 
-    A) Only with CPU dependencies:
+    A) Only with CPU tool + API  dependencies:
     ```bash
     pip install uv
-    uv pip install -e .
+    uv pip install -e .[tools,api]
     ```
 
     B) Or with GPU dependencies:
     ```bash
     pip install uv
-    uv pip install -e .[gpu]
+    uv pip install -e .[tools,api,gpu]
     uv pip install flash-attn==2.8.0.post2 --no-build-isolation
     pip install evo2
     ```
+
+    C) Or with full dependencies (including dev):
+    ```bash
+    pip install uv
+    uv pip install -e .[all]
+    uv pip install flash-attn==2.8.0.post2 --no-build-isolation
+    pip install evo2
+    ```    
+
 
 ## Running the API
 

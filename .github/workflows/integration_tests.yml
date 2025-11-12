@@ -50,11 +50,8 @@ jobs:
         pip install --upgrade pip
         pip install uv
 
-        # Install package with dependencies (--system to install in system Python)
-        uv pip install --system -e .
-
-        # Install additional dependencies needed for tests
-        uv pip install --system requests pytest pytest-asyncio
+        # Install package with API, tools, and dev dependencies (--system to install in system Python)
+        uv pip install --system -e ".[api,tools,dev]"
 
     - name: Run full integration tests
       run: |
