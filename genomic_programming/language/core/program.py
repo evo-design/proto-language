@@ -155,7 +155,8 @@ class Program:
         The actual optimization is performed by the underlying Optimizer.
         """
         # Initialize optimizer on first run (lazy initialization)
-        self._initialize_optimizer()
+        if self.optimizer is None:
+            self._initialize_optimizer()
 
         # Calculate initial energy scores
         self.optimizer.score_energy()
