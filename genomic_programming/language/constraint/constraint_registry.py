@@ -5,7 +5,8 @@ Provides a decorator-based API for registering constraint functions and
 a factory method for creating Constraint instances.
 """
 from __future__ import annotations
-from typing import Any, Callable, Dict, List, Literal, Optional, Type
+from typing import Any, Callable, Dict, List, Literal, Optional, Type, get_type_hints, get_origin, get_args
+import inspect
 
 from pydantic import BaseModel, Field
 
@@ -131,6 +132,9 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             # Prevent duplicate registration using base class helper
             cls._check_duplicate(key, func.__name__)
 
+            # Validate return type annotation matches mode
+            cls._validate_return_type(func, mode, batched)
+
             # Store metadata as function attributes
             func._constraint_mode = mode
             func._constraint_batched = batched
@@ -225,3 +229,29 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             ...     print(f"  Parameters: {list(schema['properties'].keys())}")
         """
         return list(cls._registry.values())
+
+    @staticmethod
+    def _validate_return_type(func: Callable, mode: str, batched: bool) -> None:
+        """Validate constraint function signature matches expected types."""
+        hints = get_type_hints(func)
+        params = list(inspect.signature(func).parameters.keys())
+        
+        if len(params) != 2:
+            raise TypeError(f"Function '{func.__name__}' must have exactly 2 parameters (sequences, config), found {len(params)}")
+        
+        # Validate input parameter if annotated
+        if batched and params[0] in hints and get_origin(hints[params[0]]) not in (list, List):
+            raise TypeError(f"Function '{func.__name__}' with batched=True must accept List as first parameter")
+        
+        # Validate return type if annotated
+        if 'return' in hints:
+            return_type = hints['return']
+            expected = bool if mode == "filter" else float
+            origin = get_origin(return_type)
+            
+            if batched and origin in (list, List):
+                args = get_args(return_type)
+                if args and args[0] != expected:
+                    raise TypeError(f"Function '{func.__name__}' mode='{mode}' must return List[{'bool' if mode == 'filter' else 'float'}]")
+            elif not batched and return_type != expected:
+                raise TypeError(f"Function '{func.__name__}' mode='{mode}' must return {'bool' if mode == 'filter' else 'float'}")
