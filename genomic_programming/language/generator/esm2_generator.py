@@ -3,8 +3,7 @@ ESM2 Generator for protein sequence generation
 """
 from __future__ import annotations
 from typing import final, Literal
-from pydantic import field_validator
-
+import random
 
 from proto_language.language.core import Generator, GeneratorType, Segment
 from proto_language.base_config import BaseConfig, ConfigField
@@ -143,8 +142,18 @@ class ESM2Generator(Generator):
     ) -> None:
         """
         Assign a Segment to this generator.
+        
+        If no starting sequence is provided, initializes a random protein sequence.
         """
         super().assign(assigned_segment)
+        
+        # Generate random sequence matching segment's length if not provided
+        if not assigned_segment.original_sequence.sequence:
+            valid_chars = assigned_segment._valid_chars - set(" ")
+            valid_chars_list = list(valid_chars)
+            assigned_segment.original_sequence.sequence = "".join(
+                random.choice(valid_chars_list) for _ in range(assigned_segment.sequence_length)
+            )
         
         self._assigned_segment = assigned_segment
         self._assigned_segment._is_assigned = True
@@ -168,7 +177,6 @@ class ESM2Generator(Generator):
         esm2_input = LanguageModelInput(sequences=sequences)
         config = ESM2SampleConfig(
             model_checkpoint=self.model_checkpoint,
-            sequence_length=self._assigned_segment.sequence_length,   
             temperature=self.temperature,
             decoding_method=self.decoding_method,
             num_mutations=actual_mutations,
