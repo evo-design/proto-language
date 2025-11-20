@@ -64,7 +64,7 @@ def run_beam_search(
     """
     # Create segments - one for each chunk
     num_segments = total_token_count // beam_length
-    segments = [Segment(sequence_length=beam_length, label=f"chunk_{i+1}") for i in range(num_segments)]
+    segments = [Segment(starting_sequence_or_desired_length=beam_length, label=f"chunk_{i+1}") for i in range(num_segments)]
     construct = Construct(segments=segments)
 
     # Create generator

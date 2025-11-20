@@ -9,9 +9,9 @@ from proto_language.language.constraint.sequence_composition.sequence_length_con
 class TestSequenceLengthConstraint:
     def test_single_segment(self):
         target_len = 20
-        seg_match = Segment(sequence="A" * target_len)
-        seg_short = Segment(sequence="A" * (target_len // 2))
-        seg_long = Segment(sequence="A" * (target_len * 2))
+        seg_match = Segment(starting_sequence_or_desired_length="A" * target_len)
+        seg_short = Segment(starting_sequence_or_desired_length="A" * (target_len // 2))
+        seg_long = Segment(starting_sequence_or_desired_length="A" * (target_len * 2))
 
         config = SequenceLengthConfig(target_length=target_len)
         constraint_match = Constraint(
@@ -49,8 +49,8 @@ class TestSequenceLengthConstraint:
     def test_contiguous_concatenation(self):
         """Tests length constraint on concatenated segments."""
         target_len = 20
-        seg1 = Segment(sequence="A" * 10)
-        seg2 = Segment(sequence="T" * 10)
+        seg1 = Segment(starting_sequence_or_desired_length="A" * 10)
+        seg2 = Segment(starting_sequence_or_desired_length="T" * 10)
 
         config = SequenceLengthConfig(target_length=target_len)
         constraint = Constraint(
@@ -84,7 +84,7 @@ class TestSequenceLengthConstraint:
     )
     def test_edge_cases(self, seq_str, target_len, expected_score):
         """Test constraint-specific edge cases."""
-        segment = Segment(sequence=seq_str)
+        segment = Segment(starting_sequence_or_desired_length=seq_str)
         config = SequenceLengthConfig(target_length=target_len)
         constraint = Constraint(
             inputs=[segment],

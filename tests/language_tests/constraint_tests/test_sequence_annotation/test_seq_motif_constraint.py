@@ -52,7 +52,7 @@ class TestSeqMotifConstraint:
     
     def test_no_motifs_wanted_or_unwanted(self):
         """Test scoring when no wanted/unwanted motifs specified."""
-        segment = Segment(sequence="ATCGATCGATCG", sequence_type=SequenceType.DNA)
+        segment = Segment(starting_sequence_or_desired_length="ATCGATCGATCG", sequence_type=SequenceType.DNA)
         config = SeqMotifConfig(
             motifs_path="/tmp/motifs.meme",
             meme_bin_path="/usr/bin"
@@ -89,7 +89,7 @@ class TestSeqMotifConstraint:
     
     def test_wanted_motif_found(self):
         """Test scoring when wanted motif is found."""
-        segment = Segment(sequence="ATCGATCGATCG", sequence_type=SequenceType.DNA)
+        segment = Segment(starting_sequence_or_desired_length="ATCGATCGATCG", sequence_type=SequenceType.DNA)
         config = SeqMotifConfig(
             motifs_path="/tmp/motifs.meme",
             meme_bin_path="/usr/bin",

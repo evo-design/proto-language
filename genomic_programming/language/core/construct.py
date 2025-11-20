@@ -16,8 +16,8 @@ class Construct:
 
     Examples:
         Creating a construct from labeled segments:
-        >>> promoter = Segment("TATA", SequenceType.DNA, label="promoter")
-        >>> cds = Segment("ATGCCC", SequenceType.DNA, label="coding_region")
+        >>> promoter = Segment(starting_sequence_or_desired_length="TATA", sequence_type=SequenceType.DNA, label="promoter")
+        >>> cds = Segment(starting_sequence_or_desired_length="ATGCCC", sequence_type=SequenceType.DNA, label="coding_region")
         >>> gene = Construct([promoter, cds])
         >>> gene.joined_sequences  # [Sequence("TATAATGCCC", SequenceType.DNA)]
     """

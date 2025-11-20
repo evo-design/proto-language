@@ -32,7 +32,7 @@ class TestProteinComplexityConstraint:
     )
     def test_scoring_logic(self, low_complexity_fraction, max_low_complexity, expected_score):
         """Test the scoring logic with mocked segmasker output."""
-        segment = Segment(sequence="MKTAYIAKQRQISFVK", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length="MKTAYIAKQRQISFVK", sequence_type=SequenceType.PROTEIN)
         config = ProteinComplexityConfig(max_low_complexity=max_low_complexity)
 
         # Mock run_segmasker
@@ -70,7 +70,7 @@ class TestProteinComplexityConstraint:
 
     def test_segmasker_error_handling(self):
         """Test error handling when segmasker fails."""
-        segment = Segment(sequence="MKTAYIAKQRQISFVK", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length="MKTAYIAKQRQISFVK", sequence_type=SequenceType.PROTEIN)
         config = ProteinComplexityConfig(max_low_complexity=0.3)
 
         with patch('proto_language.language.constraint.protein_quality.protein_complexity_constraint.run_segmasker') as mock_seg:
@@ -97,7 +97,7 @@ class TestProteinComplexityConstraint:
 
     def test_wrong_sequence_type(self):
         """Test that DNA/RNA sequences raise assertion (constraint-specific check)."""
-        segment = Segment(sequence="ATCGATCG", sequence_type=SequenceType.DNA)
+        segment = Segment(starting_sequence_or_desired_length="ATCGATCG", sequence_type=SequenceType.DNA)
         config = ProteinComplexityConfig(max_low_complexity=0.3)
 
         constraint = Constraint(

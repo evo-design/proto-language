@@ -59,7 +59,7 @@ class TestProteinSymmetryRingConstraint:
 
     def test_scoring_algorithm(self):
         """Test basic constraint evaluation with mocked structure."""
-        segment = Segment(sequence="MKR", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length="MKR", sequence_type=SequenceType.PROTEIN)
         config = ProteinSymmetryRingConfig(n_replications=3)
 
         with patch(
@@ -88,7 +88,7 @@ class TestProteinSymmetryRingConstraint:
 
     def test_dna_input(self):
         """Test that DNA/RNA sequences work via translation to protein."""
-        segment = Segment(sequence="ATGAAAAAACGT", sequence_type=SequenceType.DNA)  # Codes for MKR
+        segment = Segment(starting_sequence_or_desired_length="ATGAAAAAACGT", sequence_type=SequenceType.DNA)  # Codes for MKR
         config = ProteinSymmetryRingConfig(n_replications=3)
 
         # Mock the Prodigal output
@@ -140,9 +140,9 @@ class TestProteinSymmetryRingConstraint:
 
     def test_n_replications_parameter(self):
         """Test that n_replications correctly replicates the sequence."""
-        segment = Segment(sequence="MKTAYIAK", sequence_type=SequenceType.PROTEIN)
-        segment2 = Segment(sequence="MARG", sequence_type=SequenceType.PROTEIN)
-        segment3 = Segment(sequence="MLYS", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length="MKTAYIAK", sequence_type=SequenceType.PROTEIN)
+        segment2 = Segment(starting_sequence_or_desired_length="MARG", sequence_type=SequenceType.PROTEIN)
+        segment3 = Segment(starting_sequence_or_desired_length="MLYS", sequence_type=SequenceType.PROTEIN)
         config = ProteinSymmetryRingConfig(n_replications=5)
 
         # Create a mock PDB with 5 chains (A, B, C, D, E)

@@ -20,7 +20,7 @@ class TestESM3Generator:
         )
 
         # Create segment and assign to generator
-        segment = Segment(sequence_length=20, sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length=20, sequence_type=SequenceType.PROTEIN)
         esm3_generator.assign(segment)
         
         assert esm3_generator._assigned_segment is segment
@@ -44,7 +44,7 @@ class TestESM3Generator:
         )
 
         # Create segment and assign to generator
-        segment = Segment(sequence_length=20, sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length=20, sequence_type=SequenceType.PROTEIN)
         esm3_generator.assign(segment)
         
         assert esm3_generator._assigned_segment is segment
@@ -68,7 +68,7 @@ class TestESM3Generator:
         )
 
         # Create segment and assign to generator
-        segment = Segment(sequence_length=20, sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length=20, sequence_type=SequenceType.PROTEIN)
         esm3_generator.assign(segment)
         
         assert esm3_generator._assigned_segment is segment
@@ -93,7 +93,7 @@ class TestESM3Generator:
         )
 
         # Create segment and expand candidate pool
-        segment = Segment(sequence_length=15, sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length=15, sequence_type=SequenceType.PROTEIN)
         segment.create_candidates(num_candidates)
         esm3_generator.assign(segment)
         
@@ -114,7 +114,7 @@ class TestESM3Generator:
         
         # Create a constant segment
         constant_segment = Segment(
-            sequence="MMMMPPPP",
+            starting_sequence_or_desired_length="MMMMPPPP",
             sequence_type=SequenceType.PROTEIN,
             constant=True
         )

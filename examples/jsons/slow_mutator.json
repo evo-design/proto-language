@@ -19,7 +19,7 @@
         {
           "id": "segment1",
           "label": "test_sequence",
-          "sequence_length": 15
+          "starting_sequence_or_desired_length": 15
         }
       ]
     }

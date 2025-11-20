@@ -18,7 +18,7 @@
       "segments": [
         {
           "id": "construct1-segment1",
-          "sequence_length": 20
+          "starting_sequence_or_desired_length": 20
         }
       ]
     },
@@ -29,7 +29,7 @@
       "segments": [
         {
           "id": "construct2-segment1",
-          "sequence_length": 20
+          "starting_sequence_or_desired_length": 20
         }
       ]
     }    

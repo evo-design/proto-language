@@ -9,7 +9,7 @@ from proto_language.language.constraint.protein_quality.protein_length_constrain
 class TestProteinLengthConstraint:
     def test_protein_within_range(self):
         """Test protein length within acceptable range."""
-        segment = Segment(sequence="MVLSPADKTNVKAAWGKVGAH", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length="MVLSPADKTNVKAAWGKVGAH", sequence_type=SequenceType.PROTEIN)
         config = ProteinLengthConfig(min_length=20, max_length=25)
 
         constraint = Constraint(
@@ -26,7 +26,7 @@ class TestProteinLengthConstraint:
 
     def test_protein_too_short(self):
         """Test protein shorter than minimum."""
-        segment = Segment(sequence="MVLSP", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length="MVLSP", sequence_type=SequenceType.PROTEIN)
         config = ProteinLengthConfig(min_length=10, max_length=50)
 
         constraint = Constraint(
@@ -44,7 +44,7 @@ class TestProteinLengthConstraint:
 
     def test_protein_too_long(self):
         """Test protein longer than maximum."""
-        segment = Segment(sequence="M" * 100, sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length="M" * 100, sequence_type=SequenceType.PROTEIN)
         config = ProteinLengthConfig(min_length=10, max_length=50)
 
         constraint = Constraint(
@@ -62,7 +62,7 @@ class TestProteinLengthConstraint:
 
     def test_invalid_sequence_type(self):
         """Test that DNA sequence raises assertion (constraint-specific check)."""
-        segment = Segment(sequence="ATCGATCG", sequence_type=SequenceType.DNA)
+        segment = Segment(starting_sequence_or_desired_length="ATCGATCG", sequence_type=SequenceType.DNA)
         config = ProteinLengthConfig(min_length=10, max_length=50)
 
         constraint = Constraint(

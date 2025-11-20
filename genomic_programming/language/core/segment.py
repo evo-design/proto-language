@@ -16,17 +16,21 @@ class Segment:
     - selected_sequences: Results space containing current best sequences (user-facing)
 
     Examples:
-        Creating a Segment:
-        >>> promoter = Segment(sequence="TATA", sequence_type=SequenceType.DNA, label="promoter")
+        Creating a Segment with a sequence:
+        >>> promoter = Segment(starting_sequence_or_desired_length="TATA", sequence_type=SequenceType.DNA, label="promoter")
         >>> promoter.label  # "promoter"
         >>> promoter.sequence_length  # 4 (inferred from sequence)
         >>> promoter.selected_sequences  # [Sequence("TATA")]
+        
+        Creating a Segment with just a length:
+        >>> variable_region = Segment(starting_sequence_or_desired_length=100, sequence_type=SequenceType.DNA, label="variable")
+        >>> variable_region.sequence_length  # 100
+        >>> variable_region.selected_sequences  # [Sequence("")]
     """
 
     def __init__(
         self,
-        sequence: Optional[str] = None,
-        sequence_length: Optional[int] = None,
+        starting_sequence_or_desired_length: Union[str, int],
         sequence_type: Optional[Union[SequenceType, str]] = SequenceType.DNA,
         valid_chars: Optional[Set[str]] = None,
         label: Optional[str] = None,
@@ -37,24 +41,29 @@ class Segment:
         Initialize a Segment with dual sequence pools.
 
         Args:
-            sequence: Biological sequence string. If provided, length is inferred unless sequence_length is also provided.
-            sequence_length: Target length for sequences. Computed from sequence if not provided
+            starting_sequence_or_desired_length: Either a biological sequence string or an integer length.
+                If str: The sequence to use (length is inferred).
+                If int: The desired length for sequences (starts with empty sequence).
             sequence_type: Type of biological sequence (DNA, RNA, or PROTEIN). Defaults to DNA.
             valid_chars: Optional custom set of valid characters for sequence validation.
             label: Optional label for this segment (e.g., "promoter", "coding_region").
             metadata: Additional data associated with this sequence.
             constant: If True, the sequence is constant and cannot be mutated.
         """
-        # Validate and determine sequence_length
-        self.sequence_length = self._validate_segment(sequence, sequence_length)
-        
+        # If starting sequence provided, set state
+        if isinstance(starting_sequence_or_desired_length, str):
+            sequence = starting_sequence_or_desired_length
+            self.sequence_length = len(sequence)
+        else: # desired sequence length
+            sequence = ""
+            self.sequence_length = starting_sequence_or_desired_length
         seq = Sequence(
-            sequence=sequence if sequence is not None else "", # Use empty string if sequence is None
+            sequence=sequence,
             sequence_type=sequence_type,
             metadata=metadata,
             valid_chars=valid_chars,
         )
-        self.original_sequence = seq
+        self.original_sequence: Sequence = seq
         # Dual pools: candidates (work space) and selected (results space)
         self.candidate_sequences: List[Sequence] = [seq]
         self.selected_sequences: List[Sequence] = [seq]
@@ -114,9 +123,10 @@ class Segment:
 
         # Create segment with original sequence data
         valid_chars = set(data["valid_chars"]) if data.get("valid_chars") else None
+        # Use sequence if available, otherwise use sequence_length
+        starting_value = original_seq.sequence if original_seq.sequence else data["sequence_length"]
         segment = cls(
-            sequence=original_seq.sequence,
-            sequence_length=data["sequence_length"],
+            starting_sequence_or_desired_length=starting_value,
             sequence_type=data["sequence_type"],
             valid_chars=valid_chars,
             label=data.get("label"),
@@ -132,24 +142,3 @@ class Segment:
 
         return segment
 
-    @staticmethod
-    def _validate_segment(sequence: Optional[str], sequence_length: Optional[int]) -> int:
-        """Validate and infer sequence_length. At least one parameter required; both must match if provided."""
-        # Either sequence or sequence_length must be provided
-        if sequence is None and sequence_length is None:
-            raise ValueError("Either 'sequence' or 'sequence_length' must be provided")
-        
-        # Ensure sequence_length matches length of sequence if provided
-        if sequence is not None:
-            # Sequence_length is not provided, set sequence_length to len(sequence)
-            if sequence_length is None:
-                sequence_length = len(sequence)
-            # Both sequence and sequence_length provided but don't match
-            elif len(sequence) != sequence_length:
-                raise ValueError(f"Provided sequence length ({len(sequence)}) must match sequence_length ({sequence_length})")
-        
-        # Validate sequence_length
-        if sequence_length < 0:
-            raise ValueError(f"sequence_length must be 0 or positive, got {sequence_length}")
-        
-        return sequence_length

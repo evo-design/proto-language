@@ -41,7 +41,7 @@ class TestESMFoldPLDDTConstraint:
     )
     def test_scoring_calculation(self, avg_plddt, expected_score):
         """Test that constraint score = 1.0 - avg_plddt."""
-        segment = Segment(sequence="MKTAYIAKQRQISFVK", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length="MKTAYIAKQRQISFVK", sequence_type=SequenceType.PROTEIN)
         config = ESMFoldConfidenceConfig()
 
         with patch(
@@ -75,7 +75,7 @@ class TestESMFoldPLDDTConstraint:
 
     def test_sequence_replication(self):
         """Test that sequences are replicated correctly for multimers."""
-        segment = Segment(sequence="MKTAYIAK", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length="MKTAYIAK", sequence_type=SequenceType.PROTEIN)
         config = ESMFoldConfidenceConfig(n_replications=3)
 
         with patch(
@@ -126,7 +126,7 @@ class TestESMFoldPLDDTConstraint:
 
     def test_esmfold_config_passthrough(self):
         """Test that custom ESMFold config parameters are passed through."""
-        segment = Segment(sequence="MKTAYIAK", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length="MKTAYIAK", sequence_type=SequenceType.PROTEIN)
 
         esmfold_cfg = ESMFoldConfig(
             verbose=True, residue_idx_offset=256, chain_linker="GGGGG"
@@ -172,7 +172,7 @@ class TestESMFoldPLDDTConstraint:
 
     def test_caching(self):
         """Test that multiple evaluations produce consistent results."""
-        segment = Segment(sequence="MKTAYIAK", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length="MKTAYIAK", sequence_type=SequenceType.PROTEIN)
         config = ESMFoldConfidenceConfig()
 
         with patch(
@@ -217,7 +217,7 @@ class TestESMFoldPLDDTConstraint:
 
     def test_metadata_storage(self):
         """Test that results are stored in sequence metadata."""
-        segment = Segment(sequence="MKTAYIAK", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length="MKTAYIAK", sequence_type=SequenceType.PROTEIN)
         config = ESMFoldConfidenceConfig()
 
         with patch(
@@ -272,7 +272,7 @@ class TestESMFoldPTMConstraint:
     )
     def test_scoring_calculation(self, ptm, expected_score):
         """Test that constraint score = 1.0 - ptm."""
-        segment = Segment(sequence="MKTAYIAKQRQISFVK", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length="MKTAYIAKQRQISFVK", sequence_type=SequenceType.PROTEIN)
         config = ESMFoldConfidenceConfig()
 
         with patch(
@@ -306,7 +306,7 @@ class TestESMFoldPTMConstraint:
 
     def test_sequence_replication(self):
         """Test that sequences are replicated correctly for multimers."""
-        segment = Segment(sequence="MKTAYIAK", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length="MKTAYIAK", sequence_type=SequenceType.PROTEIN)
         config = ESMFoldConfidenceConfig(n_replications=2)
 
         with patch(
@@ -347,7 +347,7 @@ class TestESMFoldPTMConstraint:
 
     def test_esmfold_config_passthrough(self):
         """Test that custom ESMFold config parameters are passed through."""
-        segment = Segment(sequence="MKTAYIAK", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length="MKTAYIAK", sequence_type=SequenceType.PROTEIN)
 
         esmfold_cfg = ESMFoldConfig(
             verbose=False, residue_idx_offset=1024, chain_linker="AAAAA"
@@ -393,7 +393,7 @@ class TestESMFoldPTMConstraint:
 
     def test_metadata_storage(self):
         """Test that results are stored in sequence metadata."""
-        segment = Segment(sequence="MKTAYIAK", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length="MKTAYIAK", sequence_type=SequenceType.PROTEIN)
         config = ESMFoldConfidenceConfig()
 
         with patch(

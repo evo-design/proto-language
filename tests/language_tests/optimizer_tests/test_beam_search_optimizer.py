@@ -105,7 +105,7 @@ def _setup_beam_search_components(
 ):
     """Helper function to set up a basic BeamSearchOptimizer for testing."""
     # 1. Create segments
-    segments = [Segment(sequence_length=seq_length, sequence_type=SequenceType.DNA) for _ in range(num_segments)]
+    segments = [Segment(starting_sequence_or_desired_length=seq_length, sequence_type=SequenceType.DNA) for _ in range(num_segments)]
     construct = Construct(segments)
 
     # 2. Create the mock generator
@@ -256,7 +256,7 @@ class TestBeamSearchOptimizer:
 
     def test_initialization_with_non_autoregressive_generator(self):
         """Tests that non-autoregressive generators raise an error."""
-        segments = [Segment(sequence_length=20, sequence_type=SequenceType.DNA) for _ in range(3)]
+        segments = [Segment(starting_sequence_or_desired_length=20, sequence_type=SequenceType.DNA) for _ in range(3)]
         construct = Construct(segments)
 
         # Create a non-autoregressive generator (mock)
@@ -286,8 +286,8 @@ class TestBeamSearchOptimizer:
 
     def test_initialization_with_multiple_constructs(self):
         """Tests that BeamSearchOptimizer rejects multiple constructs."""
-        segments1 = [Segment(sequence_length=20, sequence_type=SequenceType.DNA) for _ in range(2)]
-        segments2 = [Segment(sequence_length=20, sequence_type=SequenceType.DNA) for _ in range(2)]
+        segments1 = [Segment(starting_sequence_or_desired_length=20, sequence_type=SequenceType.DNA) for _ in range(2)]
+        segments2 = [Segment(starting_sequence_or_desired_length=20, sequence_type=SequenceType.DNA) for _ in range(2)]
         construct1 = Construct(segments1)
         construct2 = Construct(segments2)
 
@@ -316,7 +316,7 @@ class TestBeamSearchOptimizer:
 
     def test_initialization_with_multiple_generators(self):
         """Tests that BeamSearchOptimizer rejects multiple generators."""
-        segments = [Segment(sequence_length=20, sequence_type=SequenceType.DNA) for _ in range(2)]
+        segments = [Segment(starting_sequence_or_desired_length=20, sequence_type=SequenceType.DNA) for _ in range(2)]
         construct = Construct(segments)
 
         generator1 = MockAutoregressiveGenerator(num_tokens=20)
@@ -346,7 +346,7 @@ class TestBeamSearchOptimizer:
 
     def test_initialization_with_existing_candidates_warning(self):
         """Tests that a warning is raised if segments have existing candidates."""
-        segments = [Segment(sequence="ATCG", sequence_type=SequenceType.DNA) for _ in range(2)]
+        segments = [Segment(starting_sequence_or_desired_length="ATCG", sequence_type=SequenceType.DNA) for _ in range(2)]
         construct = Construct(segments)
 
         generator = MockAutoregressiveGenerator(num_tokens=20)
@@ -445,7 +445,7 @@ class TestBeamSearchOptimizer:
         """Tests the replicate_cache method."""
         from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
         
-        segments = [Segment(sequence_length=20, sequence_type=SequenceType.DNA) for _ in range(3)]
+        segments = [Segment(starting_sequence_or_desired_length=20, sequence_type=SequenceType.DNA) for _ in range(3)]
         construct = Construct(segments)
         
         gen_config = Evo2GeneratorConfig(prompts=[""], prepend_prompt=False)
@@ -509,7 +509,7 @@ class TestBeamSearchOptimizer:
         """Tests that replicate_cache validates cache has batch size 1."""
         from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
         
-        segments = [Segment(sequence_length=20, sequence_type=SequenceType.DNA) for _ in range(3)]
+        segments = [Segment(starting_sequence_or_desired_length=20, sequence_type=SequenceType.DNA) for _ in range(3)]
         construct = Construct(segments)
         
         gen_config = Evo2GeneratorConfig(prompts=[""], prepend_prompt=False)
@@ -585,7 +585,7 @@ class TestBeamSearchOptimizer:
 
     def test_score_energy_active_constraints_multi_segment(self):
         """Tests _score_energy_active_constraints with multi-segment constraints."""
-        segments = [Segment(sequence_length=20, sequence_type=SequenceType.DNA) for _ in range(3)]
+        segments = [Segment(starting_sequence_or_desired_length=20, sequence_type=SequenceType.DNA) for _ in range(3)]
         construct = Construct(segments)
 
         generator = MockAutoregressiveGenerator(num_tokens=20)
@@ -644,7 +644,7 @@ class TestBeamSearchOptimizer:
 
     def test_score_energy_active_constraints_no_active(self):
         """Tests _score_energy_active_constraints when no constraints are active."""
-        segments = [Segment(sequence_length=20, sequence_type=SequenceType.DNA) for _ in range(2)]
+        segments = [Segment(starting_sequence_or_desired_length=20, sequence_type=SequenceType.DNA) for _ in range(2)]
         construct = Construct(segments)
 
         generator = MockAutoregressiveGenerator(num_tokens=20)
@@ -899,7 +899,7 @@ class TestBeamSearchOptimizer:
         # Scale up to show clear caching benefits
         def setup_evo2_optimizer(use_kv_caching: bool):
             prompt = "ATCGATCGATCG"
-            segments = [Segment(sequence_length=20, sequence_type=SequenceType.DNA) for _ in range(20)]  # 20 segments 
+            segments = [Segment(starting_sequence_or_desired_length=20, sequence_type=SequenceType.DNA) for _ in range(20)]  # 20 segments 
             construct = Construct(segments)
 
             gen_config = Evo2GeneratorConfig(
@@ -991,7 +991,7 @@ class TestBeamSearchOptimizer:
 
     def test_multi_segment_constraint_evaluation(self):
         """Tests that multi-segment constraints are evaluated correctly."""
-        segments = [Segment(sequence_length=20, sequence_type=SequenceType.DNA) for _ in range(3)]
+        segments = [Segment(starting_sequence_or_desired_length=20, sequence_type=SequenceType.DNA) for _ in range(3)]
         construct = Construct(segments)
 
         generator = MockAutoregressiveGenerator(num_tokens=30)
@@ -1172,7 +1172,7 @@ class TestBeamSearchOptimizer:
         from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
 
         # Set up with real Evo2 generator for memory testing
-        segments = [Segment(sequence_length=30, sequence_type=SequenceType.DNA) for _ in range(2)]
+        segments = [Segment(starting_sequence_or_desired_length=30, sequence_type=SequenceType.DNA) for _ in range(2)]
         construct = Construct(segments)
 
         gen_config = Evo2GeneratorConfig(prompts=[""], prepend_prompt=False)

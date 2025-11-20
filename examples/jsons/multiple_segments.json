@@ -19,17 +19,17 @@
         {
           "id": "promoter",
           "label": "promoter",
-          "sequence_length": 10
+          "starting_sequence_or_desired_length": 10
         },
         {
           "id": "gene",
           "label": "gene",
-          "sequence_length": 12
+          "starting_sequence_or_desired_length": 12
         },
         {
           "id": "terminator",
           "label": "terminator",
-          "sequence_length": 8
+          "starting_sequence_or_desired_length": 8
         }
       ]
     },
@@ -40,12 +40,12 @@
         {
           "id": "enhancer",
           "label": "enhancer",
-          "sequence_length": 10
+          "starting_sequence_or_desired_length": 10
         },
         {
           "id": "coding_region",
           "label": "coding_region",
-          "sequence_length": 10
+          "starting_sequence_or_desired_length": 10
         }
       ]
     }

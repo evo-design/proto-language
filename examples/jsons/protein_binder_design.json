@@ -18,7 +18,8 @@
       "segments": [
         {
           "id": "binder_protein",
-          "label": "designed_binder"
+          "label": "designed_binder",
+          "starting_sequence_or_desired_length": 100
         }
       ]
     }
@@ -55,10 +56,9 @@
       "id": "esm2_generator",
       "key": "esm2",
       "config": {
-        "sequence_length": 100,
-        "esm2_type": "esm2_t33_650M_UR50D",
+        "model_checkpoint": "esm2_t33_650M_UR50D",
         "temperature": 1.0,
-        "decoding_method": "sample"
+        "decoding_method": "random"
       },
       "targets": ["binder_protein"]
     }

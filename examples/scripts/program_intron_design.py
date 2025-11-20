@@ -179,7 +179,7 @@ if __name__ == '__main__':
     assert acceptor_end_pos_in_target - donor_start_pos_in_target + 1 == len(initial_intron)
 
     intron = Segment(
-        sequence=target_seq[donor_start_pos_in_target + 2 : acceptor_end_pos_in_target - 1],
+        starting_sequence_or_desired_length=target_seq[donor_start_pos_in_target + 2 : acceptor_end_pos_in_target - 1],
         sequence_type=SequenceType.DNA,
     )
     intron_gen_config = UniformMutationGeneratorConfig(
@@ -189,13 +189,13 @@ if __name__ == '__main__':
     intron_gen.assign(intron)
 
     left_flank = Segment(
-        sequence=target_seq[: donor_start_pos_in_target + 2],
+        starting_sequence_or_desired_length=target_seq[: donor_start_pos_in_target + 2],
         sequence_type=SequenceType.DNA,
         constant=True,
     )
 
     right_flank = Segment(
-        sequence=target_seq[acceptor_end_pos_in_target - 1 :],
+        starting_sequence_or_desired_length=target_seq[acceptor_end_pos_in_target - 1 :],
         sequence_type=SequenceType.DNA,
         constant=True,
     )

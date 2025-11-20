@@ -18,15 +18,18 @@
       "segments": [
         {
           "id": "promoter",
-          "label": "sigma70_promoter"
+          "label": "sigma70_promoter",
+          "starting_sequence_or_desired_length": 50
         },
         {
           "id": "gene",
-          "label": "coding_sequence"
+          "label": "coding_sequence",
+          "starting_sequence_or_desired_length": 300
         },
         {
           "id": "terminator",
-          "label": "transcriptional_terminator"
+          "label": "transcriptional_terminator",
+          "starting_sequence_or_desired_length": 50
         }
       ]
     }
@@ -90,7 +93,6 @@
       "id": "gen_promoter",
       "key": "uniform-mutation",
       "config": {
-        "sequence_length": 50,
         "num_mutations": 2
       },
       "targets": ["promoter"]
@@ -99,7 +101,6 @@
       "id": "gen_gene",
       "key": "uniform-mutation",
       "config": {
-        "sequence_length": 300,
         "num_mutations": 3
       },
       "targets": ["gene"]
@@ -108,7 +109,6 @@
       "id": "gen_terminator",
       "key": "uniform-mutation",
       "config": {
-        "sequence_length": 50,
         "num_mutations": 2
       },
       "targets": ["terminator"]

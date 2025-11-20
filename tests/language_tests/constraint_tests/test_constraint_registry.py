@@ -24,13 +24,13 @@ from proto_language.language.core import Segment, Sequence, SequenceType, Constr
 @pytest.fixture
 def dna_segment():
     """Create a DNA segment for testing."""
-    return Segment(sequence="ATCGATCGATCG", sequence_type=SequenceType.DNA)
+    return Segment(starting_sequence_or_desired_length="ATCGATCGATCG", sequence_type=SequenceType.DNA)
 
 
 @pytest.fixture
 def protein_segment():
     """Create a protein segment for testing."""
-    return Segment(sequence="MKTAYIAKQRQISFVK", sequence_type=SequenceType.PROTEIN)
+    return Segment(starting_sequence_or_desired_length="MKTAYIAKQRQISFVK", sequence_type=SequenceType.PROTEIN)
 
 
 # ============================================================================
@@ -516,7 +516,7 @@ class TestBuiltinConstraints:
         Test that Pydantic config validation works through registry.
         This tests the pattern once rather than per-constraint.
         """
-        segment = Segment(sequence="ATCGATCG", sequence_type=SequenceType.DNA)
+        segment = Segment(starting_sequence_or_desired_length="ATCGATCG", sequence_type=SequenceType.DNA)
         
         # Test 1: Invalid type for numeric parameter
         with pytest.raises(Exception):  # Pydantic ValidationError
@@ -548,7 +548,7 @@ class TestBuiltinConstraints:
     
     def test_config_with_optional_parameters(self):
         """Test constraints with optional config parameters."""
-        segment = Segment(sequence="MVLSPADKTN", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length="MVLSPADKTN", sequence_type=SequenceType.PROTEIN)
         
         # protein-complexity has optional segmasker_path
         # Should work with defaults
@@ -572,7 +572,7 @@ class TestBuiltinConstraints:
     
     def test_config_validation_with_constraints(self):
         """Test that Pydantic validators work through registry."""
-        segment = Segment(sequence="ATCGATCG", sequence_type=SequenceType.DNA)
+        segment = Segment(starting_sequence_or_desired_length="ATCGATCG", sequence_type=SequenceType.DNA)
         
         # Many constraints have validators (e.g., min < max, values in range)
         # Test with gc-content which should validate min_gc < max_gc

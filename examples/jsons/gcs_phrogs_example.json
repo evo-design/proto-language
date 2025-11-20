@@ -17,7 +17,7 @@
       "segments": [
         {
           "id": "test_segment",
-          "sequence_length": 20
+          "starting_sequence_or_desired_length": 20
         }
       ]
     }

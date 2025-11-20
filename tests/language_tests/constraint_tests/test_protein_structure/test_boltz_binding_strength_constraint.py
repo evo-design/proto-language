@@ -142,9 +142,9 @@ class TestBoltzBindingStrengthConstraint:
 
     def test_with_protein_protein_ligand_complex(self):
         """Test constraint with protein-protein-ligand complex."""
-        protein1 = Segment(sequence="MKTAYIAKQRQISFVK", sequence_type=SequenceType.PROTEIN)
-        protein2 = Segment(sequence="MVLSEGEWQLVLHVWAK", sequence_type=SequenceType.PROTEIN)
-        target = Segment(sequence="N[C@@H](Cc1ccc(O)cc1)C(=O)O", sequence_type=SequenceType.LIGAND)
+        protein1 = Segment(starting_sequence_or_desired_length="MKTAYIAKQRQISFVK", sequence_type=SequenceType.PROTEIN)
+        protein2 = Segment(starting_sequence_or_desired_length="MVLSEGEWQLVLHVWAK", sequence_type=SequenceType.PROTEIN)
+        target = Segment(starting_sequence_or_desired_length="N[C@@H](Cc1ccc(O)cc1)C(=O)O", sequence_type=SequenceType.LIGAND)
         complex_list = [protein1, protein2, target]
 
         constraint = ConstraintRegistry.create(
@@ -160,8 +160,8 @@ class TestBoltzBindingStrengthConstraint:
 
     def test_with_protein_protein_complex(self):
         """Test constraint with protein-protein complex."""
-        protein1 = Segment(sequence="MKTAYIAKQRQISFVK", sequence_type=SequenceType.PROTEIN)
-        protein2 = Segment(sequence="MVLSEGEWQLVLHVWAK", sequence_type=SequenceType.PROTEIN)
+        protein1 = Segment(starting_sequence_or_desired_length="MKTAYIAKQRQISFVK", sequence_type=SequenceType.PROTEIN)
+        protein2 = Segment(starting_sequence_or_desired_length="MVLSEGEWQLVLHVWAK", sequence_type=SequenceType.PROTEIN)
         complex_list = [protein1, protein2]
 
         constraint = ConstraintRegistry.create(
@@ -177,7 +177,7 @@ class TestBoltzBindingStrengthConstraint:
 
     def test_with_monomer(self):
         """Test constraint with monomer."""
-        protein = Segment(sequence="MKTAYIAKQRQISFVK", sequence_type=SequenceType.PROTEIN)
+        protein = Segment(starting_sequence_or_desired_length="MKTAYIAKQRQISFVK", sequence_type=SequenceType.PROTEIN)
         complex_list = [protein]
 
         constraint = ConstraintRegistry.create(

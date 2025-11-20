@@ -35,7 +35,7 @@ N_STEPS = 30_000
 #######################
 
 protomer = Segment(
-    sequence_length=MONOMER_LENGTH,
+    starting_sequence_or_desired_length=MONOMER_LENGTH,
     sequence_type=SequenceType.PROTEIN,
 )
 

@@ -40,7 +40,7 @@ def _setup_mcmc_components(
 ):
     """Helper function to set up a basic MCMC Optimizer for testing."""
     # 1. Create the proposal generator and the segment it will modify
-    segment = Segment(sequence="A" * seq_length, sequence_type=SequenceType.DNA)
+    segment = Segment(starting_sequence_or_desired_length="A" * seq_length, sequence_type=SequenceType.DNA)
     proposal_gen = UniformMutationGenerator(
         UniformMutationGeneratorConfig(num_mutations=1)
     )
@@ -86,7 +86,7 @@ class TestMCMCOptimizer:
         assert optimizer.num_candidates == 1  # Defaults to num_selected
 
         # Test validation errors - unassigned generator
-        test_segment = Segment(sequence="A" * 10, sequence_type=SequenceType.DNA)
+        test_segment = Segment(starting_sequence_or_desired_length="A" * 10, sequence_type=SequenceType.DNA)
         unassigned_gen = UniformMutationGenerator(
             UniformMutationGeneratorConfig(num_mutations=1)
         )
@@ -203,7 +203,7 @@ class TestMCMCOptimizer:
         proposal_gen = UniformMutationGenerator(
             UniformMutationGeneratorConfig(num_mutations=1)
         )
-        segment = Segment(sequence="A" * seq_len, sequence_type=SequenceType.DNA)
+        segment = Segment(starting_sequence_or_desired_length="A" * seq_len, sequence_type=SequenceType.DNA)
         proposal_gen.assign(segment)
         construct = Construct([segment])
 
@@ -242,13 +242,13 @@ class TestMCMCOptimizer:
         mut_gen = UniformMutationGenerator(
             UniformMutationGeneratorConfig(num_mutations=1)
         )
-        segment1 = Segment(sequence="A" * seq_len, sequence_type=SequenceType.DNA)
+        segment1 = Segment(starting_sequence_or_desired_length="A" * seq_len, sequence_type=SequenceType.DNA)
         mut_gen.assign(segment1)
 
         inv_gen = UniformMutationGenerator(
             UniformMutationGeneratorConfig(num_mutations=3)
         )
-        segment2 = Segment(sequence="C" * seq_len, sequence_type=SequenceType.DNA)
+        segment2 = Segment(starting_sequence_or_desired_length="C" * seq_len, sequence_type=SequenceType.DNA)
         inv_gen.assign(segment2)
 
         construct = Construct([segment1, segment2])
@@ -297,7 +297,7 @@ class TestMCMCOptimizer:
         proposal_gen = UniformMutationGenerator(
             UniformMutationGeneratorConfig(num_mutations=1)
         )
-        segment = Segment(sequence="ATCGATCGATCGATCGATCG", sequence_type=SequenceType.DNA)
+        segment = Segment(starting_sequence_or_desired_length="ATCGATCGATCGATCGATCG", sequence_type=SequenceType.DNA)
         proposal_gen.assign(segment)
         construct = Construct([segment])
 
@@ -470,7 +470,7 @@ class TestMCMCOptimizer:
         proposal_gen = UniformMutationGenerator(
             UniformMutationGeneratorConfig(num_mutations=1)
         )
-        segment = Segment(sequence="A" * seq_length, sequence_type=SequenceType.DNA)
+        segment = Segment(starting_sequence_or_desired_length="A" * seq_length, sequence_type=SequenceType.DNA)
         proposal_gen.assign(segment)
         construct = Construct([segment])
 
@@ -516,7 +516,7 @@ class TestMCMCOptimizer:
         proposal_gen = UniformMutationGenerator(
             UniformMutationGeneratorConfig(num_mutations=1)
         )
-        segment = Segment(sequence="A" * seq_length, sequence_type=SequenceType.DNA)
+        segment = Segment(starting_sequence_or_desired_length="A" * seq_length, sequence_type=SequenceType.DNA)
         proposal_gen.assign(segment)
         construct = Construct([segment])
 
@@ -579,7 +579,7 @@ class TestMCMCOptimizer:
         proposal_gen = UniformMutationGenerator(
             UniformMutationGeneratorConfig(num_mutations=1)
         )
-        segment = Segment(sequence="A" * seq_length, sequence_type=SequenceType.DNA)
+        segment = Segment(starting_sequence_or_desired_length="A" * seq_length, sequence_type=SequenceType.DNA)
         proposal_gen.assign(segment)
         construct = Construct([segment])
         constraint = Constraint(
@@ -619,7 +619,7 @@ class TestMCMCOptimizer:
         proposal_gen1 = UniformMutationGenerator(
             UniformMutationGeneratorConfig(num_mutations=1)
         )
-        segment1 = Segment(sequence="A" * seq_length, sequence_type=SequenceType.DNA)
+        segment1 = Segment(starting_sequence_or_desired_length="A" * seq_length, sequence_type=SequenceType.DNA)
         proposal_gen1.assign(segment1)
         construct1 = Construct([segment1])
         constraint1 = Constraint(
@@ -652,7 +652,7 @@ class TestMCMCOptimizer:
         proposal_gen2 = UniformMutationGenerator(
             UniformMutationGeneratorConfig(num_mutations=1)
         )
-        segment2 = Segment(sequence="A" * seq_length, sequence_type=SequenceType.DNA)
+        segment2 = Segment(starting_sequence_or_desired_length="A" * seq_length, sequence_type=SequenceType.DNA)
         proposal_gen2.assign(segment2)
         construct2 = Construct([segment2])
         constraint2 = Constraint(
@@ -690,7 +690,7 @@ class TestMCMCOptimizer:
         proposal_gen = UniformMutationGenerator(
             UniformMutationGeneratorConfig(num_mutations=1)
         )
-        segment = Segment(sequence="A" * seq_length, sequence_type=SequenceType.DNA)
+        segment = Segment(starting_sequence_or_desired_length="A" * seq_length, sequence_type=SequenceType.DNA)
         proposal_gen.assign(segment)
 
         # Add metadata to test deep copy
@@ -746,8 +746,8 @@ class TestMCMCOptimizer:
             UniformMutationGeneratorConfig(num_mutations=3)
         )
 
-        segment1 = Segment(sequence="A" * seq_length, sequence_type=SequenceType.DNA)
-        segment2 = Segment(sequence="T" * seq_length, sequence_type=SequenceType.DNA)
+        segment1 = Segment(starting_sequence_or_desired_length="A" * seq_length, sequence_type=SequenceType.DNA)
+        segment2 = Segment(starting_sequence_or_desired_length="T" * seq_length, sequence_type=SequenceType.DNA)
 
         gen1.assign(segment1)
         gen2.assign(segment2)

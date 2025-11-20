@@ -28,7 +28,7 @@ class TestMaxHomopolymerConstraint:
         ],
     )
     def test_homopolymer_scoring(self, sequence, max_len, expected_score, seq_type):
-        segment = Segment(sequence=sequence, sequence_type=seq_type)
+        segment = Segment(starting_sequence_or_desired_length=sequence, sequence_type=seq_type)
         config = MaxHomopolymerConfig(max_length=max_len)
         constraint = Constraint(
             inputs=[segment],

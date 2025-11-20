@@ -119,7 +119,7 @@ class ESM2Generator(Generator):
         ...     num_mutations=5
         ... )
         >>> gen = ESM2Generator(config)
-        >>> segment = Segment(sequence_length=100, sequence=None, sequence_type=SequenceType.PROTEIN)
+        >>> segment = Segment(starting_sequence_or_desired_length=100, sequence_type=SequenceType.PROTEIN)
         >>> gen.assign(segment)
         >>> gen.sample()  # Refines 5 highest-entropy positions
     """

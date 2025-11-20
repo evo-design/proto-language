@@ -11,7 +11,7 @@ class TestSigma70PromoterConstraint:
         """Test ideal sigma70 promoter sequence."""
         # Ideal promoter: -35 box + 17bp spacer + -10 box
         ideal = "TTGACA" + "A" * 17 + "TATAAT"
-        segment = Segment(sequence=ideal, sequence_type=SequenceType.DNA)
+        segment = Segment(starting_sequence_or_desired_length=ideal, sequence_type=SequenceType.DNA)
         config = Sigma70PromoterConfig()
 
         constraint = Constraint(
@@ -29,7 +29,7 @@ class TestSigma70PromoterConstraint:
     def test_poor_promoter(self):
         """Test poor promoter sequence."""
         poor = "AAAAAA" + "G" * 17 + "CCCCCC"
-        segment = Segment(sequence=poor, sequence_type=SequenceType.DNA)
+        segment = Segment(starting_sequence_or_desired_length=poor, sequence_type=SequenceType.DNA)
         config = Sigma70PromoterConfig()
 
         constraint = Constraint(
@@ -47,7 +47,7 @@ class TestSigma70PromoterConstraint:
         """Test scanning long sequence for best promoter."""
         # Embed promoter in longer sequence
         long_seq = "A" * 50 + "TTGACA" + "T" * 17 + "TATAAT" + "G" * 50
-        segment = Segment(sequence=long_seq, sequence_type=SequenceType.DNA)
+        segment = Segment(starting_sequence_or_desired_length=long_seq, sequence_type=SequenceType.DNA)
         config = Sigma70PromoterConfig()
 
         constraint = Constraint(
@@ -66,7 +66,7 @@ class TestSigma70PromoterConstraint:
     def test_short_sequence(self):
         """Test sequence too short for promoter."""
         short = "ATCG"
-        segment = Segment(sequence=short, sequence_type=SequenceType.DNA)
+        segment = Segment(starting_sequence_or_desired_length=short, sequence_type=SequenceType.DNA)
         config = Sigma70PromoterConfig()
 
         constraint = Constraint(
@@ -87,7 +87,7 @@ class TestSigma70PromoterConstraint:
         """Test with custom consensus sequences (constraint-specific config behavior)."""
         # Use custom consensus sequences
         custom_seq = "AAAAAA" + "T" * 17 + "CCCCCC"
-        segment = Segment(sequence=custom_seq, sequence_type=SequenceType.DNA)
+        segment = Segment(starting_sequence_or_desired_length=custom_seq, sequence_type=SequenceType.DNA)
         config = Sigma70PromoterConfig(consensus_35="AAAAAA", consensus_10="CCCCCC")
 
         constraint = Constraint(

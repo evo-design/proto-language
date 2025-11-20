@@ -37,7 +37,7 @@ class TestMMseqsSimilarityConstraint:
 
     def test_with_mocked_mmseqs(self, dummy_db_path):
         """Test constraint with mocked MMseqs2 results."""
-        segment = Segment(sequence="MVLSPADKTNVKAAW", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length="MVLSPADKTNVKAAW", sequence_type=SequenceType.PROTEIN)
 
         config = MMseqsSimilarityConfig(
             min_similarity=80.0,
@@ -82,7 +82,7 @@ class TestMMseqsSimilarityConstraint:
 
     def test_no_hits_scenario(self, dummy_db_path):
         """Test when no MMseqs2 hits are found."""
-        segment = Segment(sequence="MVLSP", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length="MVLSP", sequence_type=SequenceType.PROTEIN)
 
         config = MMseqsSimilarityConfig(
             min_similarity=80.0,
@@ -120,7 +120,7 @@ class TestMMseqsSimilarityConstraint:
 
     def test_dna_sequence_with_orf_prediction(self, dummy_db_path):
         """Test that DNA sequences work via ORF prediction."""
-        segment = Segment(sequence="ATGGTGCTGAGCCCGGCGGACAAG", sequence_type=SequenceType.DNA)
+        segment = Segment(starting_sequence_or_desired_length="ATGGTGCTGAGCCCGGCGGACAAG", sequence_type=SequenceType.DNA)
 
         config = MMseqsSimilarityConfig(
             min_similarity=80.0,

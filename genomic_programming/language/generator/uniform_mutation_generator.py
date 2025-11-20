@@ -93,7 +93,7 @@ class UniformMutationGenerator(Generator):
         >>> from proto_language.language.core import Segment, SequenceType
         >>> config = UniformMutationGeneratorConfig(num_mutations=2)
         >>> gen = UniformMutationGenerator(config)
-        >>> segment = Segment(sequence_length=100, sequence=None, sequence_type=SequenceType.DNA)
+        >>> segment = Segment(starting_sequence_or_desired_length=100, sequence_type=SequenceType.DNA)
         >>> gen.assign(segment)
         >>> gen.sample()  # Introduces 2 random mutations
     """

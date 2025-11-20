@@ -21,7 +21,7 @@ class TestGCContentConstraint:
         ],
     )
     def test_dna_sequences(self, sequence, min_gc, max_gc, expected_score):
-        segment = Segment(sequence=sequence, sequence_type=SequenceType.DNA)
+        segment = Segment(starting_sequence_or_desired_length=sequence, sequence_type=SequenceType.DNA)
         config = GCContentConfig(min_gc=min_gc, max_gc=max_gc)
         constraint = Constraint(
             inputs=[segment],
@@ -47,7 +47,7 @@ class TestGCContentConstraint:
         ],
     )
     def test_rna_sequences(self, sequence, min_gc, max_gc, expected_score):
-        segment = Segment(sequence=sequence, sequence_type=SequenceType.RNA)
+        segment = Segment(starting_sequence_or_desired_length=sequence, sequence_type=SequenceType.RNA)
         config = GCContentConfig(min_gc=min_gc, max_gc=max_gc)
         constraint = Constraint(
             inputs=[segment],
@@ -58,7 +58,7 @@ class TestGCContentConstraint:
 
     def test_wrong_sequence_type(self):
         """Test that protein sequences raise ValueError (constraint-specific check)."""
-        segment = Segment(sequence="MVLSPADKTNVK", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length="MVLSPADKTNVK", sequence_type=SequenceType.PROTEIN)
         config = GCContentConfig(min_gc=40, max_gc=60)
         constraint = Constraint(
             inputs=[segment],

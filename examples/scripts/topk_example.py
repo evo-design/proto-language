@@ -13,7 +13,7 @@ from proto_language.language.core import (
 from proto_language.language.constraint import gc_content_constraint
 
 # Create a DNA segment
-dna_segment = Segment(sequence_length=100, sequence_type=SequenceType.DNA)
+dna_segment = Segment(starting_sequence_or_desired_length=100, sequence_type=SequenceType.DNA)
 
 # Create construct
 construct = Construct([dna_segment])

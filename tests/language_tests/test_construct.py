@@ -8,9 +8,9 @@ class TestConstruct:
 
     def test_concatenation(self):
         """Tests concatenation of single-sequence segments."""
-        seg1 = Segment(sequence="ATG", sequence_type=SequenceType.DNA)
-        seg2 = Segment(sequence="CGC", sequence_type=SequenceType.DNA)
-        seg3 = Segment(sequence="TAA", sequence_type=SequenceType.DNA)
+        seg1 = Segment(starting_sequence_or_desired_length="ATG", sequence_type=SequenceType.DNA)
+        seg2 = Segment(starting_sequence_or_desired_length="CGC", sequence_type=SequenceType.DNA)
+        seg3 = Segment(starting_sequence_or_desired_length="TAA", sequence_type=SequenceType.DNA)
         construct = Construct([seg1, seg2, seg3])
 
         final_sequences = construct.joined_sequences
@@ -19,10 +19,10 @@ class TestConstruct:
 
     def test_batched_concatenation(self):
         """Tests concatenation of segments with multiple selected sequences."""
-        seg1 = Segment(sequence="A")
+        seg1 = Segment(starting_sequence_or_desired_length="A")
         seg1.selected_sequences.append(Sequence(sequence="G", sequence_type=SequenceType.DNA))
 
-        seg2 = Segment(sequence="C")
+        seg2 = Segment(starting_sequence_or_desired_length="C")
         seg2.selected_sequences.append(Sequence(sequence="T", sequence_type=SequenceType.DNA))
 
         construct = Construct([seg1, seg2])
@@ -38,15 +38,15 @@ class TestConstruct:
             Construct([])
 
         # Inconsistent sequence types
-        seg_dna = Segment(sequence="A", sequence_type=SequenceType.DNA)
-        seg_rna = Segment(sequence="U", sequence_type=SequenceType.RNA)
+        seg_dna = Segment(starting_sequence_or_desired_length="A", sequence_type=SequenceType.DNA)
+        seg_rna = Segment(starting_sequence_or_desired_length="U", sequence_type=SequenceType.RNA)
         with pytest.raises(ValueError, match="must have the same sequence_type"):
             Construct([seg_dna, seg_rna])
 
     def test_metadata_concatenation(self):
         """Tests how metadata is merged during concatenation."""
-        seg1 = Segment(sequence="A", metadata={"id": 1, "source": "seg1"})
-        seg2 = Segment(sequence="C", metadata={"id": 2, "status": "new"})
+        seg1 = Segment(starting_sequence_or_desired_length="A", metadata={"id": 1, "source": "seg1"})
+        seg2 = Segment(starting_sequence_or_desired_length="C", metadata={"id": 2, "status": "new"})
 
         construct = Construct([seg1, seg2])
         final_meta = construct.joined_sequences[0]._metadata
@@ -61,8 +61,8 @@ class TestConstruct:
 
     def test_validation_inconsistent_valid_chars(self):
         """Tests that inconsistent valid_chars sets raise a ValueError."""
-        seg1 = Segment(sequence="A", valid_chars={"A", "B"})
-        seg2 = Segment(sequence="C", valid_chars={"C", "D"})
+        seg1 = Segment(starting_sequence_or_desired_length="A", valid_chars={"A", "B"})
+        seg2 = Segment(starting_sequence_or_desired_length="C", valid_chars={"C", "D"})
 
         with pytest.raises(ValueError, match="must have the same valid_chars"):
             Construct([seg1, seg2])

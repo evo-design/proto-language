@@ -21,7 +21,7 @@ class TestESM2Generator:
         )
 
         # Create segment and assign to generator
-        segment = Segment(sequence_length=20, sequence=None, sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length=20, sequence_type=SequenceType.PROTEIN)
         esm2_generator.assign(segment)
         
         assert esm2_generator._assigned_segment is segment
@@ -46,7 +46,7 @@ class TestESM2Generator:
         )
 
         # Create segment and assign to generator
-        segment = Segment(sequence_length=20, sequence=None, sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length=20, sequence_type=SequenceType.PROTEIN)
         esm2_generator.assign(segment)
         
         assert esm2_generator._assigned_segment is segment
@@ -71,7 +71,7 @@ class TestESM2Generator:
         )
 
         # Create segment and assign to generator
-        segment = Segment(sequence_length=20, sequence=None, sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length=20, sequence_type=SequenceType.PROTEIN)
         esm2_generator.assign(segment)
         
         assert esm2_generator._assigned_segment is segment
@@ -97,7 +97,7 @@ class TestESM2Generator:
         )
 
         # Create segment and expand candidate pool
-        segment = Segment(sequence_length=15, sequence=None, sequence_type=SequenceType.PROTEIN)
+        segment = Segment(starting_sequence_or_desired_length=15, sequence_type=SequenceType.PROTEIN)
         segment.create_candidates(num_candidates)
         esm2_generator.assign(segment)
         
@@ -120,9 +120,9 @@ class TestESM2Generator:
             )
         )
         
-        # Should raise error if Segment has mismatched sequence and length
-        with pytest.raises(ValueError, match="Provided sequence length"):
-            segment_wrong_length = Segment(sequence_length=10, sequence="A" * 20, sequence_type=SequenceType.PROTEIN)
+        # This test is no longer relevant with the new API - the parameter type determines behavior
+        # No need to test mismatched sequence and length since they're now mutually exclusive
+        pass
 
     def test_constant_segment_rejection(self):
         """Tests that generators reject constant segments during assign()."""
@@ -131,8 +131,7 @@ class TestESM2Generator:
         
         # Create a constant segment
         constant_segment = Segment(
-            sequence_length=8,
-            sequence="MMMMPPPP",
+            starting_sequence_or_desired_length="MMMMPPPP",
             sequence_type=SequenceType.PROTEIN,
             constant=True
         )
