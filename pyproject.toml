@@ -78,6 +78,7 @@ api = [
     "sqlmodel>=0.0.8",
     "sqlalchemy>=2.0.0",
     "aiosqlite>=0.19.0",
+    "asyncpg>=0.29.0",
 
     # Task queue
     "worker>=5.3.0",
@@ -85,6 +86,7 @@ api = [
 
     # AI agents
     "openai",
+    "openai-agents",
     "duckduckgo-search",
 
     # Structure visualization

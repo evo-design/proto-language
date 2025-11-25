@@ -18,7 +18,6 @@ docs/_build/
 
 # Database files
 *.db
-proto_language.db
 
 # Log files and directory
 *.log
