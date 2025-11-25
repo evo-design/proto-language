@@ -2,15 +2,6 @@
   "name": "multiple_segments_test",
   "description": "Test program with multiple constructs each having multiple segments to validate segment separation",
   "version": "1.0",
-  "optimization": {
-    "method": "mcmc",
-    "num_selected": 1,
-    "mcmc_width": 4,
-    "num_steps": 5,
-    "track_step_size": 1,
-    "max_temperature": 1.5,
-    "min_temperature": 0.5
-  },
   "constructs": [
     {
       "id": "construct1",
@@ -50,109 +41,139 @@
       ]
     }
   ],
-  "constraints": [
+  "optimization_steps": [
     {
-      "id": "gc_promoter",
-      "key": "gc-content",
-      "config": {
-        "min_gc": 45.0,
-        "max_gc": 55.0
-      },
-      "targets": ["promoter"]
-    },
-    {
-      "id": "gc_gene",
-      "key": "gc-content",
-      "config": {
-        "min_gc": 40.0,
-        "max_gc": 60.0
-      },
-      "targets": ["gene"]
-    },
-    {
-      "id": "gc_terminator",
-      "key": "gc-content",
-      "config": {
-        "min_gc": 30.0,
-        "max_gc": 50.0
-      },
-      "targets": ["terminator"]
-    },
-    {
-      "id": "gc_enhancer",
-      "key": "gc-content",
-      "config": {
-        "min_gc": 50.0,
-        "max_gc": 60.0
-      },
-      "targets": ["enhancer"]
-    },
-    {
-      "id": "gc_coding",
-      "key": "gc-content",
-      "config": {
-        "min_gc": 45.0,
-        "max_gc": 55.0
-      },
-      "targets": ["coding_region"]
-    },
-    {
-      "id": "length_construct1",
-      "key": "sequence-length",
-      "config": {
-        "target_length": 30
-      },
-      "targets": ["promoter", "gene", "terminator"]
-    },
-    {
-      "id": "length_construct2",
-      "key": "sequence-length",
-      "config": {
-        "target_length": 20
-      },
-      "targets": ["enhancer", "coding_region"]
-    }
-  ],
-  "generators": [
-    {
-      "id": "gen_promoter",
-      "key": "uniform-mutation",
-      "config": {
-        "num_mutations": 2
-      },
-      "targets": ["promoter"]
-    },
-    {
-      "id": "gen_gene",
-      "key": "uniform-mutation",
-      "config": {
-        "num_mutations": 2
-      },
-      "targets": ["gene"]
-    },
-    {
-      "id": "gen_terminator",
-      "key": "uniform-mutation",
-      "config": {
-        "num_mutations": 2
-      },
-      "targets": ["terminator"]
-    },
-    {
-      "id": "gen_enhancer",
-      "key": "uniform-mutation",
-      "config": {
-        "num_mutations": 2
-      },
-      "targets": ["enhancer"]
-    },
-    {
-      "id": "gen_coding",
-      "key": "uniform-mutation",
-      "config": {
-        "num_mutations": 2
-      },
-      "targets": ["coding_region"]
+      "generators": [
+        {
+          "key": "uniform-mutation",
+          "config": {
+            "num_mutations": 2
+          },
+          "targets": [
+            "promoter"
+          ]
+        },
+        {
+          "key": "uniform-mutation",
+          "config": {
+            "num_mutations": 2
+          },
+          "targets": [
+            "gene"
+          ]
+        },
+        {
+          "key": "uniform-mutation",
+          "config": {
+            "num_mutations": 2
+          },
+          "targets": [
+            "terminator"
+          ]
+        },
+        {
+          "key": "uniform-mutation",
+          "config": {
+            "num_mutations": 2
+          },
+          "targets": [
+            "enhancer"
+          ]
+        },
+        {
+          "key": "uniform-mutation",
+          "config": {
+            "num_mutations": 2
+          },
+          "targets": [
+            "coding_region"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "key": "gc-content",
+          "config": {
+            "min_gc": 45.0,
+            "max_gc": 55.0
+          },
+          "targets": [
+            "promoter"
+          ]
+        },
+        {
+          "key": "gc-content",
+          "config": {
+            "min_gc": 40.0,
+            "max_gc": 60.0
+          },
+          "targets": [
+            "gene"
+          ]
+        },
+        {
+          "key": "gc-content",
+          "config": {
+            "min_gc": 30.0,
+            "max_gc": 50.0
+          },
+          "targets": [
+            "terminator"
+          ]
+        },
+        {
+          "key": "gc-content",
+          "config": {
+            "min_gc": 50.0,
+            "max_gc": 60.0
+          },
+          "targets": [
+            "enhancer"
+          ]
+        },
+        {
+          "key": "gc-content",
+          "config": {
+            "min_gc": 45.0,
+            "max_gc": 55.0
+          },
+          "targets": [
+            "coding_region"
+          ]
+        },
+        {
+          "key": "sequence-length",
+          "config": {
+            "target_length": 30
+          },
+          "targets": [
+            "promoter",
+            "gene",
+            "terminator"
+          ]
+        },
+        {
+          "key": "sequence-length",
+          "config": {
+            "target_length": 20
+          },
+          "targets": [
+            "enhancer",
+            "coding_region"
+          ]
+        }
+      ],
+      "optimizer": {
+        "method": "mcmc",
+        "config": {
+          "num_selected": 1,
+          "mcmc_width": 4,
+          "num_steps": 5,
+          "track_step_size": 1,
+          "max_temperature": 1.5,
+          "min_temperature": 0.5
+        }
+      }
     }
   ]
 }

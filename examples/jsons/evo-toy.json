@@ -1,49 +1,59 @@
 {
-    "name": "evo2_single_construct_gc_constraint",
-    "description": "Generate a single DNA sequence with Evo2 generator and GC content constraint",
-    "version": "1.0",
-    "optimization": {
+  "name": "evo2_single_construct_gc_constraint",
+  "description": "Generate a single DNA sequence with Evo2 generator and GC content constraint",
+  "version": "1.0",
+  "constructs": [
+    {
+      "id": "construct1",
+      "type": "dna",
+      "segments": [
+        {
+          "id": "construct1-segment1",
+          "starting_sequence_or_desired_length": 100
+        }
+      ]
+    }
+  ],
+  "optimization_steps": [
+    {
+      "generators": [
+        {
+          "key": "evo2",
+          "config": {
+            "prompts": [
+              "ATCG"
+            ],
+            "model_checkpoint": "evo2_7b",
+            "temperature": 0.8,
+            "prepend_prompt": true
+          },
+          "targets": [
+            "construct1-segment1"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "key": "gc-content",
+          "config": {
+            "min_gc": 90,
+            "max_gc": 100
+          },
+          "targets": [
+            "construct1-segment1"
+          ]
+        }
+      ],
+      "optimizer": {
         "method": "mcmc",
-        "num_selected": 1,
-        "mcmc_width": 1,
-        "num_steps": 10,
-        "track_step_size": 1,
-        "max_temperature": 1.0
-    },
-    "constructs": [
-      {
-        "id": "construct1",
-        "type": "dna",
-        "segments": [
-          {
-            "id": "construct1-segment1",
-            "starting_sequence_or_desired_length": 100
-          }
-        ]
-      }
-    ],
-    "constraints": [
-      {
-        "id": "gc_content_constraint",
-        "key": "gc-content",
         "config": {
-          "min_gc": 90,
-          "max_gc": 100
-        },
-        "targets": ["construct1-segment1"]
+          "num_selected": 1,
+          "mcmc_width": 1,
+          "num_steps": 10,
+          "track_step_size": 1,
+          "max_temperature": 1.0
+        }
       }
-    ],
-    "generators": [
-      {
-        "id": "evo2_generator",
-        "key": "evo2",
-        "config": {
-          "prompts": ["ATCG"],
-          "model_checkpoint": "evo2_7b",
-          "temperature": 0.8,
-          "prepend_prompt": true
-        },
-        "targets": ["construct1-segment1"]
-      }
-    ]
-  }
+    }
+  ]
+}

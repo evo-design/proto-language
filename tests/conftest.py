@@ -223,8 +223,13 @@ def mock_database():
     mock_run.updated_at = datetime.now(timezone.utc)
     mock_run.started_at = None
     mock_run.completed_at = None
+    mock_run.gpl_request = {}
+    mock_run.celery_task_id = None
     mock_run.num_steps = None
     mock_run.track_step_size = None
+    mock_run.current_stage = 0
+    mock_run.total_stages = 1
+    mock_run.intermediate_state = None
     mock_run.result = None
     mock_run.error_message = None
     

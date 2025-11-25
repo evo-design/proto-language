@@ -56,13 +56,17 @@ config = TopKOptimizerConfig(
     batch_size=BATCH_SIZE
 )
 
-# Program
-program = Program(
-    optimizer_type=TopKOptimizer,
-    optimizer_config=config,
+# Create optimizer
+optimizer = TopKOptimizer(
     constructs=[construct],
     generators=[evo2_gen],
     constraints=[gc_constraint],
+    config=config,
+)
+
+# Create program with optimizer
+program = Program(
+    optimizers=[optimizer],
 )
 
 program.run()

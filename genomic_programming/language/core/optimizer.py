@@ -319,11 +319,38 @@ class Optimizer(ABC):
 
     def _initialize_sequence_pools(self) -> None:
         """Initialize the sequence pools for all segments.
-        
-        Creates independent copies of the initial sequence for both pools.
-        Using deepcopy ensures mutations don't affect other pool members.
+
+        Creates independent copies of sequences for both pools. When running multiple
+        sequential optimizers, preserves the best sequences from the previous optimizer
+
+
+        Behavior:
+        - If previous optimizer produced sequences: uses up to num_selected best sequences
+        - If fewer available than needed: pads with copies of the best sequence
+        - If no previous sequences: uses original_sequence for all
         """
         for segment in self.segments:
-            # Create independent copies, not references to the same object
-            segment.selected_sequences = [copy.deepcopy(segment.selected_sequences[0]) for _ in range(self.num_selected)]
-            segment.candidate_sequences = [copy.deepcopy(segment.candidate_sequences[0]) for _ in range(self.num_candidates)]
+            if segment.selected_sequences:
+                # Take up to num_selected sequences from previous optimizer (already sorted best-first)
+                start_sequences = segment.selected_sequences[:self.num_selected]
+
+                # If previous optimizer produced fewer sequences, pad with copies of the best
+                if len(start_sequences) < self.num_selected:
+                    best_seq = start_sequences[0]
+                    start_sequences.extend([copy.deepcopy(best_seq)
+                                           for _ in range(self.num_selected - len(start_sequences))])
+            elif segment.candidate_sequences:
+                # Fallback to candidates if selected pool is empty (shouldn't normally happen)
+                start_sequences = segment.candidate_sequences[:self.num_selected]
+                if len(start_sequences) < self.num_selected:
+                    start_sequences.extend([copy.deepcopy(start_sequences[0])
+                                           for _ in range(self.num_selected - len(start_sequences))])
+            else:
+                # First optimizer - use original_sequence
+                start_sequences = [segment.original_sequence] * self.num_selected
+
+            # Create independent copies for selected pool
+            segment.selected_sequences = [copy.deepcopy(seq) for seq in start_sequences]
+
+            # Candidates initialized from best sequence (will be mutated by generators)
+            segment.candidate_sequences = [copy.deepcopy(start_sequences[0]) for _ in range(self.num_candidates)]

@@ -2,14 +2,6 @@
   "name": "uniform_mutation_single_construct_gc_constraint",
   "description": "Generate a single DNA sequence with uniform mutation and GC content constraint",
   "version": "1.0",
-  "optimization": {
-    "method": "mcmc",
-    "num_selected": 1,
-    "mcmc_width": 1,
-    "num_steps": 100,
-    "track_step_size": 1,
-    "max_temperature": 2.0
-  },  
   "constructs": [
     {
       "id": "construct1",
@@ -22,25 +14,41 @@
       ]
     }
   ],
-  "constraints": [
+  "optimization_steps": [
     {
-      "id": "gc_content_constraint",
-      "key": "gc-content",
-      "config": {
-        "min_gc": 80,
-        "max_gc": 90
-      },
-      "targets": ["construct1-segment1"]
-    }
-  ],
-  "generators": [
-    {
-      "id": "uniform_mutation_generator",
-      "key": "uniform-mutation",
-      "config": {
-        "num_mutations": 1
-      },
-      "targets": ["construct1-segment1"]
+      "generators": [
+        {
+          "key": "uniform-mutation",
+          "targets": [
+            "construct1-segment1"
+          ],
+          "config": {
+            "num_mutations": 1
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "gc-content",
+          "targets": [
+            "construct1-segment1"
+          ],
+          "config": {
+            "min_gc": 80,
+            "max_gc": 90
+          }
+        }
+      ],
+      "optimizer": {
+        "method": "mcmc",
+        "config": {
+          "num_selected": 1,
+          "mcmc_width": 1,
+          "num_steps": 100,
+          "track_step_size": 1,
+          "max_temperature": 2.0
+        }
+      }
     }
   ]
 }

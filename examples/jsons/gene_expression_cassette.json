@@ -2,15 +2,6 @@
   "name": "gene_expression_cassette",
   "description": "Design bacterial expression cassette with promoter, gene, and terminator",
   "version": "1.0",
-  "optimization": {
-    "method": "mcmc",
-    "num_selected": 1,
-    "mcmc_width": 1,
-    "num_steps": 200,
-    "track_step_size": 10,
-    "max_temperature": 2.0,
-    "min_temperature": 0.001
-  },
   "constructs": [
     {
       "id": "expression_construct",
@@ -34,85 +25,108 @@
       ]
     }
   ],
-  "constraints": [
+  "optimization_steps": [
     {
-      "id": "promoter_strength",
-      "key": "sigma70-promoter",
-      "config": {
-        "consensus_35": "TTGACA",
-        "consensus_10": "TATAAT",
-        "optimal_spacer": 17
-      },
-      "targets": ["promoter"]
-    },
-    {
-      "id": "promoter_gc",
-      "key": "gc-content",
-      "config": {
-        "min_gc": 30.0,
-        "max_gc": 50.0
-      },
-      "targets": ["promoter"]
-    },
-    {
-      "id": "gene_gc",
-      "key": "gc-content",
-      "config": {
-        "min_gc": 40.0,
-        "max_gc": 60.0
-      },
-      "targets": ["gene"]
-    },
-    {
-      "id": "gene_length",
-      "key": "sequence-length",
-      "config": {
-        "target_length": 300
-      },
-      "targets": ["gene"]
-    },
-    {
-      "id": "promoter_length",
-      "key": "sequence-length",
-      "config": {
-        "target_length": 50
-      },
-      "targets": ["promoter"]
-    },
-    {
-      "id": "terminator_length",
-      "key": "sequence-length",
-      "config": {
-        "target_length": 50
-      },
-      "targets": ["terminator"]
-    }
-  ],
-  "generators": [
-    {
-      "id": "gen_promoter",
-      "key": "uniform-mutation",
-      "config": {
-        "num_mutations": 2
-      },
-      "targets": ["promoter"]
-    },
-    {
-      "id": "gen_gene",
-      "key": "uniform-mutation",
-      "config": {
-        "num_mutations": 3
-      },
-      "targets": ["gene"]
-    },
-    {
-      "id": "gen_terminator",
-      "key": "uniform-mutation",
-      "config": {
-        "num_mutations": 2
-      },
-      "targets": ["terminator"]
+      "generators": [
+        {
+          "key": "uniform-mutation",
+          "config": {
+            "num_mutations": 2
+          },
+          "targets": [
+            "promoter"
+          ]
+        },
+        {
+          "key": "uniform-mutation",
+          "config": {
+            "num_mutations": 3
+          },
+          "targets": [
+            "gene"
+          ]
+        },
+        {
+          "key": "uniform-mutation",
+          "config": {
+            "num_mutations": 2
+          },
+          "targets": [
+            "terminator"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "key": "sigma70-promoter",
+          "config": {
+            "consensus_35": "TTGACA",
+            "consensus_10": "TATAAT",
+            "optimal_spacer": 17
+          },
+          "targets": [
+            "promoter"
+          ]
+        },
+        {
+          "key": "gc-content",
+          "config": {
+            "min_gc": 30.0,
+            "max_gc": 50.0
+          },
+          "targets": [
+            "promoter"
+          ]
+        },
+        {
+          "key": "gc-content",
+          "config": {
+            "min_gc": 40.0,
+            "max_gc": 60.0
+          },
+          "targets": [
+            "gene"
+          ]
+        },
+        {
+          "key": "sequence-length",
+          "config": {
+            "target_length": 300
+          },
+          "targets": [
+            "gene"
+          ]
+        },
+        {
+          "key": "sequence-length",
+          "config": {
+            "target_length": 50
+          },
+          "targets": [
+            "promoter"
+          ]
+        },
+        {
+          "key": "sequence-length",
+          "config": {
+            "target_length": 50
+          },
+          "targets": [
+            "terminator"
+          ]
+        }
+      ],
+      "optimizer": {
+        "method": "mcmc",
+        "config": {
+          "num_selected": 1,
+          "mcmc_width": 1,
+          "num_steps": 200,
+          "track_step_size": 10,
+          "max_temperature": 2.0,
+          "min_temperature": 0.001
+        }
+      }
     }
   ]
 }
-

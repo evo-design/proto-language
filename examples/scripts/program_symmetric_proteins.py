@@ -120,9 +120,8 @@ mcmc_optimizer_config = MCMCOptimizerConfig(
 )
 
 
-program = Program(
-    optimizer_type=MCMCOptimizer,
-    optimizer_config=mcmc_optimizer_config,
+# Create optimizer
+optimizer = MCMCOptimizer(
     constructs=[protomer_construct],
     generators=[uniform_gen],
     constraints=[
@@ -131,6 +130,7 @@ program = Program(
         symmetry,
         globularity,
     ],
+    config=mcmc_optimizer_config,
     constraint_weights=[
         20.0,
         20.0,
@@ -138,6 +138,11 @@ program = Program(
         1.0,
     ],
     custom_logging=custom_logging,
+)
+
+# Create program with optimizer
+program = Program(
+    optimizers=[optimizer],
 )
 
 program.run()

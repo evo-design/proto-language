@@ -280,9 +280,8 @@ if __name__ == '__main__':
         verbose=True,
     )
 
-    program = Program(
-        optimizer_type=MCMCOptimizer,
-        optimizer_config=mcmc_optimizer_config,
+    # Create optimizer
+    optimizer = MCMCOptimizer(
         constructs=[intron_construct],
         generators=[intron_gen],
         constraints=[
@@ -290,6 +289,7 @@ if __name__ == '__main__':
             intron_brain_specificity,
             intron_blood_specificity,
         ],
+        config=mcmc_optimizer_config,
         constraint_weights=[
             1.0,
             1.0,
@@ -297,6 +297,11 @@ if __name__ == '__main__':
         ],
         clear_tool_cache=True,
         custom_logging=custom_logging,
+    )
+
+    # Create program with optimizer
+    program = Program(
+        optimizers=[optimizer],
     )
 
     program.run()
