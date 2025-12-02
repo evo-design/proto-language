@@ -80,6 +80,8 @@ class ESMFoldConfidenceConfig(BaseConfig):
     batched=True,
     concatenate=True,
     gpu_required=True,
+    tools_called=["esmfold", "prodigal"],
+    category="protein_structure",
 )
 def esmfold_plddt_constraint(
     sequences: List[Sequence], config: ESMFoldConfidenceConfig

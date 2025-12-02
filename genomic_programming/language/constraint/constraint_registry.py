@@ -22,6 +22,14 @@ class ConstraintSpec(BaseSpec):
     batched: bool = Field(description="True if the constraint processes an iterable of sequences rather than a single sequence")
     concatenate: bool = Field(description="Whether to concatenate segments")
     gpu_required: bool = Field(description="Whether constraint requires GPU")
+    tools_called: List[str] = Field(
+        default=[],
+        description="List of tool keys this constraint calls (e.g., ['esmfold', 'prodigal']). Helps agent find relevant tool documentation."
+    )
+    category: Optional[str] = Field(
+        default=None,
+        description="Optional category for organization (e.g., 'protein_structure', 'sequence_composition'). Not required for custom constraints."
+    )
 
     # Private field - excluded from serialization
     function: SkipJsonSchema[Callable] = Field(exclude=True)
@@ -92,6 +100,8 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         batched: bool = False,
         concatenate: bool = True,
         gpu_required: bool = False,
+        tools_called: List[str] = [],
+        category: Optional[str] = None,
     ):
         """
         Decorator to register a constraint function.
@@ -152,6 +162,8 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
                 concatenate=concatenate,
                 gpu_required=gpu_required,
                 mode=mode,
+                tools_called=tools_called,
+                category=category,
             )
             return func
         return decorator

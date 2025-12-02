@@ -24,6 +24,10 @@ class GeneratorSpec(BaseSpec):
         description="Generator category: 'autoregressive' (left-to-right, e.g. Evo2) or 'mutation' (bidirectional/masked, e.g. ESM2)"
     )
     requires_gpu: bool = Field(description="Whether generator requires GPU")
+    tools_called: List[str] = Field(
+        default=[],
+        description="List of tool keys this generator calls (e.g., ['esm3', 'evo2']). Helps agent find relevant tool documentation."
+    )
 
     # Private field - excluded from serialization
     generator_class: Type[Generator] = Field(exclude=True)
@@ -88,6 +92,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
         description: str,
         category: Literal["autoregressive", "mutation"],
         requires_gpu: bool,
+        tools_called: List[str] = [],
     ):
         """
         Decorator to register a generator class.
@@ -132,6 +137,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
                 generator_class=generator_class,
                 category=category,
                 requires_gpu=requires_gpu,
+                tools_called=tools_called,
             )
             return generator_class
         return decorator
