@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import final, Literal
 import random
 
-from proto_language.language.core import Generator, GeneratorType, Segment
+from proto_language.language.core import Generator, Segment
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.tools.language_models.esm2.esm2 import run_esm2_sample, ESM2SampleConfig, LanguageModelInput
 from proto_language.tools.language_models.esm2.inference import ESM2_MODEL_CHECKPOINTS
@@ -87,7 +87,7 @@ class ESM2GeneratorConfig(BaseConfig):
     label="ESM2 Protein Language Model",
     config=ESM2GeneratorConfig,
     description="ESM-2 protein language model for protein sequence generation",
-    type=GeneratorType.MUTATION,
+    category="mutation",
     requires_gpu=True,
 )
 @final
@@ -99,7 +99,7 @@ class ESM2Generator(Generator):
     positions based on model confidence and samples biologically plausible amino
     acids at those positions.
 
-    The generator type is ``GeneratorType.MUTATION``, indicating it refines sequences
+    The generator category is ``"mutation"``, indicating it refines sequences
     through targeted mutations rather than generating from scratch.
 
     Attributes:
@@ -107,7 +107,7 @@ class ESM2Generator(Generator):
         temperature (float): Sampling temperature for diversity control.
         decoding_method (str): Position selection strategy (entropy/max_logit/random).
         num_mutations (int): Number of positions to mutate per iteration.
-        type (GeneratorType): Set to ``GeneratorType.MUTATION``.
+        category (str): Set to ``"mutation"``.
 
     Example:
         >>> from proto_language.language.generator import ESM2Generator, ESM2GeneratorConfig
@@ -135,7 +135,7 @@ class ESM2Generator(Generator):
         self.temperature = config.temperature
         self.decoding_method = config.decoding_method
         self.num_mutations = config.num_mutations
-        self.type = GeneratorType.MUTATION
+        self.category = "mutation"
 
     def assign(
         self, assigned_segment: Segment

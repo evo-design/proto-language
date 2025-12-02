@@ -7,7 +7,7 @@ import warnings
 
 from pydantic import model_validator
 
-from proto_language.language.core import Generator, GeneratorType, Segment
+from proto_language.language.core import Generator, Segment
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.tools.language_models.evo2 import run_evo2_sample, Evo2SampleInput, Evo2SampleConfig
 from proto_language.tools.language_models.evo2.inference import EVO2_MODEL_CHECKPOINTS
@@ -185,7 +185,7 @@ class Evo2GeneratorConfig(BaseConfig):
     label="Evo2 DNA Language Model",
     config=Evo2GeneratorConfig,
     description="Evo2 genome language model for DNA sequence generation",
-    type=GeneratorType.AUTOREGRESSIVE,
+    category="autoregressive",
     requires_gpu=True,
 )
 @final
@@ -196,7 +196,7 @@ class Evo2Generator(Generator):
     DNA sequences from prompt sequences. Supports advanced sampling strategies,
     KV caching for efficiency, and batch generation.
 
-    The generator type is ``GeneratorType.AUTOREGRESSIVE``, indicating sequences
+    The generator category is ``"autoregressive"``, indicating sequences
     are generated token-by-token from left to right.
 
     The number of tokens to generate is automatically calculated based on the
@@ -208,7 +208,7 @@ class Evo2Generator(Generator):
         temperature (float): Sampling temperature for diversity control.
         num_tokens (int): Number of tokens to generate (calculated dynamically on assign).
         kv_caches (List[Dict]): Stored KV caches when ``store_kv_cache=True``.
-        type (GeneratorType): Set to ``GeneratorType.AUTOREGRESSIVE``.
+        category (str): Set to ``"autoregressive"``.
 
     Example:
         >>> from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
@@ -249,7 +249,7 @@ class Evo2Generator(Generator):
         self.batched = config.batched
         self.store_kv_cache = config.store_kv_cache
         self.prepend_prompt = config.prepend_prompt
-        self.type = GeneratorType.AUTOREGRESSIVE
+        self.category = "autoregressive"
         self.num_tokens: Optional[int] = None # num_tokens will be calculated dynamically on assign()
         self.kv_caches: List[Dict] = [] # store old KV caches for cached generation
 

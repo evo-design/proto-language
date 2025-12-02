@@ -8,7 +8,7 @@ import time
 
 from pydantic import model_validator
 
-from proto_language.language.core import Generator, GeneratorType, Segment
+from proto_language.language.core import Generator, Segment
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.generator.generator_registry import GeneratorRegistry
 
@@ -67,7 +67,7 @@ class UniformMutationGeneratorConfig(BaseConfig):
     label="Uniform Mutation Generator",
     config=UniformMutationGeneratorConfig,
     description="Random point mutations for sequence diversity",
-    type=GeneratorType.MUTATION,
+    category="mutation",
     requires_gpu=False,
 )
 @final
@@ -79,14 +79,14 @@ class UniformMutationGenerator(Generator):
     a random initial sequence. Useful for exploring local sequence space around a
     starting point.
 
-    The generator type is ``GeneratorType.MUTATION``, indicating it modifies existing
+    The generator category is ``"mutation"``, indicating it modifies existing
     sequences rather than generating from scratch.
 
     Attributes:
         num_mutations (int): Number of positions to mutate per sample.
         mutation_window (Optional[Tuple[int, int]]): Optional region to restrict mutations.
         debug_with_sleep_calls (bool): Whether to add sleep delays for testing.
-        type (GeneratorType): Set to ``GeneratorType.MUTATION``.
+        category (str): Set to ``"mutation"``.
 
     Example:
         >>> from proto_language.language.generator import UniformMutationGenerator, UniformMutationGeneratorConfig
@@ -109,7 +109,7 @@ class UniformMutationGenerator(Generator):
         self.num_mutations = config.num_mutations
         self.debug_with_sleep_calls = config.debug_with_sleep_calls
         self.mutation_window = config.mutation_window
-        self.type = GeneratorType.MUTATION
+        self.category = "mutation"
 
     def assign(self, assigned_segment: Segment) -> None:
         """

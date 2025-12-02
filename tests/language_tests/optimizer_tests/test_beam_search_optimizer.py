@@ -12,7 +12,6 @@ from proto_language.language.core import (
     SequenceType,
     Generator,
     Sequence,
-    GeneratorType,
 )
 from proto_language.language.constraint import (
     gc_content_constraint,
@@ -37,7 +36,7 @@ class MockAutoregressiveGenerator(Generator):
         super().__init__()
         self.num_tokens = num_tokens
         self.use_kv_caching = use_kv_caching
-        self.type = GeneratorType.AUTOREGRESSIVE
+        self.category = "autoregressive"
         self.kv_caches: List[Dict] = []
 
     def assign(self, assigned_segment: Segment) -> None:
@@ -262,7 +261,7 @@ class TestBeamSearchOptimizer:
         # Create a non-autoregressive generator (mock)
         generator = MockAutoregressiveGenerator(num_tokens=20)
         generator._assigned_segment = segments[0]  # Required for validation
-        generator.type = GeneratorType.MUTATION  # Override to make it mutation generator
+        generator.category = "mutation"  # Override to make it mutation generator
 
         constraint = Constraint(
             inputs=[segments[0]],

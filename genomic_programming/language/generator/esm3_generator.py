@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import final, Literal
 import random
 
-from proto_language.language.core import Generator, GeneratorType, Segment
+from proto_language.language.core import Generator, Segment
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.tools.language_models.esm3.esm3 import run_esm3_sample, ESM3SampleConfig, LanguageModelInput
 from proto_language.language.generator.generator_registry import GeneratorRegistry
@@ -86,7 +86,7 @@ class ESM3GeneratorConfig(BaseConfig):
     label="ESM3 Protein Language Model",
     config=ESM3GeneratorConfig,
     description="ESM-3 open protein language model for protein sequence generation",
-    type=GeneratorType.MUTATION,
+    category="mutation",
     requires_gpu=True,
 )
 @final
@@ -98,7 +98,7 @@ class ESM3Generator(Generator):
     high-uncertainty positions based on model confidence and samples biologically
     plausible amino acids at those positions.
 
-    The generator type is ``GeneratorType.MUTATION``, indicating it refines sequences
+    The generator category is ``"mutation"``, indicating it refines sequences
     through targeted mutations rather than generating from scratch.
 
     Attributes:
@@ -106,7 +106,7 @@ class ESM3Generator(Generator):
         temperature (float): Sampling temperature for diversity control.
         decoding_method (str): Position selection strategy (entropy/max_logit/random).
         num_mutations (int): Number of positions to mutate per iteration.
-        type (GeneratorType): Set to ``GeneratorType.MUTATION``.
+        category (str): Set to ``"mutation"``.
 
     Example:
         >>> from proto_language.language.generator import ESM3Generator, ESM3GeneratorConfig
@@ -134,7 +134,7 @@ class ESM3Generator(Generator):
         self.temperature = config.temperature
         self.decoding_method = config.decoding_method
         self.num_mutations = config.num_mutations
-        self.type = GeneratorType.MUTATION
+        self.category = "mutation"
 
     def assign(
         self, assigned_segment: Segment

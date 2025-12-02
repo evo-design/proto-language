@@ -9,7 +9,7 @@ import sys
 import numpy as np
 
 
-from proto_language.language.core import Optimizer, Construct, Constraint, Generator, GeneratorType, Segment
+from proto_language.language.core import Optimizer, Construct, Constraint, Generator, Segment
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.optimizer.optimizer_registry import OptimizerRegistry
 
@@ -139,7 +139,7 @@ class BeamSearchOptimizer(Optimizer):
 
     Note:
         - Only supports single construct and single autoregressive generator
-        - Generator must have ``type=GeneratorType.AUTOREGRESSIVE``
+        - Generator must have ``category="autoregressive"``
         - KV caching requires generator support (e.g., Evo2Generator)
         - Lower energy scores are better (minimization objective)
     """
@@ -161,7 +161,7 @@ class BeamSearchOptimizer(Optimizer):
 
         Args:
             constructs: List containing a single Construct object to optimize.
-            generators: List containing a single autoregressive Generator object (must have type=GeneratorType.AUTOREGRESSIVE).
+            generators: List containing a single autoregressive Generator object (must have category="autoregressive").
             constraints: List of Constraint objects for evaluation (lower scores are better).
             config: Configuration object containing algorithm parameters (prompt, beam_width, candidates_per_beam, etc.).
             constraint_weights: Optional weights for constraints. If None, all weights are 1.0.
@@ -181,7 +181,7 @@ class BeamSearchOptimizer(Optimizer):
         self.prompt = config.prompt  # Extract prompt from config
 
         # Beam Search only works with autoregressive generators with non-empty prompts
-        if generator.type != GeneratorType.AUTOREGRESSIVE:
+        if generator.category != "autoregressive":
             raise ValueError(f"BeamSearchOptimizer requires autoregressive generators. The provided generator '{generator.__class__.__name__}' is not autoregressive.")
 
         if not self.prompt:

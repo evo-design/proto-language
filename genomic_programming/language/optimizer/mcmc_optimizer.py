@@ -11,7 +11,7 @@ import numpy as np
 from pydantic import model_validator
 
 
-from proto_language.language.core import Optimizer, Construct, Generator, GeneratorType, Constraint, Sequence
+from proto_language.language.core import Optimizer, Construct, Generator, Constraint, Sequence
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.optimizer.optimizer_registry import OptimizerRegistry
 
@@ -163,7 +163,7 @@ class MCMCOptimizer(Optimizer):
         >>> final_sequences = mcmc.constructs[0].joined_sequences
 
     Note:
-        - Only supports mutation generators (``GeneratorType.MUTATION``)
+        - Only supports mutation generators (``category="mutation"``)
         - Uses Metropolis-Hastings acceptance: always accepts improvements,
             accepts worse proposals with probability exp(-ΔE/T)
         - Simulated annealing: temperature decreases exponentially from
@@ -219,7 +219,7 @@ class MCMCOptimizer(Optimizer):
         self.verbose: bool = config.verbose
         self.custom_logging: Optional[Callable] = custom_logging
         for generator in generators:
-            if generator.type != GeneratorType.MUTATION:
+            if generator.category != "mutation":
                 raise ValueError(f"MCMCOptimizer requires mutation generators. The provided generator '{generator.__class__.__name__}' is not a mutation generator.")
 
     def run(self) -> None:
