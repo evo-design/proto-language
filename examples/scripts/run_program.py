@@ -62,7 +62,7 @@ def main():
     # Optional save to output file
     if args.output:
         with open(args.output, 'w') as f:
-            json.dump(results, f, indent=2)
+            json.dump(results, f, indent=2, default=lambda x: str(x))
         print(f"Saved to: {args.output}")
 
 
