@@ -92,7 +92,7 @@ api = [
     "openai",
     "openai-agents[litellm]",
     "litellm",
-    "duckduckgo-search",
+    "ddgs",
     "rank-bm25",
     "httpx",
     "jsonpatch",
