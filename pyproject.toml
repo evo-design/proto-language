@@ -59,7 +59,6 @@ gpu = [
 
     # Sequence scoring models
     "alphagenome>=0.2.0",
-    "sinkhorn-transformer",
 
     # Structure prediction and scoring models
     "esm @ git+https://github.com/bviggiano/esm.git@fix/178",  # See: https://github.com/evolutionaryscale/esm/issues/178

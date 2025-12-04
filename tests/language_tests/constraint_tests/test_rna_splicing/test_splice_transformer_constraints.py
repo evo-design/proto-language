@@ -3,7 +3,6 @@ Tests for SpliceTransformer constraints.
 """
 
 import pytest
-from unittest.mock import Mock, patch
 
 from proto_language.language.core import Sequence
 from proto_language.language.constraint.rna_splicing.splice_transformer_specificity import (
