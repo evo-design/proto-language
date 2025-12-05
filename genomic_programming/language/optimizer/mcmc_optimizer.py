@@ -208,6 +208,7 @@ class MCMCOptimizer(Optimizer):
             num_candidates=config.num_selected * config.mcmc_width,
             num_selected=config.num_selected,
             clear_tool_cache=clear_tool_cache,
+            verbose=config.verbose,
         )
 
         # Store MCMC-specific interpretation (proposals per selected sequence)
@@ -217,7 +218,6 @@ class MCMCOptimizer(Optimizer):
         self.max_temperature: float = config.max_temperature
         self.min_temperature: float = config.min_temperature
         self.track_step_size: int = config.track_step_size
-        self.verbose: bool = config.verbose
         self.custom_logging: Optional[Callable] = custom_logging
         for generator in generators:
             if generator.category != "mutation":
@@ -240,7 +240,7 @@ class MCMCOptimizer(Optimizer):
             - Snapshots of constructs at tracked timesteps are stored in self.history.
         """
         # Score candidate_sequences to populate energy_scores with candidate_sequences copies of inital energy score
-        self.score_energy(verbose=self.verbose)
+        self.score_energy()
 
         if self.verbose:
             print(f"MCMC initialization:")
@@ -264,7 +264,7 @@ class MCMCOptimizer(Optimizer):
             generator.sample()
 
             # 4. Score candidate_sequences
-            self.score_energy(verbose=self.verbose)
+            self.score_energy()
 
             # 5. Metropolis-Hastings acceptance and update energy score, candidate_sequences, and selected_sequences state
             self._select_topk_with_mcmc_acceptance(step, old_selected_sequences)

@@ -206,6 +206,7 @@ class BeamSearchOptimizer(Optimizer):
             num_candidates=config.beam_width * config.candidates_per_beam,
             num_selected=config.beam_width,
             clear_tool_cache=clear_tool_cache,
+            verbose=config.verbose,
         )
         self.construct: Construct = construct
         self.generator: Generator = generator
@@ -213,7 +214,6 @@ class BeamSearchOptimizer(Optimizer):
         self.beam_width: int = config.beam_width
         self.candidates_per_beam: int = config.candidates_per_beam
         self.use_kv_caching: bool = config.use_kv_caching
-        self.verbose: bool = config.verbose
         self.custom_logging: Optional[Callable] = custom_logging
 
         # Beam search state parameters (running prompts and corresponding KV caches)
@@ -369,7 +369,7 @@ class BeamSearchOptimizer(Optimizer):
         # Temporarily use filtered constraints for scoring
         orig_constraints, orig_weights = self.constraints, self.constraint_weights
         self.constraints, self.constraint_weights = zip(*active_constraints)
-        self.score_energy(verbose=self.verbose)
+        self.score_energy()
 
         # Restore original constraints and weights
         self.constraints, self.constraint_weights = orig_constraints, orig_weights

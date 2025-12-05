@@ -50,6 +50,7 @@ class Optimizer(ABC):
         num_selected: int,
         constraint_weights: Optional[List[float]] = None,
         clear_tool_cache: int | bool | List[str] = 100 * 1024 * 1024,
+        verbose: bool = False,
     ) -> None:
         """
         Initialize the Optimizer with dual-pool semantics.
@@ -64,6 +65,7 @@ class Optimizer(ABC):
             clear_tool_cache: (int) Maximum size of cache in bytes, defaults to 100 MB.
                               (bool) Whether to clear the tool cache on each iteration.
                               (List[str]) Restrict clearing cache to a list of tool names.
+            verbose: Whether to print detailed progress information. Default: False.
         """
         self.constructs = constructs
         self.generators = generators
@@ -72,6 +74,7 @@ class Optimizer(ABC):
         self.num_candidates = num_candidates
         self.num_selected = num_selected
         self.clear_tool_cache = clear_tool_cache
+        self.verbose = verbose
         self.energy_scores: List[float] = []  # Each index corresponds to a candidate, empty until first score_energy() call
         self.history: List[Dict[str, Any]] = []
 
@@ -115,7 +118,7 @@ class Optimizer(ABC):
             "constructs": copy.deepcopy(self.constructs)
         })
 
-    def score_energy(self, operation: Literal["add", "multiply"] = "add", verbose: bool = False, filter_penalty: float = float('inf')) -> None:
+    def score_energy(self, operation: Literal["add", "multiply"] = "add", filter_penalty: float = float('inf')) -> None:
         """
         Compute energy scores by combining all constraint evaluation scores.
         Evaluates the current state of all Sequence objects stored in segments.candidate_sequences.
@@ -133,7 +136,6 @@ class Optimizer(ABC):
             operation: How to combine constraint scores across constraints:
                 - 'add': Sum weighted constraint scores (default)
                 - 'multiply': Multiply weighted constraint scores
-            verbose: If True, print detailed energy score calculations for each constraint
             filter_penalty: Score assigned to rejected candidates (default: inf)
 
         Raises:
@@ -144,7 +146,7 @@ class Optimizer(ABC):
         num_sequences = len(self.segments[0].candidate_sequences) if self.segments else 0
         passed = [True] * num_sequences
         
-        if verbose:
+        if self.verbose:
             print(f"\n{'='*60}\nEnergy Scoring: {sum(1 for c in self.constraints if c.mode == 'filter')} filters, {sum(1 for c in self.constraints if c.mode != 'filter')} scoring constraints\nFormula: energy = {'Σ' if operation == 'add' else 'Π'}(weight_i x constraint_score_i)\n")
         
         # Evaluate constraints, skipping subsequent constraint evaluations for sequences that have been rejected by filters
@@ -154,9 +156,9 @@ class Optimizer(ABC):
             results = constraint.evaluate(mask=passed)
             
             if constraint.mode == "filter":
-                passed = self._apply_filter_constraint(results, passed, constraint, idx, verbose)
+                passed = self._apply_filter_constraint(results, passed, constraint, idx)
             else:
-                full_scores = self._apply_scoring_constraint(results, passed, num_sequences, filter_penalty, self.constraint_weights[idx], constraint, idx, verbose)
+                full_scores = self._apply_scoring_constraint(results, passed, num_sequences, filter_penalty, self.constraint_weights[idx], constraint, idx)
                 weighted_scores.append(full_scores)
         
         # Combine scores across all scoring constraints
@@ -169,7 +171,7 @@ class Optimizer(ABC):
             # No scoring constraints, just use penalty for rejected, 0.0 for accepted
             self.energy_scores = [filter_penalty if not acc else 0.0 for acc in passed]
         
-        if verbose:
+        if self.verbose:
             print("Final Energy Scores:")
             for i, score in enumerate(self.energy_scores):
                 print(f"  Candidate {i}: {score:.4f}{' [REJECTED]' if not passed[i] else ''}")
@@ -182,7 +184,6 @@ class Optimizer(ABC):
         passed: List[bool], 
         constraint: Constraint, 
         filter_idx: int, 
-        verbose: bool
     ) -> List[bool]:
         """
         Apply filter constraint results to update passed status.
@@ -195,7 +196,7 @@ class Optimizer(ABC):
             results = [True, False]              # sparse: only evaluated candidates 0 and 2
             returns: [True, False, False, False] # dense: candidate 0 passed, 2 rejected
         """
-        passed_before = passed.copy() if verbose else None
+        passed_before = passed.copy() if self.verbose else None
         
         sparse_idx = 0
         for i in range(len(passed)):
@@ -203,7 +204,7 @@ class Optimizer(ABC):
                 passed[i] = results[sparse_idx]
                 sparse_idx += 1
         
-        if verbose:
+        if self.verbose:
             print(f"Filter {filter_idx+1}: {constraint.label}")
             for i in range(len(passed)):
                 print(f"  Candidate {i}: {('PASS' if passed[i] else 'REJECT') if passed_before[i] else '[SKIPPED - already rejected]'}")
@@ -219,7 +220,6 @@ class Optimizer(ABC):
         weight: float,
         constraint: Constraint, 
         scoring_idx: int, 
-        verbose: bool
     ) -> List[float]:
         """
         Expand sparse scoring results to full array with penalties for rejected candidates.
@@ -244,7 +244,7 @@ class Optimizer(ABC):
             else:
                 full_scores.append(filter_penalty)
         
-        if verbose:
+        if self.verbose:
             print(f"Constraint {scoring_idx+1}: {constraint.label} (weight={weight})")
             for i, score in enumerate(full_scores):
                 print(f"  Candidate {i}: {f'{score:.4f}' if passed[i] else '[REJECTED by filter]'}")

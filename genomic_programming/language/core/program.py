@@ -52,6 +52,7 @@ class Program:
     def __init__(
         self,
         optimizers: List[Optimizer],
+        verbose: bool = False,
     ) -> None:
         """
         Initialize a Program with a list of optimizers to run sequentially.
@@ -60,6 +61,8 @@ class Program:
             optimizers: List of Optimizer objects to run in sequence. Each optimizer
                        builds on the results of the previous one. All optimizers must
                        share the same construct objects (by identity).
+            verbose: If True, print detailed energy score calculations for each constraint
+                     for all optimizers.
 
         Raises:
             ValueError: If optimizers list is empty or if optimizers don't share
@@ -68,19 +71,18 @@ class Program:
         if not optimizers:
             raise ValueError("optimizers list cannot be empty")
 
-        # Store optimizers
         self.optimizers = optimizers
+
+        # If top level verbosity is true, force verbosity in all optimizers.
+        self.verbose = verbose
+        if self.verbose:
+            for optimizer in self.optimizers:
+                optimizer.verbose = self.verbose
 
         # Extract constructs from first optimizer
         self.constructs = optimizers[0].constructs
-
-        # Track current stage for incremental execution
         self.current_stage = 0
-
-        # Store results from each completed stage (fixes bug where sequences get overwritten)
         self.stage_results: List[Dict] = []
-
-        # Validate all optimizers share the same construct objects
         self._validate_program()
 
     @property

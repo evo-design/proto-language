@@ -218,6 +218,7 @@ class TopKOptimizer(Optimizer):
             num_selected=config.k,
             constraint_weights=constraint_weights,
             clear_tool_cache=clear_tool_cache,
+            verbose=config.verbose,
         )
 
         # Store TopK-specific parameters
@@ -225,7 +226,6 @@ class TopKOptimizer(Optimizer):
         self.batch_size: int = config.batch_size
         self.k: int = config.k
         self.rounds: int = config.min_num_samples // config.batch_size  # Derived from total and batch
-        self.verbose: bool = config.verbose
         self.custom_logging: Optional[Callable] = custom_logging
 
         # Threshold-based stopping parameters
@@ -274,7 +274,7 @@ class TopKOptimizer(Optimizer):
             generator.sample()
 
         # 3. Evaluate all batch_size candidates after all generators
-        self.score_energy(verbose=self.verbose)  # Returns list of length batch_size
+        self.score_energy()  # Returns list of length batch_size
 
         # 4. Process each candidate in the batch
         for candidate_idx in range(self.batch_size):
