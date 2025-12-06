@@ -185,8 +185,9 @@ class Evo2GeneratorConfig(BaseConfig):
     label="Evo2 DNA Language Model",
     config=Evo2GeneratorConfig,
     description="Evo2 genome language model for DNA sequence generation",
-    category="autoregressive",
     requires_gpu=True,
+    tools_called=["evo2"],
+    category="autoregressive",
 )
 @final
 class Evo2Generator(Generator):

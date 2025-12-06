@@ -237,6 +237,8 @@ class BoltzBindingStrengthConfig(BaseConfig):
     batched=True,
     concatenate=False,  # Boltz handles multi-chain complexes
     gpu_required=True,
+    tools_called=["boltz"],
+    category="protein_structure",
 )
 def boltz_binding_strength_constraint(
     complex_sequences: List[List[Sequence]], config: BoltzBindingStrengthConfig

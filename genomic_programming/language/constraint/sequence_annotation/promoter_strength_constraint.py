@@ -129,6 +129,8 @@ class PromoterStrengthConfig(BaseConfig):
     mode="score",
     batched=True,
     concatenate=True,
+    tools_called=["promoter_calculator"],
+    category="sequence annotation",
 )
 def promoter_strength_constraint(sequences: List[Sequence], config: PromoterStrengthConfig) -> List[float]:
     """Evaluate bacterial promoter strength using Salis Lab Promoter Calculator.

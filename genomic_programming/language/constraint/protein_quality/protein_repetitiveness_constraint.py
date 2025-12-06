@@ -68,6 +68,8 @@ class ProteinRepetitivenessConfig(BaseConfig):
     mode="score",
     batched=True,
     concatenate=True,
+    tools_called=[],
+    category="protein quality",
 )
 def protein_repetitiveness_constraint(sequences: List[Sequence], config: ProteinRepetitivenessConfig) -> List[float]:
     """Evaluate protein sequence repetitiveness based on k-mer frequency analysis.

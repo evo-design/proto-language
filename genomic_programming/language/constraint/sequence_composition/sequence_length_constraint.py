@@ -92,6 +92,8 @@ class SequenceLengthConfig(BaseConfig):
     mode="score",
     batched=True,
     concatenate=True,
+    tools_called=[],
+    category="sequence_composition",
 )
 def sequence_length_constraint(sequences: List[Sequence], config: SequenceLengthConfig) -> List[float]:
     """Evaluate sequence length against target value or acceptable range.

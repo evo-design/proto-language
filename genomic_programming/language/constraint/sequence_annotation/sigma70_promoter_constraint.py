@@ -197,6 +197,8 @@ class Sigma70PromoterConfig(BaseConfig):
     mode="score",
     batched=True,
     concatenate=True,
+    tools_called=[],
+    category="sequence annotation",
 )
 def sigma70_promoter_constraint(sequences: List[Sequence], config: Sigma70PromoterConfig) -> List[float]:
     """Evaluate E. coli sigma-70 promoter similarity using PWM-based scoring.

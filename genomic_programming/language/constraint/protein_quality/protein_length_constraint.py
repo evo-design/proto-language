@@ -55,6 +55,8 @@ class ProteinLengthConfig(BaseConfig):
     mode="score",
     batched=True,
     concatenate=True,
+    tools_called=[],
+    category="protein quality",
 )
 def protein_length_constraint(sequences: List[Sequence], config: ProteinLengthConfig) -> List[float]:
     """Evaluate whether protein sequence lengths fall within an acceptable range.

@@ -61,6 +61,8 @@ class GCContentConfig(BaseConfig):
     mode="score",
     batched=True,
     concatenate=True,
+    tools_called=[],
+    category="sequence_composition",
 )
 def gc_content_constraint(sequences: List[Sequence], config: GCContentConfig) -> List[float]:
     """Enforce GC content within specified range.

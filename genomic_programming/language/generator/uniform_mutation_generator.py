@@ -67,8 +67,9 @@ class UniformMutationGeneratorConfig(BaseConfig):
     label="Uniform Mutation Generator",
     config=UniformMutationGeneratorConfig,
     description="Random point mutations for sequence diversity",
-    category="mutation",
     requires_gpu=False,
+    tools_called=[],
+    category="mutation",
 )
 @final
 class UniformMutationGenerator(Generator):

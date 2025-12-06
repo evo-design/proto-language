@@ -69,6 +69,8 @@ class ProteinComplexityConfig(BaseConfig):
     mode="score",
     batched=True,
     concatenate=True,
+    tools_called=["segmasker"],
+    category="protein quality",
 )
 def protein_complexity_constraint(sequences: List[Sequence], config: ProteinComplexityConfig) -> List[float]:
     """Evaluate protein sequence complexity using segmasker to detect low-complexity regions.

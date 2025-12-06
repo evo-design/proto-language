@@ -22,14 +22,8 @@ class ConstraintSpec(BaseSpec):
     batched: bool = Field(description="True if the constraint processes an iterable of sequences rather than a single sequence")
     concatenate: bool = Field(description="Whether to concatenate segments")
     gpu_required: bool = Field(description="Whether constraint requires GPU")
-    tools_called: List[str] = Field(
-        default=[],
-        description="List of tool keys this constraint calls (e.g., ['esmfold', 'prodigal']). Helps agent find relevant tool documentation."
-    )
-    category: Optional[str] = Field(
-        default=None,
-        description="Optional category for organization (e.g., 'protein_structure', 'sequence_composition'). Not required for custom constraints."
-    )
+    tools_called: List[str] = Field(description="List of tool keys this constraint calls (e.g., ['esmfold', 'prodigal']). Helps agent find relevant tool documentation.")
+    category: Optional[str] = Field(default=None, description="Optional category for organization (e.g., 'protein_structure', 'sequence_composition'). Not required for custom constraints.")
 
     # Private field - excluded from serialization
     function: SkipJsonSchema[Callable] = Field(exclude=True)

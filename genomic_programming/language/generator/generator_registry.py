@@ -20,14 +20,9 @@ class GeneratorSpec(BaseSpec):
     Extends BaseSpec with generator-specific metadata for discovery and schema generation.
     """
 
-    category: Literal["autoregressive", "mutation"] = Field(
-        description="Generator category: 'autoregressive' (left-to-right, e.g. Evo2) or 'mutation' (bidirectional/masked, e.g. ESM2)"
-    )
+    category: Literal["autoregressive", "mutation"] = Field(description="Generator category: 'autoregressive' (left-to-right, e.g. Evo2) or 'mutation' (bidirectional/masked, e.g. ESM2)")
     requires_gpu: bool = Field(description="Whether generator requires GPU")
-    tools_called: List[str] = Field(
-        default=[],
-        description="List of tool keys this generator calls (e.g., ['esm3', 'evo2']). Helps agent find relevant tool documentation."
-    )
+    tools_called: List[str] = Field(description="List of tool keys this generator calls (e.g., ['esm3', 'evo2']). Helps agent find relevant tool documentation.")
 
     # Private field - excluded from serialization
     generator_class: Type[Generator] = Field(exclude=True)

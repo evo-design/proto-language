@@ -52,6 +52,8 @@ class ProteinDiversityConfig(BaseConfig):
     mode="score",
     batched=True,
     concatenate=True,
+    tools_called=[],
+    category="protein quality",
 )
 def protein_diversity_constraint(sequences: List[Sequence], config: ProteinDiversityConfig) -> List[float]:
     """Evaluate amino acid diversity in protein sequences.

@@ -86,8 +86,9 @@ class ESM3GeneratorConfig(BaseConfig):
     label="ESM3 Protein Language Model",
     config=ESM3GeneratorConfig,
     description="ESM-3 open protein language model for protein sequence generation",
-    category="mutation",
     requires_gpu=True,
+    tools_called=["esm3"],
+    category="mutation",
 )
 @final
 class ESM3Generator(Generator):

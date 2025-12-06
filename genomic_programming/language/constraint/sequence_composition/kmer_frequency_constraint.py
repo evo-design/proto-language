@@ -151,6 +151,8 @@ class KmerFrequencyConfig(BaseConfig):
     mode="score",
     batched=True,
     concatenate=True,
+    tools_called=[],
+    category="sequence_composition",
 )
 def kmer_frequency_constraint(sequences: List[Sequence], config: KmerFrequencyConfig) -> List[float]:
     """Evaluate k-mer frequencies or usage deviations with configurable mer length and scoring modes

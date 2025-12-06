@@ -107,6 +107,8 @@ class SpliceTransformerSpecificityConfig(BaseConfig):
     batched=False,
     concatenate=True,
     gpu_required=True,
+    tools_called=["splice_transformer"],
+    category="rna splicing",
 )
 def splice_transformer_specificity(
     input_sequence: Sequence,

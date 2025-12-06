@@ -103,6 +103,8 @@ class SpliceTransformerIntronBoundaryConfig(BaseConfig):
     batched=False,
     concatenate=True,
     gpu_required=True,
+    tools_called=["splice_transformer"],
+    category="rna splicing",
 )
 def splice_transformer_intron_boundary(
     input_sequence: Sequence,

@@ -7,7 +7,7 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
-from typing import List, Literal, Optional, Union
+from typing import List, Literal, Optional, Union, Dict
 
 import numpy as np
 
@@ -154,6 +154,8 @@ class SeqMotifConfig(BaseConfig):
     mode="score",
     batched=True,
     concatenate=True,
+    tools_called=["meme"],
+    category="sequence annotation",
 )
 def seq_motif_constraint(sequences: List[Sequence], config: SeqMotifConfig) -> List[float]:
     """Score DNA sequences against sequence motifs using MEME.
