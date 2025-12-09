@@ -26,7 +26,7 @@ class TestProGen2Generator:
         progen2_generator = ProGen2Generator(config)
 
         # Create segment and assign to generator
-        segment = Segment(starting_sequence_or_desired_length=expected_length, sequence_type=SequenceType.PROTEIN)
+        segment = Segment(length=expected_length, sequence_type=SequenceType.PROTEIN)
         progen2_generator.assign(segment)
 
         assert progen2_generator._assigned_segment is segment
@@ -50,7 +50,7 @@ class TestProGen2Generator:
         progen2_generator = ProGen2Generator(config)
 
         # Create segment and expand candidate pool
-        segment = Segment(starting_sequence_or_desired_length=expected_length, sequence_type=SequenceType.PROTEIN)
+        segment = Segment(length=expected_length, sequence_type=SequenceType.PROTEIN)
         segment.candidate_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(len(prompts))]
         progen2_generator.assign(segment)
 
@@ -77,7 +77,7 @@ class TestProGen2Generator:
         progen2_generator = ProGen2Generator(config)
 
         # Should raise error if number of prompts doesn't match segment candidates
-        segment_two_candidates = Segment(starting_sequence_or_desired_length=expected_length, sequence_type=SequenceType.PROTEIN)
+        segment_two_candidates = Segment(length=expected_length, sequence_type=SequenceType.PROTEIN)
         segment_two_candidates.candidate_sequences = [copy.deepcopy(segment_two_candidates.original_sequence) for _ in range(2)]
         progen2_generator.assign(segment_two_candidates)
         
@@ -99,7 +99,7 @@ class TestProGen2Generator:
         progen2_generator = ProGen2Generator(config)
 
         # Create segment and assign to generator
-        segment = Segment(starting_sequence_or_desired_length=expected_length, sequence_type=SequenceType.PROTEIN)
+        segment = Segment(length=expected_length, sequence_type=SequenceType.PROTEIN)
         progen2_generator.assign(segment)
 
         assert progen2_generator.temperature == 0.8
@@ -120,7 +120,7 @@ class TestProGen2Generator:
         
         # Create a constant segment
         constant_segment = Segment(
-            starting_sequence_or_desired_length="EVQLVE",
+            sequence="EVQLVE",
             sequence_type=SequenceType.PROTEIN,
             constant=True
         )
