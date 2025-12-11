@@ -21,14 +21,40 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
+      - name: Verify running from main branch
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "Error: This workflow must be run from the main branch."
+            echo "Current branch: ${{ github.ref }}"
+            exit 1
+          fi
+
+      - name: Validate version format and check for duplicates
+        run: |
+          new_version="${{ inputs.version }}"
+
+          # Validate semantic versioning X.Y.Z
+          if ! [[ $new_version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: Version must follow semantic format X.Y.Z."
+            exit 1
+          fi
+
+          # Prevent duplicate releases
+          if git rev-parse "v$new_version" >/dev/null 2>&1; then
+            echo "Error: Tag v$new_version already exists."
+            exit 1
+          fi
+
+          echo "Version $new_version is valid and unique."
+
       - name: Bump version in pyproject.toml
         run: |
           new_version="${{ inputs.version }}"
-          
-          # Only modify version inside the [project] table
+
+          # Only update version inside [project] block
           sed -i "/^\[project\]/,/^\[/{s/^version = \".*\"/version = \"${new_version}\"/}" pyproject.toml
 
-          echo "Updated version to ${new_version}"
+          echo "Bumped version to ${new_version}"
           grep "^version" -n pyproject.toml
 
       - name: Commit and tag release
@@ -40,10 +66,8 @@ jobs:
 
           git add pyproject.toml
           git commit -m "chore: bump version to $NEW_VERSION"
-          
           git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION"
 
-          # Always release from main
           git push origin main
           git push origin "v$NEW_VERSION"
 
@@ -58,4 +82,3 @@ jobs:
       - name: Deploy Worker service
         env:
           DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
-
