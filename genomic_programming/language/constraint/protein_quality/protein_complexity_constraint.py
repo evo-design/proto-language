@@ -88,7 +88,7 @@ def protein_complexity_constraint(sequences: List[Sequence], config: ProteinComp
 
     Args:
         sequences (List[Sequence]): List of protein sequences to evaluate. All
-            sequences must have ``sequence_type == SequenceType.PROTEIN``.
+            sequences must have ``sequence_type == "protein"``.
             
         config (ProteinComplexityConfig): Configuration object containing
             ``max_low_complexity`` (maximum acceptable low-complexity fraction,
@@ -123,14 +123,14 @@ def protein_complexity_constraint(sequences: List[Sequence], config: ProteinComp
         
         >>> from proto_language.language.core import Sequence, SequenceType
         >>> config = ProteinComplexityConfig(max_low_complexity=0.3, segmasker_path="segmasker")
-        >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", SequenceType.PROTEIN)
+        >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", "protein")
         >>> scores = protein_complexity_constraint([seq], config)
         >>> print(scores[0])  # 0.0 if low-complexity < 30%
         >>> print(seq._metadata["low_complexity_fraction"])  # e.g., 0.15
         >>> print(seq._metadata["segmasker_lowercase_count"])  # e.g., 5
     """
     for seq in sequences:
-        assert seq.sequence_type == SequenceType.PROTEIN, "Input must be protein"
+        assert seq.sequence_type == "protein", "Input must be protein"
     
     segmasker_inputs = SegmaskerInput(sequences=[seq.sequence for seq in sequences])
     segmasker_config = SegmaskerConfig(segmasker_path=config.segmasker_path)

@@ -75,7 +75,7 @@ def gc_content_constraint(sequences: List[Sequence], config: GCContentConfig) ->
 
     Args:
         sequences (List[Sequence]): List of DNA or RNA sequences to evaluate.
-            All sequences must be either SequenceType.DNA or SequenceType.RNA.
+            All sequences must be either "dna" or "rna".
             Mixed types are not allowed. Empty sequences receive maximum penalty.
 
         config (GCContentConfig): Configuration object containing ``min_gc``
@@ -95,7 +95,7 @@ def gc_content_constraint(sequences: List[Sequence], config: GCContentConfig) ->
     Examples:
         Evaluating GC content constraint:
 
-        >>> seq = Sequence("ATCGATCG", SequenceType.DNA)
+        >>> seq = Sequence("ATCGATCG", "dna")
         >>> cfg = GCContentConfig(min_gc=40.0, max_gc=60.0)
         >>> score = gc_content_constraint(seq, config=cfg)
         >>> print(score)  # 0.0 (50% GC content is within acceptable range)
@@ -109,7 +109,7 @@ def gc_content_constraint(sequences: List[Sequence], config: GCContentConfig) ->
     scores = []
    
     for seq in sequences: 
-        if seq.sequence_type not in {SequenceType.DNA, SequenceType.RNA}:
+        if seq.sequence_type not in {"dna", "rna"}:
             raise ValueError(f"Input must be DNA or RNA sequence, found {seq.sequence_type}")
         if len(seq.sequence) == 0:
             seq._metadata["gc_content"] = 0.0

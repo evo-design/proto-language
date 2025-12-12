@@ -14,7 +14,7 @@ from proto_language.language.core import Program
 from proto_language.language.constraint import gc_content_constraint
 
 # Construct Segment
-seq1 = Segment(length=20, sequence_type=SequenceType.DNA)
+seq1 = Segment(length=20, sequence_type="dna")
 
 # Construct
 construct = Construct([seq1])
@@ -141,7 +141,7 @@ print("MODE 2: Incremental stage-by-stage execution")
 print("=" * 70)
 
 # Create fresh segment and construct for independent run
-seq1_incremental = Segment(length=20, sequence_type=SequenceType.DNA)
+seq1_incremental = Segment(length=20, sequence_type="dna")
 construct_incremental = Construct([seq1_incremental])
 
 # Stage 1: TopK

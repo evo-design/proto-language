@@ -181,7 +181,7 @@ def splice_transformer_specificity(
         
         >>> from proto_language.language.core import Sequence, SequenceType
         >>> # 1000 bp target sequence
-        >>> target_seq = Sequence("ATCG" * 250, SequenceType.DNA)
+        >>> target_seq = Sequence("ATCG" * 250, "dna")
         >>> # 4000 bp flanking contexts
         >>> left_ctx = "ATCG" * 1000
         >>> right_ctx = "GCTA" * 1000

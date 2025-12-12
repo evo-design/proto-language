@@ -9,7 +9,7 @@ from proto_language.language.constraint.protein_quality.protein_diversity_constr
 class TestProteinDiversityConstraint:
     def test_high_diversity(self):
         """Test protein with high amino acid diversity and constraint-specific metadata."""
-        segment = Segment(sequence="MVLSPADKTNVKAAWGKVGAHAGEYGAEALER", sequence_type=SequenceType.PROTEIN
+        segment = Segment(sequence="MVLSPADKTNVKAAWGKVGAHAGEYGAEALER", sequence_type="protein"
         )
         config = ProteinDiversityConfig(min_diversity=0.5)
 
@@ -39,7 +39,7 @@ class TestProteinDiversityConstraint:
 
     def test_low_diversity(self):
         """Test protein with low amino acid diversity."""
-        segment = Segment(sequence="AAAAAAGGGGGGLLLLLL", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(sequence="AAAAAAGGGGGGLLLLLL", sequence_type="protein")
         config = ProteinDiversityConfig(min_diversity=0.5)
 
         constraint = Constraint(
@@ -63,7 +63,7 @@ class TestProteinDiversityConstraint:
 
     def test_single_amino_acid(self):
         """Test protein with only one amino acid type."""
-        segment = Segment(sequence="AAAAAAAAAA", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(sequence="AAAAAAAAAA", sequence_type="protein")
         config = ProteinDiversityConfig(min_diversity=0.2)
 
         constraint = Constraint(
@@ -89,7 +89,7 @@ class TestProteinDiversityConstraint:
 
     def test_empty_sequence(self):
         """Test that empty sequence raises error (constraint-specific edge case)."""
-        segment = Segment(length=0, sequence_type=SequenceType.PROTEIN)
+        segment = Segment(length=0, sequence_type="protein")
         config = ProteinDiversityConfig(min_diversity=0.3)
 
         constraint = Constraint(

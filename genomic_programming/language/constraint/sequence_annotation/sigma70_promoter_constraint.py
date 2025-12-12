@@ -269,7 +269,7 @@ def sigma70_promoter_constraint(sequences: List[Sequence], config: Sigma70Promot
         >>> # Strong promoter with consensus -35 (TTGACA) and -10 (TATAAT) boxes
         >>> promoter_seq = Sequence(
         ...     "TTGACAATGATACTTAGATTCACTTATAATACTAGTAG",  # 17 bp spacer
-        ...     SequenceType.DNA
+        ...     "dna"
         ... )
         >>> config = Sigma70PromoterConfig()  # Use defaults
         >>> scores = sigma70_promoter_constraint([promoter_seq], config)

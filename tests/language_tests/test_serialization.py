@@ -14,7 +14,7 @@ class TestSequenceSerialization:
     def test_basic_sequence_roundtrip(self):
         """Test basic DNA sequence serialization roundtrip."""
         # Create sequence
-        seq = Sequence(sequence="ATCGATCG", sequence_type=SequenceType.DNA)
+        seq = Sequence(sequence="ATCGATCG", sequence_type="dna")
 
         # Serialize
         seq_dict = seq.to_dict()
@@ -40,7 +40,7 @@ class TestSequenceSerialization:
         metadata = {"gc_content": 0.5, "custom_field": "test_value"}
         seq = Sequence(
             sequence="ATCGATCG",
-            sequence_type=SequenceType.DNA,
+            sequence_type="dna",
             metadata=metadata
         )
 
@@ -56,23 +56,23 @@ class TestSequenceSerialization:
 
     def test_protein_sequence_roundtrip(self):
         """Test protein sequence serialization."""
-        seq = Sequence(sequence="ACDEFGHIKLMNPQRSTVWY", sequence_type=SequenceType.PROTEIN)
+        seq = Sequence(sequence="ACDEFGHIKLMNPQRSTVWY", sequence_type="protein")
 
         seq_dict = seq.to_dict()
         seq_restored = Sequence.from_dict(seq_dict)
 
         assert str(seq_restored) == str(seq)
-        assert seq_restored.sequence_type == SequenceType.PROTEIN
+        assert seq_restored.sequence_type == "protein"
 
     def test_rna_sequence_roundtrip(self):
         """Test RNA sequence serialization."""
-        seq = Sequence(sequence="AUCGAUCG", sequence_type=SequenceType.RNA)
+        seq = Sequence(sequence="AUCGAUCG", sequence_type="rna")
 
         seq_dict = seq.to_dict()
         seq_restored = Sequence.from_dict(seq_dict)
 
         assert str(seq_restored) == str(seq)
-        assert seq_restored.sequence_type == SequenceType.RNA
+        assert seq_restored.sequence_type == "rna"
 
 
 class TestSegmentSerialization:
@@ -80,7 +80,7 @@ class TestSegmentSerialization:
 
     def test_basic_segment_roundtrip(self):
         """Test basic segment serialization."""
-        seg = Segment(sequence="ATCGATCG", sequence_type=SequenceType.DNA, label="promoter")
+        seg = Segment(sequence="ATCGATCG", sequence_type="dna", label="promoter")
 
         seg_dict = seg.to_dict()
         seg_restored = Segment.from_dict(seg_dict)
@@ -92,15 +92,15 @@ class TestSegmentSerialization:
 
     def test_segment_with_pools_roundtrip(self):
         """Test segment with candidate and selected pools."""
-        seg = Segment(sequence="ATCGATCG", sequence_type=SequenceType.DNA, label="cds")
+        seg = Segment(sequence="ATCGATCG", sequence_type="dna", label="cds")
 
         # Modify pools
         seg.candidate_sequences = [
-            Sequence("AAAAAAAA", sequence_type=SequenceType.DNA),
-            Sequence("TTTTTTTT", sequence_type=SequenceType.DNA),
+            Sequence("AAAAAAAA", sequence_type="dna"),
+            Sequence("TTTTTTTT", sequence_type="dna"),
         ]
         seg.selected_sequences = [
-            Sequence("GGGGGGGG", sequence_type=SequenceType.DNA),
+            Sequence("GGGGGGGG", sequence_type="dna"),
         ]
 
         # Serialize and deserialize
@@ -117,7 +117,7 @@ class TestSegmentSerialization:
     def test_constant_segment_roundtrip(self):
         """Test constant segment serialization."""
         seg = Segment(sequence="ATATCG",
-            sequence_type=SequenceType.DNA,
+            sequence_type="dna",
             label="promoter",
             constant=True
         )
@@ -133,7 +133,7 @@ class TestSegmentSerialization:
         """Test segment with sequence metadata."""
         metadata = {"annotation": "strong_promoter"}
         seg = Segment(sequence="ATATCG",
-            sequence_type=SequenceType.DNA,
+            sequence_type="dna",
             label="promoter",
             metadata=metadata
         )
@@ -150,8 +150,8 @@ class TestConstructSerialization:
 
     def test_basic_construct_roundtrip(self):
         """Test basic construct serialization."""
-        seg1 = Segment(sequence="ATCG", sequence_type=SequenceType.DNA, label="promoter")
-        seg2 = Segment(sequence="GGGG", sequence_type=SequenceType.DNA, label="cds")
+        seg1 = Segment(sequence="ATCG", sequence_type="dna", label="promoter")
+        seg2 = Segment(sequence="GGGG", sequence_type="dna", label="cds")
 
         construct = Construct([seg1, seg2])
 
@@ -169,10 +169,10 @@ class TestConstructSerialization:
     def test_construct_with_multiple_segments_roundtrip(self):
         """Test construct with multiple segments."""
         segments = [
-            Segment(sequence="AAAA", sequence_type=SequenceType.DNA, label="promoter"),
-            Segment(sequence="TTTT", sequence_type=SequenceType.DNA, label="five_utr"),
-            Segment(sequence="GGGG", sequence_type=SequenceType.DNA, label="cds"),
-            Segment(sequence="CCCC", sequence_type=SequenceType.DNA, label="terminator"),
+            Segment(sequence="AAAA", sequence_type="dna", label="promoter"),
+            Segment(sequence="TTTT", sequence_type="dna", label="five_utr"),
+            Segment(sequence="GGGG", sequence_type="dna", label="cds"),
+            Segment(sequence="CCCC", sequence_type="dna", label="terminator"),
         ]
 
         construct = Construct(segments)
@@ -186,8 +186,8 @@ class TestConstructSerialization:
 
     def test_construct_joined_sequences_after_roundtrip(self):
         """Test that joined_sequences works after deserialization."""
-        seg1 = Segment(sequence="ATCG", sequence_type=SequenceType.DNA, label="seg1")
-        seg2 = Segment(sequence="GGGG", sequence_type=SequenceType.DNA, label="seg2")
+        seg1 = Segment(sequence="ATCG", sequence_type="dna", label="seg1")
+        seg2 = Segment(sequence="GGGG", sequence_type="dna", label="seg2")
 
         construct = Construct([seg1, seg2])
 
@@ -203,8 +203,8 @@ class TestConstructSerialization:
 
     def test_construct_with_constant_segment_roundtrip(self):
         """Test construct with constant segment."""
-        seg1 = Segment(sequence="ATATCG", sequence_type=SequenceType.DNA, label="promoter", constant=True)
-        seg2 = Segment(sequence="ATATCG", sequence_type=SequenceType.DNA, label="cds", constant=False)
+        seg1 = Segment(sequence="ATATCG", sequence_type="dna", label="promoter", constant=True)
+        seg2 = Segment(sequence="ATATCG", sequence_type="dna", label="cds", constant=False)
 
         construct = Construct([seg1, seg2])
 

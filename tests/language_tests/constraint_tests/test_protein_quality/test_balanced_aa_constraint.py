@@ -10,7 +10,7 @@ class TestBalancedAAConstraint:
     def test_balanced_protein(self):
         """Test protein with balanced amino acid frequencies."""
         # Create a relatively balanced sequence
-        segment = Segment(sequence="MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHF", sequence_type=SequenceType.PROTEIN
+        segment = Segment(sequence="MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHF", sequence_type="protein"
         )
         config = BalancedAaConfig(min_aa_frequency=0.02, max_underrepresented_count=10)
 
@@ -33,7 +33,7 @@ class TestBalancedAAConstraint:
 
     def test_unbalanced_protein(self):
         """Test protein with unbalanced amino acid frequencies and metadata."""
-        segment = Segment(sequence="AAAAAAGGGGLLLLMMMM", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(sequence="AAAAAAGGGGLLLLMMMM", sequence_type="protein")
         config = BalancedAaConfig(min_aa_frequency=0.1, max_underrepresented_count=2)
 
         constraint = Constraint(
@@ -62,7 +62,7 @@ class TestBalancedAAConstraint:
 
     def test_empty_sequence(self):
         """Test empty sequence handling."""
-        segment = Segment(length=0, sequence_type=SequenceType.PROTEIN)
+        segment = Segment(length=0, sequence_type="protein")
         config = BalancedAaConfig(min_aa_frequency=0.05, max_underrepresented_count=5)
 
         constraint = Constraint(

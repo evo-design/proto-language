@@ -5,9 +5,10 @@ Provides the abstract interface for sequence generation algorithms.
 """
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import List, Optional
 
 from .segment import Segment
+from .sequence import SequenceType
 
 
 class Generator(ABC):
@@ -15,7 +16,10 @@ class Generator(ABC):
     Generator base class that modify candidate_sequences of assigned segments during optimization.
 
     Subclasses must implement `__init__()`, `assign()`, and `sample()`
+    Subclasses must also define `supported_sequence_types` to specify which sequence types they support.
     """
+
+    supported_sequence_types: List[SequenceType] = []
 
     @abstractmethod
     def __init__(self) -> None:
@@ -32,9 +36,17 @@ class Generator(ABC):
         """
         Assign a Segment to the generator and initialize the generator.
         The generator will modify the Segment's candidate_sequences internally during sampling.
+        
+        Raises:
+            ValueError: If segment is constant or has incompatible sequence type.
         """
         if assigned_segment.constant:
             raise ValueError(f"Cannot assign constant segment '{assigned_segment.label}' to generator. Constant segments should not be mutated during optimization.")
+        
+        # Validate sequence type compatibility
+        if self.supported_sequence_types and assigned_segment.sequence_type not in self.supported_sequence_types:
+            supported_types_str = ", ".join(self.supported_sequence_types)
+            raise ValueError(f"Generator {self.__class__.__name__} does not support sequence type '{assigned_segment.sequence_type}'. Supported types: [{supported_types_str}]")
 
     @abstractmethod
     def sample(self) -> None:

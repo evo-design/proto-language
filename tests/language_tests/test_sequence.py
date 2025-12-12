@@ -9,9 +9,9 @@ class TestSequence:
     @pytest.mark.parametrize(
         "seq_type, valid_seq, invalid_char",
         [
-            (SequenceType.DNA, "ATCG", "U"),
-            (SequenceType.RNA, "AUCG", "T"),
-            (SequenceType.PROTEIN, "ACDEFGHIKLMNPQRSTVWY", "B"),
+            ("dna", "ATCG", "U"),
+            ("rna", "AUCG", "T"),
+            ("protein", "ACDEFGHIKLMNPQRSTVWY", "B"),
         ],
     )
     def test_sequence_validation(self, seq_type, valid_seq, invalid_char):
@@ -38,7 +38,7 @@ class TestSequence:
 
     def test_metadata(self):
         """Tests automatic and custom metadata handling."""
-        seq = Sequence("ATCG", SequenceType.DNA, metadata={"id": "test1"})
+        seq = Sequence("ATCG", "dna", metadata={"id": "test1"})
         assert seq._metadata["id"] == "test1"
         assert seq._metadata["sequence"] == "ATCG"
         assert seq._metadata["sequence_length"] == 4

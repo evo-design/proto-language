@@ -50,7 +50,7 @@ class TestProteinDomainConstraint:
 
     def test_scoring_algorithm_matching_domain(self):
         """Test protein sequence with matching domain and metadata."""
-        segment = Segment(sequence=SAMPLE_SEQUENCE, sequence_type=SequenceType.PROTEIN
+        segment = Segment(sequence=SAMPLE_SEQUENCE, sequence_type="protein"
         )
         config = ProteinDomainConfig(hmm_db=str(TEST_HMM), keywords=["kinase"])
 
@@ -77,7 +77,7 @@ class TestProteinDomainConstraint:
 
     def test_protein_sequence_without_matching_domain(self):
         """Test protein sequence without matching domain."""
-        segment = Segment(sequence=SAMPLE_SEQUENCE, sequence_type=SequenceType.PROTEIN)
+        segment = Segment(sequence=SAMPLE_SEQUENCE, sequence_type="protein")
         config = ProteinDomainConfig(hmm_db=str(TEST_HMM), keywords=["helicase"])
 
         # Run the constraint
@@ -103,7 +103,7 @@ class TestProteinDomainConstraint:
 
     def test_match_all_keywords(self):
         """Test match_all_keywords parameter (constraint-specific config behavior)."""
-        segment = Segment(sequence=SAMPLE_SEQUENCE, sequence_type=SequenceType.PROTEIN)
+        segment = Segment(sequence=SAMPLE_SEQUENCE, sequence_type="protein")
         config = ProteinDomainConfig(
             hmm_db=str(TEST_HMM),
             keywords=["kinase", "ATP-binding"],
@@ -122,7 +122,7 @@ class TestProteinDomainConstraint:
 
     def test_hmm_db_not_found(self):
         """Test error when HMM database doesn't exist (constraint-specific error handling)."""
-        segment = Segment(sequence="MKTAYIAKQRQISFVK", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(sequence="MKTAYIAKQRQISFVK", sequence_type="protein")
         config = ProteinDomainConfig(
             hmm_db="/nonexistent/path.hmm", keywords=["kinase"]
         )
@@ -145,7 +145,7 @@ class TestProteinDomainConstraint:
 
     def test_dna_sequence_with_proteins(self):
         """Test DNA sequence with no predicted proteins (constraint-specific edge case)."""
-        segment = Segment(sequence="ATCGATCGATCG", sequence_type=SequenceType.DNA)
+        segment = Segment(sequence="ATCGATCGATCG", sequence_type="dna")
         config = ProteinDomainConfig(hmm_db=str(TEST_HMM), keywords=["kinase"])
 
         # Mock Prodigal returning proteins
@@ -182,7 +182,7 @@ class TestProteinDomainConstraint:
 
     def test_dna_sequence_no_proteins(self):
         """Test DNA sequence with no predicted proteins (constraint-specific edge case)."""
-        segment = Segment(sequence="ATCGATCGATCG", sequence_type=SequenceType.DNA)
+        segment = Segment(sequence="ATCGATCGATCG", sequence_type="dna")
         config = ProteinDomainConfig(hmm_db=str(TEST_HMM), keywords=["kinase"])
 
         # Mock Prodigal returning no proteins

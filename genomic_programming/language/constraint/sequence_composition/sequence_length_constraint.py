@@ -140,12 +140,12 @@ def sequence_length_constraint(sequences: List[Sequence], config: SequenceLength
 
     Examples:
         Range mode (protein):
-        >>> seqs = [Sequence("MVLSP", SequenceType.PROTEIN)]
+        >>> seqs = [Sequence("MVLSP", "protein")]
         >>> cfg = SequenceLengthConfig(min_length=4, max_length=10)
         >>> scores = sequence_length_constraint(seqs, cfg)
         
         Target mode (DNA):
-        >>> seqs = [Sequence("ATCGATCG", SequenceType.DNA)]
+        >>> seqs = [Sequence("ATCGATCG", "dna")]
         >>> cfg = SequenceLengthConfig(target_length=8)
         >>> scores = sequence_length_constraint(seqs, cfg)
     """

@@ -301,8 +301,8 @@ def boltz_binding_strength_constraint(
         Evaluating protein complex binding:
         
         >>> from proto_language.language.core import Sequence, SequenceType
-        >>> protein_a = Sequence("MVLSPADKTNVKAAWGKV", SequenceType.PROTEIN)
-        >>> protein_b = Sequence("QFSKPQRTVLMKALNE", SequenceType.PROTEIN)
+        >>> protein_a = Sequence("MVLSPADKTNVKAAWGKV", "protein")
+        >>> protein_b = Sequence("QFSKPQRTVLMKALNE", "protein")
         >>> config = BoltzBindingStrengthConfig()  # Use defaults
         >>> scores = boltz_binding_strength_constraint([[protein_a, protein_b]], config)
         >>> print(scores[0])  # e.g., 0.15 (good binding)
@@ -330,7 +330,7 @@ def boltz_binding_strength_constraint(
 
         # Determine complex type
         n_chains = comp.num_chains()
-        has_ligand = SequenceType.LIGAND.value in comp.get_entity_type_set()
+        has_ligand = "ligand" in comp.get_entity_type_set()
 
         # Default weights by case
         if config.weights is not None:

@@ -20,7 +20,7 @@ class TestTopKOptimizer:
 
     def test_topk_optimizer_initialization(self):
         """Test basic TopKOptimizer initialization."""
-        segment = Segment(sequence="AAAA", sequence_type=SequenceType.DNA)
+        segment = Segment(sequence="AAAA", sequence_type="dna")
         construct = Construct([segment])
 
         gen = UniformMutationGenerator(
@@ -52,7 +52,7 @@ class TestTopKOptimizer:
 
     def test_topk_returns_k_constructs(self):
         """Test that TopK optimizer returns exactly k constructs."""
-        segment = Segment(sequence="ATCGATCG", sequence_type=SequenceType.DNA)
+        segment = Segment(sequence="ATCGATCG", sequence_type="dna")
         construct = Construct([segment])
 
         gen = UniformMutationGenerator(
@@ -88,7 +88,7 @@ class TestTopKOptimizer:
 
     def test_topk_keeps_best_candidates(self):
         """Test that TopK keeps the best (lowest energy) candidates."""
-        segment = Segment(sequence="AAAAAAAA", sequence_type=SequenceType.DNA)
+        segment = Segment(sequence="AAAAAAAA", sequence_type="dna")
         construct = Construct([segment])
 
         gen = UniformMutationGenerator(
@@ -129,7 +129,7 @@ class TestTopKOptimizer:
 
     def test_topk_with_multiple_generators(self):
         """Test TopK with multiple generators applied sequentially."""
-        segment = Segment(sequence="AAAA", sequence_type=SequenceType.DNA)
+        segment = Segment(sequence="AAAA", sequence_type="dna")
         construct = Construct([segment])
 
         gen1 = UniformMutationGenerator(
@@ -167,7 +167,7 @@ class TestTopKOptimizer:
 
     def test_topk_rounds_start_from_initial_state(self):
         """Test that each round starts from the initial state, not cumulative."""
-        segment = Segment(sequence="ATCGATCG", sequence_type=SequenceType.DNA)
+        segment = Segment(sequence="ATCGATCG", sequence_type="dna")
         construct = Construct([segment])
 
         initial_seq = segment.selected_sequences[0].sequence
@@ -205,7 +205,7 @@ class TestTopKOptimizer:
 
     def test_topk_with_batch_size(self):
         """Test TopK with batch_size > 1 for efficient batching."""
-        segment = Segment(sequence="ATCGATCG", sequence_type=SequenceType.DNA)
+        segment = Segment(sequence="ATCGATCG", sequence_type="dna")
         construct = Construct([segment])
 
         gen = UniformMutationGenerator(
@@ -254,7 +254,7 @@ class TestTopKOptimizer:
 
     def test_topk_with_energy_threshold(self):
         """Test TopK with energy_threshold for adaptive stopping."""
-        segment = Segment(sequence="AAAA", sequence_type=SequenceType.DNA)
+        segment = Segment(sequence="AAAA", sequence_type="dna")
         construct = Construct([segment])
 
         gen = UniformMutationGenerator(

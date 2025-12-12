@@ -68,7 +68,7 @@ def protein_length_constraint(sequences: List[Sequence], config: ProteinLengthCo
 
     Args:
         sequences (List[Sequence]): List of protein sequences to evaluate. All
-            sequences must have ``sequence_type == SequenceType.PROTEIN``.
+            sequences must have ``sequence_type == "protein"``.
             
         config (ProteinLengthConfig): Configuration object containing ``min_length``
             (minimum acceptable length in amino acids) and ``max_length`` (maximum
@@ -95,7 +95,7 @@ def protein_length_constraint(sequences: List[Sequence], config: ProteinLengthCo
         
         >>> from proto_language.language.core import Sequence, SequenceType
         >>> config = ProteinLengthConfig(min_length=10, max_length=500)
-        >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", SequenceType.PROTEIN)
+        >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", "protein")
         >>> scores = protein_length_constraint([seq], config)
         >>> print(scores[0])  # 0.0
         >>> print(seq._metadata["protein_length"])  # 37
@@ -103,7 +103,7 @@ def protein_length_constraint(sequences: List[Sequence], config: ProteinLengthCo
     scores = []
     
     for seq in sequences:
-        assert seq.sequence_type == SequenceType.PROTEIN, "Input must be protein"
+        assert seq.sequence_type == "protein", "Input must be protein"
         actual_length = len(seq)
         seq._metadata["protein_length"] = actual_length
         score = calculate_range_deviation(actual_length, config.min_length, config.max_length)

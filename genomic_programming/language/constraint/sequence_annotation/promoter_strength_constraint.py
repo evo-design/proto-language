@@ -198,7 +198,7 @@ def promoter_strength_constraint(sequences: List[Sequence], config: PromoterStre
         >>> # Sequence with strong constitutive promoter
         >>> promoter_seq = Sequence(
         ...     "TTGACAATGATACTTAGATTCACTTATAATACTAGTAGGAGGAACTTTATGAAA",
-        ...     SequenceType.DNA
+        ...     "dna"
         ... )
         >>> config = PromoterStrengthConfig(scoring_type="dG")
         >>> scores = promoter_strength_constraint([promoter_seq], config)

@@ -70,6 +70,7 @@ class UniformMutationGeneratorConfig(BaseConfig):
     requires_gpu=False,
     tools_called=[],
     category="mutation",
+    supported_sequence_types=[],
 )
 @final
 class UniformMutationGenerator(Generator):
@@ -88,16 +89,19 @@ class UniformMutationGenerator(Generator):
         mutation_window (Optional[Tuple[int, int]]): Optional region to restrict mutations.
         debug_with_sleep_calls (bool): Whether to add sleep delays for testing.
         category (str): Set to ``"mutation"``.
+        supported_sequence_types (List[SequenceType]): Empty list indicates support for all sequence types.
 
     Example:
         >>> from proto_language.language.generator import UniformMutationGenerator, UniformMutationGeneratorConfig
         >>> from proto_language.language.core import Segment, SequenceType
         >>> config = UniformMutationGeneratorConfig(num_mutations=2)
         >>> gen = UniformMutationGenerator(config)
-        >>> segment = Segment(length=100, sequence_type=SequenceType.DNA)
+        >>> segment = Segment(length=100, sequence_type="dna")
         >>> gen.assign(segment)
         >>> gen.sample()  # Introduces 2 random mutations
     """
+
+    supported_sequence_types = []  # Empty list means supports all sequence types
 
     def __init__(self, config: UniformMutationGeneratorConfig) -> None:
         """

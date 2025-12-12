@@ -14,7 +14,7 @@ from proto_language.language.core import Program
 from proto_language.language.constraint import gc_content_constraint
 
 # Construct Segment
-seq1 = Segment(length=20, sequence_type=SequenceType.DNA)
+seq1 = Segment(length=20, sequence_type="dna")
 
 # Construct
 construct = Construct([seq1])

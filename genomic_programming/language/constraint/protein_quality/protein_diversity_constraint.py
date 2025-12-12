@@ -66,7 +66,7 @@ def protein_diversity_constraint(sequences: List[Sequence], config: ProteinDiver
 
     Args:
         sequences (List[Sequence]): List of protein sequences to evaluate. All
-            sequences must have ``sequence_type == SequenceType.PROTEIN``.
+            sequences must have ``sequence_type == "protein"``.
             
         config (ProteinDiversityConfig): Configuration object containing
             ``min_diversity`` (minimum acceptable amino acid diversity, default: 0.5).
@@ -98,7 +98,7 @@ def protein_diversity_constraint(sequences: List[Sequence], config: ProteinDiver
         
         >>> from proto_language.language.core import Sequence, SequenceType
         >>> config = ProteinDiversityConfig(min_diversity=0.5)
-        >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", SequenceType.PROTEIN)
+        >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", "protein")
         >>> scores = protein_diversity_constraint([seq], config)
         >>> print(scores[0])  # 0.0 if diversity >= 0.5
         >>> print(seq._metadata["aa_diversity_score"])  # e.g., 0.65
@@ -106,7 +106,7 @@ def protein_diversity_constraint(sequences: List[Sequence], config: ProteinDiver
         >>> print(seq._metadata["unique_amino_acids"])  # e.g., ['A', 'D', 'E', 'F', ...]
     """
     for seq in sequences:
-        assert seq.sequence_type == SequenceType.PROTEIN, "Input must be protein"
+        assert seq.sequence_type == "protein", "Input must be protein"
 
     seq_strings = [seq.sequence for seq in sequences]
     seq_lengths = np.array([len(s) for s in seq_strings])

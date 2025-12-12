@@ -22,7 +22,7 @@ class TestProGen2Generator:
         progen2_generator = ProGen2Generator(config)
 
         # Create segment and assign to generator
-        segment = Segment(length=expected_length, sequence_type=SequenceType.PROTEIN)
+        segment = Segment(length=expected_length, sequence_type="protein")
         progen2_generator.assign(segment)
 
         assert progen2_generator._assigned_segment is segment
@@ -33,7 +33,7 @@ class TestProGen2Generator:
 
         assert segment[0].sequence is not None
         assert len(segment[0].sequence) > len(prompts[0])  # Should be longer than prompt
-        assert segment[0].sequence_type == SequenceType.PROTEIN
+        assert segment[0].sequence_type == "protein"
 
     def test_progen2_batch_sampling(self):
         """Test ProGen2 generator with multiple prompt sequences."""
@@ -46,7 +46,7 @@ class TestProGen2Generator:
         progen2_generator = ProGen2Generator(config)
 
         # Create segment and expand candidate pool
-        segment = Segment(length=expected_length, sequence_type=SequenceType.PROTEIN)
+        segment = Segment(length=expected_length, sequence_type="protein")
         segment.candidate_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(len(prompts))]
         progen2_generator.assign(segment)
 
@@ -61,7 +61,7 @@ class TestProGen2Generator:
         for i in range(len(prompts)):
             assert segment.candidate_sequences[i].sequence is not None
             assert len(segment.candidate_sequences[i].sequence) > len(prompts[i])  # Should be longer than prompt
-            assert segment.candidate_sequences[i].sequence_type == SequenceType.PROTEIN
+            assert segment.candidate_sequences[i].sequence_type == "protein"
             print("Generated:", segment.candidate_sequences[i].sequence)
 
     def test_progen2_assign_errors(self):
@@ -73,7 +73,7 @@ class TestProGen2Generator:
 
         # Create segment with 2 candidates
         expected_length = 120
-        segment_two_candidates = Segment(length=expected_length, sequence_type=SequenceType.PROTEIN)
+        segment_two_candidates = Segment(length=expected_length, sequence_type="protein")
         segment_two_candidates.candidate_sequences = [copy.deepcopy(segment_two_candidates.original_sequence) for _ in range(2)]
         progen2_generator.assign(segment_two_candidates)
         
@@ -96,7 +96,7 @@ class TestProGen2Generator:
         progen2_generator = ProGen2Generator(config)
 
         # Create segment and assign to generator
-        segment = Segment(length=expected_length, sequence_type=SequenceType.PROTEIN)
+        segment = Segment(length=expected_length, sequence_type="protein")
         progen2_generator.assign(segment)
 
         assert progen2_generator.temperature == 0.8
@@ -107,7 +107,7 @@ class TestProGen2Generator:
         progen2_generator.sample()
 
         assert segment[0].sequence is not None
-        assert segment[0].sequence_type == SequenceType.PROTEIN
+        assert segment[0].sequence_type == "protein"
         assert segment[0].sequence.startswith(PROGEN2_START_TOKEN)
 
     def test_constant_segment_rejection(self):
@@ -118,10 +118,50 @@ class TestProGen2Generator:
         # Create a constant segment
         constant_segment = Segment(
             sequence="EVQLVE",
-            sequence_type=SequenceType.PROTEIN,
+            sequence_type="protein",
             constant=True
         )
         
         # Should raise ValueError when trying to assign a constant segment
         with pytest.raises(ValueError, match="Cannot assign constant segment"):
             gen.assign(constant_segment)
+
+
+class TestProGen2GeneratorValidation:
+    """Test sequence type validation for ProGen2 generator."""
+
+    def test_valid_protein_assignment(self):
+        """ProGen2 should accept PROTEIN segments."""
+        config = ProGen2GeneratorConfig(prompts="1MKTL")
+        generator = ProGen2Generator(config)
+        segment = Segment(length=100, sequence_type="protein")
+        
+        # Should not raise
+        generator.assign(segment)
+        assert generator._assigned_segment is segment
+
+    def test_rejects_dna_segment(self):
+        """ProGen2 should reject DNA segments."""
+        config = ProGen2GeneratorConfig(prompts="1MKTL")
+        generator = ProGen2Generator(config)
+        segment = Segment(length=100, sequence_type="dna")
+        
+        with pytest.raises(ValueError) as exc_info:
+            generator.assign(segment)
+        
+        error_msg = str(exc_info.value)
+        assert "does not support sequence type" in error_msg
+        assert "dna" in error_msg.lower()
+        assert "protein" in error_msg.lower()
+
+    def test_rejects_rna_segment(self):
+        """ProGen2 should reject RNA segments."""
+        config = ProGen2GeneratorConfig(prompts="1MKTL")
+        generator = ProGen2Generator(config)
+        segment = Segment(length=100, sequence_type="rna")
+        
+        with pytest.raises(ValueError) as exc_info:
+            generator.assign(segment)
+        
+        assert "does not support sequence type" in str(exc_info.value)
+        assert "rna" in str(exc_info.value).lower()

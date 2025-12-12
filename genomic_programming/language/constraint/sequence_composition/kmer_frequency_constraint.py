@@ -218,7 +218,7 @@ def kmer_frequency_constraint(sequences: List[Sequence], config: KmerFrequencyCo
     Examples:
         Analyzing codon usage (all trinucleotides):
         
-        >>> coding_seq = Sequence("ATGAAACGTATTGCGTCG", SequenceType.DNA)
+        >>> coding_seq = Sequence("ATGAAACGTATTGCGTCG", "dna")
         >>> config = KmerFrequencyConfig(
         ...     k=3,
         ...     scoring_mode="usage_deviation",
@@ -237,7 +237,7 @@ def kmer_frequency_constraint(sequences: List[Sequence], config: KmerFrequencyCo
     scores = []
 
     for seq in sequences:
-        if seq.sequence_type not in {SequenceType.DNA, SequenceType.RNA, SequenceType.PROTEIN}:
+        if seq.sequence_type not in {"dna", "rna", "protein"}:
             raise ValueError(f"Input must be a DNA, RNA, or PROTEIN sequence")
 
         # Handle sequences shorter than k
@@ -247,11 +247,11 @@ def kmer_frequency_constraint(sequences: List[Sequence], config: KmerFrequencyCo
             continue
 
         # Determine valid characters based on sequence type
-        if seq.sequence_type == SequenceType.DNA:
+        if seq.sequence_type == "dna":
             valid_bases = DNA_NUCLEOTIDES
-        elif seq.sequence_type == SequenceType.RNA:
+        elif seq.sequence_type == "rna":
             valid_bases = RNA_NUCLEOTIDES
-        else:  # SequenceType.PROTEIN
+        else:  # "protein"
             valid_bases = PROTEIN_AMINO_ACIDS
 
         # Generate all possible k-mers or use specific k-mer

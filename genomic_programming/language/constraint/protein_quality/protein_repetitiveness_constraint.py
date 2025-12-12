@@ -85,7 +85,7 @@ def protein_repetitiveness_constraint(sequences: List[Sequence], config: Protein
     
     Args:
         sequences (List[Sequence]): List of protein sequences to evaluate. All
-            sequences must have ``sequence_type == SequenceType.PROTEIN``.
+            sequences must have ``sequence_type == "protein"``.
             
         config (ProteinRepetitivenessConfig): Configuration object containing
             ``max_repetitiveness`` (maximum acceptable repetitiveness fraction,
@@ -119,13 +119,13 @@ def protein_repetitiveness_constraint(sequences: List[Sequence], config: Protein
         
         >>> from proto_language.language.core import Sequence, SequenceType
         >>> config = ProteinRepetitivenessConfig(max_repetitiveness=0.4, min_repeat_length=3)
-        >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", SequenceType.PROTEIN)
+        >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", "protein")
         >>> scores = protein_repetitiveness_constraint([seq], config)
         >>> print(scores[0])  # 0.0 if repetitiveness < 40%
         >>> print(seq._metadata["repetitiveness_score"])  # e.g., 0.15
     """
     for seq in sequences:
-        assert seq.sequence_type == SequenceType.PROTEIN, "Input must be protein"
+        assert seq.sequence_type == "protein", "Input must be protein"
     seq_strings = [seq.sequence for seq in sequences]
     repetitiveness_scores = np.array([
         _calculate_repetitiveness_score(s, config.min_repeat_length) 

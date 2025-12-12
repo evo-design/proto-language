@@ -17,13 +17,13 @@ class Segment:
 
     Examples:
         Creating a Segment with a sequence:
-        >>> promoter = Segment(sequence="TATA", sequence_type=SequenceType.DNA, label="promoter")
+        >>> promoter = Segment(sequence="TATA", sequence_type="dna", label="promoter")
         >>> promoter.label  # "promoter"
         >>> promoter.sequence_length  # 4 (inferred from sequence)
         >>> promoter.selected_sequences  # [Sequence("TATA")]
 
         Creating a Segment with just a length:
-        >>> variable_region = Segment(length=100, sequence_type=SequenceType.DNA, label="variable")
+        >>> variable_region = Segment(length=100, sequence_type="dna", label="variable")
         >>> variable_region.sequence_length  # 100
         >>> variable_region.selected_sequences  # [Sequence("")]
     """
@@ -32,7 +32,7 @@ class Segment:
         self,
         sequence: Optional[str] = None,
         length: Optional[int] = None,
-        sequence_type: Optional[Union[SequenceType, str]] = SequenceType.DNA,
+        sequence_type: SequenceType = "dna",
         valid_chars: Optional[Set[str]] = None,
         label: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -44,7 +44,7 @@ class Segment:
         Args:
             sequence: Optional biological sequence string. If provided, length is inferred.
             length: Optional desired length for sequences. Required if sequence not provided.
-            sequence_type: Type of biological sequence (DNA, RNA, or PROTEIN). Defaults to DNA.
+            sequence_type: Type of biological sequence ("dna", "rna", "protein", or "ligand"). Defaults to "dna".
             valid_chars: Optional custom set of valid characters for sequence validation.
             label: Optional label for this segment (e.g., "promoter", "coding_region").
             metadata: Additional data associated with this sequence.
@@ -80,7 +80,7 @@ class Segment:
         self.candidate_sequences: List[Sequence] = [seq]
         self.selected_sequences: List[Sequence] = [seq]
 
-        self.sequence_type: SequenceType = SequenceType(seq.sequence_type)
+        self.sequence_type: SequenceType = seq.sequence_type
         self._valid_chars: Optional[Set[str]] = seq._valid_chars
         self.label: Optional[str] = label
 
@@ -116,7 +116,7 @@ class Segment:
             "sequence_length": self.sequence_length,
             "candidate_sequences": [seq.to_dict() for seq in self.candidate_sequences],
             "selected_sequences": [seq.to_dict() for seq in self.selected_sequences],
-            "sequence_type": self.sequence_type.value,
+            "sequence_type": self.sequence_type,
             "valid_chars": list(self._valid_chars) if self._valid_chars else None,
             "label": self.label,
             "constant": self.constant,

@@ -149,7 +149,7 @@ def esmfold_plddt_constraint(
         Evaluating monomer structure confidence:
         
         >>> from proto_language.language.core import Sequence, SequenceType
-        >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", SequenceType.PROTEIN)
+        >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", "protein")
         >>> config = ESMFoldConfidenceConfig(n_replications=1)
         >>> scores = esmfold_plddt_constraint([seq], config)
         >>> print(scores[0])  # e.g., 0.15 (pLDDT of 0.85)
@@ -172,7 +172,7 @@ def esmfold_plddt_constraint(
         
         Evaluating DNA sequence (with automatic ORF prediction):
         
-        >>> dna_seq = Sequence("ATGGTACTGAGCCCAGCG...", SequenceType.DNA)
+        >>> dna_seq = Sequence("ATGGTACTGAGCCCAGCG...", "dna")
         >>> config = ESMFoldConfidenceConfig(n_replications=1)
         >>> scores = esmfold_plddt_constraint([dna_seq], config)
         >>> print(dna_seq._metadata["prodigal_protein_count"])  # e.g., 2
@@ -255,7 +255,7 @@ def esmfold_ptm_constraint(
         Evaluating global structure quality:
         
         >>> from proto_language.language.core import Sequence, SequenceType
-        >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", SequenceType.PROTEIN)
+        >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", "protein")
         >>> config = ESMFoldConfidenceConfig(n_replications=1)
         >>> scores = esmfold_ptm_constraint([seq], config)
         >>> print(scores[0])  # e.g., 0.22 (pTM of 0.78)
@@ -285,7 +285,7 @@ def esmfold_confidence(
     Examples:
         Evaluating protein structure confidence:
 
-        >>> seqs = [Sequence("MVLSPADKTNVK", SequenceType.PROTEIN)]
+        >>> seqs = [Sequence("MVLSPADKTNVK", "protein")]
         >>> # Using defaults:
         >>> cfg = ESMFoldPLDDTConfig()
         >>> score = esmfold_plddt_constraint(seq, config=cfg)
@@ -300,7 +300,7 @@ def esmfold_confidence(
         )
 
     scores = []
-    if sequences[0].sequence_type == SequenceType.PROTEIN:
+    if sequences[0].sequence_type == "protein":
         scores = _predict_structures(sequences, config, target_metric)
     else:
         scores = _evaluate_dna_via_prodigal(sequences, config, target_metric)

@@ -171,10 +171,13 @@ class ProGen2GeneratorConfig(BaseConfig):
     requires_gpu=True,
     tools_called=["progen2"],
     category="autoregressive",
+    supported_sequence_types=["protein"],
 )
 @final
 class ProGen2Generator(Generator):
     """Protein sequence generator using ProGen2 autoregressive language model."""
+
+    supported_sequence_types = ["protein"]
 
     def __init__(self, config: ProGen2GeneratorConfig) -> None:
         super().__init__()

@@ -90,6 +90,7 @@ class ESM2GeneratorConfig(BaseConfig):
     requires_gpu=True,
     tools_called=["esm2"],
     category="mutation",
+    supported_sequence_types=["protein"],
 )
 @final
 class ESM2Generator(Generator):
@@ -109,6 +110,7 @@ class ESM2Generator(Generator):
         decoding_method (str): Position selection strategy (entropy/max_logit/random).
         num_mutations (int): Number of positions to mutate per iteration.
         category (str): Set to ``"mutation"``.
+        supported_sequence_types (List[SequenceType]): Only supports PROTEIN sequences.
 
     Example:
         >>> from proto_language.language.generator import ESM2Generator, ESM2GeneratorConfig
@@ -119,10 +121,12 @@ class ESM2Generator(Generator):
         ...     num_mutations=5
         ... )
         >>> gen = ESM2Generator(config)
-        >>> segment = Segment(length=100, sequence_type=SequenceType.PROTEIN)
+        >>> segment = Segment(length=100, sequence_type="protein")
         >>> gen.assign(segment)
         >>> gen.sample()  # Refines 5 highest-entropy positions
     """
+
+    supported_sequence_types = ["protein"]
 
     def __init__(self, config: ESM2GeneratorConfig) -> None:
         """

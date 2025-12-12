@@ -54,7 +54,7 @@ class TestProteinGlobularityConstraint:
 
     def test_scoring_algorithm(self):
         """Test basic constraint evaluation with mocked structure."""
-        segment = Segment(sequence="MKR", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(sequence="MKR", sequence_type="protein")
         config = ProteinGlobularityConfig()
 
         # Mock a compact globular structure (low std of distances)
@@ -94,7 +94,7 @@ class TestProteinGlobularityConstraint:
 
     def test_dna_sequence_input(self):
         """Test that DNA/RNA sequences work via translation to protein."""
-        segment = Segment(sequence="ATGAAAAAACGT", sequence_type=SequenceType.DNA)  # Codes for MKR
+        segment = Segment(sequence="ATGAAAAAACGT", sequence_type="dna")  # Codes for MKR
         config = ProteinGlobularityConfig()
 
         # Mock the Prodigal output
@@ -152,7 +152,7 @@ class TestProteinGlobularityConstraint:
 
     def test_n_replications_parameter(self):
         """Test that n_replications correctly replicates the sequence."""
-        segment = Segment(sequence="MKTAYIAK", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(sequence="MKTAYIAK", sequence_type="protein")
         config = ProteinGlobularityConfig(n_replications=3)
         with patch('proto_language.language.constraint.protein_structure.protein_globularity_constraint.run_esmfold') as mock_run:
             # Create mock structure

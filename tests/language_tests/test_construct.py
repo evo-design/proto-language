@@ -8,9 +8,9 @@ class TestConstruct:
 
     def test_concatenation(self):
         """Tests concatenation of single-sequence segments."""
-        seg1 = Segment(sequence="ATG", sequence_type=SequenceType.DNA)
-        seg2 = Segment(sequence="CGC", sequence_type=SequenceType.DNA)
-        seg3 = Segment(sequence="TAA", sequence_type=SequenceType.DNA)
+        seg1 = Segment(sequence="ATG", sequence_type="dna")
+        seg2 = Segment(sequence="CGC", sequence_type="dna")
+        seg3 = Segment(sequence="TAA", sequence_type="dna")
         construct = Construct([seg1, seg2, seg3])
 
         final_sequences = construct.joined_sequences
@@ -20,10 +20,10 @@ class TestConstruct:
     def test_batched_concatenation(self):
         """Tests concatenation of segments with multiple selected sequences."""
         seg1 = Segment(sequence="A")
-        seg1.selected_sequences.append(Sequence(sequence="G", sequence_type=SequenceType.DNA))
+        seg1.selected_sequences.append(Sequence(sequence="G", sequence_type="dna"))
 
         seg2 = Segment(sequence="C")
-        seg2.selected_sequences.append(Sequence(sequence="T", sequence_type=SequenceType.DNA))
+        seg2.selected_sequences.append(Sequence(sequence="T", sequence_type="dna"))
 
         construct = Construct([seg1, seg2])
         final_sequences = construct.joined_sequences
@@ -38,8 +38,8 @@ class TestConstruct:
             Construct([])
 
         # Inconsistent sequence types
-        seg_dna = Segment(sequence="A", sequence_type=SequenceType.DNA)
-        seg_rna = Segment(sequence="U", sequence_type=SequenceType.RNA)
+        seg_dna = Segment(sequence="A", sequence_type="dna")
+        seg_rna = Segment(sequence="U", sequence_type="rna")
         with pytest.raises(ValueError, match="must have the same sequence_type"):
             Construct([seg_dna, seg_rna])
 

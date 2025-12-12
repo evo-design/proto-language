@@ -26,7 +26,7 @@ class TestPromoterStrengthConstraint:
 
     def test_no_promoter_found(self):
         """Test scoring when no promoter is found."""
-        segment = Segment(sequence="ATCGATCGATCG", sequence_type=SequenceType.DNA)
+        segment = Segment(sequence="ATCGATCGATCG", sequence_type="dna")
         config = PromoterStrengthConfig()
 
         # Mock promoter_calculator returning empty list for each sequence
@@ -45,7 +45,7 @@ class TestPromoterStrengthConstraint:
 
     def test_tx_rate_scoring_weak(self):
         """Test tx_rate scoring for weak promoter."""
-        segment = Segment(sequence="ATCGATCGATCG", sequence_type=SequenceType.DNA)
+        segment = Segment(sequence="ATCGATCGATCG", sequence_type="dna")
         config = PromoterStrengthConfig(scoring_type="tx_rate")
 
         # Mock promoter with low tx_rate
@@ -68,7 +68,7 @@ class TestPromoterStrengthConstraint:
 
     def test_tx_rate_scoring_strong(self):
         """Test tx_rate scoring for strong promoter."""
-        segment = Segment(sequence="ATCGATCGATCG", sequence_type=SequenceType.DNA)
+        segment = Segment(sequence="ATCGATCGATCG", sequence_type="dna")
         config = PromoterStrengthConfig(scoring_type="tx_rate")
 
         # Mock promoter with high tx_rate
@@ -91,7 +91,7 @@ class TestPromoterStrengthConstraint:
 
     def test_dG_scoring_weak(self):
         """Test dG scoring for weak promoter."""
-        segment = Segment(sequence="ATCGATCGATCG", sequence_type=SequenceType.DNA)
+        segment = Segment(sequence="ATCGATCGATCG", sequence_type="dna")
         config = PromoterStrengthConfig(scoring_type="dG")
 
         # Mock promoter with weak binding (high dG)
@@ -114,7 +114,7 @@ class TestPromoterStrengthConstraint:
 
     def test_dG_scoring_strong(self):
         """Test dG scoring for strong promoter and constraint-specific metadata."""
-        segment = Segment(sequence="ATCGATCGATCG", sequence_type=SequenceType.DNA)
+        segment = Segment(sequence="ATCGATCGATCG", sequence_type="dna")
         config = PromoterStrengthConfig(scoring_type="dG")
 
         # Mock promoter with strong binding (low dG)
@@ -145,7 +145,7 @@ class TestPromoterStrengthConstraint:
 
     def test_add_context(self):
         """Test that add_context parameter adds flanking sequence."""
-        segment = Segment(sequence="ATCG", sequence_type=SequenceType.DNA)
+        segment = Segment(sequence="ATCG", sequence_type="dna")
         config = PromoterStrengthConfig(add_context=True, context_length=5)
 
         mock_result = Mock()

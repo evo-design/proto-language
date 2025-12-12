@@ -18,7 +18,7 @@ class TestKmerFrequencyConstraint:
     def test_dinucleotide_frequency_mode(self):
         """Test dinucleotide frequency evaluation."""
         # ATCGATCG has AT, TC, CG, GA dinucleotides
-        seq = Segment(sequence="ATCGATCG", sequence_type=SequenceType.DNA)
+        seq = Segment(sequence="ATCGATCG", sequence_type="dna")
 
         config = KmerFrequencyConfig(
             k=2,
@@ -45,7 +45,7 @@ class TestKmerFrequencyConstraint:
 
     def test_tetranucleotide_usage_deviation_mode(self):
         """Test tetranucleotide usage deviation evaluation."""
-        seq = Segment(sequence="AGCT" * 10 + "GATC" + "AGCT" * 10, sequence_type=SequenceType.DNA)
+        seq = Segment(sequence="AGCT" * 10 + "GATC" + "AGCT" * 10, sequence_type="dna")
 
         config = KmerFrequencyConfig(
             k=4,
@@ -71,7 +71,7 @@ class TestKmerFrequencyConstraint:
 
     def test_protein_kmer_frequency(self):
         """Test k-mer frequency on protein sequences."""
-        seq = Segment(sequence="MVLSPADKTNVKAAW", sequence_type=SequenceType.PROTEIN)
+        seq = Segment(sequence="MVLSPADKTNVKAAW", sequence_type="protein")
 
         config = KmerFrequencyConfig(
             k=2,
@@ -94,7 +94,7 @@ class TestKmerFrequencyConstraint:
 
     def test_empty_sequence(self):
         """Test handling of empty sequences."""
-        seq = Segment(length=0, sequence_type=SequenceType.DNA)
+        seq = Segment(length=0, sequence_type="dna")
 
         config = KmerFrequencyConfig(
             k=2,
@@ -114,7 +114,7 @@ class TestKmerFrequencyConstraint:
 
     def test_sequence_too_short(self):
         """Test sequences shorter than k."""
-        seq = Segment(sequence="AT", sequence_type=SequenceType.DNA)
+        seq = Segment(sequence="AT", sequence_type="dna")
 
         config = KmerFrequencyConfig(
             k=4,

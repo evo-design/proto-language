@@ -232,7 +232,7 @@ if __name__ == '__main__':
             intron = Segment(sequence=target_seq[
                     donor_start_pos_in_target + 2 : acceptor_end_pos_in_target - 1
                 ],
-                sequence_type=SequenceType.DNA,
+                sequence_type="dna",
             )
 
             if args.intron_generator == "uniform":
@@ -263,12 +263,12 @@ if __name__ == '__main__':
             assert target_seq[donor_start_pos_in_target + 2 : acceptor_end_pos_in_target - 1] == intron.original_sequence._sequence
 
         left_flank = Segment(sequence=target_seq[: donor_start_pos_in_target + 2],
-            sequence_type=SequenceType.DNA,
+            sequence_type="dna",
             constant=True,
         )
 
         right_flank = Segment(sequence=target_seq[acceptor_end_pos_in_target - 1 :],
-            sequence_type=SequenceType.DNA,
+            sequence_type="dna",
             constant=True,
         )
 

@@ -6,8 +6,7 @@ Sequence class for the proto-language.
 Represents a single DNA, RNA, or protein sequence with validation and metadata.
 """
 from __future__ import annotations
-from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Literal, Optional, Set
 import warnings
 import string
 
@@ -23,14 +22,8 @@ LIGAND_CHARS = (
     + ["-", "=", "#", ":", "$", "/", "\\", "(", ")", "[", "]", ".", "%", "@", "+"]
 )
 
-
-class SequenceType(Enum):
-    """Enumeration of supported biological sequence types."""
-
-    DNA = "dna"
-    RNA = "rna"
-    PROTEIN = "protein"
-    LIGAND = "ligand"
+# Type alias for supported biological sequence types
+SequenceType = Literal["dna", "rna", "protein", "ligand"]
 
 
 class Sequence:
@@ -44,7 +37,7 @@ class Sequence:
     def __init__(
         self,
         sequence: str = "",
-        sequence_type: Optional[Union[SequenceType, str]] = SequenceType.DNA,
+        sequence_type: SequenceType = "dna",
         valid_chars: Optional[Set[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
@@ -53,22 +46,22 @@ class Sequence:
 
         Args:
             sequence: The biological sequence string. Defaults to empty string.
-            sequence_type: Type of biological sequence (SequenceType.DNA, SequenceType.RNA, or SequenceType.PROTEIN). Defaults to DNA.
+            sequence_type: Type of biological sequence ("dna", "rna", "protein", or "ligand"). Defaults to "dna".
             valid_chars: Optional custom set of valid characters for sequence validation.
                 If provided, overrides the default character set for the sequence_type.
             metadata: Additional data associated with this sequence.
         """
-        self.sequence_type: SequenceType = SequenceType(sequence_type)
+        self.sequence_type: SequenceType = sequence_type
         # Set up character validation based on sequence type or custom valid_chars
         if valid_chars:
             self._valid_chars: Optional[Set[str]] = valid_chars
-        elif self.sequence_type == SequenceType.DNA:
+        elif self.sequence_type == "dna":
             self._valid_chars = set(DNA_NUCLEOTIDES)
-        elif self.sequence_type == SequenceType.RNA:
+        elif self.sequence_type == "rna":
             self._valid_chars = set(RNA_NUCLEOTIDES)
-        elif self.sequence_type == SequenceType.PROTEIN:
+        elif self.sequence_type == "protein":
             self._valid_chars = set(PROTEIN_AMINO_ACIDS)
-        elif self.sequence_type == SequenceType.LIGAND:
+        elif self.sequence_type == "ligand":
             self._valid_chars = set(LIGAND_CHARS)
         else:
             raise ValueError(f"Unsupported sequence_type: {self.sequence_type}")
@@ -183,7 +176,7 @@ class Sequence:
         """Serialize Sequence to dictionary for cloud/API communication."""
         return {
             "sequence": self._sequence,
-            "sequence_type": self.sequence_type.value,
+            "sequence_type": self.sequence_type,
             "valid_chars": list(self._valid_chars) if self._valid_chars else None,
             "metadata": {k: v for k, v in self._metadata.items() if k not in ["sequence", "sequence_length"]},
         }
@@ -374,28 +367,28 @@ def detect_sequence_type(sequence: str) -> str:
         sequence (str): The sequence string to detect the type of.
 
     Returns:
-       string: The type of the sequence.
+       string: The type of the sequence ("dna", "rna", "protein", "ligand", or "unknown").
     """
 
     # DNA ================================================================
     invalid_chars = return_invalid_dna_chars(sequence, additional_valid_chars="N")
     if not invalid_chars:
-        return SequenceType.DNA.value
+        return "dna"
 
     # RNA ================================================================
     invalid_chars = return_invalid_rna_chars(sequence, additional_valid_chars="TN")
     if not invalid_chars:
-        return SequenceType.RNA.value
+        return "rna"
 
     # Protein =============================================================
     invalid_chars = return_invalid_protein_chars(sequence, additional_valid_chars="X*")
     if not invalid_chars:
-        return SequenceType.PROTEIN.value
+        return "protein"
 
     # Ligand ==============================================================
     invalid_chars = return_invalid_ligand_chars(sequence)
     if not invalid_chars:
-        return SequenceType.LIGAND.value
+        return "ligand"
 
     # Otherwise, return unknown
     return "unknown"

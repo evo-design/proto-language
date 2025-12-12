@@ -23,6 +23,7 @@ class GeneratorSpec(BaseSpec):
     category: Literal["autoregressive", "mutation"] = Field(description="Generator category: 'autoregressive' (left-to-right, e.g. Evo2) or 'mutation' (bidirectional/masked, e.g. ESM2)")
     requires_gpu: bool = Field(description="Whether generator requires GPU")
     tools_called: List[str] = Field(description="List of tool keys this generator calls (e.g., ['esm3', 'evo2']). Helps agent find relevant tool documentation.")
+    supported_sequence_types: List[str] = Field(description="List of supported sequence types (e.g., ['dna', 'protein']). Empty list means supports all types.")
 
     # Private field - excluded from serialization
     generator_class: Type[Generator] = Field(exclude=True)
@@ -88,6 +89,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
         category: Literal["autoregressive", "mutation"],
         requires_gpu: bool,
         tools_called: List[str] = [],
+        supported_sequence_types: List[str] = [],
     ):
         """
         Decorator to register a generator class.
@@ -102,6 +104,9 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
             description: Readable description
             category: "autoregressive" (left-to-right) or "mutation" (bidirectional/masked)
             requires_gpu: If True, generator requires GPU for computation
+            tools_called: List of tool keys this generator calls
+            supported_sequence_types: List of supported sequence types (e.g., ["dna", "protein"]). 
+                Empty list means supports all types.
 
         Returns:
             Decorator that registers the class and returns it unchanged
@@ -114,6 +119,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
             ...     description="Random point mutations",
             ...     category="mutation",
             ...     requires_gpu=False,
+            ...     supported_sequence_types=[],
             ... )
             ... class UniformMutationGenerator(Generator):
             ...     def __init__(self, config: UniformMutationConfig):
@@ -133,6 +139,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
                 category=category,
                 requires_gpu=requires_gpu,
                 tools_called=tools_called,
+                supported_sequence_types=supported_sequence_types,
             )
             return generator_class
         return decorator

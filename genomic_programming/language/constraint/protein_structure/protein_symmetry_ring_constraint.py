@@ -193,7 +193,7 @@ def protein_symmetry_ring_constraint(sequences: List[Sequence], config: ProteinS
         Designing a symmetric hexameric ring:
         
         >>> from proto_language.language.core import Sequence, SequenceType
-        >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", SequenceType.PROTEIN)
+        >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", "protein")
         >>> config = ProteinSymmetryRingConfig(
         ...     n_replications=6,  # Hexamer
         ...     max_symmetry_std=10.0
@@ -203,19 +203,19 @@ def protein_symmetry_ring_constraint(sequences: List[Sequence], config: ProteinS
         >>> print(seq._metadata["symmetry_std_raw"])  # e.g., 3.5 Å
         >>> print(seq._metadata["symmetry_score_normalized"])  # 0.35
     """
-    by_type = {SequenceType.DNA: [], SequenceType.PROTEIN: []}
+    by_type = {"dna": [], "protein": []}
     for seq in sequences:
         by_type[seq.sequence_type].append(seq)
     
     scores = [None] * len(sequences)
     
-    if by_type[SequenceType.PROTEIN]:
-        protein_scores = _evaluate_protein_symmetry(by_type[SequenceType.PROTEIN], config)
-        _map_scores_to_original(sequences, by_type[SequenceType.PROTEIN], protein_scores, scores)
+    if by_type["protein"]:
+        protein_scores = _evaluate_protein_symmetry(by_type["protein"], config)
+        _map_scores_to_original(sequences, by_type["protein"], protein_scores, scores)
     
-    if by_type[SequenceType.DNA]:
-        dna_scores = _evaluate_dna_symmetry(by_type[SequenceType.DNA], config)
-        _map_scores_to_original(sequences, by_type[SequenceType.DNA], dna_scores, scores)
+    if by_type["dna"]:
+        dna_scores = _evaluate_dna_symmetry(by_type["dna"], config)
+        _map_scores_to_original(sequences, by_type["dna"], dna_scores, scores)
     
     return scores
 

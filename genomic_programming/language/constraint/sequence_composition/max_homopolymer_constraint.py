@@ -96,7 +96,7 @@ def max_homopolymer_constraint(sequences: List[Sequence], config: MaxHomopolymer
         Avoiding long A/T runs for DNA synthesis:
         
         >>> from proto_language.language.core import Sequence, SequenceType
-        >>> seq = Sequence("ATCGATCGTAGC", SequenceType.DNA)
+        >>> seq = Sequence("ATCGATCGTAGC", "dna")
         >>> config = MaxHomopolymerConfig(max_length=4)
         >>> scores = max_homopolymer_constraint([seq], config)
         >>> print(scores[0])  # 0.0 (no runs >4)

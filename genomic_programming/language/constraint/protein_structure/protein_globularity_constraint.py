@@ -170,7 +170,7 @@ def protein_globularity_constraint(sequences: List[Sequence], config: ProteinGlo
         Evaluating protein structural compactness:
         
         >>> from proto_language.language.core import Sequence, SequenceType
-        >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", SequenceType.PROTEIN)
+        >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", "protein")
         >>> config = ProteinGlobularityConfig(n_replications=1)
         >>> scores = protein_globularity_constraint([seq], config)
         >>> print(scores[0])  # e.g., 8.5 (Ångströms, lower = more compact)
@@ -179,7 +179,7 @@ def protein_globularity_constraint(sequences: List[Sequence], config: ProteinGlo
 
         Evaluating DNA sequence (with automatic ORF prediction):
         
-        >>> dna_seq = Sequence("ATGGTACTGAGCCCAGCG...", SequenceType.DNA)
+        >>> dna_seq = Sequence("ATGGTACTGAGCCCAGCG...", "dna")
         >>> config = ProteinGlobularityConfig(n_replications=1)
         >>> scores = protein_globularity_constraint([dna_seq], config)
         >>> print(scores[0])  # Normalized score (0.0-1.0)
@@ -189,7 +189,7 @@ def protein_globularity_constraint(sequences: List[Sequence], config: ProteinGlo
     """
 
     scores = []
-    if sequences[0].sequence_type == SequenceType.PROTEIN:
+    if sequences[0].sequence_type == "protein":
         scores = _evaluate_protein_globularity(sequences, config)
     else:
         scores = _evaluate_dna_globularity(sequences, config)

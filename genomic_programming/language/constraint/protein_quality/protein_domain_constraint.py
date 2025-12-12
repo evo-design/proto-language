@@ -178,7 +178,7 @@ def protein_domain_constraint(sequences: List[Sequence], config: ProteinDomainCo
         Evaluating domain presence in protein with single keyword:
         
         >>> from proto_language.language.core import Sequence, SequenceType
-        >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", SequenceType.PROTEIN)
+        >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", "protein")
         >>> cfg = ProteinDomainConfig(
         ...     hmm_db="Pfam-A.hmm",
         ...     keywords=["kinase"],
@@ -190,7 +190,7 @@ def protein_domain_constraint(sequences: List[Sequence], config: ProteinDomainCo
         
         Evaluating DNA sequence (with automatic ORF prediction):
         
-        >>> dna_seq = Sequence("ATGGTACTGAGCCCAGCG...", SequenceType.DNA)
+        >>> dna_seq = Sequence("ATGGTACTGAGCCCAGCG...", "dna")
         >>> cfg = ProteinDomainConfig(
         ...     hmm_db="Pfam-A.hmm",
         ...     keywords=["helicase"]
@@ -215,10 +215,10 @@ def protein_domain_constraint(sequences: List[Sequence], config: ProteinDomainCo
     sequence_type_map = []
 
     for idx, seq in enumerate(sequences):
-        if seq.sequence_type == SequenceType.DNA:
+        if seq.sequence_type == "dna":
             dna_sequences.append((idx, seq))
             sequence_type_map.append(('dna', len(dna_sequences) - 1))
-        elif seq.sequence_type == SequenceType.PROTEIN:
+        elif seq.sequence_type == "protein":
             protein_sequences.append((idx, seq))
             sequence_type_map.append(('protein', len(protein_sequences) - 1))
         else:

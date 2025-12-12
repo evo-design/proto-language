@@ -26,7 +26,7 @@ class MockConstraintConfig(BaseModel):
     pass
 
 
-def _make_segment_with_candidates(sequences: list[str], seq_type: SequenceType = SequenceType.DNA) -> Segment:
+def _make_segment_with_candidates(sequences: list[str], seq_type: SequenceType = "dna") -> Segment:
     """Helper to create a segment with multiple candidate sequences for testing."""
     segment = Segment(sequence=sequences[0], sequence_type=seq_type)
     segment.candidate_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(len(sequences))]
@@ -39,11 +39,11 @@ def _make_segment_with_candidates(sequences: list[str], seq_type: SequenceType =
 def test_sequence_validation():
     """Tests character validation for Sequence objects."""
     with pytest.warns(UserWarning, match=r"Invalid characters found: (X, Z|Z, X)"):
-        Sequence("ATCGXZ", SequenceType.DNA)
+        Sequence("ATCGXZ", "dna")
     with pytest.warns(UserWarning, match="Invalid characters found: T"):
-        Sequence("ACGUUUT", SequenceType.RNA)
+        Sequence("ACGUUUT", "rna")
     with pytest.warns(UserWarning, match=r"Invalid characters found: (J, O|O, J)"):
-        Sequence("MVLSPADKTNVKJO", SequenceType.PROTEIN)
+        Sequence("MVLSPADKTNVKJO", "protein")
     # Test custom valid characters
     seq = Sequence("123", valid_chars=set("123"))
     assert seq.sequence == "123"
@@ -53,7 +53,7 @@ def test_sequence_validation():
 
 def test_segment_batching():
     """Tests candidate pool creation for Segment (dual-pool API)."""
-    segment = Segment(sequence="ATCG", sequence_type=SequenceType.DNA)
+    segment = Segment(sequence="ATCG", sequence_type="dna")
     assert segment.num_candidates == 1
     segment.candidate_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(5)]
     assert segment.num_candidates == 5
@@ -65,20 +65,20 @@ def test_segment_batching():
 
 def test_construct_concatenation():
     """Tests sequence concatenation in Construct objects (from selected pools)."""
-    seg1 = Segment(sequence="ATG", sequence_type=SequenceType.DNA)
-    seg2 = Segment(sequence="GGG", sequence_type=SequenceType.DNA)
-    seg3 = Segment(sequence="TAA", sequence_type=SequenceType.DNA)
+    seg1 = Segment(sequence="ATG", sequence_type="dna")
+    seg2 = Segment(sequence="GGG", sequence_type="dna")
+    seg3 = Segment(sequence="TAA", sequence_type="dna")
     construct = Construct([seg1, seg2, seg3])
     assert len(construct.joined_sequences) == 1
     assert construct.joined_sequences[0].sequence == "ATGGGGTAA"
 
     # Test with multiple selected sequences per segment
-    batch_seg1 = Segment(sequence="ATG", sequence_type=SequenceType.DNA)
-    batch_seg1.selected_sequences.append(Sequence(sequence="ATG", sequence_type=SequenceType.DNA))
-    batch_seg2 = Segment(sequence="GGG", sequence_type=SequenceType.DNA)
-    batch_seg2.selected_sequences.append(Sequence(sequence="CCC", sequence_type=SequenceType.DNA))
-    batch_seg3 = Segment(sequence="TAA", sequence_type=SequenceType.DNA)
-    batch_seg3.selected_sequences.append(Sequence(sequence="TGA", sequence_type=SequenceType.DNA))
+    batch_seg1 = Segment(sequence="ATG", sequence_type="dna")
+    batch_seg1.selected_sequences.append(Sequence(sequence="ATG", sequence_type="dna"))
+    batch_seg2 = Segment(sequence="GGG", sequence_type="dna")
+    batch_seg2.selected_sequences.append(Sequence(sequence="CCC", sequence_type="dna"))
+    batch_seg3 = Segment(sequence="TAA", sequence_type="dna")
+    batch_seg3.selected_sequences.append(Sequence(sequence="TGA", sequence_type="dna"))
     batch_construct = Construct([batch_seg1, batch_seg2, batch_seg3])
     assert len(batch_construct.joined_sequences) == 2
     assert batch_construct.joined_sequences[0].sequence == "ATGGGGTAA"
@@ -94,11 +94,11 @@ def test_mock_constraint_with_batched_segment():
     # Create a DNA sequence
     single_batch_input = _make_segment_with_candidates(
         sequences=input_sequences,
-        seq_type=SequenceType.DNA,
+        seq_type="dna",
     )
     multi_batch_input = _make_segment_with_candidates(
         sequences=input_sequences,
-        seq_type=SequenceType.DNA,
+        seq_type="dna",
     )
 
     # Empty config for mock functions
@@ -185,8 +185,8 @@ def test_mock_constraint_with_single_sequence_input():
     This ensures the multi-input functionality doesn't break with non-batched segments.
     """
     # Create single sequence segments (batch size 1)
-    single_seq_segment = Segment(sequence="ACTGACTG", sequence_type=SequenceType.DNA)
-    multi_seq_segment = Segment(sequence="ACTGACTG", sequence_type=SequenceType.DNA)
+    single_seq_segment = Segment(sequence="ACTGACTG", sequence_type="dna")
+    multi_seq_segment = Segment(sequence="ACTGACTG", sequence_type="dna")
 
     # Empty config for mock functions
     empty_config = MockConstraintConfig()
@@ -284,19 +284,19 @@ def test_mock_constraint_with_multi_segment_input():
     # Create multiple batched segments
     single_batch_input_a = _make_segment_with_candidates(
         sequences=input_sequences_a,
-        seq_type=SequenceType.DNA,
+        seq_type="dna",
     )
     single_batch_input_b = _make_segment_with_candidates(
         sequences=input_sequences_b,
-        seq_type=SequenceType.DNA,
+        seq_type="dna",
     )
     multi_batch_input_a = _make_segment_with_candidates(
         sequences=input_sequences_a,
-        seq_type=SequenceType.DNA,
+        seq_type="dna",
     )
     multi_batch_input_b = _make_segment_with_candidates(
         sequences=input_sequences_b,
-        seq_type=SequenceType.DNA,
+        seq_type="dna",
     )
 
     # Empty config for mock functions
@@ -398,19 +398,19 @@ def test_mock_constraint_with_disjoint_input():
 
     single_batch_input_a = _make_segment_with_candidates(
         sequences=input_sequences_a,
-        seq_type=SequenceType.DNA,
+        seq_type="dna",
     )
     single_batch_input_b = _make_segment_with_candidates(
         sequences=input_sequences_b,
-        seq_type=SequenceType.DNA,
+        seq_type="dna",
     )
     multi_batch_input_a = _make_segment_with_candidates(
         sequences=input_sequences_a,
-        seq_type=SequenceType.DNA,
+        seq_type="dna",
     )
     multi_batch_input_b = _make_segment_with_candidates(
         sequences=input_sequences_b,
-        seq_type=SequenceType.DNA,
+        seq_type="dna",
     )
 
     # Empty config for mock functions
@@ -560,8 +560,8 @@ def test_mixed_batch_sizes_raises_error():
 
 def test_mixed_sequence_types_raises_error():
     """Test that inconsistent sequence types raise ValueError."""
-    seg1 = Segment(sequence="ATCG", sequence_type=SequenceType.DNA)
-    seg2 = Segment(sequence="MVLS", sequence_type=SequenceType.PROTEIN)
+    seg1 = Segment(sequence="ATCG", sequence_type="dna")
+    seg2 = Segment(sequence="MVLS", sequence_type="protein")
     config = MockConstraintConfig()
     with pytest.raises(ValueError, match="same sequence type"):
         Constraint(
@@ -573,8 +573,8 @@ def test_mixed_sequence_types_raises_error():
 
 def test_mixed_valid_chars_raises_error():
     """Test that inconsistent alphabets raise ValueError."""
-    seg1 = Segment(sequence="ATCG", sequence_type=SequenceType.DNA)
-    seg2 = Segment(sequence="ATCG", sequence_type=SequenceType.DNA, 
+    seg1 = Segment(sequence="ATCG", sequence_type="dna")
+    seg2 = Segment(sequence="ATCG", sequence_type="dna", 
                    valid_chars=set("ATCGN"))  # Different alphabet
     config = MockConstraintConfig()
     with pytest.raises(ValueError, match="same valid_chars"):
@@ -591,7 +591,7 @@ def test_mixed_valid_chars_raises_error():
 
 def test_custom_label_in_metadata():
     """Test that custom label overrides function name in metadata."""
-    segment = Segment(sequence="ATCGACTG", sequence_type=SequenceType.DNA)
+    segment = Segment(sequence="ATCGACTG", sequence_type="dna")
     config = MockConstraintConfig()
     
     constraint = Constraint(
@@ -621,8 +621,8 @@ def test_custom_label_in_metadata():
 
 def test_custom_label_disjoint_mode():
     """Test that custom label works correctly in disjoint mode."""
-    seg1 = Segment(sequence="AAAA", sequence_type=SequenceType.DNA)
-    seg2 = Segment(sequence="CCCC", sequence_type=SequenceType.DNA)
+    seg1 = Segment(sequence="AAAA", sequence_type="dna")
+    seg2 = Segment(sequence="CCCC", sequence_type="dna")
     config = MockConstraintConfig()
     
     constraint = Constraint(
@@ -655,7 +655,7 @@ def test_custom_label_disjoint_mode():
 def test_large_batch_processing():
     """Test constraint with very large batch (100+ sequences)."""
     sequences = ["ATCG"] * 100
-    segment = _make_segment_with_candidates(sequences, SequenceType.DNA)
+    segment = _make_segment_with_candidates(sequences, "dna")
     config = MockConstraintConfig()
     
     constraint = Constraint(
@@ -678,9 +678,9 @@ def test_large_batch_processing():
 
 def test_three_or_more_segments_contiguous():
     """Test constraint with 3+ segments in contiguous mode."""
-    seg1 = Segment(sequence="ATCG", sequence_type=SequenceType.DNA)
-    seg2 = Segment(sequence="GGGG", sequence_type=SequenceType.DNA)
-    seg3 = Segment(sequence="TTTT", sequence_type=SequenceType.DNA)
+    seg1 = Segment(sequence="ATCG", sequence_type="dna")
+    seg2 = Segment(sequence="GGGG", sequence_type="dna")
+    seg3 = Segment(sequence="TTTT", sequence_type="dna")
     config = MockConstraintConfig()
     
     constraint = Constraint(
@@ -727,9 +727,9 @@ def test_three_or_more_segments_disjoint():
     mock_triple_input_scoring_function._constraint_config_class = None
     mock_triple_input_scoring_function._constraint_mode = "score"
 
-    seg1 = Segment(sequence="AAAA", sequence_type=SequenceType.DNA)
-    seg2 = Segment(sequence="TTTT", sequence_type=SequenceType.DNA)
-    seg3 = Segment(sequence="GGGG", sequence_type=SequenceType.DNA)
+    seg1 = Segment(sequence="AAAA", sequence_type="dna")
+    seg2 = Segment(sequence="TTTT", sequence_type="dna")
+    seg3 = Segment(sequence="GGGG", sequence_type="dna")
     config = MockConstraintConfig()
 
     constraint = Constraint(
@@ -762,7 +762,7 @@ def test_empty_sequence_in_batch():
     individual constraints should validate their inputs appropriately.
     """
     sequences = ["ATCG", "", "GGGG"]
-    segment = _make_segment_with_candidates(sequences, SequenceType.DNA)
+    segment = _make_segment_with_candidates(sequences, "dna")
     config = MockConstraintConfig()
     
     constraint = Constraint(
@@ -787,7 +787,7 @@ def test_constraint_evaluate_with_mask_sequential():
     masked candidates and return sparse results.
     """
     sequences = ["ATTTTTTT", "AAAAAAAA", "TTTTTTTT", "AAAATTTT", "ATATATAT"]
-    segment = _make_segment_with_candidates(sequences, SequenceType.DNA)
+    segment = _make_segment_with_candidates(sequences, "dna")
     config = MockConstraintConfig()
     
     constraint = Constraint(
@@ -827,7 +827,7 @@ def test_constraint_evaluate_with_mask_batched():
     and return sparse results.
     """
     sequences = ["ATTTTTTT", "AAAAAAAA", "TTTTTTTT", "AAAATTTT", "ATATATAT"]
-    segment = _make_segment_with_candidates(sequences, SequenceType.DNA)
+    segment = _make_segment_with_candidates(sequences, "dna")
     config = MockConstraintConfig()
     
     constraint = Constraint(
@@ -863,7 +863,7 @@ def test_constraint_evaluate_with_mask_all_false():
     Test that mask with all False values returns empty list (no evaluations).
     """
     sequences = ["ATTTTTTT", "AAAAAAAA", "TTTTTTTT"]
-    segment = _make_segment_with_candidates(sequences, SequenceType.DNA)
+    segment = _make_segment_with_candidates(sequences, "dna")
     config = MockConstraintConfig()
     
     constraint = Constraint(
@@ -891,7 +891,7 @@ def test_constraint_evaluate_with_mask_all_true():
     (same as no mask).
     """
     sequences = ["ATTTTTTT", "AAAAAAAA", "TTTTTTTT"]
-    segment = _make_segment_with_candidates(sequences, SequenceType.DNA)
+    segment = _make_segment_with_candidates(sequences, "dna")
     config = MockConstraintConfig()
     
     constraint = Constraint(
@@ -921,7 +921,7 @@ def test_constraint_evaluate_with_mask_none():
     Test that mask=None evaluates all candidates (default behavior).
     """
     sequences = ["ATTTTTTT", "AAAAAAAA", "TTTTTTTT"]
-    segment = _make_segment_with_candidates(sequences, SequenceType.DNA)
+    segment = _make_segment_with_candidates(sequences, "dna")
     config = MockConstraintConfig()
     
     constraint = Constraint(
@@ -944,7 +944,7 @@ def test_constraint_evaluate_with_mask_invalid_length():
     Test that mask with incorrect length raises ValueError.
     """
     sequences = ["ATTTTTTT", "AAAAAAAA", "TTTTTTTT"]
-    segment = _make_segment_with_candidates(sequences, SequenceType.DNA)
+    segment = _make_segment_with_candidates(sequences, "dna")
     config = MockConstraintConfig()
     
     constraint = Constraint(
@@ -968,8 +968,8 @@ def test_constraint_evaluate_with_mask_disjoint():
     seg1_sequences = ["ATTT", "AAAA", "TTTT"]
     seg2_sequences = ["CCCC", "ACAC", "AAAA"]
     
-    seg1 = _make_segment_with_candidates(seg1_sequences, SequenceType.DNA)
-    seg2 = _make_segment_with_candidates(seg2_sequences, SequenceType.DNA)
+    seg1 = _make_segment_with_candidates(seg1_sequences, "dna")
+    seg2 = _make_segment_with_candidates(seg2_sequences, "dna")
     
     config = MockConstraintConfig()
     
@@ -1013,7 +1013,7 @@ def test_constraint_evaluate_with_mask_preserves_original_indices():
     even when using sparse evaluation.
     """
     sequences = ["ATTTTTTT", "AAAAAAAA", "TTTTTTTT", "AAAATTTT", "ATATATAT"]
-    segment = _make_segment_with_candidates(sequences, SequenceType.DNA)
+    segment = _make_segment_with_candidates(sequences, "dna")
     config = MockConstraintConfig()
     
     constraint = Constraint(
@@ -1057,7 +1057,7 @@ def test_filter_constraint_mode():
     mock_filter_function._constraint_mode = "filter"  # Set by registry
     
     sequences = ["ATCG", "ATCGATCG", "AT"]
-    segment = _make_segment_with_candidates(sequences, SequenceType.DNA)
+    segment = _make_segment_with_candidates(sequences, "dna")
     
     filter_constraint = Constraint(
         inputs=[segment],
@@ -1091,7 +1091,7 @@ def test_score_constraint_mode_explicit():
     mock_score_function._constraint_mode = "score"
     
     sequences = ["ATCG", "ATCGATCG"]
-    segment = _make_segment_with_candidates(sequences, SequenceType.DNA)
+    segment = _make_segment_with_candidates(sequences, "dna")
     
     score_constraint = Constraint(
         inputs=[segment],
@@ -1125,7 +1125,7 @@ def test_filter_constraint_mode_explicit():
     mock_filter_function._constraint_mode = "filter"
     
     sequences = ["ATCG", "ATCGATCG", "ATCGATCGAT"]
-    segment = _make_segment_with_candidates(sequences, SequenceType.DNA)
+    segment = _make_segment_with_candidates(sequences, "dna")
     
     filter_constraint = Constraint(
         inputs=[segment],
@@ -1159,7 +1159,7 @@ def test_constraint_missing_mode_attribute():
     # _constraint_mode NOT set - should raise AttributeError
     
     sequences = ["ATCG", "ATCGATCG"]
-    segment = _make_segment_with_candidates(sequences, SequenceType.DNA)
+    segment = _make_segment_with_candidates(sequences, "dna")
     
     # Should raise AttributeError when trying to access missing _constraint_mode
     with pytest.raises(AttributeError, match="_constraint_mode"):

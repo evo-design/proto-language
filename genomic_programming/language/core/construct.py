@@ -16,10 +16,10 @@ class Construct:
 
     Examples:
         Creating a construct from labeled segments:
-        >>> promoter = Segment(sequence="TATA", sequence_type=SequenceType.DNA, label="promoter")
-        >>> cds = Segment(sequence="ATGCCC", sequence_type=SequenceType.DNA, label="coding_region")
+        >>> promoter = Segment(sequence="TATA", sequence_type="dna", label="promoter")
+        >>> cds = Segment(sequence="ATGCCC", sequence_type="dna", label="coding_region")
         >>> gene = Construct([promoter, cds])
-        >>> gene.joined_sequences  # [Sequence("TATAATGCCC", SequenceType.DNA)]
+        >>> gene.joined_sequences  # [Sequence("TATAATGCCC", "dna")]
     """
 
     def __init__(self, segments: Iterable[Segment]) -> None:
@@ -86,7 +86,7 @@ class Construct:
         """Serialize Construct to dictionary for cloud/API communication."""
         return {
             "segments": [segment.to_dict() for segment in self.segments],
-            "sequence_type": self.sequence_type.value,
+            "sequence_type": self.sequence_type,
             "valid_chars": list(self._valid_chars) if self._valid_chars else None,
         }
 

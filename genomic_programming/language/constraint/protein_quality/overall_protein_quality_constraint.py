@@ -539,7 +539,7 @@ def overall_protein_quality_constraint(sequences: List[Sequence], config: Overal
         ...     balanced_max_underrepresented_count=2,
         ... )
         >>> overall_cfg = OverallProteinQualityConfig(protein_quality_config=quality_config)
-        >>> protein_seq = Sequence("MKYIVAVAG...", SequenceType.PROTEIN)
+        >>> protein_seq = Sequence("MKYIVAVAG...", "protein")
         >>> scores = overall_protein_quality_constraint([protein_seq], overall_cfg)
     """
     # Extract config parameters
@@ -551,8 +551,8 @@ def overall_protein_quality_constraint(sequences: List[Sequence], config: Overal
     balanced_config = protein_quality_config.get_balanced_config()
 
     # Separate DNA and protein sequences
-    dna_sequences = [seq for seq in sequences if seq.sequence_type == SequenceType.DNA]
-    protein_sequences = [seq for seq in sequences if seq.sequence_type == SequenceType.PROTEIN]
+    dna_sequences = [seq for seq in sequences if seq.sequence_type == "dna"]
+    protein_sequences = [seq for seq in sequences if seq.sequence_type == "protein"]
 
     if len(dna_sequences) + len(protein_sequences) != len(sequences):
         raise ValueError("All sequences must be either DNA or PROTEIN type")
@@ -586,7 +586,7 @@ def overall_protein_quality_constraint(sequences: List[Sequence], config: Overal
 
             # Convert to Sequence objects for batch constraint evaluation
             predicted_protein_seqs = [
-                Sequence(row["protein_sequence"], SequenceType.PROTEIN)
+                Sequence(row["protein_sequence"], "protein")
                 for _, row in proteins_df.iterrows()
             ]
 
@@ -724,7 +724,7 @@ def overall_protein_quality_constraint(sequences: List[Sequence], config: Overal
     protein_idx = 0
 
     for seq in sequences:
-        if seq.sequence_type == SequenceType.DNA:
+        if seq.sequence_type == "dna":
             final_scores.append(dna_scores[dna_idx])
             dna_idx += 1
         else:

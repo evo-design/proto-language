@@ -89,6 +89,7 @@ class ESM3GeneratorConfig(BaseConfig):
     requires_gpu=True,
     tools_called=["esm3"],
     category="mutation",
+    supported_sequence_types=["protein"],
 )
 @final
 class ESM3Generator(Generator):
@@ -118,10 +119,12 @@ class ESM3Generator(Generator):
         ...     num_mutations=5
         ... )
         >>> gen = ESM3Generator(config)
-        >>> segment = Segment(length=100, sequence_type=SequenceType.PROTEIN)
+        >>> segment = Segment(length=100, sequence_type="protein")
         >>> gen.assign(segment)
         >>> gen.sample()  # Refines 5 highest-entropy positions
     """
+
+    supported_sequence_types = ["protein"]
 
     def __init__(self, config: ESM3GeneratorConfig) -> None:
         """

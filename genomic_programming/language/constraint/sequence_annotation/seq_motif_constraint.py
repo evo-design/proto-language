@@ -217,7 +217,7 @@ def seq_motif_constraint(sequences: List[Sequence], config: SeqMotifConfig) -> L
         Requiring specific transcription factor binding sites:
         
         >>> from proto_language.language.core import Sequence, SequenceType
-        >>> promoter_seq = Sequence("ATCGGCGGGATCGTAATATAGCATGC", SequenceType.DNA)
+        >>> promoter_seq = Sequence("ATCGGCGGGATCGTAATATAGCATGC", "dna")
         >>> config = SeqMotifConfig(
         ...     motifs_path="/data/jaspar_vertebrates.meme",
         ...     meme_bin_path="/usr/local/meme/bin",

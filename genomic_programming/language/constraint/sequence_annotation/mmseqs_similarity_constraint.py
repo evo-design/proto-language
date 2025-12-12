@@ -219,7 +219,7 @@ def mmseqs_similarity_constraint(sequences: List[Sequence], config: MMseqsSimila
         Filtering for sequences with low similarity to existing proteins:
         
         >>> from proto_language.language.core import Sequence, SequenceType
-        >>> protein_seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", SequenceType.PROTEIN)
+        >>> protein_seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", "protein")
         >>> config = MMseqsSimilarityConfig(
         ...     min_similarity=10.0,
         ...     max_similarity=30.0,
@@ -261,7 +261,7 @@ def mmseqs_similarity_constraint(sequences: List[Sequence], config: MMseqsSimila
         temp_path = Path(temp_dir)
 
         # Get proteins (ORF prediction for DNA, direct for protein)
-        if sequence_type == SequenceType.DNA:
+        if sequence_type == "dna":
             if config.orf_predictor == "prodigal":
                 prodigal_config = config.prodigal_config or ProdigalConfig()
                 sequences_clean = [

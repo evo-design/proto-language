@@ -25,7 +25,7 @@ MAX_GC: float = 90 # Maximum GC content
 
 # Construct Segment
 expected_length = len(PROMPTS[0]) + NUM_TOKENS
-seq1 = Segment(length=expected_length, sequence_type=SequenceType.DNA)
+seq1 = Segment(length=expected_length, sequence_type="dna")
 
 # Construct
 construct = Construct([seq1])

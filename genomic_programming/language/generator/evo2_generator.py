@@ -193,6 +193,7 @@ class Evo2GeneratorConfig(BaseConfig):
     requires_gpu=True,
     tools_called=["evo2"],
     category="autoregressive",
+    supported_sequence_types=["dna"],
 )
 @final
 class Evo2Generator(Generator):
@@ -215,6 +216,7 @@ class Evo2Generator(Generator):
         num_tokens (int): Number of tokens to generate (calculated dynamically on assign).
         kv_caches (List[Dict]): Stored KV caches when ``store_kv_cache=True``.
         category (str): Set to ``"autoregressive"``.
+        supported_sequence_types (List[SequenceType]): Only supports DNA sequences.
 
     Example:
         >>> from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
@@ -225,10 +227,12 @@ class Evo2Generator(Generator):
         ... )
         >>> gen = Evo2Generator(config)
         >>> # Segment length determines how many tokens to generate
-        >>> segment = Segment(length=1003, sequence_type=SequenceType.DNA)
+        >>> segment = Segment(length=1003, sequence_type="dna")
         >>> gen.assign(segment)  # num_tokens = 1003 - 3 = 1000
         >>> gen.sample()  # Generates DNA sequences
     """
+
+    supported_sequence_types = ["dna"]
 
     def __init__(self, config: Evo2GeneratorConfig) -> None:
         """

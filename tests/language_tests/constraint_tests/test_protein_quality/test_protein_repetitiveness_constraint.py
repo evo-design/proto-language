@@ -9,7 +9,7 @@ from proto_language.language.constraint.protein_quality.protein_repetitiveness_c
 class TestProteinRepetitivenessConstraint:
     def test_non_repetitive_protein(self):
         """Test protein with low repetitiveness."""
-        segment = Segment(sequence="MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMF", sequence_type=SequenceType.PROTEIN
+        segment = Segment(sequence="MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMF", sequence_type="protein"
         )
         config = ProteinRepetitivenessConfig(max_repetitiveness=0.5, min_repeat_length=3)
 
@@ -32,7 +32,7 @@ class TestProteinRepetitivenessConstraint:
 
     def test_highly_repetitive_protein(self):
         """Test protein with high repetitiveness."""
-        segment = Segment(sequence="AAAAAAAAAAAAAA", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(sequence="AAAAAAAAAAAAAA", sequence_type="protein")
         config = ProteinRepetitivenessConfig(max_repetitiveness=0.3)
 
         constraint = Constraint(
@@ -50,7 +50,7 @@ class TestProteinRepetitivenessConstraint:
 
     def test_repetitive_pattern(self):
         """Test protein with repetitive pattern."""
-        segment = Segment(sequence="MVKMVKMVKMVKMVK", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(sequence="MVKMVKMVKMVKMVK", sequence_type="protein")
         config = ProteinRepetitivenessConfig(max_repetitiveness=0.3, min_repeat_length=3)
 
         constraint = Constraint(

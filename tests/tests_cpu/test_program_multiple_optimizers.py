@@ -33,7 +33,7 @@ class TestMultipleOptimizers:
     def test_two_optimizers_sequential(self):
         """Test that two optimizers run sequentially and state persists."""
         # Setup
-        segment = Segment(length=50, sequence_type=SequenceType.DNA)
+        segment = Segment(length=50, sequence_type="dna")
         construct = Construct([segment])
 
         # First optimizer: TopK
@@ -90,7 +90,7 @@ class TestMultipleOptimizers:
 
     def test_three_optimizers_sequential(self):
         """Test that three optimizers run in sequence."""
-        segment = Segment(length=50, sequence_type=SequenceType.DNA)
+        segment = Segment(length=50, sequence_type="dna")
         construct = Construct([segment])
 
         optimizers = []
@@ -126,7 +126,7 @@ class TestMultipleOptimizers:
 
     def test_optimizer_histories_preserved(self):
         """Test that each optimizer maintains separate history."""
-        segment = Segment(length=50, sequence_type=SequenceType.DNA)
+        segment = Segment(length=50, sequence_type="dna")
         construct = Construct([segment])
 
         # Create two optimizers with different numbers of steps
@@ -162,7 +162,7 @@ class TestMultipleOptimizers:
 
     def test_construct_validation_same_objects(self):
         """Test that validation passes when all optimizers share same constructs."""
-        segment = Segment(length=50, sequence_type=SequenceType.DNA)
+        segment = Segment(length=50, sequence_type="dna")
         construct = Construct([segment])
 
         gen_config = UniformMutationGeneratorConfig(num_mutations=1)
@@ -199,8 +199,8 @@ class TestMultipleOptimizers:
 
     def test_construct_validation_different_objects_fails(self):
         """Test that validation fails when optimizers have different construct objects."""
-        segment1 = Segment(length=50, sequence_type=SequenceType.DNA)
-        segment2 = Segment(length=50, sequence_type=SequenceType.DNA)
+        segment1 = Segment(length=50, sequence_type="dna")
+        segment2 = Segment(length=50, sequence_type="dna")
         construct1 = Construct([segment1])
         construct2 = Construct([segment2])
 
@@ -244,7 +244,7 @@ class TestMultipleOptimizers:
 
     def test_construct_validation_different_lengths_fails(self):
         """Test that validation fails when optimizers have different numbers of constructs."""
-        segment = Segment(length=50, sequence_type=SequenceType.DNA)
+        segment = Segment(length=50, sequence_type="dna")
         construct1 = Construct([segment])
         construct2 = Construct([segment])
 
@@ -287,7 +287,7 @@ class TestMultipleOptimizers:
 
     def test_energy_scores_from_final_optimizer(self):
         """Test that energy_scores property returns results from final optimizer."""
-        segment = Segment(length=50, sequence_type=SequenceType.DNA)
+        segment = Segment(length=50, sequence_type="dna")
         construct = Construct([segment])
 
         optimizers = []
@@ -320,7 +320,7 @@ class TestMultipleOptimizers:
 
     def test_state_persistence_between_optimizers(self):
         """Test that sequence state persists from one optimizer to the next."""
-        segment = Segment(length=50, sequence_type=SequenceType.DNA)
+        segment = Segment(length=50, sequence_type="dna")
         construct = Construct([segment])
 
         # First optimizer
@@ -370,7 +370,7 @@ class TestMultipleOptimizers:
 
     def test_mcmc_to_topk_sequence(self):
         """Test MCMC optimizer followed by TopK optimizer."""
-        segment = Segment(length=50, sequence_type=SequenceType.DNA)
+        segment = Segment(length=50, sequence_type="dna")
         construct = Construct([segment])
 
         # MCMC first

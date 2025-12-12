@@ -14,7 +14,7 @@ class TestOverallProteinQualityConstraint:
     
     def test_protein_input_high_quality(self):
         """Test with high quality protein sequence."""
-        segment = Segment(sequence="MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHF", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(sequence="MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHF", sequence_type="protein")
         
         # Only check length - protein is 48 amino acids
         sub_config = ProteinQualitySubConfig(
@@ -38,7 +38,7 @@ class TestOverallProteinQualityConstraint:
     
     def test_protein_input_low_quality_length(self):
         """Test with protein that violates length constraint."""
-        segment = Segment(sequence="MVLSP", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(sequence="MVLSP", sequence_type="protein")
         
         sub_config = ProteinQualitySubConfig(
             enable_length=True,
@@ -61,7 +61,7 @@ class TestOverallProteinQualityConstraint:
     
     def test_protein_input_multiple_checks(self):
         """Test with multiple quality checks and constraint-specific metadata."""
-        segment = Segment(sequence="MVLSPADKTNVKAAWGKVGAHAGEYGAEAL", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(sequence="MVLSPADKTNVKAAWGKVGAHAGEYGAEAL", sequence_type="protein")
         
         sub_config = ProteinQualitySubConfig(
             enable_length=True,
@@ -92,7 +92,7 @@ class TestOverallProteinQualityConstraint:
     
     def test_protein_input_repetitive(self):
         """Test with repetitive protein."""
-        segment = Segment(sequence="AAAAAAAAAAAAAAAA", sequence_type=SequenceType.PROTEIN)
+        segment = Segment(sequence="AAAAAAAAAAAAAAAA", sequence_type="protein")
         
         sub_config = ProteinQualitySubConfig(
             enable_repetitiveness=True,

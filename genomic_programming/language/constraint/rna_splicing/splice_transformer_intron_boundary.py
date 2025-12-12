@@ -177,7 +177,7 @@ def splice_transformer_intron_boundary(
         
         >>> from proto_language.language.core import Sequence, SequenceType
         >>> # 1000 bp target sequence with GT at position 100, AG at position 900
-        >>> target_seq = Sequence("ATCG" * 250, SequenceType.DNA)  # 1000 bp
+        >>> target_seq = Sequence("ATCG" * 250, "dna")  # 1000 bp
         >>> # 4000 bp flanking contexts
         >>> left_ctx = "ATCG" * 1000  # 4000 bp
         >>> right_ctx = "GCTA" * 1000  # 4000 bp
