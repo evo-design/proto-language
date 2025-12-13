@@ -13,7 +13,7 @@ import tempfile
 from typing import Optional, List, Dict, Any
 from logging import getLogger
 
-from proto_language.language.core import Sequence, SequenceType
+from proto_language.language.core import Sequence
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import (
     ConstraintRegistry,
@@ -242,7 +242,7 @@ def esmfold_rmsd_constraint(
 
     scores = []
 
-    if sequences[0].sequence_type == SequenceType.PROTEIN:
+    if sequences[0].sequence_type == 'protein':
         # Protein path.
         complexes = [
             StructurePredictionComplex(
