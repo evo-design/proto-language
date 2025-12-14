@@ -12,6 +12,7 @@ from .sequence_composition import (
 # Protein structure constraints
 from .protein_structure import (
     esmfold_rmsd_constraint,
+    esmfold_tmscore_constraint,
     esmfold_plddt_constraint,
     esmfold_ptm_constraint,
     protein_symmetry_ring_constraint,
@@ -55,6 +56,7 @@ __all__ = [
     "kmer_frequency_constraint",
     # Protein structure
     "esmfold_rmsd_constraint",
+    "esmfold_tmscore_constraint",
     "esmfold_plddt_constraint",
     "esmfold_ptm_constraint",
     "protein_symmetry_ring_constraint",

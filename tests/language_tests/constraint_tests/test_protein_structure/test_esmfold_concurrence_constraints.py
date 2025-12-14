@@ -12,9 +12,10 @@ Tests cover:
 import pytest
 
 from proto_language.language.core import Sequence
-from proto_language.language.constraint import esmfold_rmsd_constraint
+from proto_language.language.constraint import esmfold_rmsd_constraint, esmfold_tmscore_constraint
 from proto_language.language.constraint.protein_structure.esmfold_concurrence_constraint import (
     ESMFoldRMSDConfig,
+    ESMFoldTMScoreConfig,
 )
 
 
@@ -44,3 +45,25 @@ class TestESMFoldRMSDConstraint:
         config = ESMFoldRMSDConfig(target_sequence=UNCONFIDENT_SEQ)
         rmsd = esmfold_rmsd_constraint([Sequence(CRO_SEQ, 'protein')], config)[0]
         assert rmsd == 1.
+
+@pytest.mark.uses_gpu
+class TestESMFoldTMScoreConstraint:
+    """Tests for ESMFold TMScore constraint."""
+
+    def test_perfect_match(self):
+        """Test that comparing a sequence with itself gives TMscore of 1 (resulting in a score of 0)."""
+        config = ESMFoldTMScoreConfig(target_sequence=CRO_SEQ)
+        score = esmfold_tmscore_constraint([Sequence(CRO_SEQ, 'protein')], config)[0]
+        assert score == 0.
+
+    def test_imperfect_match(self):
+        """Test comparing different sequences."""
+        config = ESMFoldTMScoreConfig(target_sequence=TOP7_SEQ)
+        score = esmfold_tmscore_constraint([Sequence(CRO_SEQ, 'protein')], config)[0]
+        assert score > 0.
+
+    def test_unconfident_match(self):
+        """Test that using an unconfident target sequence results in a score of 1."""
+        config = ESMFoldTMScoreConfig(target_sequence=UNCONFIDENT_SEQ)
+        score = esmfold_tmscore_constraint([Sequence(CRO_SEQ, 'protein')], config)[0]
+        assert score == 1.
