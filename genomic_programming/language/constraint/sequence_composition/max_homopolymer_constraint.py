@@ -51,7 +51,6 @@ class MaxHomopolymerConfig(BaseConfig):
     label="Homopolymer Length",
     config=MaxHomopolymerConfig,
     description="Penalize sequences containing homopolymers longer than specified maximum",
-    mode="score",
     batched=True,
     concatenate=True,
     tools_called=[],

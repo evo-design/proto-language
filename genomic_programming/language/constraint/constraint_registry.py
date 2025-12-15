@@ -5,7 +5,7 @@ Provides a decorator-based API for registering constraint functions and
 a factory method for creating Constraint instances.
 """
 from __future__ import annotations
-from typing import Any, Callable, Dict, List, Literal, Optional, Type, get_type_hints, get_origin, get_args
+from typing import Any, Callable, Dict, List, Optional, Type, get_type_hints, get_origin, get_args
 import inspect
 
 from pydantic import BaseModel, Field
@@ -18,7 +18,6 @@ from pydantic.json_schema import SkipJsonSchema
 class ConstraintSpec(BaseSpec):
     """Specification for a registered constraint."""
 
-    mode: Literal["score", "filter"] = Field(description="'score' returns float scores between 0.0 and 1.0, 'filter' returns bool accept/reject (runs first and skips subsequent scoring constraints for rejected candidates)")
     batched: bool = Field(description="True if the constraint processes an iterable of sequences rather than a single sequence")
     concatenate: bool = Field(description="Whether to concatenate segments")
     gpu_required: bool = Field(description="Whether constraint requires GPU")
@@ -90,7 +89,6 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         label: str,
         config: Type[BaseModel],
         description: str,
-        mode: Literal["score", "filter"] = "score",
         batched: bool = False,
         concatenate: bool = True,
         gpu_required: bool = False,
@@ -101,19 +99,20 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         Decorator to register a constraint function.
 
         This is the constraint-specific implementation of the abstract register()
-        method from BaseRegistry. It adds batched, concatenate, and mode flags.
+        method from BaseRegistry. It adds batched and concatenate flags.
 
         Args:
             key: Unique identifier (e.g., "gc-content", "protein-length")
             label: Readable external name (e.g., "GC Content Range", "Protein Length")
             config: Pydantic model class for configuration validation
             description: Readable description
-            batched: If True, function processes List[Sequence] → List[float|bool].
-                       If False, function processes Sequence → float|bool.
+            batched: If True, function processes List[Sequence] → List[float].
+                       If False, function processes Sequence → float.
             concatenate: If True, concatenate multiple segments before evaluation.
                         If False, pass segments as tuple (for disjoint evaluation).
             gpu_required: If True, constraint requires GPU for computation (e.g., ESMFold, Boltz).
-            mode: "score" returns float penalties (0.0-1.0), "filter" returns bool accept/reject.
+            tools_called: List of tool keys this constraint calls (helps agent find relevant documentation).
+            category: Optional category for organization (e.g., 'protein_structure', 'sequence_composition').
 
         Returns:
             Decorator that registers the function and returns it unchanged
@@ -124,7 +123,6 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             ...     label="GC Content Range",
             ...     config=GCContentConfig,
             ...     description="GC content within range",
-            ...     mode="score",
             ...     batched=False,
             ...     concatenate=True,
             ...     gpu_required=False,
@@ -136,11 +134,10 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             # Prevent duplicate registration using base class helper
             cls._check_duplicate(key, func.__name__)
 
-            # Validate return type annotation matches mode
-            cls._validate_return_type(func, mode, batched)
+            # Validate return type annotation
+            cls._validate_return_type(func, batched)
 
             # Store metadata as function attributes
-            func._constraint_mode = mode
             func._constraint_batched = batched
             func._constraint_concatenate = concatenate
             func._constraint_gpu_required = gpu_required
@@ -155,7 +152,6 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
                 batched=batched,
                 concatenate=concatenate,
                 gpu_required=gpu_required,
-                mode=mode,
                 tools_called=tools_called,
                 category=category,
             )
@@ -169,6 +165,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         segments: List[Segment],
         config_dict: Dict[str, Any],
         label: Optional[str] = None,
+        threshold: Optional[float] = None,
     ) -> Constraint:
         """
         Factory method to create Constraint instance from JSON-compatible config.
@@ -183,6 +180,9 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             segments: List of Segment objects to evaluate
             config_dict: Configuration as plain dict (from JSON/client)
             label: Optional label for metadata tracking
+            threshold: Optional threshold for filtering. If provided, constraint acts as a filter:
+                scores <= threshold are accepted (True), scores > threshold are rejected (False).
+                If None, returns raw float scores for optimization.
             
         Returns:
             Configured Constraint instance ready to evaluate
@@ -192,14 +192,23 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             pydantic.ValidationError: If config_dict has invalid values
             
         Examples:
-            >>> # From API endpoint receiving JSON
+            >>> # Scoring mode (default)
             >>> constraint = ConstraintRegistry.create(
             ...     key="gc-content",
             ...     segments=[dna_segment],
             ...     config_dict={"min_gc": 40, "max_gc": 60},
             ...     label="promoter_gc"
             ... )
-            >>> scores = constraint.evaluate()
+            >>> scores = constraint.evaluate()  # Returns List[float]
+            >>>
+            >>> # Filtering mode (with threshold)
+            >>> filter_constraint = ConstraintRegistry.create(
+            ...     key="gc-content",
+            ...     segments=[dna_segment],
+            ...     config_dict={"min_gc": 40, "max_gc": 60},
+            ...     threshold=0.5
+            ... )
+            >>> passed = filter_constraint.evaluate()  # Returns List[bool]
         """
         spec = cls.get(key)
 
@@ -212,6 +221,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             function=spec.function,
             function_config=validated_config,
             label=label,
+            threshold=threshold,
         )
 
     @classmethod
@@ -237,8 +247,12 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         return list(cls._registry.values())
 
     @staticmethod
-    def _validate_return_type(func: Callable, mode: str, batched: bool) -> None:
-        """Validate constraint function signature matches expected types."""
+    def _validate_return_type(func: Callable, batched: bool) -> None:
+        """Validate constraint function signature matches expected types.
+        
+        All constraint functions must return float scores (0.0-1.0).
+        The Constraint class handles conversion to boolean filters when threshold is provided.
+        """
         hints = get_type_hints(func)
         params = list(inspect.signature(func).parameters.keys())
         
@@ -249,15 +263,14 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         if batched and params[0] in hints and get_origin(hints[params[0]]) not in (list, List):
             raise TypeError(f"Function '{func.__name__}' with batched=True must accept List as first parameter")
         
-        # Validate return type if annotated
+        # Validate return type if annotated - must always be float
         if 'return' in hints:
             return_type = hints['return']
-            expected = bool if mode == "filter" else float
             origin = get_origin(return_type)
             
             if batched and origin in (list, List):
                 args = get_args(return_type)
-                if args and args[0] != expected:
-                    raise TypeError(f"Function '{func.__name__}' mode='{mode}' must return List[{'bool' if mode == 'filter' else 'float'}]")
-            elif not batched and return_type != expected:
-                raise TypeError(f"Function '{func.__name__}' mode='{mode}' must return {'bool' if mode == 'filter' else 'float'}")
+                if args and args[0] != float:
+                    raise TypeError(f"Function '{func.__name__}' must return List[float], found List[{args[0].__name__ if args else 'unknown'}]")
+            elif not batched and return_type != float:
+                raise TypeError(f"Function '{func.__name__}' must return float, found {return_type}")

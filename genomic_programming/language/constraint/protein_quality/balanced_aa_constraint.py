@@ -63,7 +63,6 @@ class BalancedAaConfig(BaseConfig):
     label="Balanced Amino Acid Representation",
     config=BalancedAaConfig,
     description="Evaluate the presence of underrepresented amino acids in a protein sequence",
-    mode="score",
     batched=True,
     concatenate=True,
     tools_called=[],

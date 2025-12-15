@@ -2,12 +2,14 @@
 Constraint class for biological programming language.
 
 Constraints score how well sequences satisfy biological or design requirements,
-returning values between 0.0 (perfect) and 1.0 (worst).
+returning values between 0.0 (perfect) and 1.0 (worst). Constraints can optionally
+act as filters by providing a threshold parameter.
 
 Key Features:
     - Batch evaluation (sequential or batched processing)
     - Segment coordination (contiguous concatenation or disjoint evaluation)
     - Automatic metadata propagation back to original sequences
+    - Threshold-based filtering (converts scores to boolean accept/reject)
 """
 from __future__ import annotations
 from typing import Callable, List, Optional, Tuple, Union, Dict, Any, Literal
@@ -34,6 +36,15 @@ class Constraint:
         ...     function_config=config
         ... )
         >>> scores = constraint.evaluate()  # [0.0, 0.1, ...]
+        >>>
+        >>> # Use as a filter by adding threshold
+        >>> filter_constraint = Constraint(
+        ...     inputs=[dna_segment],
+        ...     function=gc_content_constraint,
+        ...     function_config=config,
+        ...     threshold=0.5
+        ... )
+        >>> passed = filter_constraint.evaluate()  # [True, False, True, ...]
 
         API/Client Usage (Registry for discovery):
         >>> from proto_language.language.constraint import ConstraintRegistry
@@ -44,11 +55,19 @@ class Constraint:
         >>> # Get schema for client form generation
         >>> schema = ConstraintRegistry.get_schema("gc_content")
         >>>
-        >>> # Create from user input (dict from client)
+        >>> # Create from user input (dict from client) - scoring mode
         >>> constraint = ConstraintRegistry.create(
         ...     key="gc_content",
         ...     segments=[dna_segment],
         ...     config_dict={"min_gc": 40, "max_gc": 60}
+        ... )
+        >>>
+        >>> # Create as filter by adding threshold
+        >>> filter_constraint = ConstraintRegistry.create(
+        ...     key="gc_content",
+        ...     segments=[dna_segment],
+        ...     config_dict={"min_gc": 40, "max_gc": 60},
+        ...     threshold=0.5
         ... )
     """
 
@@ -58,26 +77,29 @@ class Constraint:
         function: Callable,
         function_config: Union[BaseModel, Dict[str, Any]],
         label: Optional[str] = None,
+        threshold: Optional[float] = None,
     ):
         """
         Initialize a constraint.
 
         Args:
             inputs: List of Segment objects to evaluate
-            function: The constraint scoring/filtering function that returns scores between 0.0-1.0 or boolean values.
+            function: The constraint scoring function that returns scores between 0.0-1.0.
                 For sequential mode: (Sequence, config=ConfigModel) -> float or (Tuple[Sequence, ...], config=ConfigModel) -> float
                 For batched mode: (List[Sequence], config=ConfigModel) -> List[float] or (List[Tuple[Sequence, ...]], config=ConfigModel) -> List[float]
             function_config: Configuration as Pydantic BaseModel or dict (auto-converted to BaseModel)
             label: Optional label for metadata tracking. Defaults to function.__name__
+            threshold: Optional threshold for filtering mode. If provided, scores <= threshold are accepted (True),
+                scores > threshold are rejected (False). If None, returns raw float scores.
         """
         self.inputs = inputs
         self.function = function
         self.label = label or function.__name__
+        self.threshold = threshold
         
         # Read metadata from function attributes (set by registry decorator)
         self.batched = function._constraint_batched
         self.concatenate = function._constraint_concatenate
-        self.mode = function._constraint_mode
 
         # Convert dict configs to Pydantic models for validation
         if isinstance(function_config, dict):
@@ -97,16 +119,17 @@ class Constraint:
         1. Extracting candidate sequences from input segments (optionally filtered by mask, for sequences that were rejected by filtering constraints)
         2. Calling the scoring function (batched or sequential)
         3. Propagating scores back to original candidate sequence metadata
+        4. Converting scores to boolean filters if threshold is set
 
         Args:
             mask: Optional boolean mask to filter which candidates to evaluate.
                 If provided, only candidates where mask[i] is True are evaluated.
 
         Returns:
-            For mode="score": List of scores (0.0-1.0), one per candidate.
+            If threshold is None: List of scores (0.0-1.0), one per candidate.
                 Lower scores are better (0.0 = perfect).
-            For mode="filter": List of boolean values (True/False), one per candidate.
-                True = accept (continue evaluation), False = reject (skip evaluation).
+            If threshold is set: List of boolean values (True/False), one per candidate.
+                True = accept (score <= threshold), False = reject (score > threshold).
         """
         num_candidates = self.inputs[0].num_candidates
 
@@ -132,6 +155,9 @@ class Constraint:
             for (original_idx, scored_seq) in indexed_sequences_to_evaluate:
                 self._propagate_metadata_to_sequence(original_idx, scored_seq)
 
+            # Convert to boolean filter if threshold is set
+            if self.threshold is not None:
+                return [score <= self.threshold for score in scores]
             return scores
         else:
             # Sequential mode: process masked sequences one at a time
@@ -144,6 +170,9 @@ class Constraint:
                 # Propagate metadata from scored sequence back to original
                 self._propagate_metadata_to_sequence(sequence_idx, sequence)
 
+            # Convert to boolean filter if threshold is set
+            if self.threshold is not None:
+                return [score <= self.threshold for score in scores]
             return scores
 
     def _preprocess_sequence_at_index(self, sequence_idx: int) -> Sequence | Tuple[Sequence, ...]:

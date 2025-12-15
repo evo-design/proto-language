@@ -233,7 +233,6 @@ class BoltzBindingStrengthConfig(BaseConfig):
     label="Boltz Binding Strength",
     config=BoltzBindingStrengthConfig,
     description="Evaluate protein-protein/protein-ligand binding using Boltz2 structure prediction",
-    mode="score",
     batched=True,
     concatenate=False,  # Boltz handles multi-chain complexes
     gpu_required=True,

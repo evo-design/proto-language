@@ -89,7 +89,6 @@ class SequenceLengthConfig(BaseConfig):
     label="Sequence Length",
     config=SequenceLengthConfig,
     description="Evaluate sequence length against target value or acceptable range",
-    mode="score",
     batched=True,
     concatenate=True,
     tools_called=[],

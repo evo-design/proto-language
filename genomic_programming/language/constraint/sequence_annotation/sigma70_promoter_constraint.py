@@ -194,7 +194,6 @@ class Sigma70PromoterConfig(BaseConfig):
     label="Sigma70 Promoter Strength",
     config=Sigma70PromoterConfig,
     description="Evaluate sigma-70 promoter similarity for DNA sequences",
-    mode="score",
     batched=True,
     concatenate=True,
     tools_called=[],

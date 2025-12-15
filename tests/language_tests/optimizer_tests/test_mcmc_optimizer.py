@@ -97,7 +97,6 @@ class TestMCMCOptimizer:
         dummy_scoring_func._constraint_batched = False
         dummy_scoring_func._constraint_concatenate = True
         dummy_scoring_func._constraint_config_class = EmptyConfig
-        dummy_scoring_func._constraint_mode = "score"
 
         dummy_constraint = Constraint(
             inputs=[test_segment],
@@ -529,7 +528,6 @@ class TestMCMCOptimizer:
         perfect_g_energy._constraint_batched = False
         perfect_g_energy._constraint_concatenate = True
         perfect_g_energy._constraint_config_class = EmptyConfig
-        perfect_g_energy._constraint_mode = "score"
 
         constraint = Constraint(
             inputs=[segment],
@@ -704,7 +702,6 @@ class TestMCMCOptimizer:
         dummy_scoring_func._constraint_batched = False
         dummy_scoring_func._constraint_concatenate = True
         dummy_scoring_func._constraint_config_class = EmptyConfig
-        dummy_scoring_func._constraint_mode = "score"
 
         construct = Construct([segment])
         constraint = Constraint(

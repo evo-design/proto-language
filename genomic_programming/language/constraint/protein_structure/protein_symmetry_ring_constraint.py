@@ -115,7 +115,6 @@ class ProteinSymmetryRingConfig(BaseConfig):
     label="Protein Symmetry Ring Structure",
     config=ProteinSymmetryRingConfig,
     description="Constrain protein to form symmetric ring-like multimeric structure",
-    mode="score",
     batched=True,
     concatenate=True,
     gpu_required=True,

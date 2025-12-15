@@ -725,7 +725,6 @@ def test_three_or_more_segments_disjoint():
     mock_triple_input_scoring_function._constraint_batched = False
     mock_triple_input_scoring_function._constraint_concatenate = False
     mock_triple_input_scoring_function._constraint_config_class = None
-    mock_triple_input_scoring_function._constraint_mode = "score"
 
     seg1 = Segment(sequence="AAAA", sequence_type="dna")
     seg2 = Segment(sequence="TTTT", sequence_type="dna")
@@ -1038,133 +1037,132 @@ def test_constraint_evaluate_with_mask_preserves_original_indices():
 
 
 # =============================================================================
-# FILTER CONSTRAINT MODE TESTS
+# THRESHOLD-BASED FILTERING TESTS
 # =============================================================================
 
-def test_filter_constraint_mode():
+def test_constraint_with_threshold_filters():
     """
-    Test that constraints can be created with mode="filter" and return boolean values.
-    Mode is read from function attribute (set by registry).
+    Test that providing threshold converts float scores to boolean filters.
+    Scores <= threshold are accepted (True), scores > threshold are rejected (False).
     """
-    def mock_filter_function(sequences, config=None):
-        """Returns True if sequence length > 5."""
-        return [len(seq.sequence) > 5 for seq in sequences]
+    def mock_scoring_function(sequences, config=None):
+        """Returns scores based on sequence length."""
+        return [len(seq.sequence) / 10.0 for seq in sequences]
     
     # Set required attributes (as registry would do)
-    mock_filter_function._constraint_batched = True
-    mock_filter_function._constraint_concatenate = True
-    mock_filter_function._constraint_config_class = MockConstraintConfig
-    mock_filter_function._constraint_mode = "filter"  # Set by registry
+    mock_scoring_function._constraint_batched = True
+    mock_scoring_function._constraint_concatenate = True
+    mock_scoring_function._constraint_config_class = MockConstraintConfig
     
-    sequences = ["ATCG", "ATCGATCG", "AT"]
+    sequences = ["ATCG", "ATCGATCG", "AT"]  # lengths: 4, 8, 2 → scores: 0.4, 0.8, 0.2
     segment = _make_segment_with_candidates(sequences, "dna")
     
+    # Create constraint with threshold=0.5
     filter_constraint = Constraint(
         inputs=[segment],
-        function=mock_filter_function,
+        function=mock_scoring_function,
         function_config=MockConstraintConfig(),
+        threshold=0.5,
     )
     
-    # Verify mode was read correctly
-    assert filter_constraint.mode == "filter"
+    # Verify threshold was set
+    assert filter_constraint.threshold == 0.5
     
     results = filter_constraint.evaluate()
     
-    # Should return boolean values
-    assert results == [False, True, False]
+    # Should convert scores to boolean: [0.4 <= 0.5, 0.8 <= 0.5, 0.2 <= 0.5]
+    assert results == [True, False, True]
     assert all(isinstance(r, bool) for r in results)
 
 
-def test_score_constraint_mode_explicit():
+def test_constraint_without_threshold_returns_scores():
     """
-    Test that score constraints have mode="score" attribute set by registry.
+    Test that constraints without threshold return float scores.
     """
-    # Mock function with all required attributes including _constraint_mode
-    def mock_score_function(sequences, config=None):
-        """Returns score based on sequence length."""
+    def mock_scoring_function(sequences, config=None):
+        """Returns scores based on sequence length."""
         return [len(seq.sequence) / 10.0 for seq in sequences]
     
     # Set all required attributes (as registry would do)
-    mock_score_function._constraint_batched = True
-    mock_score_function._constraint_concatenate = True
-    mock_score_function._constraint_config_class = MockConstraintConfig
-    mock_score_function._constraint_mode = "score"
+    mock_scoring_function._constraint_batched = True
+    mock_scoring_function._constraint_concatenate = True
+    mock_scoring_function._constraint_config_class = MockConstraintConfig
     
     sequences = ["ATCG", "ATCGATCG"]
     segment = _make_segment_with_candidates(sequences, "dna")
     
+    # Create constraint without threshold
     score_constraint = Constraint(
         inputs=[segment],
-        function=mock_score_function,
+        function=mock_scoring_function,
         function_config=MockConstraintConfig(),
     )
     
-    # Should have "score" mode
-    assert score_constraint.mode == "score"
+    # Verify no threshold was set
+    assert score_constraint.threshold is None
     
     results = score_constraint.evaluate()
     
-    # Should return float values
+    # Should return float scores
     assert results == [0.4, 0.8]
     assert all(isinstance(r, float) for r in results)
 
 
-def test_filter_constraint_mode_explicit():
+def test_threshold_filtering_with_different_thresholds():
     """
-    Test that filter constraints have mode="filter" attribute set by registry.
+    Test that different threshold values produce different filtering results.
     """
-    # Mock function with all required attributes including _constraint_mode
-    def mock_filter_function(sequences, config=None):
-        """Returns True if sequence has at least 6 nucleotides."""
-        return [len(seq.sequence) >= 6 for seq in sequences]
+    def mock_scoring_function(sequences, config=None):
+        """Returns scores: [0.2, 0.5, 0.7, 0.9]"""
+        return [0.2, 0.5, 0.7, 0.9]
     
-    # Set all required attributes (as registry would do)
-    mock_filter_function._constraint_batched = True
-    mock_filter_function._constraint_concatenate = True
-    mock_filter_function._constraint_config_class = MockConstraintConfig
-    mock_filter_function._constraint_mode = "filter"
+    mock_scoring_function._constraint_batched = True
+    mock_scoring_function._constraint_concatenate = True
+    mock_scoring_function._constraint_config_class = MockConstraintConfig
     
-    sequences = ["ATCG", "ATCGATCG", "ATCGATCGAT"]
+    sequences = ["A", "C", "G", "T"]
     segment = _make_segment_with_candidates(sequences, "dna")
     
-    filter_constraint = Constraint(
+    # Test with threshold=0.5 - should accept 0.2 and 0.5
+    constraint_low = Constraint(
         inputs=[segment],
-        function=mock_filter_function,
+        function=mock_scoring_function,
         function_config=MockConstraintConfig(),
+        threshold=0.5,
+    )
+    assert constraint_low.evaluate() == [True, True, False, False]
+    
+    # Test with threshold=0.8 - should accept 0.2, 0.5, and 0.7
+    constraint_high = Constraint(
+        inputs=[segment],
+        function=mock_scoring_function,
+        function_config=MockConstraintConfig(),
+        threshold=0.8,
+    )
+    assert constraint_high.evaluate() == [True, True, True, False]
+
+
+def test_threshold_zero_filters_only_perfect_scores():
+    """
+    Test that threshold=0.0 only accepts perfect scores (0.0).
+    """
+    def mock_scoring_function(sequences, config=None):
+        """Returns scores: [0.0, 0.1, 0.0, 0.5]"""
+        return [0.0, 0.1, 0.0, 0.5]
+    
+    mock_scoring_function._constraint_batched = True
+    mock_scoring_function._constraint_concatenate = True
+    mock_scoring_function._constraint_config_class = MockConstraintConfig
+    
+    sequences = ["A", "C", "G", "T"]
+    segment = _make_segment_with_candidates(sequences, "dna")
+    
+    constraint = Constraint(
+        inputs=[segment],
+        function=mock_scoring_function,
+        function_config=MockConstraintConfig(),
+        threshold=0.0,
     )
     
-    # Should have "filter" mode
-    assert filter_constraint.mode == "filter"
-    
-    results = filter_constraint.evaluate()
-    
-    # Should return boolean values
-    assert results == [False, True, True]
-    assert all(isinstance(r, bool) for r in results)
-
-
-def test_constraint_missing_mode_attribute():
-    """
-    Test that constraints raise AttributeError if _constraint_mode is not set.
-    """
-    # Mock function WITHOUT _constraint_mode attribute
-    def mock_incomplete_function(sequences, config=None):
-        """Returns score based on sequence length."""
-        return [len(seq.sequence) / 10.0 for seq in sequences]
-    
-    # Set other required attributes but omit _constraint_mode
-    mock_incomplete_function._constraint_batched = True
-    mock_incomplete_function._constraint_concatenate = True
-    mock_incomplete_function._constraint_config_class = MockConstraintConfig
-    # _constraint_mode NOT set - should raise AttributeError
-    
-    sequences = ["ATCG", "ATCGATCG"]
-    segment = _make_segment_with_candidates(sequences, "dna")
-    
-    # Should raise AttributeError when trying to access missing _constraint_mode
-    with pytest.raises(AttributeError, match="_constraint_mode"):
-        Constraint(
-            inputs=[segment],
-            function=mock_incomplete_function,
-            function_config=MockConstraintConfig(),
-        )
+    # Only 0.0 scores should pass
+    assert constraint.evaluate() == [True, False, True, False]

@@ -52,7 +52,6 @@ class ProteinLengthConfig(BaseConfig):
     label="Protein Length",
     config=ProteinLengthConfig,
     description="Evaluate whether protein length falls within acceptable range",
-    mode="score",
     batched=True,
     concatenate=True,
     tools_called=[],

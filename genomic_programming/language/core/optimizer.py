@@ -28,13 +28,13 @@ class Optimizer(ABC):
     about which sequences to keep.
 
     Filter Constraints:
-        Constraints with mode="filter" act as binary filters that accept or reject
+        Constraints with a threshold parameter act as binary filters that accept or reject
         candidates before scoring. Rejected candidates receive infinite penalty scores
         and skip all subsequent constraint evaluations, improving performance when
         constraints are computationally expensive.
 
         Filter evaluation order:
-        1. All filter constraints are evaluated first
+        1. All filter constraints (those with threshold set) are evaluated first
         2. Candidates must pass ALL filters (AND logic)
         3. Only accepted candidates are evaluated by scoring constraints
         4. Rejected candidates receive filter_penalty score (default: inf)
@@ -123,13 +123,13 @@ class Optimizer(ABC):
         Compute energy scores by combining all constraint evaluation scores.
         Evaluates the current state of all Sequence objects stored in segments.candidate_sequences.
 
-        Filter constraints (mode="filter") use short-circuit evaluation: once a candidate
+        Filter constraints (those with threshold set) use short-circuit evaluation: once a candidate
         is rejected by any filter, it skips all subsequent filter and scoring evaluations.
 
         Evaluation order:
-            1. Filter constraints evaluated sequentially in order
+            1. Filter constraints (with threshold) evaluated sequentially in order
             2. Each filter only evaluates candidates not yet rejected
-            3. Scoring constraints only evaluate candidates that passed all filters
+            3. Scoring constraints (without threshold) only evaluate candidates that passed all filters
             4. Rejected candidates receive filter_penalty without further evaluation
 
         Args:
@@ -147,7 +147,7 @@ class Optimizer(ABC):
         passed = [True] * num_sequences
         
         if self.verbose:
-            print(f"\n{'='*60}\nEnergy Scoring: {sum(1 for c in self.constraints if c.mode == 'filter')} filters, {sum(1 for c in self.constraints if c.mode != 'filter')} scoring constraints\nFormula: energy = {'Σ' if operation == 'add' else 'Π'}(weight_i x constraint_score_i)\n")
+            print(f"\n{'='*60}\nEnergy Scoring: {sum(1 for c in self.constraints if c.threshold is not None)} filters, {sum(1 for c in self.constraints if c.threshold is None)} scoring constraints\nFormula: energy = {'Σ' if operation == 'add' else 'Π'}(weight_i x constraint_score_i)\n")
         
         # Evaluate constraints, skipping subsequent constraint evaluations for sequences that have been rejected by filters
         weighted_scores = []
@@ -155,7 +155,7 @@ class Optimizer(ABC):
             # Only evaluate sequences that have passed all previous filters
             results = constraint.evaluate(mask=passed)
             
-            if constraint.mode == "filter":
+            if constraint.threshold is not None:
                 passed = self._apply_filter_constraint(results, passed, constraint, idx)
             else:
                 full_scores = self._apply_scoring_constraint(results, passed, num_sequences, filter_penalty, self.constraint_weights[idx], constraint, idx)

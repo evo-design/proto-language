@@ -139,7 +139,6 @@ class MMseqsSimilarityConfig(BaseConfig):
     label="Gene/Protein Similarity",
     config=MMseqsSimilarityConfig,
     description="Evaluate similarity (percent identity) using MMseqs. For DNA: predicts ORFs first. For proteins: searches directly.",
-    mode="score",
     batched=True,
     concatenate=True,
     tools_called=["mmseqs", "prodigal", "orfipy"],

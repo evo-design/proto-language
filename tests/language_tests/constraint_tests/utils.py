@@ -47,7 +47,6 @@ def mock_single_input_scoring_function(sequence: Sequence, config=None) -> float
 mock_single_input_scoring_function._constraint_batched = False
 mock_single_input_scoring_function._constraint_concatenate = True
 mock_single_input_scoring_function._constraint_config_class = None
-mock_single_input_scoring_function._constraint_mode = "score"
 
 
 def mock_multi_input_scoring_function(sequences: List[Sequence], config=None) -> List[float]:
@@ -78,7 +77,6 @@ def mock_multi_input_scoring_function(sequences: List[Sequence], config=None) ->
 mock_multi_input_scoring_function._constraint_batched = True
 mock_multi_input_scoring_function._constraint_concatenate = True
 mock_multi_input_scoring_function._constraint_config_class = None
-mock_multi_input_scoring_function._constraint_mode = "score"
 
 
 def mock_single_input_scoring_function_disjoint(
@@ -114,7 +112,6 @@ def mock_single_input_scoring_function_disjoint(
 mock_single_input_scoring_function_disjoint._constraint_batched = False
 mock_single_input_scoring_function_disjoint._constraint_concatenate = False
 mock_single_input_scoring_function_disjoint._constraint_config_class = None
-mock_single_input_scoring_function_disjoint._constraint_mode = "score"
 
 
 def mock_multi_input_scoring_function_disjoint(
@@ -152,7 +149,6 @@ def mock_multi_input_scoring_function_disjoint(
 mock_multi_input_scoring_function_disjoint._constraint_batched = True
 mock_multi_input_scoring_function_disjoint._constraint_concatenate = False
 mock_multi_input_scoring_function_disjoint._constraint_config_class = None
-mock_multi_input_scoring_function_disjoint._constraint_mode = "score"
 
 
 # =============================================================================
