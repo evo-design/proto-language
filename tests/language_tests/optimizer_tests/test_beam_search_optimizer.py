@@ -9,7 +9,6 @@ from proto_language.language.core import (
     Construct,
     Segment,
     Constraint,
-    SequenceType,
     Generator,
     Sequence,
 )
@@ -955,15 +954,15 @@ class TestBeamSearchOptimizer:
         print(f"\nKV caching speedup: {speedup_ratio:.2f}x")
         print(f"Time with caching: {time_cached:.2f}s")
         print(f"Time without caching: {time_uncached:.2f}s")
-        print(f"Parameters: beam_width=3, candidates_per_beam=5, segments=20, tokens_per_segment=100")
+        print("Parameters: beam_width=3, candidates_per_beam=5, segments=20, tokens_per_segment=100")
 
         # With candidates_per_beam=5, each beam's cache is reused 5 times per segment
         # Across 20 segments with growing prompts, this should show clear benefit
         # Expected: >1.1x speedup (matches beam_search_kv_caching.py 1.30x result)
         assert speedup_ratio > 1.1, (
-            f"Expected >1.2x speedup with cache reuse (beam_width=3, candidates_per_beam=5, 20 segments). "
+            "Expected >1.2x speedup with cache reuse (beam_width=3, candidates_per_beam=5, 20 segments). "
             f"Got {speedup_ratio:.2f}x (time_cached={time_cached:.2f}s, time_uncached={time_uncached:.2f}s). "
-            f"Should match beam_search_kv_caching.py results (~1.3x speedup)."
+            "Should match beam_search_kv_caching.py results (~1.3x speedup)."
         )
 
     def test_beam_search_improves_energy(self):

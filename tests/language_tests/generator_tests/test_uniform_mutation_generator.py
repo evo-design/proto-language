@@ -1,13 +1,10 @@
 from __future__ import annotations
 import pytest
 import random
-import numpy as np
 import copy
-from typing import Tuple
 
 from proto_language.language.core import (
     Segment,
-    SequenceType,
 )
 from proto_language.language.generator import UniformMutationGenerator, UniformMutationGeneratorConfig
 
@@ -221,16 +218,6 @@ class TestUniformMutationGeneratorValidation:
         config = UniformMutationGeneratorConfig(num_mutations=1)
         generator = UniformMutationGenerator(config)
         segment = Segment(length=50, sequence_type="protein")
-        
-        # Should not raise
-        generator.assign(segment)
-        assert generator._assigned_segment is segment
-
-    def test_accepts_ligand_segment(self):
-        """UniformMutation should accept LIGAND segments."""
-        config = UniformMutationGeneratorConfig(num_mutations=1)
-        generator = UniformMutationGenerator(config)
-        segment = Segment(length=50, sequence_type="ligand")
         
         # Should not raise
         generator.assign(segment)

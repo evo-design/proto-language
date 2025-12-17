@@ -6,7 +6,6 @@ generators and constraints to search for optimal biological sequences.
 """
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from proto_language.language.core.constraint import Constraint
 from typing import Any, Dict, List, Optional, Literal
 import copy
 import math

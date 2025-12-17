@@ -4,7 +4,7 @@ Comprehensive tests for overall_protein_quality_constraint.
 
 import pytest
 
-from proto_language.language.core import Constraint, SequenceType, Segment
+from proto_language.language.core import Constraint, Segment
 from proto_language.language.constraint import overall_protein_quality_constraint
 from proto_language.language.constraint.protein_quality.overall_protein_quality_constraint import OverallProteinQualityConfig, ProteinQualitySubConfig
 
@@ -119,6 +119,6 @@ class TestOverallProteinQualityConstraint:
         """Test that config requires at least one sub-check (constraint-specific validation)."""
         with pytest.raises(Exception):  # Pydantic ValidationError
             sub_config = ProteinQualitySubConfig(quality_threshold=0.1)
-            config = OverallProteinQualityConfig(
+            _ = OverallProteinQualityConfig(
                 protein_quality_config=sub_config
             )

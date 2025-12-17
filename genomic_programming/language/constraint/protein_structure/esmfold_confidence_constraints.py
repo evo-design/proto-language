@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Optional, List
 
-from proto_language.language.core import Sequence, SequenceType
+from proto_language.language.core import Sequence
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import (
     ConstraintRegistry,

@@ -601,7 +601,7 @@ def test_custom_label_in_metadata():
         label="my_custom_label"
     )
     
-    scores = constraint.evaluate()
+    _ = constraint.evaluate()
     
     # Metadata should use custom label, not "mock_single_input_scoring_function"
     metadata_keys = [key for key in segment.candidate_sequences[0]._metadata.keys() 
@@ -632,7 +632,7 @@ def test_custom_label_disjoint_mode():
         label="disjoint_custom_label"
     )
     
-    scores = constraint.evaluate()
+    _ = constraint.evaluate()
     
     # Check both segments have metadata with custom label
     metadata_keys_seg1 = [key for key in seg1.candidate_sequences[0]._metadata.keys() 
@@ -773,7 +773,7 @@ def test_empty_sequence_in_batch():
     # Most scoring functions will fail on empty sequences (division by zero)
     # This is expected behavior - constraints should validate their inputs
     with pytest.raises(ZeroDivisionError):
-        scores = constraint.evaluate()
+        _ = constraint.evaluate()
 
 
 # =============================================================================
@@ -1023,7 +1023,7 @@ def test_constraint_evaluate_with_mask_preserves_original_indices():
     
     # Mask: skip first and last candidates
     mask = [False, True, True, True, False]
-    scores = constraint.evaluate(mask=mask)
+    _ = constraint.evaluate(mask=mask)
     
     # Verify metadata went to correct original candidates (1, 2, 3)
     prefix = "segment_0.mock_multi_input_scoring_function"

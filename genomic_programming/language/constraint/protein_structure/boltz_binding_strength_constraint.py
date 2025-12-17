@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Union, Any, Literal
 
-from proto_language.language.core import Sequence, SequenceType
+from proto_language.language.core import Sequence
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import (
     ConstraintRegistry,
@@ -19,8 +19,8 @@ from proto_language.tools.structure_prediction.boltz import (
 from proto_language.tools.structure_prediction.schemas import (
     StructurePredictionComplex,
 )
-from proto_language.language.core.sequence import SequenceType
 from numpy import clip
+from proto_language.tools.ligands import Ligands
 
 
 # Default target values and tolerances for binding strength metrics
@@ -71,6 +71,9 @@ class BoltzBindingStrengthConfig(BaseConfig):
     optimized for different complex types (monomers, protein-nucleic acid, protein-protein).
     
     Attributes:
+        ligands (Optional[Union[str, List[str]]]): Ligands to use for binding strength evaluation.
+            Can be a SMILES string, or a path to SMI or SDF files. To delimit multiple ligands, use '.'.
+            Each individual molecular fragment will be treated as a separate chain in the input complex.
         desired_higher (Dict[str, float]): Target values for "higher is better" metrics.
             Metrics in this category should ideally be close to 1.0 (high confidence).
             Available metrics:
@@ -152,6 +155,12 @@ class BoltzBindingStrengthConfig(BaseConfig):
           more accurate structure. Values <3 Å indicate high accuracy.
         - **confidence_score**: Boltz's aggregate confidence combining multiple factors.
     """
+    ligands: Optional[Union[str, List[str]]] = ConfigField(
+        default=None,
+        title="Ligands",
+        description="Ligand to use for binding strength evaluation.",
+    )
+
     desired_higher: Dict[str, float] = ConfigField(
         default=DEFAULT_DESIRED_HIGHER,
         title="Desired Higher Bound Metrics",
@@ -309,15 +318,32 @@ def boltz_binding_strength_constraint(
         >>> print(f"iptm: {metadata['metrics']['iptm']:.3f}")
         >>> print(f"complex_iplddt: {metadata['metrics']['complex_iplddt']:.3f}")
     """
+    ligands = None
+    if config.ligands is not None:
+        ligands = Ligands(config.ligands)
+
+    complexes = []
+    for sequence_list in complex_sequences:
+        # Pull chains and entity types from complex sequences
+        chains = [s.sequence for s in sequence_list]
+        entity_types = [s.sequence_type for s in sequence_list]
+
+        # Add ligands if they are provided
+        if ligands is not None:
+            chains.extend([fragment.smiles for fragment in ligands.fragments])
+            entity_types.extend(["ligand"] * len(ligands.fragments))
+
+        # Add this complex
+        complexes.append(
+            StructurePredictionComplex(
+                chains=chains,
+                entity_types=entity_types,
+            )
+        )
+
     # Prepare inputs for Boltz2
     inputs = BoltzInput(
-        complexes=[
-            StructurePredictionComplex(
-                chains=[s.sequence for s in seq_list],
-                entity_types=[s.sequence_type for s in seq_list],
-            )  # entity types are auto-inferred
-            for seq_list in complex_sequences
-        ]
+        complexes=complexes
     )
 
     # Run Boltz2

@@ -1,8 +1,7 @@
 import copy
 import pytest
-import time
 
-from proto_language.language.core import Segment, SequenceType
+from proto_language.language.core import Segment
 from proto_language.language.generator import (
     ProGen2Generator,
     ProGen2GeneratorConfig,

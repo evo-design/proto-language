@@ -8,7 +8,7 @@ from collections import Counter
 from typing import List
 import numpy as np
 
-from proto_language.language.core import Sequence, SequenceType,PROTEIN_AMINO_ACIDS
+from proto_language.language.core import Sequence, PROTEIN_AMINO_ACIDS
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import ConstraintRegistry
 

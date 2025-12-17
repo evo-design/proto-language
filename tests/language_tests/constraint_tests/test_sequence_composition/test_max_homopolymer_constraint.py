@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from proto_language.language.core import Constraint, Segment, SequenceType
+from proto_language.language.core import Constraint, Segment
 from proto_language.language.constraint import max_homopolymer_constraint
 from proto_language.language.constraint.sequence_composition.max_homopolymer_constraint import MaxHomopolymerConfig
 

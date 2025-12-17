@@ -1,6 +1,6 @@
 import pytest
 
-from proto_language.language.core import Constraint, SequenceType, Segment
+from proto_language.language.core import Constraint, Segment
 from proto_language.language.constraint import protein_length_constraint
 from proto_language.language.constraint.protein_quality.protein_length_constraint import ProteinLengthConfig
 

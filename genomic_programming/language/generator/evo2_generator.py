@@ -3,7 +3,6 @@ Evo2 Generator for DNA sequence generation
 """
 from __future__ import annotations
 from typing import List, Optional, Dict, final, Union
-import warnings
 
 from pydantic import model_validator, field_validator
 

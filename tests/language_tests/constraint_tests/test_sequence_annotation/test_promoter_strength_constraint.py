@@ -13,10 +13,9 @@ Tests cover:
 Note: Actual promoter_calculator execution is mocked to avoid dependencies.
 """
 
-import pytest
 from unittest.mock import patch, Mock
 
-from proto_language.language.core import Constraint, SequenceType, Segment
+from proto_language.language.core import Constraint, Segment
 from proto_language.language.constraint import promoter_strength_constraint
 from proto_language.language.constraint.sequence_annotation.promoter_strength_constraint import PromoterStrengthConfig
 

@@ -17,7 +17,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from Bio import SeqIO
-from proto_language.language.core import Constraint, SequenceType, Segment
+from proto_language.language.core import Constraint, Segment
 from proto_language.language.constraint import protein_domain_constraint
 from proto_language.language.constraint.protein_quality.protein_domain_constraint import ProteinDomainConfig
 

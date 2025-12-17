@@ -317,12 +317,12 @@ class BeamSearchOptimizer(Optimizer):
                 if self.use_kv_caching and replicated_kv_cache is not None:
                     kv = next(iter(replicated_kv_cache['mha'].key_value_memory_dict.values()))
                     offset = replicated_kv_cache['mha'].seqlen_offset
-                    print(f"  Cache provided:")
+                    print("  Cache provided:")
                     print(f"    KV shape: {kv.shape}")
                     print(f"    KV device: {kv.device}")
                     print(f"    seqlen_offset: {offset}")
                 else:
-                    print(f"  Cache: None (first segment, will build cache)")
+                    print("  Cache: None (first segment, will build cache)")
                 print(f"  prepend_prompt: {prepend_prompt}")
 
             self.generator.sample(

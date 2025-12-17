@@ -7,7 +7,7 @@ dinucleotide_frequency and tetranucleotide_usage constraints.
 
 import pytest
 
-from proto_language.language.core import Constraint, Segment, SequenceType
+from proto_language.language.core import Constraint, Segment
 from proto_language.language.constraint import kmer_frequency_constraint, ConstraintRegistry
 from proto_language.language.constraint.sequence_composition.kmer_frequency_constraint import KmerFrequencyConfig
 

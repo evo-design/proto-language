@@ -4,8 +4,7 @@ Tests for serialization/deserialization of core language objects.
 Tests roundtrip serialization (to_dict -> from_dict) for Sequence, Segment, and Construct.
 """
 
-import pytest
-from proto_language.language.core import Sequence, Segment, Construct, SequenceType
+from proto_language.language.core import Sequence, Segment, Construct
 
 
 class TestSequenceSerialization:
@@ -125,8 +124,8 @@ class TestSegmentSerialization:
         seg_dict = seg.to_dict()
         seg_restored = Segment.from_dict(seg_dict)
 
-        assert seg_restored.constant == True
-        assert seg_restored._is_assigned == True
+        assert seg_restored.constant is True
+        assert seg_restored._is_assigned is True
         assert str(seg_restored.original_sequence) == "ATATCG"
 
     def test_segment_with_metadata_roundtrip(self):

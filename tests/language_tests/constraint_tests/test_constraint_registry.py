@@ -14,7 +14,7 @@ import pytest
 from pydantic import BaseModel, Field, ValidationError
 
 from proto_language.language.constraint import ConstraintRegistry
-from proto_language.language.core import Segment, Sequence, SequenceType, Constraint
+from proto_language.language.core import Segment, Sequence, Constraint
 
 
 # ============================================================================
@@ -67,8 +67,8 @@ class TestRegistration:
         assert spec.config_model == TestConfig
         assert spec.description == "Temporary test constraint"
         assert spec.function == test_constraint
-        assert spec.batched == False
-        assert spec.concatenate == True
+        assert spec.batched is False
+        assert spec.concatenate is True
 
         # Cleanup
         del ConstraintRegistry._registry["test-temp-constraint"]
@@ -90,8 +90,8 @@ class TestRegistration:
             return [0.0] * len(sequences)
 
         spec = ConstraintRegistry.get("test-batched")
-        assert spec.batched == True
-        assert spec.concatenate == False
+        assert spec.batched is True
+        assert spec.concatenate is False
 
         # Cleanup
         del ConstraintRegistry._registry["test-batched"]
@@ -361,20 +361,17 @@ class TestIntegration:
         schema = ConstraintRegistry.get_schema("gc-content")
         assert "properties" in schema
         
-        # 3. Get defaults for pre-filling (extract from schema)
-        defaults = {k: v.get("default") for k, v in schema.get("properties", {}).items() if "default" in v}
-        
-        # 4. Create constraint from user input
+        # 3. Create constraint from user input
         constraint = ConstraintRegistry.create(
             key="gc-content",
             segments=[dna_segment],
             config_dict={"min_gc": 40.0, "max_gc": 60.0}
         )
         
-        # 5. Create candidates before evaluation (constraints evaluate candidate_sequences)
+        # 4. Create candidates before evaluation (constraints evaluate candidate_sequences)
         dna_segment.candidate_sequences = [copy.deepcopy(dna_segment.original_sequence) for _ in range(1)]
         
-        # 6. Evaluate
+        # 5. Evaluate
         scores = constraint.evaluate()
         assert len(scores) == 1
         assert 0.0 <= scores[0] <= 1.0
@@ -390,7 +387,7 @@ class TestIntegration:
                 schema = ConstraintRegistry.get_schema(spec.key)
                 
                 # Extract defaults from schema
-                defaults = {k: v.get("default") for k, v in schema.get("properties", {}).items() if "default" in v}
+                _ = {k: v.get("default") for k, v in schema.get("properties", {}).items() if "default" in v}
                 
                 # Note: We can't create all constraints without proper config values
                 # This test just verifies the registry methods work for all
@@ -508,7 +505,7 @@ class TestBuiltinConstraints:
         # Check CPU constraints
         for key in cpu_constraints:
             assert key in constraints_dict, f"CPU constraint {key} not registered"
-            assert constraints_dict[key].gpu_required == False, \
+            assert constraints_dict[key].gpu_required is False, \
                 f"Constraint {key} should be marked as gpu_required=False"
     
     def test_config_validation_patterns(self):

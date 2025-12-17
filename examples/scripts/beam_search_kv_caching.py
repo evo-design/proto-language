@@ -112,12 +112,12 @@ def run_beam_search(
         elapsed_time = time.time() - start_time
         return elapsed_time
     except Exception as e:
-        print(f"\nERROR during beam search optimization:")
+        print("\nERROR during beam search optimization:")
         print(f"  {type(e).__name__}: {str(e)}")
-        print(f"\nThis may be due to:")
-        print(f"  - GPU memory issues (try reducing TOTAL_TOKEN_COUNT or BEAM_LENGTH)")
-        print(f"  - CUDA errors (check GPU status with 'nvidia-smi')")
-        print(f"  - Model loading issues (check model cache)")
+        print("\nThis may be due to:")
+        print("  - GPU memory issues (try reducing TOTAL_TOKEN_COUNT or BEAM_LENGTH)")
+        print("  - CUDA errors (check GPU status with 'nvidia-smi')")
+        print("  - Model loading issues (check model cache)")
         raise
 
 
@@ -194,11 +194,11 @@ def main():
     print("RESULTS")
     print("=" * 80)
     print()
-    print(f"WITH KV Caching:")
+    print("WITH KV Caching:")
     print(f"  Mean time: {cached_mean:.2f} +/- {cached_std:.2f} seconds")
     print(f"  All runs: {[f'{t:.2f}s' for t in cached_times]}")
     print()
-    print(f"WITHOUT KV Caching:")
+    print("WITHOUT KV Caching:")
     print(f"  Mean time: {uncached_mean:.2f} +/- {uncached_std:.2f} seconds")
     print(f"  All runs: {[f'{t:.2f}s' for t in uncached_times]}")
     print()

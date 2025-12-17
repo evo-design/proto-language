@@ -12,7 +12,7 @@ Key Features:
     - Threshold-based filtering (converts scores to boolean accept/reject)
 """
 from __future__ import annotations
-from typing import Callable, List, Optional, Tuple, Union, Dict, Any, Literal
+from typing import Callable, List, Optional, Tuple, Union, Dict, Any
 
 from pydantic import BaseModel
 

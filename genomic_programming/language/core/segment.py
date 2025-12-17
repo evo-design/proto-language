@@ -4,8 +4,7 @@ Segment class for the proto-language.
 Represents building blocks for biological constructs.
 """
 from __future__ import annotations
-from typing import Any, Dict, Iterator, List, Optional, Set, Union
-import copy
+from typing import Any, Dict, Iterator, List, Optional, Set
 from .sequence import Sequence, SequenceType
 
 
@@ -44,7 +43,7 @@ class Segment:
         Args:
             sequence: Optional biological sequence string. If provided, length is inferred.
             length: Optional desired length for sequences. Required if sequence not provided.
-            sequence_type: Type of biological sequence ("dna", "rna", "protein", or "ligand"). Defaults to "dna".
+            sequence_type: Type of biological sequence ("dna", "rna", or "protein"). Defaults to "dna".
             valid_chars: Optional custom set of valid characters for sequence validation.
             label: Optional label for this segment (e.g., "promoter", "coding_region").
             metadata: Additional data associated with this sequence.

@@ -5,7 +5,7 @@ Tests for Protein Symmetry Ring constraint.
 from unittest.mock import patch
 from tests.helpers.mock_structure import MockProteinStructure
 import pandas as pd
-from proto_language.language.core import Constraint, SequenceType, Segment
+from proto_language.language.core import Constraint, Segment
 from proto_language.language.constraint import protein_symmetry_ring_constraint
 from proto_language.language.constraint.protein_structure.protein_symmetry_ring_constraint import (
     ProteinSymmetryRingConfig,
@@ -132,8 +132,6 @@ class TestProteinSymmetryRingConstraint:
     def test_n_replications_parameter(self):
         """Test that n_replications correctly replicates the sequence."""
         segment = Segment(sequence="MKTAYIAK", sequence_type="protein")
-        segment2 = Segment(sequence="MARG", sequence_type="protein")
-        segment3 = Segment(sequence="MLYS", sequence_type="protein")
         config = ProteinSymmetryRingConfig(n_replications=5)
 
         # Create a mock PDB with 5 chains (A, B, C, D, E)

@@ -15,26 +15,25 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-
-    - name: Install system dependencies
+    - name: Install a cache
       run: |
-        # Install a cache
         sudo apt-get update
         sudo apt-get install -y cache-server
 
-        # Install MMseqs2
-        wget https://github.com/soedinglab/MMseqs2/releases/latest/download/mmseqs-linux-avx2.tar.gz
-        tar xvzf mmseqs-linux-avx2.tar.gz
-        sudo mv mmseqs/bin/mmseqs /usr/local/bin/
-        rm -rf mmseqs mmseqs-linux-avx2.tar.gz
+    - name: Set up Miniconda
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-activate-base: false
+        activate-environment: proto-language
+        python-version: 3.12
+        channels: conda-forge,bioconda
+        mamba-version: "*"
 
-        # Verify installations
-        mmseqs version
-        cache-cli --version
+    - name: Install dependencies
+      shell: bash -l {0}  # ensures conda env is activated
+      run: |
+        bash install.sh --install cpu
+        conda activate proto-language
 
     - name: Cache pip packages
       uses: actions/cache@v3
@@ -44,15 +43,14 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-pip-
 
-    - name: Install Python dependencies
+    - name: Install dependencies
+      shell: bash -l {0}
       run: |
-        # Upgrade pip and install uv
         pip install --upgrade pip
-        pip install uv
-
-        # Install package with API, tools, and dev dependencies (--system to install in system Python)
-        uv pip install --system -e ".[api,tools,dev]"
+        bash install.sh --install cpu
+        conda activate proto-language
 
     - name: Run full integration tests
+      shell: bash -l {0}
       run: |
         python tests/run_integration_tests.py --verbose

@@ -5,9 +5,9 @@ mock_structure.py
 mock_structure.py
 """
 
-from typing import Optional, Dict, Union
+from typing import Optional, Dict
 from pathlib import Path
-from proto_language.tools.structures import ProteinStructure, BFactorType, load_structure_file, is_valid_structure
+from proto_language.tools.structures import ProteinStructure, BFactorType, load_structure_file
 
 
 MOCK_PDB = load_structure_file(Path(__file__).parent.parent / "dummy_data" / "renin_af3.pdb")

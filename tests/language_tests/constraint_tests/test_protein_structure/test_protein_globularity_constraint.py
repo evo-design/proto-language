@@ -2,11 +2,10 @@
 Tests for Protein Globularity constraint.
 """
 
-import pytest
 from unittest.mock import Mock, patch
 
 import pandas as pd
-from proto_language.language.core import Constraint, SequenceType, Segment
+from proto_language.language.core import Constraint, Segment
 from proto_language.language.constraint import protein_globularity_constraint
 from proto_language.language.constraint.protein_structure.protein_globularity_constraint import (
     ProteinGlobularityConfig,
@@ -14,7 +13,7 @@ from proto_language.language.constraint.protein_structure.protein_globularity_co
 from proto_language.tools.structure_prediction import (
     StructurePredictionOutput,
 )
-from proto_language.tools.structures import ProteinStructure, BFactorType
+from proto_language.tools.structures import BFactorType
 from proto_language.tools.orf_prediction.prodigal import (
     ProdigalOutput,
 )

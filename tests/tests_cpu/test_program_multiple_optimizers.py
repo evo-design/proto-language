@@ -12,7 +12,6 @@ from proto_language.language.core import (
     Construct,
     Segment,
     Constraint,
-    SequenceType,
 )
 from proto_language.language.generator import (
     UniformMutationGenerator,
@@ -343,7 +342,7 @@ class TestMultipleOptimizers:
 
         # Run first optimizer standalone to get its output
         optimizer1.run()
-        sequences_after_opt1 = construct.joined_sequences[0]
+        _ = construct.joined_sequences[0]
 
         # Second optimizer should start from opt1's results
         gen2_config = UniformMutationGeneratorConfig(num_mutations=1)
@@ -356,7 +355,7 @@ class TestMultipleOptimizers:
             function_config={"min_gc": 80, "max_gc": 90},
         )
 
-        optimizer2 = MCMCOptimizer(
+        _ = MCMCOptimizer(
             constructs=[construct],
             generators=[gen2],
             constraints=[constraint2],

@@ -14,9 +14,8 @@ Note: Actual MEME/FIMO execution is mocked to avoid dependencies.
 
 import pytest
 from unittest.mock import patch, mock_open, Mock
-import os
 
-from proto_language.language.core import Constraint, SequenceType, Segment
+from proto_language.language.core import Constraint, Segment
 from proto_language.language.constraint import seq_motif_constraint
 from proto_language.language.constraint.sequence_annotation.seq_motif_constraint import SeqMotifConfig
 
@@ -62,7 +61,7 @@ class TestSeqMotifConstraint:
         motif_file_content = "MOTIF motif1\nMOTIF motif2"
         
         with patch('builtins.open', mock_open(read_data=motif_file_content)), \
-             patch('proto_language.language.constraint.sequence_annotation.seq_motif_constraint.subprocess.run') as mock_run, \
+             patch('proto_language.language.constraint.sequence_annotation.seq_motif_constraint.subprocess.run') as _, \
              patch('proto_language.language.constraint.sequence_annotation.seq_motif_constraint.tempfile.TemporaryDirectory') as mock_temp:
             
             # Setup mock temp directory
@@ -73,7 +72,6 @@ class TestSeqMotifConstraint:
             mock_temp.return_value = mock_temp_inst
             
             # Mock FIMO output (no hits)
-            fimo_output = os.path.join(mock_temp_dir, "fimo_out", "fimo.tsv")
             with patch('os.path.exists') as mock_exists:
                 mock_exists.return_value = False
                 
@@ -102,7 +100,7 @@ class TestSeqMotifConstraint:
         fimo_results += "motif1\tquery\t1e-5\t0.001\t1\t10\t+\t10.0\n"
         
         with patch('builtins.open', mock_open(read_data=motif_file_content)), \
-             patch('proto_language.language.constraint.sequence_annotation.seq_motif_constraint.subprocess.run') as mock_run, \
+             patch('proto_language.language.constraint.sequence_annotation.seq_motif_constraint.subprocess.run') as _, \
              patch('proto_language.language.constraint.sequence_annotation.seq_motif_constraint.tempfile.TemporaryDirectory') as mock_temp:
             
             mock_temp_dir = "/tmp/test_temp"

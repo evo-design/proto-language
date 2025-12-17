@@ -1,6 +1,4 @@
-import pytest
-
-from proto_language.language.core import Sequence, Segment, Construct, SequenceType
+from proto_language.language.core import Sequence, Segment
 
 
 class TestSegment:

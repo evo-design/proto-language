@@ -1,15 +1,11 @@
 import copy
 import pytest
-import time
 
-from proto_language.language.core import Segment, SequenceType
+from proto_language.language.core import Segment
 from proto_language.language.generator import (
     Evo2Generator,
     Evo2GeneratorConfig,
 )
-
-# Check if GPU is available (either locally or via cloud)
-from proto_language.utils import is_gpu_available
 
 
 @pytest.mark.uses_gpu

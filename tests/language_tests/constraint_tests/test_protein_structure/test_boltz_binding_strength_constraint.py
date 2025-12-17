@@ -2,9 +2,7 @@
 Tests for Boltz Binding Strength constraint.
 """
 
-import pytest
-
-from proto_language.language.core import SequenceType, Segment
+from proto_language.language.core import Segment
 from proto_language.language.constraint import ConstraintRegistry
 from proto_language.language.constraint.protein_structure.boltz_binding_strength_constraint import (
     BoltzBindingStrengthConfig,
@@ -13,8 +11,8 @@ from proto_language.language.constraint.protein_structure.boltz_binding_strength
 from proto_language.tools.structure_prediction import (
     StructurePredictionOutput,
 )
-from proto_language.tools.structures import ProteinStructure, BFactorType
-from unittest.mock import Mock, patch
+from proto_language.tools.structures import BFactorType
+from unittest.mock import patch
 
 from tests.helpers.mock_structure import MockProteinStructure
 
@@ -145,11 +143,11 @@ class TestBoltzBindingStrengthConstraint:
         """Test constraint with protein-protein-ligand complex."""
         protein1 = Segment(sequence="MKTAYIAKQRQISFVK", sequence_type="protein")
         protein2 = Segment(sequence="MVLSEGEWQLVLHVWAK", sequence_type="protein")
-        target = Segment(sequence="N[C@@H](Cc1ccc(O)cc1)C(=O)O", sequence_type="ligand")
-        complex_list = [protein1, protein2, target]
+        ligand_target = "N[C@@H](Cc1ccc(O)cc1)C(=O)O"
+        complex_list = [protein1, protein2]
 
         constraint = ConstraintRegistry.create(
-            key="boltz-binding-strength", segments=complex_list, config_dict={}
+            key="boltz-binding-strength", segments=complex_list, config_dict={"ligands": ligand_target}
         )
 
         with patch(
@@ -157,7 +155,7 @@ class TestBoltzBindingStrengthConstraint:
             return_value=mock_protein_protein_ligand_output,
         ):
 
-            scores = constraint.evaluate()
+            _ = constraint.evaluate()
 
     def test_with_protein_protein_complex(self):
         """Test constraint with protein-protein complex."""
@@ -174,7 +172,7 @@ class TestBoltzBindingStrengthConstraint:
             return_value=mock_protein_protein_output,
         ):
 
-            scores = constraint.evaluate()
+            _ = constraint.evaluate()
 
     def test_with_monomer(self):
         """Test constraint with monomer."""
@@ -190,4 +188,4 @@ class TestBoltzBindingStrengthConstraint:
             return_value=mock_monomer_output,
         ):
 
-            scores = constraint.evaluate()
+            _ = constraint.evaluate()

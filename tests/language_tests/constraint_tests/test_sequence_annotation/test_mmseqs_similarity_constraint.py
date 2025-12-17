@@ -7,7 +7,7 @@ Tests the MMseqs2 similarity constraint for protein sequences.
 import pytest
 from unittest.mock import patch, MagicMock
 
-from proto_language.language.core import Constraint, SequenceType, Segment
+from proto_language.language.core import Constraint, Segment
 from proto_language.language.constraint import mmseqs_similarity_constraint, ConstraintRegistry
 from proto_language.language.constraint.sequence_annotation.mmseqs_similarity_constraint import MMseqsSimilarityConfig
 from proto_language.tools.gene_annotation.mmseqs import MmseqsSearchProteinsConfig, MmseqsOutput

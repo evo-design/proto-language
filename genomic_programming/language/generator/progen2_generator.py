@@ -3,9 +3,8 @@ ProGen2 Generator for protein sequence generation.
 """
 from __future__ import annotations
 from typing import List, Optional, final, Union
-import warnings
 
-from pydantic import field_validator, model_validator
+from pydantic import field_validator
 
 from proto_language.language.core import Generator, Segment
 from proto_language.base_config import BaseConfig, ConfigField
@@ -16,9 +15,9 @@ from proto_language.tools.language_models.progen2 import (
     ProGen2SampleInput,
     ProGen2SampleConfig,
 )
-from proto_language.tools.language_models.progen2.inference import (
+from proto_language.tools.language_models.progen2.inference import ( # noqa: F401
     PROGEN2_MODEL_CHECKPOINTS,
-    PROGEN2_START_TOKEN,
+    PROGEN2_START_TOKEN, 
     PROGEN2_END_TOKEN,
 )
 

@@ -181,7 +181,7 @@ class BaseRegistry(ABC, Generic[SpecType]):
             
             error_msg = (
                 f"{component_type.capitalize()} '{key}' is already registered. "
-                f"Duplicate registration is not allowed."
+                "Duplicate registration is not allowed."
             )
             
             if attempted_component_name:

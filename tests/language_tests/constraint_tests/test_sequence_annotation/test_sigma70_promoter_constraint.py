@@ -1,6 +1,4 @@
-import pytest
-
-from proto_language.language.core import Constraint, Segment, SequenceType
+from proto_language.language.core import Constraint, Segment
 from proto_language.language.constraint import sigma70_promoter_constraint
 from proto_language.language.constraint.sequence_annotation.sigma70_promoter_constraint import Sigma70PromoterConfig
 

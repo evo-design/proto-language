@@ -11,9 +11,8 @@ from typing import Optional, List, Literal
 
 import numpy as np
 import pandas as pd
-from pydantic import model_validator
 
-from proto_language.language.core import Sequence, SequenceType, DNA_NUCLEOTIDES
+from proto_language.language.core import Sequence, DNA_NUCLEOTIDES
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import ConstraintRegistry
 from proto_language.tools.orf_prediction.orfipy import OrfipyConfig, OrfipyInput, run_orfipy_prediction

@@ -5,7 +5,6 @@ consistency.
 from __future__ import annotations
 import pytest
 from typing import Type, List, get_origin, get_args, Tuple, Union
-from pydantic import BaseModel, Field as PydanticField
 from proto_language.base_config import BaseConfig
 from proto_language.language.constraint import ConstraintRegistry
 from proto_language.language.generator import GeneratorRegistry

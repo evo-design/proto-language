@@ -104,7 +104,7 @@ class TopKOptimizerConfig(BaseConfig):
         if self.k > self.min_num_samples:
             raise ValueError(
                 f"k ({self.k}) cannot exceed min_num_samples ({self.min_num_samples}). "
-                f"Cannot keep more sequences than generated."
+                "Cannot keep more sequences than generated."
             )
 
         # min_num_samples must be divisible by batch_size
@@ -368,7 +368,7 @@ class TopKOptimizer(Optimizer):
 
         # Log statistics
         if self.verbose:
-            print(f"\nOptimization complete:")
+            print("\nOptimization complete:")
             print(f"  Total samples generated: {candidates_generated}")
             print(f"  Batch size: {self.batch_size}")
             print(f"  Rounds executed: {candidates_generated // self.batch_size}")
@@ -376,13 +376,13 @@ class TopKOptimizer(Optimizer):
 
             # Show threshold mode info if applicable
             if self.energy_threshold is not None:
-                print(f"\nThreshold mode:")
+                print("\nThreshold mode:")
                 print(f"  Target threshold: {self.energy_threshold:.6f}")
                 print(f"  Max samples: {self.max_num_samples}")
                 if threshold_met:
-                    print(f"  Status: ✓ Threshold met")
+                    print("  Status: ✓ Threshold met")
                 else:
-                    print(f"  Status: ✗ Max samples reached without meeting threshold")
+                    print("  Status: ✗ Max samples reached without meeting threshold")
 
             if top_k_list:
                 # Un-negate energies for display (they're stored as negative in heap)

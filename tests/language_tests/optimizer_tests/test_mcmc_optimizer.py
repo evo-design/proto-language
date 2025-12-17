@@ -8,7 +8,6 @@ from proto_language.language.core import (
     Construct,
     Segment,
     Constraint,
-    SequenceType,
 )
 from proto_language.language.constraint import (
     gc_content_constraint,
@@ -291,7 +290,6 @@ class TestMCMCOptimizer:
         """Tests that top-k MCMC maintains exactly k sequences."""
         num_selected = 3
         num_candidates = 4
-        seq_length = 20
 
         proposal_gen = UniformMutationGenerator(
             UniformMutationGeneratorConfig(num_mutations=1)

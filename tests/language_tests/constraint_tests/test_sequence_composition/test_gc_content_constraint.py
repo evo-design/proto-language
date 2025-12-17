@@ -1,6 +1,6 @@
 import pytest
 
-from proto_language.language.core import Constraint, Segment, SequenceType
+from proto_language.language.core import Constraint, Segment
 from proto_language.language.constraint import gc_content_constraint
 from proto_language.language.constraint.sequence_composition.gc_content_constraint import GCContentConfig
 

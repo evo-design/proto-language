@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import Dict, List
 
-from .construct import Construct
 from .optimizer import Optimizer
 
 
@@ -114,7 +113,7 @@ class Program:
                 raise ValueError(
                     f"Optimizer {i} has {len(optimizer.constructs)} constructs, "
                     f"but optimizer 0 has {len(reference_constructs)} constructs. "
-                    f"All optimizers must share the same construct objects."
+                    "All optimizers must share the same construct objects."
                 )
 
             for j, (construct, ref_construct) in enumerate(
@@ -124,8 +123,8 @@ class Program:
                     raise ValueError(
                         f"Optimizer {i} construct {j} is not the same object as "
                         f"optimizer 0 construct {j}. All optimizers must share the "
-                        f"same construct objects (by identity) to ensure state "
-                        f"persistence between sequential optimizations."
+                        "same construct objects (by identity) to ensure state "
+                        "persistence between sequential optimizations."
                     )
 
     def run(self) -> None:

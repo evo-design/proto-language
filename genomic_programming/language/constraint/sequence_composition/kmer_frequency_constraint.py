@@ -10,7 +10,7 @@ import numpy as np
 
 from pydantic import model_validator, field_validator
 
-from proto_language.language.core import Sequence, SequenceType, DNA_NUCLEOTIDES, RNA_NUCLEOTIDES, PROTEIN_AMINO_ACIDS
+from proto_language.language.core import Sequence, DNA_NUCLEOTIDES, RNA_NUCLEOTIDES, PROTEIN_AMINO_ACIDS
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import ConstraintRegistry
 from proto_language.utils import MAX_ENERGY, MIN_ENERGY
@@ -237,7 +237,7 @@ def kmer_frequency_constraint(sequences: List[Sequence], config: KmerFrequencyCo
 
     for seq in sequences:
         if seq.sequence_type not in {"dna", "rna", "protein"}:
-            raise ValueError(f"Input must be a DNA, RNA, or PROTEIN sequence")
+            raise ValueError("Input must be a dna, rna, or protein SequenceType")
 
         # Handle sequences shorter than k
         if len(seq) < config.k:

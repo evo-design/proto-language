@@ -6,8 +6,6 @@ from typing import final, Optional, Tuple
 import random
 import time
 
-from pydantic import model_validator
-
 from proto_language.language.core import Generator, Segment
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.generator.generator_registry import GeneratorRegistry

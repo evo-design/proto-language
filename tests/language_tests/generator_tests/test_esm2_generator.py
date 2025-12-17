@@ -1,11 +1,9 @@
 import copy
 import pytest
 
-from proto_language.language.core import Segment, SequenceType
+from proto_language.language.core import Segment
 from proto_language.language.generator import ESM2Generator, ESM2GeneratorConfig
 
-# Check if GPU is available and required dependencies are installed
-from proto_language.utils import is_gpu_available
 
 
 @pytest.mark.uses_gpu

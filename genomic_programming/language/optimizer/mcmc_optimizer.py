@@ -246,7 +246,7 @@ class MCMCOptimizer(Optimizer):
             self.energy_scores = [float('inf')] * self.num_candidates
 
         if self.verbose:
-            print(f"MCMC initialization:")
+            print("MCMC initialization:")
             print(f"  num_selected={self.num_selected}, mcmc_width={self.mcmc_width}")
             print(f"  Initial energy: {self.energy_scores[0]:.4f}")
             print()

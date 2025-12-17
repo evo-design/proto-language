@@ -2,7 +2,7 @@
 Base configuration class for all pydantic configs.
 """
 from __future__ import annotations
-from typing import Any, Union, Tuple, Optional
+from typing import Any
 from pydantic import BaseModel, ConfigDict, Field as PydanticField
 
 

@@ -10,9 +10,9 @@ Tests cover:
 """
 
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
-from proto_language.language.core import Constraint, SequenceType, Segment
+from proto_language.language.core import Constraint, Segment
 from proto_language.language.constraint import (
     esmfold_plddt_constraint,
     esmfold_ptm_constraint,
@@ -24,7 +24,7 @@ from proto_language.tools.structure_prediction import (
     ESMFoldConfig,
     StructurePredictionOutput,
 )
-from proto_language.tools.structures import ProteinStructure, BFactorType
+from proto_language.tools.structures import BFactorType
 from tests.helpers.mock_structure import MockProteinStructure, MOCK_PDB
 
 class TestESMFoldPLDDTConstraint:
@@ -171,11 +171,9 @@ class TestESMFoldPLDDTConstraint:
             constraint.evaluate()
 
             # Verify config parameters were passed through
-            passed_input = mock_esmfold.call_args.kwargs[
-                "inputs"
-            ]  # Function called with keyword args
+            assert mock_esmfold.call_args.kwargs.get("inputs", None) is not None
             passed_config = mock_esmfold.call_args.kwargs["config"]
-            assert passed_config.verbose == True
+            assert passed_config.verbose is True
             assert passed_config.residue_idx_offset == 256
             assert passed_config.chain_linker == "GGGGG"
 
@@ -407,9 +405,6 @@ class TestESMFoldPTMConstraint:
             constraint.evaluate()
 
             # Verify config parameters were passed through
-            passed_input = mock_esmfold.call_args.kwargs[
-                "inputs"
-            ]  # Function called with keyword args
             passed_config = mock_esmfold.call_args.kwargs["config"]
             assert passed_config.verbose == False
             assert passed_config.residue_idx_offset == 1024

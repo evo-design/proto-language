@@ -75,4 +75,7 @@ __all__ = [
     "sigma70_promoter_constraint",
     "seq_motif_constraint",
     "promoter_strength_constraint",
+    # RNA splicing
+    "splice_transformer_intron_boundary",
+    "splice_transformer_specificity",
 ]

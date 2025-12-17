@@ -12,9 +12,7 @@ from typing import List, Tuple
 from pathlib import Path
 
 from proto_language.language.core import (
-    Segment,
     Sequence,
-    SequenceType,
 )
 
 

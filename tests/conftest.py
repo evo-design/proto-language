@@ -98,7 +98,7 @@ def setup_cloud_environment():
             os.environ['CLOUD_TOKEN_ID'] = config['proto-language']['token_id']
             os.environ['CLOUD_TOKEN_SECRET'] = config['proto-language']['token_secret']
             os.environ['CLOUD_ENVIRONMENT'] = 'main'
-            print(f"✓ Loaded cloud credentials for proto-language workspace")
+            print("✓ Loaded cloud credentials for proto-language workspace")
     
     yield
     
@@ -145,13 +145,13 @@ def mock_celery():
         pass
     
     try:
-        import api.workers.celery_config
+        import api.workers.celery_config# noqa
         patches.append(patch("api.workers.celery_config.celery_app", mock_celery_app))
     except ImportError:
         pass
     
     try:
-        import api.workers.tasks
+        import api.workers.tasks# noqa
         patches.extend([
             patch("api.workers.tasks.celery_app", mock_celery_app),
             patch("api.workers.tasks.run_program_task", mock_task)
@@ -252,7 +252,7 @@ def mock_database():
         pass
     
     try:
-        import api.main
+        import api.main # noqa
         patches.extend([
             patch("api.main.get_session", side_effect=mock_get_session),
             patch("api.main.create_db_and_tables")

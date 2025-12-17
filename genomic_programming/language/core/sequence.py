@@ -8,7 +8,6 @@ Represents a single DNA, RNA, or protein sequence with validation and metadata.
 from __future__ import annotations
 from typing import Any, Dict, List, Literal, Optional, Set
 import warnings
-import string
 
 from proto_language.utils.helpers import propagate_metadata
 
@@ -16,14 +15,10 @@ from proto_language.utils.helpers import propagate_metadata
 DNA_NUCLEOTIDES = "ACGT"
 RNA_NUCLEOTIDES = "ACGU"
 PROTEIN_AMINO_ACIDS = "ACDEFGHIKLMNPQRSTVWY"
-LIGAND_CHARS = (
-    list(string.ascii_letters)
-    + list(string.digits)
-    + ["-", "=", "#", ":", "$", "/", "\\", "(", ")", "[", "]", ".", "%", "@", "+"]
-)
+
 
 # Type alias for supported biological sequence types
-SequenceType = Literal["dna", "rna", "protein", "ligand"]
+SequenceType = Literal["dna", "rna", "protein"]
 
 
 class Sequence:
@@ -46,7 +41,7 @@ class Sequence:
 
         Args:
             sequence: The biological sequence string. Defaults to empty string.
-            sequence_type: Type of biological sequence ("dna", "rna", "protein", or "ligand"). Defaults to "dna".
+            sequence_type: Type of biological sequence ("dna", "rna", or "protein"). Defaults to "dna".
             valid_chars: Optional custom set of valid characters for sequence validation.
                 If provided, overrides the default character set for the sequence_type.
             metadata: Additional data associated with this sequence.
@@ -61,8 +56,6 @@ class Sequence:
             self._valid_chars = set(RNA_NUCLEOTIDES)
         elif self.sequence_type == "protein":
             self._valid_chars = set(PROTEIN_AMINO_ACIDS)
-        elif self.sequence_type == "ligand":
-            self._valid_chars = set(LIGAND_CHARS)
         else:
             raise ValueError(f"Unsupported sequence_type: {self.sequence_type}")
 
@@ -335,27 +328,6 @@ def return_invalid_protein_chars(
     return _return_invalid_chars(sequence, set(valid_chars))
 
 
-def return_invalid_ligand_chars(
-    sequence: str,
-    additional_valid_chars: Optional[str] = None,
-) -> Set[str]:
-    """
-    Helper function that returns the invalid characters in a ligand sequence.
-
-    Args:
-        sequence (str): The sequence string to validate.
-        additional_valid_chars (Optional[str]): Additional valid characters to add to the default ligand characters.
-
-    Returns:
-        Set[str]: The set of invalid characters.
-    """
-    if additional_valid_chars is None:
-        additional_valid_chars = ""
-
-    valid_chars = LIGAND_CHARS + additional_valid_chars
-    return _return_invalid_chars(sequence, set(valid_chars))
-
-
 def detect_sequence_type(sequence: str) -> str:
     """
     Attempts to determine the type of a sequence based on the characters it contains.
@@ -367,7 +339,7 @@ def detect_sequence_type(sequence: str) -> str:
         sequence (str): The sequence string to detect the type of.
 
     Returns:
-       string: The type of the sequence ("dna", "rna", "protein", "ligand", or "unknown").
+       string: The type of the sequence ("dna", "rna", "protein", or "unknown").
     """
 
     # DNA ================================================================
@@ -384,11 +356,6 @@ def detect_sequence_type(sequence: str) -> str:
     invalid_chars = return_invalid_protein_chars(sequence, additional_valid_chars="X*")
     if not invalid_chars:
         return "protein"
-
-    # Ligand ==============================================================
-    invalid_chars = return_invalid_ligand_chars(sequence)
-    if not invalid_chars:
-        return "ligand"
 
     # Otherwise, return unknown
     return "unknown"
