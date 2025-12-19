@@ -187,21 +187,14 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
         return spec.generator_class(validated_config)
     
     @classmethod
+    def get_key(cls, generator: Generator) -> str:
+        """Get registry key for a generator instance."""
+        for key, spec in cls._registry.items():
+            if isinstance(generator, spec.generator_class):
+                return key
+        raise ValueError(f"Generator '{generator.__class__.__name__}' is not registered")
+
+    @classmethod
     def list_all(cls) -> List[GeneratorSpec]:
-        """
-        List all registered generators as Pydantic models.
-
-        Returns list of GeneratorSpec models that FastAPI automatically serializes to JSON.
-        Each spec includes key, label, description, config_model (serialized as JSON Schema), category, and requires_gpu.
-
-        Returns:
-            List of GeneratorSpec Pydantic models
-
-        Examples:
-            >>> generators = GeneratorRegistry.list_all()
-            >>> for spec in generators:
-            ...     print(f"{spec.label} ({spec.key})")
-            ...     print(f"  Category: {spec.category}")
-            ...     print(f"  GPU Required: {spec.requires_gpu}")
-        """
+        """List all registered generators as Pydantic models."""
         return list(cls._registry.values())

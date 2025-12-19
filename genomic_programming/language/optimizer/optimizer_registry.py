@@ -126,21 +126,15 @@ class OptimizerRegistry(BaseRegistry[OptimizerSpec]):
         return decorator
 
     @classmethod
+    def get_key(cls, optimizer: Optimizer) -> str:
+        """Get registry key for an optimizer instance."""
+        optimizer_class = type(optimizer)
+        for key, spec in cls._registry.items():
+            if spec.optimizer_class == optimizer_class:
+                return key
+        raise ValueError(f"Optimizer '{optimizer_class.__name__}' is not registered")
+
+    @classmethod
     def list_all(cls) -> List[OptimizerSpec]:
-        """
-        List all registered optimizers as Pydantic models.
-
-        Returns list of OptimizerSpec models that FastAPI automatically serializes to JSON.
-        Each spec includes key, label, description, and config_model (serialized as JSON Schema).
-
-        Returns:
-            List of OptimizerSpec Pydantic models
-
-        Examples:
-            >>> optimizers = OptimizerRegistry.list_all()
-            >>> for spec in optimizers:
-            ...     print(f"{spec.label} ({spec.key})")
-            ...     schema = spec.config_model.model_json_schema()
-            ...     print(f"  Parameters: {list(schema['properties'].keys())}")
-        """
+        """List all registered optimizers as Pydantic models."""
         return list(cls._registry.values())

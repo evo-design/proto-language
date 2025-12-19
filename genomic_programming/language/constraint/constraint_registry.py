@@ -225,25 +225,16 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         )
 
     @classmethod
+    def get_key(cls, constraint: Constraint) -> str:
+        """Get registry key for a constraint instance."""
+        for key, spec in cls._registry.items():
+            if spec.function == constraint.function:
+                return key
+        raise ValueError(f"Constraint '{constraint.function.__name__}' is not registered")
+
+    @classmethod
     def list_all(cls) -> List[ConstraintSpec]:
-        """
-        List all registered constraints as Pydantic models.
-
-        Returns list of ConstraintSpec models that FastAPI automatically serializes to JSON.
-        Each spec includes key, label, description, config_model (serialized as JSON Schema),
-        batched, concatenate, and gpu_required flags.
-
-        Returns:
-            List of ConstraintSpec Pydantic models
-
-        Examples:
-            >>> constraints = ConstraintRegistry.list_all()
-            >>> for spec in constraints:
-            ...     print(f"{spec.label} ({spec.key})")
-            ...     print(f"  Processes many: {spec.batched}")
-            ...     schema = spec.config_model.model_json_schema()
-            ...     print(f"  Parameters: {list(schema['properties'].keys())}")
-        """
+        """List all registered constraints as Pydantic models."""
         return list(cls._registry.values())
 
     @staticmethod
