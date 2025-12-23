@@ -4,6 +4,9 @@ structure_confidence_constraints.py
 Generic structure prediction confidence constraints supporting multiple tools:
 ESMFold, AlphaFold3, Boltz, and Chai.
 
+Normalizes confidence metrics to be between 0 and 1, inclusive, where lower is
+better (more confident).
+
 Constraints:
 - structure-plddt: Average predicted LDDT score
 - structure-ptm: Predicted TM-score
@@ -37,8 +40,9 @@ TOOL_AVAILABLE_METRICS: Dict[str, set] = {
     "esmfold": {"avg_plddt", "ptm", "avg_pae"},
     "alphafold3": {"avg_plddt", "ptm", "iptm", "avg_pae"},
     "boltz": {"avg_plddt", "ptm", "iptm", "avg_pae"},
-    "chai": {"avg_plddt", "ptm", "iptm"},
+    "chai": {"avg_plddt", "ptm", "iptm", "avg_pae"},
 }
+PAE_MAXIMUM: float = 31.75 # Angstroms.
 
 
 # ============================================================================
@@ -104,7 +108,8 @@ def _structure_confidence(
         target_metric: Metric to extract from structure predictions.
 
     Returns:
-        List of constraint scores (lower is better, 0 = perfect).
+        List of raw metrics requested by `target_metric`. Invalid raw metrics
+        are returned as None and should be checked by the caller.
 
     Raises:
         ValueError: If target_metric is not available for the specified tool.
@@ -135,10 +140,10 @@ def _structure_confidence(
     except Exception as e:
         logger.error(f"Structure prediction failed: {e}")
         # Return worst possible scores
-        return [1.0] * len(candidates)
+        return [None] * len(candidates)
 
-    # Extract metrics and compute constraint scores.
-    scores = []
+    # Extract and return raw requested metric.
+    raw_metrics = []
     for structure, candidate_tuple in zip(output.structures, candidates):
         metric_value = structure.metrics.get(target_metric)
 
@@ -147,11 +152,8 @@ def _structure_confidence(
                 f"Metric '{target_metric}' not found in structure output, "
                 f"returning worst score."
             )
-            score = 1.0
-        else:
-            # All metrics: higher value = better structure.
-            # Constraint score: lower = better, so invert.
-            score = 1.0 - metric_value
+            raw_metrics.append(None)
+            continue
 
         # Attach metadata to first sequence in tuple for visibility.
         if candidate_tuple:
@@ -161,9 +163,9 @@ def _structure_confidence(
                 "structure_tool": tool,
             })
 
-        scores.append(score)
+        raw_metrics.append(metric_value)
 
-    return scores
+    return raw_metrics
 
 
 @ConstraintRegistry.register(
@@ -183,13 +185,14 @@ def structure_plddt_constraint(
     """Evaluate structure quality using predicted LDDT (pLDDT) score.
 
     pLDDT (predicted Local Distance Difference Test) measures per-residue
-    confidence in the predicted structure. Values range from 0.0 to 1.0,
-    where higher values indicate more reliable predictions.
+    confidence in the predicted structure. Values range from 0.0 to 100.0
+    (sometimes, these are normalized from 0.0 to 1.0) where higher values
+    indicate more reliable predictions.
 
-    This constraint returns ``1.0 - avg_plddt``, so lower scores indicate
-    better predicted structure quality.
+    This constraint returns 1.0 - **normalized** pLDDT, so lower scores
+    indicate better predicted structure quality.
 
-    Note that for Boltz, this is the same value as ``"complex_plddt"``
+    Note that for Boltz, this is based on the ``"complex_plddt"`` score
     returned natively by the package.
 
     **Supported tools**: ESMFold, AlphaFold3, Boltz, Chai
@@ -205,7 +208,17 @@ def structure_plddt_constraint(
         ...     function_config={"structure_tool": "esmfold"},
         ... )
     """
-    return _structure_confidence(candidates, config, "avg_plddt")
+    raw_metrics =  _structure_confidence(candidates, config, "avg_plddt")
+    scores = []
+    for metric in raw_metrics:
+        if metric is None:
+            scores.append(1.)
+            continue
+        # Each structure predictor returns differently normalized pLDDTs.
+        if config.structure_tool in ["af3", "alphafold3"]:
+            metric /= 100.
+        scores.append(1. - metric)
+    return scores
 
 
 @ConstraintRegistry.register(
@@ -244,7 +257,9 @@ def structure_ptm_constraint(
         ...     function_config={"structure_tool": "esmfold"},
         ... )
     """
-    return _structure_confidence(candidates, config, "ptm")
+    raw_metrics = _structure_confidence(candidates, config, "ptm")
+    # pTM is pretty standard, just return 1 minus the raw metric.
+    return [ 1. - metric if metric is not None else 1. for metric in raw_metrics ]
 
 
 @ConstraintRegistry.register(
@@ -302,7 +317,9 @@ def structure_iptm_constraint(
         ...     },
         ... )
     """
-    return _structure_confidence(candidates, config, "iptm")
+    raw_metrics = _structure_confidence(candidates, config, "iptm")
+    # ipTM is pretty standard, just return 1 minus the raw metric.
+    return [ 1. - metric if metric is not None else 1. for metric in raw_metrics ]
 
 
 @ConstraintRegistry.register(
@@ -313,7 +330,7 @@ def structure_iptm_constraint(
     batched=True,
     concatenate=False,
     gpu_required=True,
-    tools_called=["esmfold", "alphafold3", "boltz"],
+    tools_called=["esmfold", "alphafold3", "boltz", "chai"],
     category="protein_structure",
 )
 def structure_pae_constraint(
@@ -322,14 +339,17 @@ def structure_pae_constraint(
     """Evaluate structure quality using predicted aligned error (pAE).
 
     pAE (predicted Aligned Error) measures the expected positional error
-    between residue pairs. Lower pAE values indicate higher confidence in
-    the relative positions of residues. The average pAE takes the mean
-    of the pairwise matrix.
+    between residue pairs. pAE values are from 0 to 31.75 Angstroms. Unlike
+    most confidence metrics, lower pAE values (closer to 0) are better.
+    The average pAE takes the mean of the pairwise matrix.
 
-    This constraint returns ``1.0 - avg_pae``, so lower scores indicate
-    better predicted structure quality.
+    This constraint transforms pAE as the normalized mean PAE, i.e., it:
+        1. Computes the average of the entire pairwise pAE matrix.
+        2. Normalizes by 31.75 Angstroms (the AlphaFold maximum value used
+           by all major structure predictors).
+        3. Returns that value without flipping the sign, as lower is better.
 
-    **Supported tools**: ESMFold, AlphaFold3, Boltz
+    **Supported tools**: ESMFold, AlphaFold3, Boltz, Chai
 
     Examples:
         Programming a protein-protein binder with AF3:
@@ -346,4 +366,9 @@ def structure_pae_constraint(
         ...     },
         ... )
     """
-    return _structure_confidence(candidates, config, "avg_pae")
+    raw_metrics =  _structure_confidence(candidates, config, "avg_pae")
+    scores = [
+        min(metric / PAE_MAXIMUM, 1.) if metric is not None else 1.
+        for metric in raw_metrics
+    ]
+    return scores
