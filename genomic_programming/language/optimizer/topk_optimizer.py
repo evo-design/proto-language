@@ -186,7 +186,6 @@ class TopKOptimizer(Optimizer):
         generators: List[Generator],
         constraints: List[Constraint],
         config: TopKOptimizerConfig,
-        constraint_weights: Optional[List[float]] = None,
         custom_logging: Optional[Callable] = None,
         clear_tool_cache: int | bool | List[str] = 100 * 1024 * 1024,
     ) -> None:
@@ -198,7 +197,6 @@ class TopKOptimizer(Optimizer):
             generators: List of Generator objects for sequence modification.
             constraints: List of Constraint objects for evaluation.
             config: Configuration object containing algorithm parameters.
-            constraint_weights: Optional weights for constraints. If None, all weights are 1.0.
             custom_logging: Optional custom logging function called after each round.
             clear_tool_cache: (int) Maximum size of cache in bytes, defaults to 100 MB.
                               (bool) Whether to clear the tool cache on each iteration.
@@ -216,7 +214,6 @@ class TopKOptimizer(Optimizer):
             constraints=constraints,
             num_candidates=config.batch_size,
             num_selected=config.k,
-            constraint_weights=constraint_weights,
             clear_tool_cache=clear_tool_cache,
             verbose=config.verbose,
         )

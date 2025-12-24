@@ -80,7 +80,6 @@ class TestMCMCOptimizer:
 
         assert optimizer.generators == [proposal_gen]
         assert optimizer.constraints == [constraint]
-        assert optimizer.constraint_weights == [1.0]
         assert optimizer.num_selected == 1
         assert optimizer.num_candidates == 1  # Defaults to num_selected
 
@@ -107,16 +106,6 @@ class TestMCMCOptimizer:
                 constructs=[Construct([test_segment])],
                 generators=[unassigned_gen],
                 constraints=[dummy_constraint],
-                config=MCMCOptimizerConfig(num_selected=1, mcmc_width=1, num_steps=1),
-            )
-
-        # Mismatched weights and constraints
-        with pytest.raises(ValueError, match="must match"):
-            MCMCOptimizer(
-                constructs=optimizer.constructs,
-                generators=optimizer.generators,
-                constraints=optimizer.constraints,
-                constraint_weights=[1.0, 2.0],
                 config=MCMCOptimizerConfig(num_selected=1, mcmc_width=1, num_steps=1),
             )
 
@@ -210,27 +199,29 @@ class TestMCMCOptimizer:
         )
         len_con = Constraint(
             [segment], sequence_length_constraint, SequenceLengthConfig(target_length=seq_len),
+            weight=2.0,
         )
 
         optimizer = MCMCOptimizer(
             constructs=[construct],
             generators=[proposal_gen],
             constraints=[gc_con, len_con],
-            constraint_weights=[1.0, 2.0],  # Weight length more
             config=MCMCOptimizerConfig(num_selected=1, mcmc_width=1, num_steps=1, verbose=False),
         )
 
+        assert optimizer.constraint_weights == [1.0, 2.0]
+
         segment.candidate_sequences[0].sequence = "A" * 20  # Violates length and GC
-        gc_score = gc_con.evaluate()[0]  # (40-0)/40 = 1.0
-        len_score = len_con.evaluate()[0]  # (30-20)/30 = 0.333
+        expected_gc_score = (40 - 0) / 40  # = 1.0
+        expected_len_score = (30 - 20) / 30 # = 0.333
 
         # E = 1.0 * 1.0 + 2.0 * 0.333...
-        expected_energy = gc_score * 1.0 + len_score * 2.0
+        expected_energy = expected_gc_score * 1.0 + expected_len_score * 2.0
         optimizer.score_energy("add")
         assert abs(optimizer.energy_scores[0] - expected_energy) < 1e-9
 
         # Test multiply operation
-        expected_energy_mul = (gc_score * 1.0) * (len_score * 2.0)
+        expected_energy_mul = (expected_gc_score * 1.0) * (expected_len_score * 2.0)
         optimizer.score_energy("multiply")
         assert abs(optimizer.energy_scores[0] - expected_energy_mul) < 1e-9
 

@@ -62,12 +62,14 @@ esmfold_plddt = Constraint(
     inputs=[protomer for _ in range(N_SYMMETRIC_UNITS)],
     function=structure_plddt_constraint,
     function_config={"structure_tool": "esmfold"},
+    weight=20,
 )
 
 esmfold_ptm = Constraint(
     inputs=[protomer for _ in range(N_SYMMETRIC_UNITS)],
     function=structure_ptm_constraint,
     function_config={"structure_tool": "esmfold"},
+    weight=20,
 )
 
 symmetry = Constraint(
@@ -133,12 +135,6 @@ optimizer = MCMCOptimizer(
         globularity,
     ],
     config=mcmc_optimizer_config,
-    constraint_weights=[
-        20.0,
-        20.0,
-        1.0,
-        1.0,
-    ],
     custom_logging=custom_logging,
 )
 

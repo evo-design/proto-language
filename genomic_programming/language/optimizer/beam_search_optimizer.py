@@ -152,7 +152,6 @@ class BeamSearchOptimizer(Optimizer):
         generators: List[Generator],
         constraints: List[Constraint],
         config: BeamSearchOptimizerConfig,
-        constraint_weights: Optional[List[float]] = None,
         custom_logging: Optional[Callable] = None,
         clear_tool_cache: int | bool | List[str] = 100 * 1024 * 1024,
     ) -> None:
@@ -164,7 +163,6 @@ class BeamSearchOptimizer(Optimizer):
             generators: List containing a single autoregressive Generator object (must have category="autoregressive").
             constraints: List of Constraint objects for evaluation (lower scores are better).
             config: Configuration object containing algorithm parameters (prompt, beam_width, candidates_per_beam, etc.).
-            constraint_weights: Optional weights for constraints. If None, all weights are 1.0.
             custom_logging: Optional custom logging function called after each segment.
             clear_tool_cache: (int) Maximum size of cache in bytes, defaults to 100 MB.
                               (bool) Whether to clear the tool cache on each iteration.
@@ -202,7 +200,6 @@ class BeamSearchOptimizer(Optimizer):
             constructs=constructs,
             generators=generators,
             constraints=constraints,
-            constraint_weights=constraint_weights,
             num_candidates=config.beam_width * config.candidates_per_beam,
             num_selected=config.beam_width,
             clear_tool_cache=clear_tool_cache,
@@ -285,14 +282,14 @@ class BeamSearchOptimizer(Optimizer):
     def _generate_candidates(self, segment: Segment, prepend_prompt: bool = False) -> List[Dict]:
         """
         Generate candidates in-place for each beam sequentially and accumulate all candidates.
-        
+
         For each beam in running_prompts:
         1. Replicate the prompt and KV cache
         2. Generate candidates_per_beam new sequences
         3. Store candidates and updated KV cache
-        
+
         Finally, sets segment.candidate_sequences to all generated candidates.
-        
+
         Args:
             segment: The current segment being processed
             is_first_segment: Whether this is the first segment being processed
@@ -349,15 +346,14 @@ class BeamSearchOptimizer(Optimizer):
     def _score_energy_active_constraints(self) -> None:
         """
         Score energy using only active constraints with all input segments populated.
-        
+
         Dynamically filters constraints to only evaluate those whose input segments
         all have non-empty candidate pools. This enables multi-segment constraints
         to work correctly as segments are generated sequentially by beam search.
         """
         # Filter to active constraints where all input segments have candidates
         active_constraints = [
-            (constraint, weight)
-            for constraint, weight in zip(self.constraints, self.constraint_weights)
+            constraint for constraint in self.constraints
             if all(seg.num_candidates > 0 for seg in constraint.inputs)
         ]
 
@@ -367,12 +363,12 @@ class BeamSearchOptimizer(Optimizer):
             return
 
         # Temporarily use filtered constraints for scoring
-        orig_constraints, orig_weights = self.constraints, self.constraint_weights
-        self.constraints, self.constraint_weights = zip(*active_constraints)
+        orig_constraints = self.constraints
+        self.constraints = active_constraints
         self.score_energy()
 
         # Restore original constraints and weights
-        self.constraints, self.constraint_weights = orig_constraints, orig_weights
+        self.constraints = orig_constraints
 
     def _select_topk(self, segment: Segment, all_kv_caches: List[Dict], prepend_prompt: bool = False) -> List[int]:
         """
@@ -382,7 +378,7 @@ class BeamSearchOptimizer(Optimizer):
         2. Sets segment's selected_sequences and replicates them as candidates
         3. Updates running prompts by extending with new tokens from selected sequences
         4. Replicates energy_scores to match replicated candidate_sequences
-        
+
         Args:
             segment: Current segment being processed
             all_kv_caches: Updated KV caches for all generated candidates. Empty if KV caching is disabled.
@@ -435,7 +431,7 @@ class BeamSearchOptimizer(Optimizer):
     def _log_beamsearch_progress(self, segment_idx: int, segment: Segment, top_idx: List[int]) -> None:
         """
         Log progress information for a segment during beam search.
-        
+
         Args:
             segment_idx: Index of the current segment
             segment: The current segment being processed

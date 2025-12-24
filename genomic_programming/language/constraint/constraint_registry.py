@@ -166,6 +166,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         config_dict: Dict[str, Any],
         label: Optional[str] = None,
         threshold: Optional[float] = None,
+        weight: Optional[float] = None,
     ) -> Constraint:
         """
         Factory method to create Constraint instance from JSON-compatible config.
@@ -183,6 +184,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             threshold: Optional threshold for filtering. If provided, constraint acts as a filter:
                 scores <= threshold are accepted (True), scores > threshold are rejected (False).
                 If None, returns raw float scores for optimization.
+            weight: Optional weight to scale constraint scores. Defaults to 1.0 if not provided.
             
         Returns:
             Configured Constraint instance ready to evaluate
@@ -222,6 +224,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             function_config=validated_config,
             label=label,
             threshold=threshold,
+            weight=weight,
         )
 
     @classmethod

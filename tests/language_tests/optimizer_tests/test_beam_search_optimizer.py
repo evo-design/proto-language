@@ -67,11 +67,11 @@ class MockAutoregressiveGenerator(Generator):
             # Generate random DNA sequence
             bases = "ATCG"
             new_seq = ''.join(random.choice(bases) for _ in range(self.num_tokens))
-            
+
             # Prepend prompt if requested
             if prepend_prompt:
                 new_seq = prompt + new_seq
-            
+
             sequences.append(new_seq)
 
         # Set candidate sequences on assigned segment
@@ -403,7 +403,7 @@ class TestBeamSearchOptimizer:
             inputs=[segments[0]],
             function=sequence_length_constraint,
             function_config=SequenceLengthConfig(target_length=20),
-
+            weight=2.,
         )
 
         # Recreate optimizer with custom weights
@@ -421,42 +421,31 @@ class TestBeamSearchOptimizer:
             constructs=[construct],
             generators=[generator],
             constraints=[optimizer.constraints[0], constraint2],
-            constraint_weights=[1.0, 2.0],
             config=config,
         )
 
         assert optimizer.constraint_weights == [1.0, 2.0]
-
-        # Mismatched weights and constraints should fail
-        with pytest.raises(ValueError, match="must match"):
-            BeamSearchOptimizer(
-                constructs=[construct],
-                generators=[generator],
-                constraints=[optimizer.constraints[0], constraint2],
-                constraint_weights=[1.0, 2.0, 3.0],
-                config=config,
-            )
 
     @pytest.mark.uses_gpu
     @pytest.mark.slow
     def test_replicate_cache(self):
         """Tests the replicate_cache method."""
         from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
-        
+
         segments = [Segment(length=20, sequence_type="dna") for _ in range(3)]
         construct = Construct(segments)
-        
+
         gen_config = Evo2GeneratorConfig(prompts=[""], prepend_prompt=False)
         generator = Evo2Generator(config=gen_config)
         generator.assign(segments[0])
-        
+
         constraint = Constraint(
             inputs=[segments[0]],
             function=gc_content_constraint,
             function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
 
         )
-        
+
         config = BeamSearchOptimizerConfig(
         prompt="ATCG",
             beam_width=3,
@@ -464,7 +453,7 @@ class TestBeamSearchOptimizer:
             use_kv_caching=True,
             verbose=False,
         )
-        
+
         optimizer = BeamSearchOptimizer(
             constructs=[construct],
             generators=[generator],
@@ -506,21 +495,21 @@ class TestBeamSearchOptimizer:
     def test_replicate_cache_validates_batch_size(self):
         """Tests that replicate_cache validates cache has batch size 1."""
         from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
-        
+
         segments = [Segment(length=20, sequence_type="dna") for _ in range(3)]
         construct = Construct(segments)
-        
+
         gen_config = Evo2GeneratorConfig(prompts=[""], prepend_prompt=False)
         generator = Evo2Generator(config=gen_config)
         generator.assign(segments[0])
-        
+
         constraint = Constraint(
             inputs=[segments[0]],
             function=gc_content_constraint,
             function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
 
         )
-        
+
         config = BeamSearchOptimizerConfig(
         prompt="ATCG",
             beam_width=3,
@@ -528,7 +517,7 @@ class TestBeamSearchOptimizer:
             use_kv_caching=True,
             verbose=False,
         )
-        
+
         optimizer = BeamSearchOptimizer(
             constructs=[construct],
             generators=[generator],
@@ -897,7 +886,7 @@ class TestBeamSearchOptimizer:
         # Scale up to show clear caching benefits
         def setup_evo2_optimizer(use_kv_caching: bool):
             prompt = "ATCGATCGATCG"
-            segments = [Segment(length=20, sequence_type="dna") for _ in range(20)]  # 20 segments 
+            segments = [Segment(length=20, sequence_type="dna") for _ in range(20)]  # 20 segments
             construct = Construct(segments)
 
             gen_config = Evo2GeneratorConfig(
@@ -931,11 +920,11 @@ class TestBeamSearchOptimizer:
 
         # Run WITHOUT caching first (establishes baseline with clean GPU state)
         optimizer_uncached = setup_evo2_optimizer(use_kv_caching=False)
-        
+
         start_uncached = time.time()
         optimizer_uncached.run()
         time_uncached = time.time() - start_uncached
-        
+
         # Clean up
         del optimizer_uncached
         gc.collect()
@@ -944,7 +933,7 @@ class TestBeamSearchOptimizer:
 
         # Run WITH caching
         optimizer_cached = setup_evo2_optimizer(use_kv_caching=True)
-        
+
         start_cached = time.time()
         optimizer_cached.run()
         time_cached = time.time() - start_cached
@@ -1027,7 +1016,6 @@ class TestBeamSearchOptimizer:
             constructs=[construct],
             generators=[generator],
             constraints=[constraint_0, constraint_01, constraint_012],
-            constraint_weights=[1.0, 1.0, 1.0],
             config=config,
         )
 
@@ -1118,22 +1106,22 @@ class TestBeamSearchOptimizer:
         # After run(), energy_scores should be replicated to match candidate_sequences
         # All replicated energies should be the same (candidates_per_beam copies of each)
         segment = segments[0]
-        
+
         # Verify that energy_scores length matches candidate_sequences
         assert len(optimizer.energy_scores) == len(segment.candidate_sequences)
         assert len(optimizer.energy_scores) == optimizer.beam_width * optimizer.candidates_per_beam
-        
+
         # Extract unique energies (should be beam_width unique values, each replicated candidates_per_beam times)
         unique_energies = []
         for i in range(optimizer.beam_width):
             start_idx = i * optimizer.candidates_per_beam
             end_idx = (i + 1) * optimizer.candidates_per_beam
             beam_energies = optimizer.energy_scores[start_idx:end_idx]
-            
+
             # All energies in this beam should be identical
             assert all(abs(e - beam_energies[0]) < 1e-6 for e in beam_energies)
             unique_energies.append(beam_energies[0])
-        
+
         # The unique energies should be sorted (best to worst)
         assert unique_energies == sorted(unique_energies)
 

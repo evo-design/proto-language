@@ -179,7 +179,6 @@ class MCMCOptimizer(Optimizer):
         generators: List[Generator],
         constraints: List[Constraint],
         config: MCMCOptimizerConfig,
-        constraint_weights: Optional[List[float]] = None,
         custom_logging: Optional[Callable] = None,
         clear_tool_cache: int | bool | List[str] = 100 * 1024 * 1024,
     ) -> None:
@@ -191,7 +190,6 @@ class MCMCOptimizer(Optimizer):
             generators: List of Generator objects for sequence modification.
             constraints: List of Constraint objects for evaluation.
             config: Configuration object containing algorithm parameters (temperature, num_steps, etc.).
-            constraint_weights: Optional weights for constraints. If None, all weights are 1.0.
             custom_logging: Optional custom logging function called at tracked steps.
             clear_tool_cache: (int) Maximum size of cache in bytes, defaults to 100 MB.
                               (bool) Whether to clear the tool cache on each iteration.
@@ -204,7 +202,6 @@ class MCMCOptimizer(Optimizer):
             constructs=constructs,
             generators=generators,
             constraints=constraints,
-            constraint_weights=constraint_weights,
             num_candidates=config.num_selected * config.mcmc_width,
             num_selected=config.num_selected,
             clear_tool_cache=clear_tool_cache,
@@ -298,7 +295,7 @@ class MCMCOptimizer(Optimizer):
 
     def _populate_candidate_sequences(self) -> None:
         """Populate candidate_sequences by replicating each selected_sequence mcmc_width times.
-        
+
         Updates candidate_sequences in-place.
         Layout: [sequence_0] * mcmc_width + [sequence_1] * mcmc_width + ...
         """
@@ -320,7 +317,7 @@ class MCMCOptimizer(Optimizer):
         2. If rejected, restore the old selected_sequence state
         3. Sort candidate_sequences and energy_scores by energy in place
         4. Copy top num_selected to selected_sequences
-        
+
         Args:
             step: Current MCMC step for temperature annealing
             old_selected_sequences: Saved state of selected_sequences before proposals
@@ -354,7 +351,7 @@ class MCMCOptimizer(Optimizer):
 
     def _compute_temperature(self, step: int) -> float:
         """Calculate annealed temperature: T(step) = T_max * (T_min/T_max)^((step-1)/(num_steps-1))
-        
+
         Note:
         - At step=1: T = T_max (start hot), at step=num_steps: T = T_min (end cold)
         - Exponential decay between T_max and T_min

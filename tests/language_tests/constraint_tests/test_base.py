@@ -103,7 +103,7 @@ def test_mock_constraint_with_batched_segment():
 
     # Empty config for mock functions
     empty_config = MockConstraintConfig()
-    
+
     # Create a single-input constraint
     constraint_single_input = Constraint(
         inputs=[single_batch_input],
@@ -574,7 +574,7 @@ def test_mixed_sequence_types_raises_error():
 def test_mixed_valid_chars_raises_error():
     """Test that inconsistent alphabets raise ValueError."""
     seg1 = Segment(sequence="ATCG", sequence_type="dna")
-    seg2 = Segment(sequence="ATCG", sequence_type="dna", 
+    seg2 = Segment(sequence="ATCG", sequence_type="dna",
                    valid_chars=set("ATCGN"))  # Different alphabet
     config = MockConstraintConfig()
     with pytest.raises(ValueError, match="same valid_chars"):
@@ -593,26 +593,26 @@ def test_custom_label_in_metadata():
     """Test that custom label overrides function name in metadata."""
     segment = Segment(sequence="ATCGACTG", sequence_type="dna")
     config = MockConstraintConfig()
-    
+
     constraint = Constraint(
         inputs=[segment],
         function=mock_single_input_scoring_function,
         function_config=config,
         label="my_custom_label"
     )
-    
+
     _ = constraint.evaluate()
-    
+
     # Metadata should use custom label, not "mock_single_input_scoring_function"
-    metadata_keys = [key for key in segment.candidate_sequences[0]._metadata.keys() 
+    metadata_keys = [key for key in segment.candidate_sequences[0]._metadata.keys()
                      if key not in ["sequence", "sequence_length"]]
-    
+
     assert any("my_custom_label" in key for key in metadata_keys), \
         f"Custom label not found in metadata keys: {metadata_keys}"
-    
+
     assert not any("mock_single_input_scoring_function" in key for key in metadata_keys), \
         f"Function name found in metadata instead of custom label: {metadata_keys}"
-    
+
     # Verify specific metadata keys use custom label
     assert "segment_0.my_custom_label.t_count" in segment.candidate_sequences[0]._metadata
     assert "segment_0.my_custom_label.total_length" in segment.candidate_sequences[0]._metadata
@@ -624,25 +624,25 @@ def test_custom_label_disjoint_mode():
     seg1 = Segment(sequence="AAAA", sequence_type="dna")
     seg2 = Segment(sequence="CCCC", sequence_type="dna")
     config = MockConstraintConfig()
-    
+
     constraint = Constraint(
         inputs=[seg1, seg2],
         function=mock_single_input_scoring_function_disjoint,
         function_config=config,
         label="disjoint_custom_label"
     )
-    
+
     _ = constraint.evaluate()
-    
+
     # Check both segments have metadata with custom label
-    metadata_keys_seg1 = [key for key in seg1.candidate_sequences[0]._metadata.keys() 
+    metadata_keys_seg1 = [key for key in seg1.candidate_sequences[0]._metadata.keys()
                           if key not in ["sequence", "sequence_length"]]
-    metadata_keys_seg2 = [key for key in seg2.candidate_sequences[0]._metadata.keys() 
+    metadata_keys_seg2 = [key for key in seg2.candidate_sequences[0]._metadata.keys()
                           if key not in ["sequence", "sequence_length"]]
-    
+
     assert any("disjoint_custom_label" in key for key in metadata_keys_seg1)
     assert any("disjoint_custom_label" in key for key in metadata_keys_seg2)
-    
+
     # Verify each segment has its own prefixed metadata
     assert "segment_0.disjoint_custom_label.t_percent" in seg1.candidate_sequences[0]._metadata
     assert "segment_1.disjoint_custom_label.c_percent" in seg2.candidate_sequences[0]._metadata
@@ -657,20 +657,20 @@ def test_large_batch_processing():
     sequences = ["ATCG"] * 100
     segment = _make_segment_with_candidates(sequences, "dna")
     config = MockConstraintConfig()
-    
+
     constraint = Constraint(
         inputs=[segment],
         function=mock_multi_input_scoring_function,
         function_config=config,
     )
-    
+
     scores = constraint.evaluate()
     assert len(scores) == 100
-    
+
     # Verify all scores are valid
     for score in scores:
         assert 0.0 <= score <= 1.0
-    
+
     # Verify metadata was propagated to all sequences
     for seq in segment.candidate_sequences:
         assert "segment_0.mock_multi_input_scoring_function.t_count" in seq._metadata
@@ -682,24 +682,24 @@ def test_three_or_more_segments_contiguous():
     seg2 = Segment(sequence="GGGG", sequence_type="dna")
     seg3 = Segment(sequence="TTTT", sequence_type="dna")
     config = MockConstraintConfig()
-    
+
     constraint = Constraint(
         inputs=[seg1, seg2, seg3],
         function=mock_single_input_scoring_function,
         function_config=config,
     )
-    
+
     scores = constraint.evaluate()
     assert len(scores) == 1
-    
+
     # Check metadata propagation to all three segments
     expected_prefix = "segment_0-segment_1-segment_2.mock_single_input_scoring_function"
-    
+
     for seg in [seg1, seg2, seg3]:
         metadata_keys = list(seg.candidate_sequences[0]._metadata.keys())
         assert any(expected_prefix in key for key in metadata_keys), \
             f"Expected prefix '{expected_prefix}' not found in segment metadata: {metadata_keys}"
-        
+
         # Verify specific metadata keys
         assert f"{expected_prefix}.t_count" in seg.candidate_sequences[0]._metadata
         assert f"{expected_prefix}.total_length" in seg.candidate_sequences[0]._metadata
@@ -755,7 +755,7 @@ def test_three_or_more_segments_disjoint():
 
 def test_empty_sequence_in_batch():
     """Test constraint with empty sequence in batch.
-    
+
     Note: This test documents that empty sequences will cause issues with
     most scoring functions (division by zero). This is expected behavior -
     individual constraints should validate their inputs appropriately.
@@ -763,13 +763,13 @@ def test_empty_sequence_in_batch():
     sequences = ["ATCG", "", "GGGG"]
     segment = _make_segment_with_candidates(sequences, "dna")
     config = MockConstraintConfig()
-    
+
     constraint = Constraint(
         inputs=[segment],
         function=mock_multi_input_scoring_function,
         function_config=config,
     )
-    
+
     # Most scoring functions will fail on empty sequences (division by zero)
     # This is expected behavior - constraints should validate their inputs
     with pytest.raises(ZeroDivisionError):
@@ -788,20 +788,20 @@ def test_constraint_evaluate_with_mask_sequential():
     sequences = ["ATTTTTTT", "AAAAAAAA", "TTTTTTTT", "AAAATTTT", "ATATATAT"]
     segment = _make_segment_with_candidates(sequences, "dna")
     config = MockConstraintConfig()
-    
+
     constraint = Constraint(
         inputs=[segment],
         function=mock_single_input_scoring_function,
         function_config=config,
     )
-    
+
     # Test with mask: only evaluate candidates 0, 2, 4
     mask = [True, False, True, False, True]
     scores = constraint.evaluate(mask=mask)
-    
+
     # Should return sparse results (only 3 scores for 3 masked candidates)
     assert len(scores) == 3
-    
+
     # Verify scores are correct for masked candidates
     # Candidate 0: "ATTTTTTT" -> 7/8 = 0.875
     # Candidate 2: "TTTTTTTT" -> 8/8 = 1.0
@@ -809,7 +809,7 @@ def test_constraint_evaluate_with_mask_sequential():
     assert scores[0] == pytest.approx(0.875)
     assert scores[1] == pytest.approx(1.0)
     assert scores[2] == pytest.approx(0.5)
-    
+
     # Verify metadata was propagated only to masked candidates
     # Metadata keys are prefixed with segment.constraint_label
     prefix = "segment_0.mock_single_input_scoring_function"
@@ -828,26 +828,26 @@ def test_constraint_evaluate_with_mask_batched():
     sequences = ["ATTTTTTT", "AAAAAAAA", "TTTTTTTT", "AAAATTTT", "ATATATAT"]
     segment = _make_segment_with_candidates(sequences, "dna")
     config = MockConstraintConfig()
-    
+
     constraint = Constraint(
         inputs=[segment],
         function=mock_multi_input_scoring_function,
         function_config=config,
     )
-    
+
     # Test with mask: only evaluate candidates 1, 3
     mask = [False, True, False, True, False]
     scores = constraint.evaluate(mask=mask)
-    
+
     # Should return sparse results (only 2 scores)
     assert len(scores) == 2
-    
+
     # Verify scores are correct for masked candidates
     # Candidate 1: "AAAAAAAA" -> 0/8 = 0.0
     # Candidate 3: "AAAATTTT" -> 4/8 = 0.5
     assert scores[0] == pytest.approx(0.0)
     assert scores[1] == pytest.approx(0.5)
-    
+
     # Verify metadata was propagated only to masked candidates
     prefix = "segment_0.mock_multi_input_scoring_function"
     assert not any(prefix in key for key in segment.candidate_sequences[0]._metadata.keys())
@@ -864,20 +864,20 @@ def test_constraint_evaluate_with_mask_all_false():
     sequences = ["ATTTTTTT", "AAAAAAAA", "TTTTTTTT"]
     segment = _make_segment_with_candidates(sequences, "dna")
     config = MockConstraintConfig()
-    
+
     constraint = Constraint(
         inputs=[segment],
         function=mock_multi_input_scoring_function,
         function_config=config,
     )
-    
+
     # Test with all False mask
     mask = [False, False, False]
     scores = constraint.evaluate(mask=mask)
-    
+
     # Should return empty list
     assert len(scores) == 0
-    
+
     # Verify no metadata was propagated (except default system metadata)
     prefix = "segment_0.mock_multi_input_scoring_function"
     for seq in segment.candidate_sequences:
@@ -892,24 +892,24 @@ def test_constraint_evaluate_with_mask_all_true():
     sequences = ["ATTTTTTT", "AAAAAAAA", "TTTTTTTT"]
     segment = _make_segment_with_candidates(sequences, "dna")
     config = MockConstraintConfig()
-    
+
     constraint = Constraint(
         inputs=[segment],
         function=mock_multi_input_scoring_function,
         function_config=config,
     )
-    
+
     # Test with all True mask
     mask = [True, True, True]
     scores_masked = constraint.evaluate(mask=mask)
-    
+
     # Reset metadata
     for seq in segment.candidate_sequences:
         seq._metadata.clear()
-    
+
     # Test without mask
     scores_unmasked = constraint.evaluate()
-    
+
     # Results should be identical
     assert len(scores_masked) == len(scores_unmasked) == 3
     assert scores_masked == scores_unmasked
@@ -922,16 +922,16 @@ def test_constraint_evaluate_with_mask_none():
     sequences = ["ATTTTTTT", "AAAAAAAA", "TTTTTTTT"]
     segment = _make_segment_with_candidates(sequences, "dna")
     config = MockConstraintConfig()
-    
+
     constraint = Constraint(
         inputs=[segment],
         function=mock_multi_input_scoring_function,
         function_config=config,
     )
-    
+
     # Explicitly pass mask=None
     scores = constraint.evaluate(mask=None)
-    
+
     # Should evaluate all 3 candidates
     assert len(scores) == 3
     prefix = "segment_0.mock_multi_input_scoring_function"
@@ -945,16 +945,16 @@ def test_constraint_evaluate_with_mask_invalid_length():
     sequences = ["ATTTTTTT", "AAAAAAAA", "TTTTTTTT"]
     segment = _make_segment_with_candidates(sequences, "dna")
     config = MockConstraintConfig()
-    
+
     constraint = Constraint(
         inputs=[segment],
         function=mock_multi_input_scoring_function,
         function_config=config,
     )
-    
+
     # Test with wrong length mask
     mask = [True, False]  # Only 2 elements, but 3 candidates
-    
+
     with pytest.raises(ValueError, match="Mask length .* must match number of candidates"):
         constraint.evaluate(mask=mask)
 
@@ -966,40 +966,40 @@ def test_constraint_evaluate_with_mask_disjoint():
     # Create two segments with multiple candidates
     seg1_sequences = ["ATTT", "AAAA", "TTTT"]
     seg2_sequences = ["CCCC", "ACAC", "AAAA"]
-    
+
     seg1 = _make_segment_with_candidates(seg1_sequences, "dna")
     seg2 = _make_segment_with_candidates(seg2_sequences, "dna")
-    
+
     config = MockConstraintConfig()
-    
+
     constraint = Constraint(
         inputs=[seg1, seg2],
         function=mock_multi_input_scoring_function_disjoint,
         function_config=config,
     )
-    
+
     # Mask: only evaluate candidates 0 and 2
     mask = [True, False, True]
     scores = constraint.evaluate(mask=mask)
-    
+
     # Should return 2 scores
     assert len(scores) == 2
-    
+
     # Candidate 0: seg1="ATTT" (3/4=0.75 T), seg2="CCCC" (4/4=1.0 C) -> avg=0.875
     # Candidate 2: seg1="TTTT" (4/4=1.0 T), seg2="AAAA" (0/4=0.0 C) -> avg=0.5
     assert scores[0] == pytest.approx(0.875)
     assert scores[1] == pytest.approx(0.5)
-    
+
     # Verify metadata only on masked candidates
     # For disjoint constraints, metadata is prefixed with segment_X.constraint_label
     prefix_seg0 = "segment_0.mock_multi_input_scoring_function_disjoint"
     prefix_seg1 = "segment_1.mock_multi_input_scoring_function_disjoint"
-    
+
     # Seg1: metadata should be present for candidates 0 and 2, not 1
     assert any(prefix_seg0 in key for key in seg1.candidate_sequences[0]._metadata.keys())
     assert not any(prefix_seg0 in key for key in seg1.candidate_sequences[1]._metadata.keys())
     assert any(prefix_seg0 in key for key in seg1.candidate_sequences[2]._metadata.keys())
-    
+
     # Seg2: metadata should be present for candidates 0 and 2, not 1
     assert any(prefix_seg1 in key for key in seg2.candidate_sequences[0]._metadata.keys())
     assert not any(prefix_seg1 in key for key in seg2.candidate_sequences[1]._metadata.keys())
@@ -1014,17 +1014,17 @@ def test_constraint_evaluate_with_mask_preserves_original_indices():
     sequences = ["ATTTTTTT", "AAAAAAAA", "TTTTTTTT", "AAAATTTT", "ATATATAT"]
     segment = _make_segment_with_candidates(sequences, "dna")
     config = MockConstraintConfig()
-    
+
     constraint = Constraint(
         inputs=[segment],
         function=mock_multi_input_scoring_function,
         function_config=config,
     )
-    
+
     # Mask: skip first and last candidates
     mask = [False, True, True, True, False]
     _ = constraint.evaluate(mask=mask)
-    
+
     # Verify metadata went to correct original candidates (1, 2, 3)
     prefix = "segment_0.mock_multi_input_scoring_function"
     assert not any(prefix in key for key in segment.candidate_sequences[0]._metadata.keys())
@@ -1048,15 +1048,15 @@ def test_constraint_with_threshold_filters():
     def mock_scoring_function(sequences, config=None):
         """Returns scores based on sequence length."""
         return [len(seq.sequence) / 10.0 for seq in sequences]
-    
+
     # Set required attributes (as registry would do)
     mock_scoring_function._constraint_batched = True
     mock_scoring_function._constraint_concatenate = True
     mock_scoring_function._constraint_config_class = MockConstraintConfig
-    
+
     sequences = ["ATCG", "ATCGATCG", "AT"]  # lengths: 4, 8, 2 → scores: 0.4, 0.8, 0.2
     segment = _make_segment_with_candidates(sequences, "dna")
-    
+
     # Create constraint with threshold=0.5
     filter_constraint = Constraint(
         inputs=[segment],
@@ -1064,12 +1064,12 @@ def test_constraint_with_threshold_filters():
         function_config=MockConstraintConfig(),
         threshold=0.5,
     )
-    
+
     # Verify threshold was set
     assert filter_constraint.threshold == 0.5
-    
+
     results = filter_constraint.evaluate()
-    
+
     # Should convert scores to boolean: [0.4 <= 0.5, 0.8 <= 0.5, 0.2 <= 0.5]
     assert results == [True, False, True]
     assert all(isinstance(r, bool) for r in results)
@@ -1082,27 +1082,27 @@ def test_constraint_without_threshold_returns_scores():
     def mock_scoring_function(sequences, config=None):
         """Returns scores based on sequence length."""
         return [len(seq.sequence) / 10.0 for seq in sequences]
-    
+
     # Set all required attributes (as registry would do)
     mock_scoring_function._constraint_batched = True
     mock_scoring_function._constraint_concatenate = True
     mock_scoring_function._constraint_config_class = MockConstraintConfig
-    
+
     sequences = ["ATCG", "ATCGATCG"]
     segment = _make_segment_with_candidates(sequences, "dna")
-    
+
     # Create constraint without threshold
     score_constraint = Constraint(
         inputs=[segment],
         function=mock_scoring_function,
         function_config=MockConstraintConfig(),
     )
-    
+
     # Verify no threshold was set
     assert score_constraint.threshold is None
-    
+
     results = score_constraint.evaluate()
-    
+
     # Should return float scores
     assert results == [0.4, 0.8]
     assert all(isinstance(r, float) for r in results)
@@ -1115,14 +1115,14 @@ def test_threshold_filtering_with_different_thresholds():
     def mock_scoring_function(sequences, config=None):
         """Returns scores: [0.2, 0.5, 0.7, 0.9]"""
         return [0.2, 0.5, 0.7, 0.9]
-    
+
     mock_scoring_function._constraint_batched = True
     mock_scoring_function._constraint_concatenate = True
     mock_scoring_function._constraint_config_class = MockConstraintConfig
-    
+
     sequences = ["A", "C", "G", "T"]
     segment = _make_segment_with_candidates(sequences, "dna")
-    
+
     # Test with threshold=0.5 - should accept 0.2 and 0.5
     constraint_low = Constraint(
         inputs=[segment],
@@ -1131,7 +1131,7 @@ def test_threshold_filtering_with_different_thresholds():
         threshold=0.5,
     )
     assert constraint_low.evaluate() == [True, True, False, False]
-    
+
     # Test with threshold=0.8 - should accept 0.2, 0.5, and 0.7
     constraint_high = Constraint(
         inputs=[segment],
@@ -1149,20 +1149,205 @@ def test_threshold_zero_filters_only_perfect_scores():
     def mock_scoring_function(sequences, config=None):
         """Returns scores: [0.0, 0.1, 0.0, 0.5]"""
         return [0.0, 0.1, 0.0, 0.5]
-    
+
     mock_scoring_function._constraint_batched = True
     mock_scoring_function._constraint_concatenate = True
     mock_scoring_function._constraint_config_class = MockConstraintConfig
-    
+
     sequences = ["A", "C", "G", "T"]
     segment = _make_segment_with_candidates(sequences, "dna")
-    
+
     constraint = Constraint(
         inputs=[segment],
         function=mock_scoring_function,
         function_config=MockConstraintConfig(),
         threshold=0.0,
     )
-    
+
     # Only 0.0 scores should pass
     assert constraint.evaluate() == [True, False, True, False]
+
+
+# =============================================================================
+# WEIGHT PARAMETER TESTS
+# =============================================================================
+
+def test_constraint_weight_defaults_to_one():
+    """
+    Test that weight defaults to 1.0 when not specified.
+    """
+    def mock_scoring_function(sequences, config=None):
+        return [0.5 for _ in sequences]
+
+    mock_scoring_function._constraint_batched = True
+    mock_scoring_function._constraint_concatenate = True
+    mock_scoring_function._constraint_config_class = MockConstraintConfig
+
+    sequences = ["ATCG", "GGGG"]
+    segment = _make_segment_with_candidates(sequences, "dna")
+
+    constraint = Constraint(
+        inputs=[segment],
+        function=mock_scoring_function,
+        function_config=MockConstraintConfig(),
+    )
+
+    assert constraint.weight == 1.0
+    results = constraint.evaluate()
+    assert results == [0.5, 0.5]
+
+
+def test_constraint_weight_multiplies_scores():
+    """
+    Test that weight correctly multiplies raw scores.
+    """
+    def mock_scoring_function(sequences, config=None):
+        return [0.2, 0.5, 0.8]
+
+    mock_scoring_function._constraint_batched = True
+    mock_scoring_function._constraint_concatenate = True
+    mock_scoring_function._constraint_config_class = MockConstraintConfig
+
+    sequences = ["A", "C", "G"]
+    segment = _make_segment_with_candidates(sequences, "dna")
+
+    constraint = Constraint(
+        inputs=[segment],
+        function=mock_scoring_function,
+        function_config=MockConstraintConfig(),
+        weight=2.0,
+    )
+
+    assert constraint.weight == 2.0
+    results = constraint.evaluate()
+    # Scores should be multiplied by weight: [0.2*2, 0.5*2, 0.8*2]
+    assert results == pytest.approx([0.4, 1.0, 1.6])
+
+
+def test_constraint_weight_with_fractional_value():
+    """
+    Test that fractional weights work correctly.
+    """
+    def mock_scoring_function(sequences, config=None):
+        return [0.4, 0.8]
+
+    mock_scoring_function._constraint_batched = True
+    mock_scoring_function._constraint_concatenate = True
+    mock_scoring_function._constraint_config_class = MockConstraintConfig
+
+    sequences = ["AT", "GC"]
+    segment = _make_segment_with_candidates(sequences, "dna")
+
+    constraint = Constraint(
+        inputs=[segment],
+        function=mock_scoring_function,
+        function_config=MockConstraintConfig(),
+        weight=0.5,
+    )
+
+    results = constraint.evaluate()
+    assert results == pytest.approx([0.2, 0.4])
+
+
+def test_constraint_weight_and_threshold_mutually_exclusive():
+    """
+    Test that setting both weight and threshold raises ValueError.
+    """
+    def mock_scoring_function(sequences, config=None):
+        return [0.5]
+
+    mock_scoring_function._constraint_batched = True
+    mock_scoring_function._constraint_concatenate = True
+    mock_scoring_function._constraint_config_class = MockConstraintConfig
+
+    sequences = ["ATCG"]
+    segment = _make_segment_with_candidates(sequences, "dna")
+
+    with pytest.raises(ValueError, match="Both threshold .* and weight .* are set"):
+        Constraint(
+            inputs=[segment],
+            function=mock_scoring_function,
+            function_config=MockConstraintConfig(),
+            threshold=0.5,
+            weight=2.0,
+        )
+
+
+def test_constraint_weight_with_sequential_mode():
+    """
+    Test that weight works correctly with sequential (non-batched) evaluation.
+    """
+    def mock_sequential_function(sequence, config=None):
+        return len(sequence.sequence) / 10.0
+
+    mock_sequential_function._constraint_batched = False
+    mock_sequential_function._constraint_concatenate = True
+    mock_sequential_function._constraint_config_class = MockConstraintConfig
+
+    sequences = ["ATCG", "ATCGATCG"]  # lengths 4, 8 → raw scores 0.4, 0.8
+    segment = _make_segment_with_candidates(sequences, "dna")
+
+    constraint = Constraint(
+        inputs=[segment],
+        function=mock_sequential_function,
+        function_config=MockConstraintConfig(),
+        weight=0.5,
+    )
+
+    results = constraint.evaluate()
+    assert results == pytest.approx([0.2, 0.4])
+
+
+def test_constraint_weight_with_mask():
+    """
+    Test that weight is applied correctly when using a mask.
+    """
+    def mock_scoring_function(sequences, config=None):
+        return [0.2] * len(sequences)
+
+    mock_scoring_function._constraint_batched = True
+    mock_scoring_function._constraint_concatenate = True
+    mock_scoring_function._constraint_config_class = MockConstraintConfig
+
+    sequences = ["A", "C", "G", "T"]
+    segment = _make_segment_with_candidates(sequences, "dna")
+
+    constraint = Constraint(
+        inputs=[segment],
+        function=mock_scoring_function,
+        function_config=MockConstraintConfig(),
+        weight=3.0,
+    )
+
+    mask = [True, False, True, False]
+    results = constraint.evaluate(mask=mask)
+
+    # Only 2 results (masked), each weighted
+    assert len(results) == 2
+    assert results == pytest.approx([0.6, 0.6])
+
+
+def test_constraint_weight_accepts_int():
+    """
+    Test that integer weights are accepted.
+    """
+    def mock_scoring_function(sequences, config=None):
+        return [0.25]
+
+    mock_scoring_function._constraint_batched = True
+    mock_scoring_function._constraint_concatenate = True
+    mock_scoring_function._constraint_config_class = MockConstraintConfig
+
+    sequences = ["ATCG"]
+    segment = _make_segment_with_candidates(sequences, "dna")
+
+    constraint = Constraint(
+        inputs=[segment],
+        function=mock_scoring_function,
+        function_config=MockConstraintConfig(),
+        weight=4,  # int, not float
+    )
+
+    assert constraint.weight == 4
+    results = constraint.evaluate()
+    assert results == pytest.approx([1.0])
