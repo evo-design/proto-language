@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "proto-language"
-version = "0.1.0"
+version = "0.0.1"
 description = "A framework for constraint-based genomic sequence design and optimization"
 readme = "README.md"
 license = {text = "Apache-2.0"}
