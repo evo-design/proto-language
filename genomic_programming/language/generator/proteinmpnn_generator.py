@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 from pydantic import model_validator
-from typing import final, Optional, Dict, List, Union, Self
+from typing import final, Optional, Dict, List, Union
 
 from proto_language.language.core import Generator, Segment
 from proto_language.base_config import BaseConfig, ConfigField
@@ -173,15 +173,11 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
     )
 
     @model_validator(mode='after')
-    def validate_dynamic_structure_config(self) -> Self:
+    def validate_dynamic_structure_config(self):
         """Validate that dynamic structures have been set correctly."""
         if self.dynamic_structure_path:
             if not os.path.exists(self.structure):
-                raise ValueError(
-                    "Dynamic structure configuration requires a valid structure path, "
-                    f"found: {self.structure}"
-                )
-
+                raise ValueError(f"Dynamic structure configuration requires a valid structure path, found: {self.structure}")
         return self
 
 
