@@ -1,4 +1,5 @@
 from __future__ import annotations
+import math
 import pytest
 import copy
 from typing import Tuple
@@ -154,6 +155,46 @@ class TestMCMCOptimizer:
         energy_mul = optimizer.energy_scores[0]
         assert abs(energy_add - 0.5) < 1e-9
         assert abs(energy_mul - 0.5) < 1e-9
+
+    def test_reject_inf_nan_energies(self):
+        """Tests that inf and nan energy proposals are always rejected."""
+        optimizer, _, _, segment = _setup_mcmc_components(
+            seq_length=10,
+            num_selected=1,
+            mcmc_width=3,
+            num_mcmc_steps=1,
+        )
+
+        # Set up initial state
+        initial_seq = "GCGCGAATTA"  # 50% GC, energy = 0
+        segment.selected_sequences[0].sequence = initial_seq
+        for i in range(optimizer.num_candidates):
+            segment.candidate_sequences[i] = copy.deepcopy(segment.selected_sequences[0])
+
+        optimizer.score_energy()
+        old_selected_sequences = optimizer._save_sequence_state()
+
+        # Manually set some energy scores to inf and nan
+        optimizer.energy_scores[1] = float('inf')
+        optimizer.energy_scores[2] = float('nan')
+
+        # Mutate candidate sequences so we can detect if they get rejected
+        segment.candidate_sequences[1].sequence = "TTTTTTTTTT"
+        segment.candidate_sequences[2].sequence = "CCCCCCCCCC"
+
+        # Run acceptance step
+        optimizer._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences)
+
+        # After rejection, all energies should be finite (no inf or nan)
+        for i, energy in enumerate(optimizer.energy_scores):
+            assert not math.isinf(energy), f"energy_scores[{i}] is inf"
+            assert not math.isnan(energy), f"energy_scores[{i}] is nan"
+
+        # All sequences should be restored to the initial sequence (since inf/nan were rejected)
+        for i, candidate_seq in enumerate(segment.candidate_sequences):
+            assert candidate_seq.sequence == initial_seq, (
+                f"candidate_sequences[{i}] was not restored: got {candidate_seq.sequence}, expected {initial_seq}"
+            )
 
     def test_sample_improves_energy(self):
         """Tests that sampling can improve the energy score over time."""

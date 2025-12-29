@@ -3,6 +3,7 @@ Metropolis-Hastings MCMC Optimizer that uses multiple sub-generators as proposal
 """
 from __future__ import annotations
 from typing import Callable, Dict, List, Optional, Tuple, final
+import math
 import copy
 import random
 import sys
@@ -330,9 +331,15 @@ class MCMCOptimizer(Optimizer):
 
             for candidate_idx in range(start_idx, end_idx):
                 proposal_energy = self.energy_scores[candidate_idx]
-                alpha = self._compute_mcmc_acceptance_prob(old_selected_energy, proposal_energy, step)
 
-                if random.random() >= alpha:
+                # Always reject inf or nan energies.
+                if math.isnan(proposal_energy) or math.isinf(proposal_energy):
+                    reject = True
+                else:
+                    alpha = self._compute_mcmc_acceptance_prob(old_selected_energy, proposal_energy, step)
+                    reject = random.random() >= alpha
+
+                if reject:
                     # Reject - restore old selected sequence to this candidate position
                     for segment in self.segments:
                         seg_id = id(segment)
