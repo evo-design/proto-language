@@ -102,7 +102,7 @@ class TestESMFoldRMSDConstraint:
         """
         with open("tests/dummy_data/test_structure_similarity.pdb", "r") as f:
             pdb_content = f.read().rstrip()
-        
+
         config = StructureRMSDConfig(
             target_pdb_content=pdb_content,
             structure_tool="esmfold",
@@ -141,6 +141,38 @@ class TestESMFoldTMscoreConstraint:
 
     def test_unconfident_match(self):
         assert _unconfident_match("tmscore", "esmfold") == 1.
+
+    def test_plddt_threshold_filtering(self):
+        """
+        Test that setting a pLDDT threshold affects the TM-score calculation.
+        """
+        # Test standard calculation (no threshold).
+        config_raw = StructureTMScoreConfig(
+            target_chains=[CRO_SEQ],
+            structure_tool="esmfold",
+            plddt_threshold=None,  # Default behavior.
+        )
+        score_raw = structure_tmscore_constraint(
+            [(Sequence(CRO_SEQ, 'protein'),)],
+            config_raw,
+        )[0]
+
+        assert score_raw < EPSILON
+
+        # Test extreme threshold.
+        # This should filter out ALL atoms, resulting in a TM-score of 0.0, so we
+        # expect a score of 1.0.
+        config_strict = StructureTMScoreConfig(
+            target_chains=[CRO_SEQ],
+            structure_tool="esmfold",
+            plddt_threshold=0.999, # ESMFold normalizes by 100, so pLDDT is 0-1.
+        )
+        score_strict = structure_tmscore_constraint(
+            [(Sequence(CRO_SEQ, 'protein'),)],
+            config_strict,
+        )[0]
+
+        assert score_strict == 1.0
 
 
 @pytest.mark.slow

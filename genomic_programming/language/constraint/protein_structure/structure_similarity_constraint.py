@@ -87,7 +87,36 @@ def _compute_ce_aligned_rmsd(pdb_text1: str, pdb_text2: str) -> Dict[str, Any]:
         cmd.reinitialize()
 
 
-def _compute_tm_score_from_pdb(target_pdb_text: str, candidate_pdb_text: str) -> float:
+def _filter_pdb_by_plddt(pdb_text: str, threshold: float) -> str:
+    """
+    Filters PDB text, keeping only residues with B-factor (pLDDT) >= threshold.
+    """
+    if threshold is None or threshold <= 0:
+        return pdb_text
+
+    filtered_lines = []
+    for line in pdb_text.splitlines():
+        # PDB ATOM records: B-factor is columns 61-66 (index 60:66)
+        if line.startswith("ATOM") or line.startswith("HETATM"):
+            try:
+                b_factor = float(line[60:66])
+                if b_factor >= threshold:
+                    filtered_lines.append(line)
+            except ValueError:
+                # Keep line if B-factor parsing fails to be safe
+                filtered_lines.append(line)
+        else:
+            # Keep header/footer lines
+            filtered_lines.append(line)
+
+    return "\n".join(filtered_lines)
+
+
+def _compute_tm_score_from_pdb(
+    target_pdb_text: str,
+    candidate_pdb_text: str,
+    plddt_threshold: Optional[float] = None,
+) -> float:
     """
     Compute TM-score using the 'TMalign' binary.
     Returns the TM-score normalized by the length of the target (reference) structure.
@@ -99,6 +128,12 @@ def _compute_tm_score_from_pdb(target_pdb_text: str, candidate_pdb_text: str) ->
             "Please install it (e.g., via Conda):\n\n"
             "  conda install -c bioconda tmalign\n"
         )
+
+    if plddt_threshold is not None:
+        candidate_pdb_text = _filter_pdb_by_plddt(candidate_pdb_text, plddt_threshold)
+        # If filtering removed everything, return worst score immediately
+        if not any(line.startswith("ATOM") for line in candidate_pdb_text.splitlines()):
+            return 0.0
 
     with tempfile.NamedTemporaryFile(mode='w', suffix='.pdb', delete=False) as f_target:
         f_target.write(target_pdb_text)
@@ -312,6 +347,9 @@ class StructureTMScoreConfig(StructureConstraintBaseConfig):
     similarity.
 
     Attributes:
+        plddt_threshold (Optional[float]):
+            If provided, this will first filter out atoms in the predicted structure
+            with pLDDT less than this threshold. Defaults to ``None``.
 
         target_chains (Optional[Tuple[str]]):
             Inherited from `StructureConstraintBaseConfig`.
@@ -331,7 +369,11 @@ class StructureTMScoreConfig(StructureConstraintBaseConfig):
         min_target_plddt (float):
             Inherited from `StructureConstraintBaseConfig`.
     """
-    pass
+    plddt_threshold: Optional[float] = ConfigField(
+        title="pLDDT Threshold",
+        default=None,
+        description="Ignore residues in the candidate with pLDDT < threshold (e.g. 70).",
+    )
 
 
 # ============================================================================
@@ -490,7 +532,11 @@ def structure_tmscore_constraint(
     # Compute TMscores.
     scores = []
     for candidate_structure, candidate_tuple in zip(results.structures, candidates):
-        tm_val = _compute_tm_score_from_pdb(target_pdb, candidate_structure.structure_pdb)
+        tm_val = _compute_tm_score_from_pdb(
+            target_pdb,
+            candidate_structure.structure_pdb,
+            plddt_threshold=config.plddt_threshold,
+        )
         score = 1.0 - tm_val
 
         if candidate_tuple:
