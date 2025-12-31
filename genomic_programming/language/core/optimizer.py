@@ -171,7 +171,11 @@ class Optimizer(ABC):
             passed = [p and r for p, r in zip(passed, results)]
 
         # Pass 2: Score passing candidates (skip rejected candidates for performance)
-        all_scores = [c.evaluate(mask=passed, verbose=self.verbose) for c in scorers]
+        all_scores = []
+        for idx, constraint in enumerate(scorers):
+            if self.verbose:
+                print(f"Constraint {idx+1}: {constraint.label}")
+            all_scores.append(constraint.evaluate(mask=passed, verbose=self.verbose))
 
         # Aggregate scores across all scoring constraints into a single energy score per candidate.
         # NaN propagates through sum/prod operations, resuling in NaN if any constraint is unevaluated.
