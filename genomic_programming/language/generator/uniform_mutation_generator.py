@@ -2,13 +2,41 @@
 UniformMutationGenerator for random point mutations.
 """
 from __future__ import annotations
-from typing import final, Optional, Tuple
+from typing import final, Optional
 import random
 import time
+
+from pydantic import field_validator, model_validator
 
 from proto_language.language.core import Generator, Segment
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.generator.generator_registry import GeneratorRegistry
+
+
+class MutationWindow(BaseConfig):
+    """Configuration for mutation window specifying the range to mutate.
+    
+    Attributes:
+        start (int): Start index (0-based, inclusive). Must be non-negative.
+        end (int): End index (0-based, exclusive). Must be greater than start.
+    """
+    start: int = ConfigField(
+        ge=0,
+        title="Start Index",
+        description="Start index of mutation window (0-based, inclusive)",
+    )
+    end: int = ConfigField(
+        ge=0,
+        title="End Index",
+        description="End index of mutation window (0-based, exclusive)",
+    )
+
+    @model_validator(mode="after")
+    def validate_mutation_window(self):
+        """Validate that end is greater than start."""
+        if self.end <= self.start:
+            raise ValueError(f"Mutation window end ({self.end}) must be greater than start ({self.start})")
+        return self
 
 
 class UniformMutationGeneratorConfig(BaseConfig):
@@ -24,12 +52,18 @@ class UniformMutationGeneratorConfig(BaseConfig):
             window size, it is automatically capped at the available positions.
             Must be at least 0. Default: 1.
 
-        mutation_window (Optional[Tuple[int, int]]): Optional window specifying which
-            region of the sequence to mutate. Format: ``(start, end)`` using Python
-            indexing (0-based, end-exclusive). For example:
+        mutation_window (Optional[MutationWindow]): Optional window specifying which
+            region of the sequence to mutate. Accepted formats:
 
+            - A tuple/list: ``(start, end)`` using Python indexing (0-based, end-exclusive)
+            - A dict: ``{"start": 0, "end": 100}``
+            - A MutationWindow instance
+            
+            Examples:
             - ``(0, 100)``: Mutate only first 100 positions
-            - ``(50, 150)``: Mutate only positions 50-149
+            - ``{"start": 5, "end": 10}``: Mutate only positions 5-9
+            - ``[50, 150]``: Mutate only positions 50-149
+            - ``MutationWindow(start=50, end=150)``: Mutate only positions 50-149
             - ``None``: Mutate entire sequence (default)
 
             Both values must be within ``[0, sequence_length]``. Default: ``None``.
@@ -46,7 +80,7 @@ class UniformMutationGeneratorConfig(BaseConfig):
         description="Number of positions to mutate per sample",
         advanced=True,
     )
-    mutation_window: Optional[Tuple[int, int]] = ConfigField(
+    mutation_window: Optional[MutationWindow] = ConfigField(
         default=None,
         title="Mutation Window",
         description="Only mutate the sequence within this range. (start, end) using Python index conventions.",
@@ -58,6 +92,20 @@ class UniformMutationGeneratorConfig(BaseConfig):
         description="Enable debug mode with sleep calls (for testing purposes only)",
         advanced=True,
     )
+
+    @field_validator("mutation_window", mode="before")
+    @classmethod
+    def allow_tuple_for_window(cls, v):
+        """Convert tuple/list input to dict format for Pydantic model parsing."""
+        if v is None:
+            return v
+        
+        if isinstance(v, (tuple, list)):
+            if len(v) != 2:
+                raise ValueError(f"Mutation window tuple must have exactly 2 elements, got {len(v)}")
+            return {"start": v[0], "end": v[1]}
+        
+        return v
 
 
 @GeneratorRegistry.register(
@@ -84,7 +132,7 @@ class UniformMutationGenerator(Generator):
 
     Attributes:
         num_mutations (int): Number of positions to mutate per sample.
-        mutation_window (Optional[Tuple[int, int]]): Optional region to restrict mutations.
+        mutation_window (Optional[MutationWindow]): Optional region to restrict mutations.
         debug_with_sleep_calls (bool): Whether to add sleep delays for testing.
         category (str): Set to ``"mutation"``.
         supported_sequence_types (List[SequenceType]): Empty list indicates support for all sequence types.
@@ -124,11 +172,8 @@ class UniformMutationGenerator(Generator):
         super().assign(assigned_segment)
 
         # Validate mutation window against segment's sequence_length
-        if self.mutation_window is not None:
-            if len(self.mutation_window) != 2:
-                raise ValueError(f"Mutation window must have two entries (got {self.mutation_window})")
-            if self.mutation_window[0] >= assigned_segment.sequence_length or self.mutation_window[1] > assigned_segment.sequence_length:
-                raise ValueError(f"Mutation window {self.mutation_window} incompatible with segment length {assigned_segment.sequence_length}")
+        if self.mutation_window is not None and (self.mutation_window.start >= assigned_segment.sequence_length or self.mutation_window.end > assigned_segment.sequence_length):
+            raise ValueError(f"Mutation window ({self.mutation_window.start}, {self.mutation_window.end}) incompatible with segment length {assigned_segment.sequence_length}.")
 
         valid_chars = assigned_segment._valid_chars - set(" ")
         valid_chars_list = list(valid_chars)
@@ -167,7 +212,7 @@ class UniformMutationGenerator(Generator):
             if self.mutation_window is None:
                 window_range = range(sequence_length)
             else:
-                window_range = range(self.mutation_window[0], self.mutation_window[1])
+                window_range = range(self.mutation_window.start, self.mutation_window.end)
 
             # Select random positions to mutate (without replacement)
             positions_to_mutate = random.sample(window_range, actual_mutations)

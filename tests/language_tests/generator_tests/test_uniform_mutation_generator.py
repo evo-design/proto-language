@@ -189,6 +189,42 @@ class TestUniformMutationGenerator:
         with pytest.raises(ValueError, match="Cannot assign constant segment"):
             gen.assign(constant_segment)
 
+    def test_mutation_window(self):
+        """Test mutation window restricts mutations to specified region."""
+        config = UniformMutationGeneratorConfig(num_mutations=5, mutation_window=(10, 20))
+        gen = UniformMutationGenerator(config)
+        segment = Segment(sequence="A" * 100, sequence_type="dna")
+        gen.assign(segment)
+
+        segment.candidate_sequences = [copy.deepcopy(segment.original_sequence)]
+        initial = segment.candidate_sequences[0].sequence
+        gen.sample()
+        mutated = segment.candidate_sequences[0].sequence
+
+        # Mutations only in window [10, 20)
+        assert initial[:10] == mutated[:10]
+        assert initial[20:] == mutated[20:]
+        assert sum(1 for i in range(10, 20) if initial[i] != mutated[i]) == 5
+
+    def test_mutation_window_formats(self):
+        """Test mutation_window accepts tuple, list, and dict formats."""
+        for window in [(10, 20), [10, 20], {"start": 10, "end": 20}]:
+            config = UniformMutationGeneratorConfig(num_mutations=1, mutation_window=window)
+            assert config.mutation_window.start == 10 and config.mutation_window.end == 20
+
+    def test_mutation_window_errors(self):
+        """Test mutation window validation errors."""
+        with pytest.raises(ValueError, match="must be greater than start"):
+            UniformMutationGeneratorConfig(num_mutations=1, mutation_window=(20, 10))
+        
+        with pytest.raises(ValueError):
+            UniformMutationGeneratorConfig(num_mutations=1, mutation_window=(-5, 10))
+        
+        config = UniformMutationGeneratorConfig(num_mutations=1, mutation_window=(10, 100))
+        segment = Segment(sequence="A" * 50, sequence_type="dna")
+        with pytest.raises(ValueError, match="incompatible with segment length"):
+            UniformMutationGenerator(config).assign(segment)
+
 
 class TestUniformMutationGeneratorValidation:
     """Test sequence type validation for UniformMutation generator."""
@@ -222,3 +258,4 @@ class TestUniformMutationGeneratorValidation:
         # Should not raise
         generator.assign(segment)
         assert generator._assigned_segment is segment
+    
