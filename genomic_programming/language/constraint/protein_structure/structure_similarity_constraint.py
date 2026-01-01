@@ -116,10 +116,13 @@ def _compute_tmalign_score_from_pdb(
     target_pdb_text: str,
     candidate_pdb_text: str,
     plddt_threshold: Optional[float] = None,
-) -> float:
+) -> Tuple[float, float]:
     """
     Compute TM-score using the 'TMalign' binary.
-    Returns the TM-score normalized by the length of the target (reference) structure.
+
+    Returns a tuple of two floats with, respectively:
+        - 'tm_score_1': TM-score normalized by length of structure 1 (candidate)
+        - 'tm_score_2': TM-score normalized by length of structure 2 (target)
     """
     tmalign_path = shutil.which("TMalign")
     if not tmalign_path:
@@ -130,10 +133,14 @@ def _compute_tmalign_score_from_pdb(
         )
 
     if plddt_threshold is not None:
-        candidate_pdb_text = _filter_pdb_by_plddt(candidate_pdb_text, plddt_threshold)
-        # If filtering removed everything, return worst score immediately
-        if not any(line.startswith("ATOM") for line in candidate_pdb_text.splitlines()):
-            return 0.0
+        candidate_pdb_text = _filter_pdb_by_plddt(
+            candidate_pdb_text,
+            plddt_threshold
+        )
+        if not any(
+            line.startswith("ATOM") for line in candidate_pdb_text.splitlines()
+        ):
+            return (0., 0.)
 
     with tempfile.NamedTemporaryFile(mode='w', suffix='.pdb', delete=False) as f_target:
         f_target.write(target_pdb_text)
@@ -148,26 +155,49 @@ def _compute_tmalign_score_from_pdb(
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         output = result.stdout
 
-        # TMalign outputs two scores. We want the one normalized by the target (Chain_2).
-        # Example output line: "TM-score= 0.5678 (if normalized by length of Chain_2 ...)"
-        match = re.search(r"TM-score=\s*([0-9.]+)\s+\(if normalized by length of Chain_2", output)
+        # Parse both TM-scores from output
+        # TMalign outputs:
+        #   TM-score= X.XXXX (if normalized by length of Chain_1, i.e., the first structure)
+        #   TM-score= X.XXXX (if normalized by length of Chain_2, i.e., the second structure)
 
-        if match:
-            return float(match.group(1))
+        tm_score_1 = None
+        tm_score_2 = None
 
-        # If Chain_2 pattern not found, try to get both and take the second one (usually target).
-        matches = re.findall(r"TM-score=\s*([0-9.]+)", output)
-        if len(matches) >= 2:
-            return float(matches[1])
-        elif matches:
-            return float(matches[0])
+        match_chain1 = re.search(
+            r"TM-score=\s*([0-9.]+)\s+\(if normalized by length of Chain_1", output
+        )
+        match_chain2 = re.search(
+            r"TM-score=\s*([0-9.]+)\s+\(if normalized by length of Chain_2", output
+        )
 
-        logger.warning(f"Could not find TMscore in TMalign output, returning worst value")
-        return 0.0
+        if match_chain1:
+            tm_score_1 = float(match_chain1.group(1))
+        if match_chain2:
+            tm_score_2 = float(match_chain2.group(1))
+
+        # Fallback: parse all TM-scores in order if specific patterns not found
+        if tm_score_1 is None or tm_score_2 is None:
+            matches = re.findall(r"TM-score=\s*([0-9.]+)", output)
+            if len(matches) >= 2:
+                tm_score_1 = tm_score_1 \
+                    if tm_score_1 is not None else float(matches[0])
+                tm_score_2 = tm_score_2 \
+                    if tm_score_2 is not None else float(matches[1])
+            elif len(matches) == 1:
+                # Only one score found, use it for both
+                tm_score_1 = tm_score_2 = float(matches[0])
+            else:
+                logger.warning(
+                    "Could not find TMscore in TMalign output, "
+                    "returning worst value"
+                )
+                tm_score_1 = tm_score_2 = 0.0
+
+        return (tm_score_1, tm_score_2)
 
     except subprocess.CalledProcessError as e:
         logger.warning(f"TMalign execution failed: {e}, returning worst value")
-        return 0.0
+        return (0., 0.)
     finally:
         if os.path.exists(target_path):
             os.unlink(target_path)
@@ -179,11 +209,13 @@ def _compute_usalign_score_from_pdb(
     target_pdb_text: str,
     candidate_pdb_text: str,
     plddt_threshold: Optional[float] = None,
-) -> float:
+) -> Tuple[float, float]:
     """
-    Compute TM-score using 'USalign' for multimers, as standard 'TMalign' only
-    supports single-chain proteins.
-    Returns TM-score normalized by the target structure (Structure_2).
+    Compute TM-score using 'USalign' for multimers.
+
+    Returns a tuple of two floats with, respectively:
+        - 'tm_score_1': TM-score normalized by length of structure 1 (candidate)
+        - 'tm_score_2': TM-score normalized by length of structure 2 (target)
     """
     usalign_path = shutil.which("USalign")
     if not usalign_path:
@@ -193,13 +225,16 @@ def _compute_usalign_score_from_pdb(
             "  conda install -c bioconda usalign\n"
         )
 
-    # Filter candidate by pLDDT if requested
     if plddt_threshold is not None:
-        candidate_pdb_text = _filter_pdb_by_plddt(candidate_pdb_text, plddt_threshold)
-        if not any(line.startswith("ATOM") for line in candidate_pdb_text.splitlines()):
-            return 0.0
+        candidate_pdb_text = _filter_pdb_by_plddt(
+            candidate_pdb_text,
+            plddt_threshold
+        )
+        if not any(
+            line.startswith("ATOM") for line in candidate_pdb_text.splitlines()
+        ):
+            return (0., 0.)
 
-    # Write temporary files
     with tempfile.NamedTemporaryFile(mode='w', suffix='.pdb', delete=False) as f_target:
         f_target.write(target_pdb_text)
         target_path = f_target.name
@@ -209,30 +244,49 @@ def _compute_usalign_score_from_pdb(
         candidate_path = f_candidate.name
 
     try:
-        # Command: USalign candidate target -mm [mode] -ter 1
-        # -ter 1 aligns all chains of the first model
         cmd = [usalign_path, candidate_path, target_path, "-mm", "1", "-ter", "1"]
-
-        # Run USalign
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         output = result.stdout
 
-        # Parse TM-score normalized by Structure_2 (Target)
-        # Output format: "TM-score= 0.91032 (normalized by length of Structure_2: ...)"
-        match = re.search(
-            r"TM-score=\s*([0-9.]+)\s+\(normalized by length of Structure_2",
-            output
+        # Parse both TM-scores
+        # USalign outputs:
+        #   TM-score= X.XXXX (normalized by length of Structure_1: ...)
+        #   TM-score= X.XXXX (normalized by length of Structure_2: ...)
+
+        tm_score_1 = None
+        tm_score_2 = None
+
+        match_struct1 = re.search(
+            r"TM-score=\s*([0-9.]+)\s+\(normalized by length of Structure_1", output
+        )
+        match_struct2 = re.search(
+            r"TM-score=\s*([0-9.]+)\s+\(normalized by length of Structure_2", output
         )
 
-        if match:
-            return float(match.group(1))
+        if match_struct1:
+            tm_score_1 = float(match_struct1.group(1))
+        if match_struct2:
+            tm_score_2 = float(match_struct2.group(1))
 
-        logger.warning(f"Could not find normalized TM-score in USalign output.")
-        return 0.0
+        # Fallback
+        if tm_score_1 is None or tm_score_2 is None:
+            matches = re.findall(r"TM-score=\s*([0-9.]+)", output)
+            if len(matches) >= 2:
+                tm_score_1 = tm_score_1 \
+                    if tm_score_1 is not None else float(matches[0])
+                tm_score_2 = tm_score_2 \
+                    if tm_score_2 is not None else float(matches[1])
+            elif len(matches) == 1:
+                tm_score_1 = tm_score_2 = float(matches[0])
+            else:
+                logger.warning("Could not find TM-score in USalign output")
+                tm_score_1 = tm_score_2 = 0.0
+
+        return (tm_score_1, tm_score_2)
 
     except subprocess.CalledProcessError as e:
         logger.warning(f"USalign execution failed: {e}, returning worst value")
-        return 0.0
+        return (0., 0.)
     finally:
         if os.path.exists(target_path):
             os.unlink(target_path)
@@ -417,6 +471,17 @@ class StructureTMScoreConfig(StructureConstraintBaseConfig):
             If provided, this will first filter out atoms in the predicted structure
             with pLDDT less than this threshold. Defaults to ``None``.
 
+        tm_score_normalization (Literal["structure1", "structure2", "max", "min", "mean"]):
+            How to select or combine the two TM-scores (normalized by different structure
+            lengths). Importantly, the ``target_chains`` are passed as the second structure
+            to the alignment programs. Options:
+            - "structure1": Use TM-score normalized by candidate structure length.
+            - "structure2": Use TM-score normalized by target structure length.
+            - "max": Take the maximum of both TM-scores (most lenient).
+            - "min": Take the minimum of both TM-scores (most strict).
+            - "mean": Take the arithmetic mean of both TM-scores (default).
+            Default is "mean".
+
         target_chains (Optional[Tuple[str]]):
             Inherited from `StructureConstraintBaseConfig`.
 
@@ -440,6 +505,26 @@ class StructureTMScoreConfig(StructureConstraintBaseConfig):
         default=None,
         description="Ignore residues in the candidate with pLDDT < threshold (e.g. 70).",
     )
+    tm_score_normalization: Literal[
+        "structure1", "structure2", "max", "min", "mean"
+    ] = ConfigField(
+        title="TM-score Normalization",
+        default="mean",
+        description=(
+            "How to handle the two TM-scores returned by TMalign/USalign."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def validate_normalization(self) -> StructureTMScoreConfig:
+        """Validate TMscore normalization field."""
+        valid = ["structure1", "structure2", "max", "min", "mean"]
+        if self.tm_score_normalization not in valid:
+            raise ValueError(
+                f"Invalid TMscore normalization mode {self.tm_score_normalization}, "
+                f"valid options are: {', '.join(valid)}"
+            )
+        return self
 
 
 # ============================================================================
@@ -627,17 +712,32 @@ def structure_tmscore_constraint(
 
         if n_target_chains == 1 and n_cand_chains == 1:
             # Monomer vs monomer uses standard TMalign.
-            tm_val = _compute_tmalign_score_from_pdb(
+            s1, s2 = _compute_tmalign_score_from_pdb(
                 target_pdb,
                 candidate_structure.structure_pdb,
                 plddt_threshold=config.plddt_threshold,
             )
         else:
             # USalign is needed for multimer comparison.
-            tm_val = _compute_usalign_score_from_pdb(
+            s1, s2 = _compute_usalign_score_from_pdb(
                 target_pdb,
                 candidate_structure.structure_pdb,
                 plddt_threshold=config.plddt_threshold
+            )
+
+        if config.tm_score_normalization == "structure1":
+            tm_val = s1
+        elif config.tm_score_normalization == "structure2":
+            tm_val = s2
+        elif config.tm_score_normalization == "max":
+            tm_val = max(s1, s2)
+        elif config.tm_score_normalization == "min":
+            tm_val = min(s1, s2)
+        elif config.tm_score_normalization == "mean":
+            tm_val = (s1 + s2) / 2.0
+        else:
+            raise ValueError(
+                f"Invalid TMscore normalization: {config.tm_score_normalization}"
             )
 
         score = 1.0 - tm_val
