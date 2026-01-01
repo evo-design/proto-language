@@ -17,15 +17,15 @@ class MutationWindow(BaseConfig):
     """Configuration for mutation window specifying the range to mutate.
     
     Attributes:
-        start (int): Start index (0-based, inclusive). Must be non-negative.
-        end (int): End index (0-based, exclusive). Must be greater than start.
+        start (Optional[int]): Start index (0-based, inclusive). Must be non-negative.
+        end (Optional[int]): End index (0-based, exclusive). Must be greater than start.
     """
-    start: int = ConfigField(
+    start: Optional[int] = ConfigField(
         ge=0,
         title="Start Index",
         description="Start index of mutation window (0-based, inclusive)",
     )
-    end: int = ConfigField(
+    end: Optional[int] = ConfigField(
         ge=0,
         title="End Index",
         description="End index of mutation window (0-based, exclusive)",
@@ -33,9 +33,15 @@ class MutationWindow(BaseConfig):
 
     @model_validator(mode="after")
     def validate_mutation_window(self):
-        """Validate that end is greater than start."""
-        if self.end <= self.start:
+        """Validate mutation window constraints."""
+        # Both start and end must be provided together
+        if (self.start is None) != (self.end is None):
+            raise ValueError("Both start and end must be provided together for mutation window")
+        
+        # If both are provided, validate that end > start
+        if self.start is not None and self.end <= self.start:
             raise ValueError(f"Mutation window end ({self.end}) must be greater than start ({self.start})")
+        
         return self
 
 
@@ -172,7 +178,9 @@ class UniformMutationGenerator(Generator):
         super().assign(assigned_segment)
 
         # Validate mutation window against segment's sequence_length
-        if self.mutation_window is not None and (self.mutation_window.start >= assigned_segment.sequence_length or self.mutation_window.end > assigned_segment.sequence_length):
+        if (self.mutation_window is not None and 
+            self.mutation_window.start is not None and
+            (self.mutation_window.start >= assigned_segment.sequence_length or self.mutation_window.end > assigned_segment.sequence_length)):
             raise ValueError(f"Mutation window ({self.mutation_window.start}, {self.mutation_window.end}) incompatible with segment length {assigned_segment.sequence_length}.")
 
         valid_chars = assigned_segment._valid_chars - set(" ")
@@ -209,7 +217,7 @@ class UniformMutationGenerator(Generator):
             actual_mutations = min(self.num_mutations, sequence_length)
 
             # Define the positions to mutate
-            if self.mutation_window is None:
+            if self.mutation_window is None or self.mutation_window.start is None:
                 window_range = range(sequence_length)
             else:
                 window_range = range(self.mutation_window.start, self.mutation_window.end)
