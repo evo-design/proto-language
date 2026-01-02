@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "proto-language"
 version = "0.0.4"
-description = "A framework for constraint-based genomic sequence design and optimization"
+description = "A high level programming language for generative biology"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 authors = [

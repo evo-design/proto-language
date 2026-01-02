@@ -12,7 +12,7 @@ on:
       # Optimizer docstrings
       - 'proto_language/language/optimizer/**/*.py'
       # The generation script itself
-      - 'scripts/generate_docs.py'
+      - 'docs/generate_docs.py'
 
 jobs:
   check:
@@ -36,7 +36,7 @@ jobs:
       - name: Generate documentation
         run: |
           source .venv/bin/activate
-          python scripts/generate_docs.py
+          python docs/generate_docs.py
 
       - name: Check docs are in sync
         run: |
@@ -44,7 +44,7 @@ jobs:
             echo "::error::Generated docs are out of sync with source files."
             echo ""
             echo "Please run locally:"
-            echo "  python scripts/generate_docs.py"
+            echo "  python docs/generate_docs.py"
             echo ""
             echo "Then commit the updated docs."
             echo ""
