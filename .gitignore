@@ -28,6 +28,9 @@ CLAUDE.md
 
 # pytest
 .pytest_cache/
-
 proto_language.egg-info/
 build/
+
+# AI tools
+.cursor/
+.claude/

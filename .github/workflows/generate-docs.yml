@@ -1,0 +1,55 @@
+name: Check Generated Docs
+
+on:
+  pull_request:
+    paths:
+      # Tool READMEs (source for tool docs)
+      - 'proto_language/tools/**/README.md'
+      # Constraint docstrings
+      - 'proto_language/language/constraint/**/*.py'
+      # Generator docstrings
+      - 'proto_language/language/generator/**/*.py'
+      # Optimizer docstrings
+      - 'proto_language/language/optimizer/**/*.py'
+      # The generation script itself
+      - 'scripts/generate_docs.py'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv venv
+          source .venv/bin/activate
+          uv pip install -e .[tools]
+          uv pip install docstring-parser
+
+      - name: Generate documentation
+        run: |
+          source .venv/bin/activate
+          python scripts/generate_docs.py
+
+      - name: Check docs are in sync
+        run: |
+          if ! git diff --quiet docs/; then
+            echo "::error::Generated docs are out of sync with source files."
+            echo ""
+            echo "Please run locally:"
+            echo "  python scripts/generate_docs.py"
+            echo ""
+            echo "Then commit the updated docs."
+            echo ""
+            echo "Changed files:"
+            git diff --name-only docs/
+            exit 1
+          fi
+          echo "✓ Generated docs are in sync"

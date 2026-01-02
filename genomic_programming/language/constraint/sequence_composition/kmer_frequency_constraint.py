@@ -92,7 +92,7 @@ class KmerFrequencyConfig(BaseConfig):
     min_value: float = ConfigField(
         title="Minimum acceptable value",
         ge=0.0,
-        description="Minimum acceptable frequncy/deviation based on scoring_mode",
+        description="Minimum acceptable frequency/deviation based on scoring_mode",
     )
     max_value: float = ConfigField(
         title="Maximum acceptable value",

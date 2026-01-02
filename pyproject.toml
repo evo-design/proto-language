@@ -50,7 +50,8 @@ tools = [
     "sinkhorn-transformer",
     "huggingface_hub>=0.16.0",
     "rdkit",
-
+    # Structure visualization
+    "py3Dmol>=2.0.0",
 ]
 
 # GPU dependencies
@@ -101,9 +102,6 @@ api = [
     "jsonpointer",
     "pick>=2.0.0",
 
-    # Structure visualization
-    "py3Dmol>=2.0.0",
-
     # Remote GPU execution
 
 ]
@@ -127,11 +125,7 @@ dev = [
 ]
 
 docs = [
-    "sphinx<=7.2.6",
-    "sphinx-autodoc-typehints",
-    "autodoc_pydantic",
-    "sphinx-rtd-theme",
-    "sphinx-autobuild",
+    "docstring-parser>=0.15",
 ]
 
 
