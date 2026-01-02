@@ -7,7 +7,6 @@ from proto_language.language.core import (
     Constraint,
     Construct,
     Segment,
-    SequenceType,
     Sequence,
 )
 from proto_language.language.core import Program

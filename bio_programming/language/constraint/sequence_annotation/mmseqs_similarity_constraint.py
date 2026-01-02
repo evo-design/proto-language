@@ -260,13 +260,13 @@ def mmseqs_similarity_constraint(sequences: List[Sequence], config: MMseqsSimila
 
         # Get proteins (ORF prediction for DNA, direct for protein)
         if sequence_type == "dna":
+            sequences_clean = [
+                "".join(c for c in seq.sequence.upper() if c in DNA_NUCLEOTIDES)
+                for seq in sequences
+            ]
+
             if config.orf_predictor == "prodigal":
                 prodigal_config = config.prodigal_config or ProdigalConfig()
-                sequences_clean = [
-                    "".join(c for c in seq.sequence.upper() if c in DNA_NUCLEOTIDES)
-                    for seq in sequences
-                ]
-
                 prodigal_input = ProdigalInput(input_sequences=sequences_clean)
                 result = run_prodigal_prediction(inputs=prodigal_input, config=prodigal_config)
 
@@ -282,13 +282,9 @@ def mmseqs_similarity_constraint(sequences: List[Sequence], config: MMseqsSimila
                             ))
 
             else:  # orfipy
-                orfipy_input = OrfipyInput(sequences=sequences)
-                orfipy_config = config.orfipy_config or OrfipyConfig(output_dir="")
-
-                orfipy_run_config = orfipy_config.model_copy(
-                    update={"output_dir": str(temp_path / "orfipy_out")}
-                )
-                result = run_orfipy_prediction(inputs=orfipy_input, config=orfipy_run_config)
+                orfipy_input = OrfipyInput(sequences=sequences_clean)
+                orfipy_config = config.orfipy_config or OrfipyConfig()
+                result = run_orfipy_prediction(inputs=orfipy_input, config=orfipy_config)
                 full_orfs = result.results_df if result.results_df is not None else pd.DataFrame()
 
                 for seq_idx in range(len(sequences)):

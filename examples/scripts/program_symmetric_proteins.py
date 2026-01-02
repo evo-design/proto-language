@@ -6,7 +6,6 @@ from proto_language.language.core import (
     Construct,
     Segment,
     Sequence,
-    SequenceType,
 )
 from proto_language.language.constraint import (
     structure_plddt_constraint,

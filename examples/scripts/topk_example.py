@@ -8,7 +8,6 @@ from proto_language.language.core import (
     Constraint,
     Construct,
     Segment,
-    SequenceType,
 )
 from proto_language.language.constraint import gc_content_constraint
 
