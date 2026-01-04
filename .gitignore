@@ -13,8 +13,7 @@ __pycache__/
 data/
 *.venvs
 *.hmm
-docs/_build/
-
+docs/_generated_navigation.json
 
 # Database files
 *.db
