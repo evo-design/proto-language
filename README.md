@@ -3,9 +3,6 @@
 [![Unit Tests](https://github.com/evo-design/proto-language/actions/workflows/run-unit-tests.yml/badge.svg)](https://github.com/evo-design/proto-language/actions/workflows/run-unit-tests.yml)
 [![Integration Tests](https://github.com/evo-design/proto-language/actions/workflows/integration_tests.yml/badge.svg)](https://github.com/evo-design/proto-language/actions/workflows/integration_tests.yml)
 [![Lint Check](https://github.com/evo-design/proto-language/actions/workflows/flake8_check.yml/badge.svg)](https://github.com/evo-design/proto-language/actions/workflows/flake8_check.yml)
-![Docs](https://img.shields.io/badge/docs-disabled-yellow.svg)
-
-<!--[![Docs](https://github.com/evo-design/proto-language/actions/workflows/docs.yml/badge.svg)](https://github.com/evo-design/proto-language/actions/workflows/docs.yml)-->
 
 A framework for designing biological sequences (DNA, RNA, proteins) with constraint-based optimization.
 
