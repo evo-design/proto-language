@@ -3,6 +3,12 @@ name: CPU Unit Tests
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+
+# Cancel in-progress runs when a new run is triggered
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   test-cpu:
     # Only run on non-draft PRs
