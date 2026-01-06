@@ -5,12 +5,10 @@ Supports DNA (with ORF prediction) and Protein sequences (direct search).
 
 from __future__ import annotations
 
-import tempfile
-from pathlib import Path
 from typing import Optional, List, Literal
 
 import numpy as np
-import pandas as pd
+from pydantic import model_validator
 
 from proto_language.language.core import Sequence, DNA_NUCLEOTIDES
 from proto_language.base_config import BaseConfig, ConfigField
@@ -81,7 +79,7 @@ class MMseqsSimilarityConfig(BaseConfig):
         The similarity range [min_similarity, max_similarity] defines acceptable percent
         identity. Sequences with hits outside this range are penalized. For example:
         - [40, 70]: Moderate similarity, useful for inferring functional similarity while
-          avoiding identical seuqences
+          avoiding identical sequences
         - [0, 40]: Low similarity filter, for novelty/uniqueness constraints
         - [80, 100]: High similarity filter, for functional conservation requirements 
     """
@@ -131,6 +129,12 @@ class MMseqsSimilarityConfig(BaseConfig):
         description="Prodigal configuration (DNA only, used if orf_predictor='prodigal'). If None, uses default.",
         advanced=True,
     )
+
+    @model_validator(mode='after')
+    def validate_similarity_range(self):
+        if self.min_similarity > self.max_similarity:
+            raise ValueError(f"min_similarity ({self.min_similarity}) must be <= max_similarity ({self.max_similarity}).")
+        return self
 
 
 @ConstraintRegistry.register(
@@ -189,7 +193,7 @@ def mmseqs_similarity_constraint(sequences: List[Sequence], config: MMseqsSimila
         - ``prodigal_orfs``: List of dictionaries containing predicted ORF information
           (id, start, end, strand, protein_sequence, etc.)
         - ``mmseqs_results``: List of dictionaries with MMseqs2 hit information
-          (query, target, pident, evalue, bitscore, etc.)
+          (target_id, pident, evalue)
         - ``unique_orfs_with_hits``: Integer count of ORFs with database matches
         - ``orfs_with_acceptable_similarity``: Integer count of ORFs with hits in
           acceptable range
@@ -233,7 +237,7 @@ def mmseqs_similarity_constraint(sequences: List[Sequence], config: MMseqsSimila
         >>> from proto_language.tools.gene_annotation.mmseqs import MmseqsSearchProteinsConfig
         >>> mmseqs_cfg = MmseqsSearchProteinsConfig(
         ...     threads=32,         # Use 32 CPU cores
-        ...     max_seqs=1000       # Return up to 1000 hits per query
+        ...     sensitivity=7.5     # Most sensitive
         ... )
         >>> config = MMseqsSimilarityConfig(
         ...     min_similarity=20.0,
@@ -252,120 +256,110 @@ def mmseqs_similarity_constraint(sequences: List[Sequence], config: MMseqsSimila
     if not all(seq.sequence_type == sequence_type for seq in sequences):
         raise ValueError("All sequences must be same type (all DNA or all PROTEIN)")
 
+    # Build protein list with mapping back to input sequences
+    # protein_data: List of (seq_idx, protein_sequence) tuples
+    protein_data: List[tuple] = []
+
+    # Get proteins (ORF prediction for DNA, direct for protein)
+    if sequence_type == "dna":
+        sequences_clean = [
+            "".join(c for c in seq.sequence.upper() if c in DNA_NUCLEOTIDES)
+            for seq in sequences
+        ]
+
+        if config.orf_predictor == "prodigal":
+            prodigal_config = config.prodigal_config or ProdigalConfig()
+            prodigal_input = ProdigalInput(input_sequences=sequences_clean)
+            result = run_prodigal_prediction(inputs=prodigal_input, config=prodigal_config)
+
+            for seq_idx, orfs_list in enumerate(result.predicted_orfs):
+                sequences[seq_idx]._metadata["prodigal_orfs"] = [orf.model_dump() for orf in orfs_list]
+                for orf in orfs_list:
+                    protein_data.append((seq_idx, orf.amino_acid_sequence))
+
+        else:  # orfipy
+            orfipy_input = OrfipyInput(sequences=sequences_clean)
+            orfipy_config = config.orfipy_config or OrfipyConfig()
+            result = run_orfipy_prediction(inputs=orfipy_input, config=orfipy_config)
+
+            for seq_idx, orfs_list in enumerate(result.predicted_orfs):
+                sequences[seq_idx]._metadata["orfipy_orfs"] = [orf.model_dump() for orf in orfs_list]
+                for orf in orfs_list:
+                    protein_data.append((seq_idx, orf.amino_acid_sequence))
+
+    else:  # PROTEIN sequences - use directly
+        for seq_idx, seq in enumerate(sequences):
+            protein_data.append((seq_idx, seq.sequence))
+            sequences[seq_idx]._metadata["direct_protein"] = {
+                "id": f"protein_{seq_idx}",
+                "sequence": seq.sequence,
+                "length": len(seq.sequence)
+            }
+
+    # Handle case where no proteins were found
+    if not protein_data:
+        for seq in sequences:
+            seq._metadata.update({
+                "mmseqs_results": [],
+                "unique_orfs_with_hits": 0,
+                "orfs_with_acceptable_similarity": 0,
+                "total_orfs_with_hits": 0,
+                "similarity_compliance_rate": 0.0,
+            })
+        return [MAX_ENERGY] * len(sequences)
+
+    # Extract protein sequences for MMseqs search
+    protein_sequences = [prot_seq for _, prot_seq in protein_data]
+    protein_to_seq_idx = [seq_idx for seq_idx, _ in protein_data]
+
+    # Run MMseqs search
+    resolved_db = resolve_paths(config.mmseqs_db)
+    mmseqs_config = config.mmseqs_config or MmseqsSearchProteinsConfig()
+
+    mmseqs_input = MmseqsSearchProteinsInput(
+        query_sequences=protein_sequences,
+        mmseqs_db=resolved_db,
+    )
+    mmseqs_result = mmseqs_search_proteins(mmseqs_input, mmseqs_config)
+
+    if not mmseqs_result.success:
+        for seq in sequences:
+            seq._metadata.update({
+                "mmseqs_error": True,
+                "mmseqs_error_messages": mmseqs_result.errors,
+                "mmseqs_results": [],
+                "unique_orfs_with_hits": 0,
+                "orfs_with_acceptable_similarity": 0,
+                "total_orfs_with_hits": 0,
+                "similarity_compliance_rate": 0.0,
+            })
+        return [MAX_ENERGY] * len(sequences)
+
+    # Aggregate hits by input sequence
+    # seq_hits[seq_idx] = list of all hits for that input sequence
+    seq_hits: dict = {i: [] for i in range(len(sequences))}
+    
+    for prot_idx, result in enumerate(mmseqs_result.results):
+        seq_idx = protein_to_seq_idx[prot_idx]
+        for hit in result.hits:
+            seq_hits[seq_idx].append({
+                "target_id": hit.target_id,
+                "pident": hit.pident,
+                "evalue": hit.evalue,
+            })
+
+    # Score each sequence
     scores = []
-    all_proteins_data = [] 
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir)
-
-        # Get proteins (ORF prediction for DNA, direct for protein)
-        if sequence_type == "dna":
-            sequences_clean = [
-                "".join(c for c in seq.sequence.upper() if c in DNA_NUCLEOTIDES)
-                for seq in sequences
-            ]
-
-            if config.orf_predictor == "prodigal":
-                prodigal_config = config.prodigal_config or ProdigalConfig()
-                prodigal_input = ProdigalInput(input_sequences=sequences_clean)
-                result = run_prodigal_prediction(inputs=prodigal_input, config=prodigal_config)
-
-                for seq_idx, orfs_list in enumerate(result.predicted_orfs):
-                    sequences[seq_idx]._metadata["prodigal_orfs"] = [orf.model_dump() for orf in orfs_list]
-                    
-                    for orf in orfs_list:
-                        all_proteins_data.append((
-                            seq_idx, orf.orf_id, orf.amino_acid_sequence
-                        ))
-
-            else:  # orfipy
-                orfipy_input = OrfipyInput(sequences=sequences_clean)
-                orfipy_config = config.orfipy_config or OrfipyConfig()
-                result = run_orfipy_prediction(inputs=orfipy_input, config=orfipy_config)
-
-                for seq_idx, orfs_list in enumerate(result.predicted_orfs):
-                    sequences[seq_idx]._metadata["orfipy_orfs"] = [orf.model_dump() for orf in orfs_list]
-                    
-                    for orf in orfs_list:
-                        all_proteins_data.append((
-                            seq_idx, orf.orf_id, orf.amino_acid_sequence
-                        ))
-
-        else:  # PROTEIN sequences - use directly
-            for seq_idx, seq in enumerate(sequences):
-                protein_id = f"protein_{seq_idx}"
-                all_proteins_data.append((seq_idx, protein_id, seq.sequence))
-                sequences[seq_idx]._metadata["direct_protein"] = {
-                    "id": protein_id,
-                    "sequence": seq.sequence,
-                    "length": len(seq.sequence)
-                }
-
-        # Write all proteins to combined FASTA
-        if not all_proteins_data:
-            # No proteins found
-            for seq in sequences:
-                seq._metadata.update({
-                    "mmseqs_results": [],
-                    "unique_orfs_with_hits": 0,
-                    "orfs_with_acceptable_similarity": 0,
-                    "total_orfs_with_hits": 0,
-                    "similarity_compliance_rate": 0.0,
-                })
-            return [MAX_ENERGY] * len(sequences)
-
-        combined_fasta = temp_path / "all_proteins.faa"
-        protein_to_seq = {}
-
-        with open(combined_fasta, "w") as f:
-            for seq_idx, prot_id, prot_seq in all_proteins_data:
-                f.write(f">{prot_id}\n{prot_seq}\n")
-                protein_to_seq[prot_id] = seq_idx
-
-        # MMseqs call
-        resolved_db = resolve_paths(config.mmseqs_db)
-        mmseqs_config = config.mmseqs_config or MmseqsSearchProteinsConfig(results_dir="")
-
-        mmseqs_input = MmseqsSearchProteinsInput(
-            query_sequences=str(combined_fasta), mmseqs_db=resolved_db
-        )
-        mmseqs_run_config = mmseqs_config.model_copy(
-            update={"results_dir": str(temp_path / "mmseqs_out")}
-        )
-        mmseqs_result = mmseqs_search_proteins(mmseqs_input, mmseqs_run_config)
-
-        if not mmseqs_result.success:
-            for seq in sequences:
-                seq._metadata.update({
-                    "mmseqs_error": True,
-                    "mmseqs_error_messages": mmseqs_result.errors,
-                    "mmseqs_results": [],
-                    "unique_orfs_with_hits": 0,
-                    "orfs_with_acceptable_similarity": 0,
-                    "total_orfs_with_hits": 0,
-                    "similarity_compliance_rate": 0.0,
-                })
-            return [MAX_ENERGY] * len(sequences)
-
-        all_results = mmseqs_result.results_df if mmseqs_result.results_df is not None else pd.DataFrame()
-
-    # Split results back to sequences and score
     for seq_idx, seq in enumerate(sequences):
-        seq_prot_ids = [pid for pid, sid in protein_to_seq.items() if sid == seq_idx]
-
-        if not all_results.empty and seq_prot_ids:
-            seq_results = all_results[all_results['query'].isin(seq_prot_ids)].copy()
-        else:
-            seq_results = pd.DataFrame()
-
-        num_hits = len(seq_results) if not seq_results.empty else 0
+        hits = seq_hits[seq_idx]
+        num_hits = len(hits)
 
         seq._metadata.update({
-            "mmseqs_results": seq_results.to_dict("records"),
+            "mmseqs_results": hits,
             "unique_orfs_with_hits": num_hits,
         })
 
-        if seq_results.empty or "pident" not in seq_results.columns:
+        if num_hits == 0:
             seq._metadata.update({
                 "orfs_with_acceptable_similarity": 0,
                 "total_orfs_with_hits": 0,
@@ -378,8 +372,8 @@ def mmseqs_similarity_constraint(sequences: List[Sequence], config: MMseqsSimila
         acceptable = 0
         violations = []
 
-        for _, row in seq_results.iterrows():
-            pident = row["pident"]
+        for hit in hits:
+            pident = hit["pident"]
             if config.min_similarity <= pident <= config.max_similarity:
                 acceptable += 1
             else:
