@@ -9,7 +9,7 @@ import os
 import hashlib
 import logging
 from pathlib import Path
-from typing import Any, Union
+from typing import Any
 
 import torch
 from google.cloud import storage
@@ -94,7 +94,7 @@ def get_default_device() -> str:
         return "cpu"
 
 
-def get_device_string(device_str_or_int: Union[int, str, torch.device]) -> str:
+def get_device_string(device_str_or_int: int | str | torch.device) -> str:
     """
     Returns the string representation of the GPU specified by an integer index.
     """
@@ -148,7 +148,7 @@ def parse_cuda_device_index(device_string: str):
     return device_int
 
 
-def determine_visible_devices(device: Union[int, str]) -> str:
+def determine_visible_devices(device: int | str) -> str:
     """
     Returns a string corresponding to the CUDA_VISIBLE_DEVICES environment variable
     for a given device.

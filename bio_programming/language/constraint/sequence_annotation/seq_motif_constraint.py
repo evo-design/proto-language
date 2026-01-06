@@ -7,10 +7,10 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
-from typing import List, Literal, Optional, Union, Dict
+from typing import List, Literal, Optional, Dict
 
 import numpy as np
-
+from pydantic import field_validator
 
 from proto_language.language.core import Sequence
 from proto_language.base_config import BaseConfig, ConfigField
@@ -38,20 +38,22 @@ class SeqMotifConfig(BaseConfig):
             MEME Suite installation. Example: "/usr/local/meme/bin" or
             "/opt/meme-5.5.0/bin". Install MEME Suite from https://meme-suite.org/
 
-        wanted (Optional[Union[str, List[str]]]): Motifs that should be present in
+        wanted (Optional[List[str]]): Motifs that should be present in
             sequences. Options:
-            - "all": All motifs in the file must be present
-            - "none" or None: No requirement for specific motifs
+            - ["all"]: All motifs in the file must be present
+            - ["none"] or None: No requirement for specific motifs
             - List of motif names: Specific motifs that should be present,
               e.g., ["SP1", "NF-kB", "lacO"]
+            Can also pass a single string which will be converted to a list.
             Strong matches to wanted motifs result in low penalties (rewards).
             Default: None.
 
-        not_wanted (Optional[Union[str, List[str]]]): Motifs that should NOT be
+        not_wanted (Optional[List[str]]): Motifs that should NOT be
             present in sequences. Options:
-            - "all": No motifs should be present (avoid all binding sites)
-            - "none" or None: Allow any motifs (default)
+            - ["all"]: No motifs should be present (avoid all binding sites)
+            - ["none"] or None: Allow any motifs (default)
             - List of motif names: Specific motifs to avoid.
+            Can also pass a single string which will be converted to a list.
             Strong matches to unwanted motifs result in high penalties. Default: None.
 
         scale (float): Scaling factor to adjust penalty magnitude. Values >1 make
@@ -98,18 +100,26 @@ class SeqMotifConfig(BaseConfig):
         title="Path to MEME Suite binaries",
         description="Path to directory containing MEME Suite binaries (must include fimo).",
     )
-    wanted: Optional[Union[str, List[str]]] = ConfigField(
+    wanted: Optional[List[str]] = ConfigField(
         title="Wanted Motifs",
         default=None,
         description="Motifs that should be present: 'all' (all motifs), 'none' (no requirement), or list of motif names.",
-        examples=[["motif1", "motif2"], "all", "none"],
+        examples=[["motif1", "motif2"], ["all"], ["none"]],
     )
-    not_wanted: Optional[Union[str, List[str]]] = ConfigField(
+    not_wanted: Optional[List[str]] = ConfigField(
         title="Unwanted Motifs",
         default=None,
         description="Motifs that should NOT be present: 'all' (reject all), 'none' (allow all), or list of motif names.",
-        examples=[["motif1", "motif2"], "all", "none"],
+        examples=[["motif1", "motif2"], ["all"], ["none"]],
     )
+
+    @field_validator('wanted', 'not_wanted', mode='before')
+    @classmethod
+    def convert_motif_list(cls, v):
+        """Convert single string to list of strings."""
+        if isinstance(v, str):
+            return [v]
+        return v
 
     # Advanced parameters
     scale: float = ConfigField(

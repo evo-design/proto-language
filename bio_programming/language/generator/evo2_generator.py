@@ -2,7 +2,7 @@
 Evo2 Generator for DNA sequence generation
 """
 from __future__ import annotations
-from typing import List, Optional, Dict, final, Union
+from typing import List, Optional, Dict, final
 
 from pydantic import model_validator, field_validator
 
@@ -20,10 +20,11 @@ class Evo2GeneratorConfig(BaseConfig):
     from prompt sequences.
 
     Attributes:
-        prompts (Union[str, List[str]]): Prompt sequence(s) to start DNA generation.
-            Can be a single prompt string or list of prompts for batch generation.
-            All prompts must have the same length. Uses Evo2's special formatting
-            (refer to Evo2 documentation for prompt format details).
+        prompts (List[str]): Prompt sequence(s) to start DNA generation.
+            Can be a single prompt string (automatically converted to list) or list of
+            prompts for batch generation. All prompts must have the same length.
+            Uses Evo2's special formatting (refer to Evo2 documentation for prompt
+            format details).
 
         model_checkpoint (str): Evo2 model checkpoint to use. Options:
 
@@ -83,7 +84,7 @@ class Evo2GeneratorConfig(BaseConfig):
         information on Evo2 parameters, see: https://github.com/arcinstitute/evo2
     """
     # Required parameters
-    prompts: Union[str, List[str]] = ConfigField(
+    prompts: List[str] = ConfigField(
         title="Prompts",
         description="Prompt sequences for DNA sequence generation (single prompt or multiple)",
     )
@@ -209,7 +210,7 @@ class Evo2Generator(Generator):
     assigned segment's sequence_length, prompt length, and prepend_prompt setting.
 
     Attributes:
-        prompts (Union[str, List[str]]): Prompt sequences for generation.
+        prompts (List[str]): Prompt sequences for generation.
         model_checkpoint (str): Evo2 model checkpoint name.
         temperature (float): Sampling temperature for diversity control.
         num_tokens (int): Number of tokens to generate (calculated dynamically on assign).

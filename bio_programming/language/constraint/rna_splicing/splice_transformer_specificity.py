@@ -4,6 +4,7 @@ Evaluate tissue-specific splicing with SpliceTransformer.
 from __future__ import annotations
 from typing import List, Optional, Literal
 
+from pydantic import field_validator
 
 from proto_language.language.core import Sequence
 from proto_language.base_config import BaseConfig, ConfigField
@@ -39,11 +40,12 @@ class SpliceTransformerSpecificityConfig(BaseConfig):
             This flanking sequence provides downstream genomic context. Should be
             the genomic sequence immediately 3' of the target sequence.
 
-        splice_pos (int | List[int]): Zero-indexed position(s) within the input
+        splice_pos (List[int]): Zero-indexed position(s) within the input
             sequence to evaluate for tissue-specific splicing. These positions
             typically correspond to splice sites (donor or acceptor) where you
             want to assess or control tissue-specific usage. Can be a single
-            integer or list of integers for multiple positions.
+            integer (automatically converted to list) or list of integers for
+            multiple positions.
 
         tissue (SpliceTransformerTissue): Target tissue for specificity evaluation.
             Options include "AVERAGE" (average across all tissues, default) or
@@ -75,7 +77,7 @@ class SpliceTransformerSpecificityConfig(BaseConfig):
         title="Right Context",
         description="Sequence of the right context for SpliceTransformer",
     )
-    splice_pos: int | List[int] = ConfigField(
+    splice_pos: List[int] = ConfigField(
         title="Splice Position(s)",
         description="0-indexed position(s) into input_sequence on which to compute the score",
     )
@@ -96,6 +98,14 @@ class SpliceTransformerSpecificityConfig(BaseConfig):
         description="Advanced parameter configuration for SpliceTransformer. If None, uses default configuration.",
         advanced=True,
     )
+
+    @field_validator('splice_pos', mode='before')
+    @classmethod
+    def convert_splice_pos_to_list(cls, v):
+        """Convert single int to list of ints."""
+        if isinstance(v, int):
+            return [v]
+        return v
 
 
 @ConstraintRegistry.register(
@@ -199,8 +209,6 @@ def splice_transformer_specificity(
     """
     assert len(config.left_context) == len(config.right_context)
     context_length = len(config.left_context)
-    splice_pos = [config.splice_pos] \
-        if isinstance(config.splice_pos, int) else config.splice_pos
     tissue = SpliceTransformerTissue[config.tissue]
 
     splice_transformer_input = SpliceTransformerInput(
@@ -221,9 +229,9 @@ def splice_transformer_specificity(
     assert output.shape[1] == len(input_sequence.sequence)
 
     if tissue == SpliceTransformerTissue.AVERAGE:
-        score = float(output[:, splice_pos, TISSUE_INDEX_OFFSET:].mean())
+        score = float(output[:, config.splice_pos, TISSUE_INDEX_OFFSET:].mean())
     else:
-        score = float(output[:, splice_pos, TISSUE_INDEX_OFFSET + tissue.value].mean())
+        score = float(output[:, config.splice_pos, TISSUE_INDEX_OFFSET + tissue.value].mean())
 
     if config.direction == "max":
         score = 1. - score

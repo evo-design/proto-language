@@ -133,7 +133,7 @@ class TestSeqMotifConstraint:
             meme_bin_path="/usr/bin",
             wanted="all"
         )
-        assert config_all.wanted == "all"
+        assert config_all.wanted == ['all']
         
         # Test 'none' keyword for wanted motifs
         config_none = SeqMotifConfig(
@@ -141,7 +141,7 @@ class TestSeqMotifConstraint:
             meme_bin_path="/usr/bin",
             wanted="none"
         )
-        assert config_none.wanted == "none"
+        assert config_none.wanted == ['none']
         
         # Test exclusive mode
         config_exclusive = SeqMotifConfig(

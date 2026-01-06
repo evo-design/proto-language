@@ -4,6 +4,7 @@ Evaluate intron boundary prediction with SpliceTransformer.
 from __future__ import annotations
 from typing import List, Optional
 
+from pydantic import field_validator
 
 from proto_language.language.core import Sequence
 from proto_language.base_config import BaseConfig, ConfigField
@@ -38,18 +39,19 @@ class SpliceTransformerIntronBoundaryConfig(BaseConfig):
             This flanking sequence provides downstream context. Should be the
             genomic sequence immediately 3' of the target sequence.
 
-        donor_pos (int | List[int]): Zero-indexed position(s) of expected donor
+        donor_pos (List[int]): Zero-indexed position(s) of expected donor
             splice site(s) within the input sequence. The donor site marks the 5'
             end of an intron (exon-intron boundary), typically at a "GT" dinucleotide.
             SpliceTransformer predicts on the position immediately before the "GT".
-            Can be a single integer or list of integers for multiple donors.
+            Can be a single integer (automatically converted to list) or list of
+            integers for multiple donors.
 
-        acceptor_pos (int | List[int]): Zero-indexed position(s) of expected
+        acceptor_pos (List[int]): Zero-indexed position(s) of expected
             acceptor splice site(s) within the input sequence. The acceptor site
             marks the 3' end of an intron (intron-exon boundary), typically at an
             "AG" dinucleotide. SpliceTransformer predicts on the position immediately
-            after the "AG". Can be a single integer or list of integers for multiple
-            acceptors.
+            after the "AG". Can be a single integer (automatically converted to list)
+            or list of integers for multiple acceptors.
 
         splice_transformer_config (Optional[SpliceTransformerConfig]): Optional
             advanced SpliceTransformer configuration including context length,
@@ -76,14 +78,22 @@ class SpliceTransformerIntronBoundaryConfig(BaseConfig):
         title="Right Context",
         description="Sequence of the right context for SpliceTransformer",
     )
-    donor_pos: int | List[int] = ConfigField(
+    donor_pos: List[int] = ConfigField(
         title="Donor Position(s)",
         description="0-indexed position(s) into input_sequence of expected donor",
     )
-    acceptor_pos: int | List[int] = ConfigField(
+    acceptor_pos: List[int] = ConfigField(
         title="Acceptor Position(s)",
         description="0-indexed position(s) into input_sequence of expected acceptor",
     )
+
+    @field_validator('donor_pos', 'acceptor_pos', mode='before')
+    @classmethod
+    def convert_pos_to_list(cls, v):
+        """Convert single int to list of ints."""
+        if isinstance(v, int):
+            return [v]
+        return v
 
     # Optional parameter
     splice_transformer_config: Optional[SpliceTransformerConfig] = ConfigField(
@@ -196,10 +206,6 @@ def splice_transformer_intron_boundary(
         f"Context lengths must be {SPLICE_TRANSFORMER_CONTEXT_LENGTH}"
     context_length = len(config.left_context)
 
-    donor_pos = [config.donor_pos] \
-        if isinstance(config.donor_pos, int) else config.donor_pos
-    acceptor_pos = [config.acceptor_pos] \
-        if isinstance(config.acceptor_pos, int) else config.acceptor_pos
 
     splice_transformer_input = SpliceTransformerInput(
         target_seqs=[input_sequence.sequence],
@@ -218,8 +224,8 @@ def splice_transformer_intron_boundary(
 
     assert output.shape[1] == len(input_sequence.sequence)
 
-    donor_score = float(output[:, donor_pos, SpliceTransformerType.DONOR.value].mean())
-    acceptor_score = float(output[:, acceptor_pos, SpliceTransformerType.ACCEPTOR.value].mean())
+    donor_score = float(output[:, config.donor_pos, SpliceTransformerType.DONOR.value].mean())
+    acceptor_score = float(output[:, config.acceptor_pos, SpliceTransformerType.ACCEPTOR.value].mean())
     score = 1. - ((donor_score + acceptor_score) / 2)
 
     input_sequence._metadata.update({

@@ -4,7 +4,9 @@ Boltz binding strength constraint for protein-protein and protein-ligand interac
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Union, Any, Literal
+from typing import Dict, List, Optional, Any, Literal
+
+from pydantic import field_validator
 
 from proto_language.language.core import Sequence
 from proto_language.base_config import BaseConfig, ConfigField
@@ -71,9 +73,10 @@ class BoltzBindingStrengthConfig(BaseConfig):
     optimized for different complex types (monomers, protein-nucleic acid, protein-protein).
     
     Attributes:
-        ligands (Optional[Union[str, List[str]]]): Ligands to use for binding strength evaluation.
-            Can be a SMILES string, or a path to SMI or SDF files. To delimit multiple ligands, use '.'.
-            Each individual molecular fragment will be treated as a separate chain in the input complex.
+        ligands (Optional[List[str]]): Ligands to use for binding strength evaluation.
+            Can be a SMILES string (automatically converted to list), or a path to SMI or SDF files.
+            To delimit multiple ligands, use '.'. Each individual molecular fragment will be treated
+            as a separate chain in the input complex.
         desired_higher (Dict[str, float]): Target values for "higher is better" metrics.
             Metrics in this category should ideally be close to 1.0 (high confidence).
             Available metrics:
@@ -155,11 +158,21 @@ class BoltzBindingStrengthConfig(BaseConfig):
           more accurate structure. Values <3 Å indicate high accuracy.
         - **confidence_score**: Boltz's aggregate confidence combining multiple factors.
     """
-    ligands: Optional[Union[str, List[str]]] = ConfigField(
+    ligands: Optional[List[str]] = ConfigField(
         default=None,
         title="Ligands",
         description="Ligand to use for binding strength evaluation.",
     )
+
+    @field_validator('ligands', mode='before')
+    @classmethod
+    def convert_ligands_to_list(cls, v):
+        """Convert single string to list of strings."""
+        if v is None:
+            return v
+        if isinstance(v, str):
+            return [v]
+        return v
 
     desired_higher: Dict[str, float] = ConfigField(
         default=DEFAULT_DESIRED_HIGHER,
@@ -250,7 +263,7 @@ class BoltzBindingStrengthConfig(BaseConfig):
 )
 def boltz_binding_strength_constraint(
     complex_sequences: List[List[Sequence]], config: BoltzBindingStrengthConfig
-) -> Union[float, List[float]]:
+) -> float | List[float]:
     """Evaluate binding strength and quality using Boltz structure prediction.
     
     This constraint function uses Boltz to predict complex structures and evaluate

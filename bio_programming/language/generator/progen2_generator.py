@@ -2,7 +2,7 @@
 ProGen2 Generator for protein sequence generation.
 """
 from __future__ import annotations
-from typing import List, Optional, final, Union
+from typing import List, Optional, final
 
 from pydantic import field_validator
 
@@ -31,8 +31,9 @@ class ProGen2GeneratorConfig(BaseConfig):
     Models are loaded from HuggingFace: https://huggingface.co/hugohrban/
 
     Attributes:
-        prompts (Union[str, List[str]]): Prompt sequence(s) to start protein generation.
-            Can be a single prompt string or list of prompts for batch generation.
+        prompts (List[str]): Prompt sequence(s) to start protein generation.
+            Can be a single prompt string (automatically converted to list) or list of
+            prompts for batch generation.
             
             ProGen2 uses special tokens: '1' (start) and '2' (end/stop).
             
@@ -94,7 +95,7 @@ class ProGen2GeneratorConfig(BaseConfig):
     """
 
     # Required parameters.
-    prompts: Union[str, List[str]] = ConfigField(
+    prompts: List[str] = ConfigField(
         title="Prompts",
         description="Prompt sequences for protein sequence generation",
     )

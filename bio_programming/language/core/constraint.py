@@ -12,7 +12,7 @@ Key Features:
     - Threshold-based filtering (converts scores to boolean accept/reject)
 """
 from __future__ import annotations
-from typing import Callable, List, Optional, Tuple, Union, Dict, Any
+from typing import Callable, List, Optional, Tuple, Dict, Any
 
 from pydantic import BaseModel
 
@@ -75,7 +75,7 @@ class Constraint:
         self,
         inputs: List[Segment],
         function: Callable,
-        function_config: Union[BaseModel, Dict[str, Any]],
+        function_config: BaseModel | Dict[str, Any],
         label: Optional[str] = None,
         threshold: Optional[float] = None,
         weight: Optional[float] = None,
@@ -125,7 +125,7 @@ class Constraint:
         self,
         mask: Optional[List[bool]] = None,
         verbose: bool = False
-    ) -> Union[List[float], List[bool]]:
+    ) -> List[float] | List[bool]:
         """
         Evaluate the constraint on candidates.
 

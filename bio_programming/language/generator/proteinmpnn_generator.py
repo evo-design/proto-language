@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 from pydantic import model_validator
-from typing import final, Optional, Dict, List, Union
+from typing import final, Optional, Dict, List
 
 from proto_language.language.core import Generator, Segment
 from proto_language.base_config import BaseConfig, ConfigField
@@ -30,7 +30,7 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
     existing proteins while maintaining structural compatibility.
 
     Attributes:
-        structure (Union[str, ProteinStructure]): Protein structure to condition
+        structure (str | ProteinStructure): Protein structure to condition
             sequence design on. Accepts multiple formats:
 
             - Path to a PDB file (e.g., ``"/path/to/protein.pdb"``)
@@ -117,7 +117,7 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
     """
 
     # Required parameters.
-    structure: Union[str, ProteinStructure] = ConfigField(
+    structure: str | ProteinStructure = ConfigField(
         title="Structure",
         description="PDB path, PDB content, or ProteinStructure object to condition design",
     )
