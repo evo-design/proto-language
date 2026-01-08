@@ -6,6 +6,10 @@ from .uniform_mutation_generator import (
     UniformMutationGenerator,
     UniformMutationGeneratorConfig,
 )
+from .msa_generator import (
+    MSAGenerator,
+    MSAGeneratorConfig,
+)
 
 # Language model generators
 from .evo2_generator import (
@@ -38,6 +42,8 @@ __all__ = [
     # Mutation generators
     "UniformMutationGenerator",
     "UniformMutationGeneratorConfig",
+    "MSAGenerator",
+    "MSAGeneratorConfig",
     # Language model generators
     "Evo2Generator",
     "Evo2GeneratorConfig",
