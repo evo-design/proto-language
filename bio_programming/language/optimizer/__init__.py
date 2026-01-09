@@ -9,6 +9,11 @@ from .mcmc_optimizer import (
 from .beam_search_optimizer import (
     BeamSearchOptimizer,
     BeamSearchOptimizerConfig,
+    BeamState,
+)
+from .multi_segment_beam_search_optimizer import (
+    MultiSegmentBeamSearchOptimizer,
+    MultiSegmentBeamSearchOptimizerConfig,
 )
 from .topk_optimizer import (
     TopKOptimizer,
@@ -22,9 +27,13 @@ __all__ = [
     # MCMC Optimizer
     "MCMCOptimizer",
     "MCMCOptimizerConfig",
-    # Beam Search Optimizer
+    # Beam Search Optimizer (single-segment)
     "BeamSearchOptimizer",
     "BeamSearchOptimizerConfig",
+    "BeamState",
+    # Multi-Segment Beam Search Optimizer (cross-segment)
+    "MultiSegmentBeamSearchOptimizer",
+    "MultiSegmentBeamSearchOptimizerConfig",
     # TopK Optimizer
     "TopKOptimizer",
     "TopKOptimizerConfig",

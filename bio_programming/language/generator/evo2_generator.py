@@ -288,15 +288,19 @@ class Evo2Generator(Generator):
         """
         # Use provided prompts or fall back to the default prompt
         sampling_prompts = prompts if prompts is not None else self.prompts
-        num_candidates = len(self._assigned_segment.candidate_sequences)
         
-        # Handle prompt count matching
-        if len(sampling_prompts) != num_candidates:
-            if len(sampling_prompts) == 1:
-                # Replicate single prompt for all candidates
-                sampling_prompts = sampling_prompts * num_candidates
-            else:
-                raise ValueError(f"Number of prompts ({len(sampling_prompts)}) must either be 1 (will be replicated) or match the number of candidates ({num_candidates})")
+        # When prompts are explicitly provided, use their count directly.
+        # This allows beam search optimizers to generate candidates in batches.
+        if prompts is not None:
+            num_candidates = len(sampling_prompts)
+        else:
+            # Using default prompts - match segment's candidate count
+            num_candidates = len(self._assigned_segment.candidate_sequences)
+            if len(sampling_prompts) != num_candidates:
+                if len(sampling_prompts) == 1:
+                    sampling_prompts = sampling_prompts * num_candidates
+                else:
+                    raise ValueError(f"Number of prompts ({len(sampling_prompts)}) must either be 1 (will be replicated) or match the number of candidates ({num_candidates})")
 
         # Create config for the tool
         inputs = Evo2SampleInput(prompts=sampling_prompts)

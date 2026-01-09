@@ -33,6 +33,9 @@ from .optimizer import (
     MCMCOptimizerConfig,
     BeamSearchOptimizer,
     BeamSearchOptimizerConfig,
+    BeamState,
+    MultiSegmentBeamSearchOptimizer,
+    MultiSegmentBeamSearchOptimizerConfig,
     TopKOptimizer,
     TopKOptimizerConfig,
 )
@@ -71,6 +74,9 @@ __all__ = [
     "MCMCOptimizerConfig",
     "BeamSearchOptimizer",
     "BeamSearchOptimizerConfig",
+    "BeamState",
+    "MultiSegmentBeamSearchOptimizer",
+    "MultiSegmentBeamSearchOptimizerConfig",
     "TopKOptimizer",
     "TopKOptimizerConfig",
 ]

@@ -1,26 +1,44 @@
 """
-Beam Search Optimizer that uses the beam search algorithm to optimize a single Construct.
+Beam Search Optimizer that performs beam search for sequence generation.
+
+This optimizer splits a single long segment into beams of `beam_length` tokens and
+performs beam search, accumulating KV cache state across beams.
 """
 from __future__ import annotations
-from typing import List, Optional, Dict, Callable, Tuple
+from dataclasses import dataclass, field
+from typing import List, Optional, Dict, Callable, Literal
+from pydantic import model_validator
 import warnings
 import copy
 import sys
 import math
 import numpy as np
 
-
-from proto_language.language.core import Optimizer, Construct, Constraint, Generator, Segment
+from proto_language.language.core import Optimizer, Construct, Constraint, Generator, Segment, Sequence
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.optimizer.optimizer_registry import OptimizerRegistry
+
+
+@dataclass
+class BeamState:
+    """State for a single beam during beam search.
+    
+    Attributes:
+        running_sequence: Accumulated sequence (initial prompt + all generated tokens so far)
+        kv_cache: KV cache state for this beam (None if KV caching disabled)
+        beam_scores: Per-beam energy scores for score aggregation
+    """
+    running_sequence: str
+    kv_cache: Optional[Dict] = None
+    beam_scores: List[float] = field(default_factory=list)
 
 
 class BeamSearchOptimizerConfig(BaseConfig):
     """Configuration object for BeamSearchOptimizer.
 
     This class defines configuration parameters for the beam search optimizer, which
-    explores sequence space by maintaining multiple candidate sequences (beams) and
-    generating extensions for each beam at every step.
+    generates a single long segment by splitting it into beams of `beam_length` tokens
+    and performing beam search at each beam boundary.
 
     Attributes:
         prompt (str): Initial prompt sequence to start beam search generation. All
@@ -28,15 +46,23 @@ class BeamSearchOptimizerConfig(BaseConfig):
             this might be ``"ATCG"``; for proteins, a short amino acid sequence.
             Must be non-empty.
 
+        beam_length (int): Number of tokens to generate per iteration.
+            The segment is split into ceil(segment.sequence_length / beam_length) beams.
+
         beam_width (int): Number of top sequences to maintain at each step (K in
-            beam search terminology). At each segment, the top K sequences by energy
+            beam search terminology). At each beam, the top K sequences by energy
             score are selected to continue. Higher values explore more paths but
             increase computation. Must be at least 1.
 
         candidates_per_beam (int): Number of candidate sequences to generate per
             beam at each step (N in beam search terminology). Total candidates
-            generated per segment is K x N. Higher values increase diversity but
+            generated per beam is K x N. Higher values increase diversity but
             also increase computation. Must be at least 1.
+
+        score_by (str): How to aggregate beam scores when selecting beams.
+            - ``"mean"``: Average scores across all beams - rewards consistent trajectory
+            - ``"last"``: Use only the most recent beam's score - only cares about current state
+            Default: ``"mean"``.
 
         prepend_prompt (bool): Whether to prepend the initial prompt to the generated
             sequences in the final output. If ``True``, full sequences include the
@@ -53,23 +79,26 @@ class BeamSearchOptimizerConfig(BaseConfig):
             resample beams until each has ``candidates_per_beam`` valid candidates,
             up to this many attempts. Higher values increase robustness but may
             slow down optimization with very restrictive constraints. Must be at
-            least 1. Default: ``10``.
+            least 1. Default: ``3``.
+
+        batch_size (int): Optional batch size for generation. If not specified,
+            generates all beam_width * candidates_per_beam candidates at once.
+            Lower values reduce memory usage but increase generation time.
+            Default: None (generates all candidates at once).
 
         verbose (bool): Whether to print detailed progress information including
             beam energies, selected sequences, and generation statistics at each
-            segment. Default: ``False``.
-
-    Note:
-        Beam search explores K x N sequences per segment but only retains the top K
-        by energy score. The total number of sequences evaluated grows linearly with
-        the number of segments, not exponentially, due to pruning at each step.
+            iteration. Default: ``False``.
     """
     # Required parameters
     prompt: str = ConfigField(
-        title="Prompt", description="The prompt to start the beam search (e.g. ATCG)"
+        title="Prompt", 
+        description="The prompt to start the beam search (e.g. ATCG)"
     )
     beam_width: int = ConfigField(
-        ge=1, title="Beam Width", description="Number of top sequences to maintain (K)."
+        ge=1, 
+        title="Beam Width", 
+        description="Number of top sequences to maintain (K)."
     )
     candidates_per_beam: int = ConfigField(
         ge=1,
@@ -77,24 +106,41 @@ class BeamSearchOptimizerConfig(BaseConfig):
         description="Number of candidates to generate per beam sequence (N).",
     )
 
-    # Advanced parameters
+    # Generation parameters
+    beam_length: int = ConfigField(
+        ge=1,
+        title="Beam Length",
+        description="Number of tokens to generate per beam.",
+    )
+    score_by: Literal["mean", "last"] = ConfigField(
+        default="mean",
+        title="Score By",
+        description="How to aggregate beam scores: 'mean' (average all beams) or 'last' (use most recent).",
+    )
     prepend_prompt: bool = ConfigField(
         default=True,
         title="Prepend Prompt",
         description="Whether to prepend the prompt to the generated sequence in the output.",
-        advanced=True,
     )
     use_kv_caching: bool = ConfigField(
         default=True,
         title="KV Caching",
         description="Whether to use KV caching for generation. Enables faster sequential generation.",
-        advanced=True,
     )
+
+    # Advanced parameters
     max_resample_attempts: int = ConfigField(
-        default=10,
+        default=3,
         ge=1,
         title="Max Resample Attempts",
         description="Maximum number of times to resample beams with invalid (inf/NaN) energies before giving up.",
+        advanced=True,
+    )
+    batch_size: Optional[int] = ConfigField(
+        default=None,
+        ge=1,
+        title="Batch Size",
+        description="Optional batch size for generation. If None, generates all candidates at once.",
         advanced=True,
     )
     verbose: bool = ConfigField(
@@ -104,42 +150,52 @@ class BeamSearchOptimizerConfig(BaseConfig):
         hidden=True,
     )
 
+    @model_validator(mode='after')
+    def validate_config(self):
+        """Validate beam search configuration."""
+        if not self.prompt:
+            raise ValueError("prompt must be non-empty")
+        if self.batch_size and self.batch_size > self.beam_width * self.candidates_per_beam:
+            raise ValueError(f"batch_size={self.batch_size} exceeds total candidates ({self.beam_width * self.candidates_per_beam})")
+        return self
+
 
 @OptimizerRegistry.register(
     key="beam-search",
     label="Beam Search Optimizer",
     config=BeamSearchOptimizerConfig,
-    description="Beam search optimizer that processes segments sequentially with context accumulation",
+    description="Beam search optimizer that generates a single segment with beam search at each boundary",
 )
 class BeamSearchOptimizer(Optimizer):
-    """Beam search optimizer with context accumulation across segments.
+    """Beam search optimizer for sequence generation.
 
-    This optimizer implements beam search for sequence optimization where segments
-    are processed sequentially with accumulated context. At each segment, the top
-    K sequences from previous segments are extended with N new candidates each,
-    and the best K sequences overall are selected to continue.
-
-    The optimizer maintains K beams (running sequences) and generates K x N total
-    candidates at each segment by producing N variations per beam. After constraint
-    evaluation, only the top K sequences by energy are retained for the next segment.
+    This optimizer implements beam search for sequence optimization where a single
+    segment is generated with beam search. The optimizer maintains K beams (running sequences)
+    and generates K x N total candidates at each step by producing N variations per beam.
+    After constraint evaluation on the FULL accumulated sequence, only the top K sequences by
+    energy are retained for the next step.
 
     Attributes:
-        construct (Construct): Single construct being optimized.
+        construct (Construct): Single construct being optimized (must have exactly one segment).
+        segment (Segment): The single segment being generated.
         generator (Generator): Single autoregressive generator for sequence generation.
         prompt (str): Initial prompt sequence starting all beams.
+        beam_length (int): Tokens per beam.
         beam_width (int): Number of beams to maintain (K).
         candidates_per_beam (int): Candidates generated per beam (N).
+        score_by (str): Score aggregation method ('mean' or 'last').
         use_kv_caching (bool): Whether KV caching is enabled.
-        running_prompts (List[str]): Current accumulated sequences for each beam.
-        top_beam_kv_caches (List[Optional[Dict]]): KV cache states for each beam.
+        beams (List[BeamState]): Current beam states.
 
     Example:
         >>> from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
         >>> gen_config = Evo2GeneratorConfig(prompts="ATCG", prepend_prompt=True)
         >>> generator = Evo2Generator(config=gen_config)
-        >>> construct = Construct([segment1, segment2, segment3])
+        >>> segment = Segment(length=10000, sequence_type="dna")
+        >>> construct = Construct([segment])
         >>> config = BeamSearchOptimizerConfig(
         ...     prompt="ATCG",
+        ...     beam_length=2000,
         ...     beam_width=5,
         ...     candidates_per_beam=10
         ... )
@@ -150,13 +206,7 @@ class BeamSearchOptimizer(Optimizer):
         ...     config=config
         ... )
         >>> beam_search.run()
-        >>> top_sequences = beam_search.construct.joined_sequences
-
-    Note:
-        - Only supports single construct and single autoregressive generator
-        - Generator must have ``category="autoregressive"``
-        - KV caching requires generator support (e.g., Evo2Generator)
-        - Lower energy scores are better (minimization objective)
+        >>> top_sequences = beam_search.segment.selected_sequences
     """
     # Class attribute required by OptimizerRegistry
     config_class = BeamSearchOptimizerConfig
@@ -174,11 +224,11 @@ class BeamSearchOptimizer(Optimizer):
         Initialize the Beam Search Optimizer.
 
         Args:
-            constructs: List containing a single Construct object to optimize.
+            constructs: List containing a single Construct with a single Segment.
             generators: List containing a single autoregressive Generator object (must have category="autoregressive").
             constraints: List of Constraint objects for evaluation (lower scores are better).
-            config: Configuration object containing algorithm parameters (prompt, beam_width, candidates_per_beam, etc.).
-            custom_logging: Optional custom logging function called after each segment.
+            config: Configuration object containing algorithm parameters.
+            custom_logging: Optional custom logging function called after each beam search step.
             clear_tool_cache: (int) Maximum size of cache in bytes, defaults to 100 MB.
                               (bool) Whether to clear the tool cache on each iteration.
                               (List[str]) Restrict clearing cache to a list of tool names.
@@ -192,7 +242,16 @@ class BeamSearchOptimizer(Optimizer):
 
         construct = constructs[0]
         generator = generators[0]
-        self.prompt = config.prompt  # Extract prompt from config
+
+        # Validate single segment
+        if len(construct.segments) != 1:
+            raise ValueError(
+                f"BeamSearchOptimizer only supports a single segment, but received {len(construct.segments)} segments. "
+                f"Use MultiSegmentBeamSearchOptimizer for constructs with multiple segments."
+            )
+
+        segment = construct.segments[0]
+        self.prompt = config.prompt
 
         # Beam Search only works with autoregressive generators with non-empty prompts
         from proto_language.language.generator.generator_registry import GeneratorRegistry
@@ -203,15 +262,13 @@ class BeamSearchOptimizer(Optimizer):
         if not self.prompt:
             raise ValueError("BeamSearchOptimizer requires a non-empty prompt to start beam search.")
 
-        # Required for validation in base class. Each segment is assigned to the single generator for beam search.
-        for segment in construct.segments:
-            segment._is_assigned = True
-            # BeamSearch overwrites segment.candidate_sequences during run()
-            if any(seq.sequence for seq in segment.candidate_sequences):
-                warnings.warn(f"BeamSearchOptimizer will overwrite {segment.num_candidates} existing candidate(s) in segment '{segment.label or 'unlabeled'}' during run()")
+        # Mark segment as assigned and warn about existing candidates
+        segment._is_assigned = True
+        if any(seq.sequence for seq in segment.candidate_sequences):
+            warnings.warn(f"BeamSearchOptimizer will overwrite {segment.num_candidates} existing candidate(s) in segment '{segment.label or 'unlabeled'}' during run()")
 
-        # Required for validation in base class. Assign the generator to the first segment to pass validation
-        generator.assign(construct.segments[0])
+        # Assign generator to segment for validation
+        generator.assign(segment)
 
         super().__init__(
             constructs=constructs,
@@ -222,344 +279,308 @@ class BeamSearchOptimizer(Optimizer):
             clear_tool_cache=clear_tool_cache,
             verbose=config.verbose,
         )
+
         self.construct: Construct = construct
+        self.segment: Segment = segment
         self.generator: Generator = generator
         self.prepend_prompt: bool = config.prepend_prompt
+        self.beam_length: int = config.beam_length
         self.beam_width: int = config.beam_width
         self.candidates_per_beam: int = config.candidates_per_beam
+        self.score_by: str = config.score_by
         self.use_kv_caching: bool = config.use_kv_caching
         self.max_resample_attempts: int = config.max_resample_attempts
+        self.batch_size: Optional[int] = config.batch_size
         self.custom_logging: Optional[Callable] = custom_logging
 
-        # Beam search state parameters (running prompts and corresponding KV caches)
-        self.running_prompts: List[str] = [self.prompt] * self.beam_width
-        self.top_beam_kv_caches: List[Optional[Dict]] = [None] * self.beam_width
+        if self.beam_length > self.segment.sequence_length:
+            raise ValueError(f"beam_length={self.beam_length} cannot be greater than segment length ({self.segment.sequence_length})")
 
-        # IMPORTANT: set max_seqlen to the total construct length!!
-        total_segment_length = sum(segment.sequence_length for segment in self.segments)
-        self.generator.max_seqlen = len(self.prompt) + total_segment_length
-        # Need to store kv caching as well if kv caching is enabled
+        # Initialize beam states
+        self.beams: List[BeamState] = [
+            BeamState(running_sequence=self.prompt) for _ in range(self.beam_width)
+        ]
+
+        # Calculate number of beams
+        self.total_tokens = segment.sequence_length
+        self.num_beams = math.ceil(self.total_tokens / self.beam_length)
+
+        # Set up generator for beam generation
+        self.generator.max_seqlen = len(self.prompt) + self.total_tokens
         self.generator.store_kv_cache = self.use_kv_caching
-        # Always use cached generation internally
         self.generator.cached_generation = True
         self.generator.batched = True
 
-    def _save_progress_snapshot(self, time_step: int) -> None:
+    def run(self) -> None:
         """
-        Save snapshot with final optimization state.
+        Run beam search within a single segment.
 
-        Args:
-            time_step: Current step index (always 0 for single final snapshot)
+        For each beam:
+        1. Use K accumulated prompts from previous beams
+        2. Generate K x N candidates (N per beam)
+        3. Score all candidates using FULL accumulated sequence
+        4. Select top K candidates and update beam states for next beam
         """
+        if self.verbose:
+            self._log_run_start()
+
+        # Track tokens generated so far
+        tokens_generated = 0
+
+        for beam_idx in range(self.num_beams):
+            # Calculate tokens to generate this beam (may be less for final beam)
+            remaining_tokens = self.total_tokens - tokens_generated
+            beam_tokens = min(self.beam_length, remaining_tokens)
+
+            # Override generator's num_tokens for this beam
+            self.generator.num_tokens = beam_tokens
+
+            prepend_prompt_to_first_beam = self.prepend_prompt and beam_idx == 0
+
+            if self.verbose:
+                print(f"\n--- Beam {beam_idx + 1}/{self.num_beams} ({beam_tokens} tokens) ---")
+            # Generate and score candidates, resampling until all beams have valid candidates
+            candidate_beams = self._generate_and_score_with_resampling(prepend_prompt_to_first_beam)
+
+            # Select top beam_width candidates and update beam states
+            self._select_topk_beams(candidate_beams)
+
+            tokens_generated += beam_tokens
+
+            # Log progress
+            if self.verbose:
+                self._log_beamsearch_progress(beam_idx)
+
+        # Write final sequences to segment
+        self.segment.selected_sequences = [
+            Sequence(
+                sequence=beam.running_sequence if self.prepend_prompt else beam.running_sequence[len(self.prompt):],
+                sequence_type=self.segment.sequence_type
+            )
+            for beam in self.beams
+        ]
+
+        # Save progress snapshot
         self.history.append({
-            "time_step": time_step,
-            "segments_completed": len(self.construct.segments),
-            "total_segments": len(self.construct.segments),
+            "time_step": self.num_beams - 1,
+            "beams_completed": self.num_beams,
+            "total_beams": self.num_beams,
             "energy_scores": self.energy_scores[:self.beam_width].copy() if self.energy_scores else [],
             "constructs": copy.deepcopy(self.constructs)
         })
 
-    def run(self) -> None:
-        """
-        Run beam search across all segments with context accumulation.
-
-        For each segment:
-        1. Use K accumulated prompts from previous segments
-        2. Replicate each prompt N times and generate KxN candidates
-        3. Score all candidates with constraints (lower is better)
-        4. Select top beam_width candidates and extend their prompts for next segment
-        """
-        if self.verbose:
-            print(f"Processing {len(self.construct.segments)} segments with beam search")
-            print(f"Beam width: {self.beam_width}, Candidates per beam: {self.candidates_per_beam}")
-            print(f"KV caching: {'enabled' if self.use_kv_caching else 'disabled'}")
-
-        # Beam search across each segment
-        for segment_idx, segment in enumerate(self.construct.segments):
-            # 1. Assign generator to this segment
-            self.generator.assign(segment)
-
-            prepend_prompt_to_first_segment = self.prepend_prompt and segment_idx == 0
-
-            # 2. Generate and score candidates, resampling until all beams have valid candidates
-            all_kv_caches = self._generate_and_score_with_resampling(segment, prepend_prompt_to_first_segment)
-
-            # 3. Select top beam_width candidates and update running prompts and corresponding KV caches
-            top_idx = self._select_topk(segment, all_kv_caches, prepend_prompt_to_first_segment)
-
-            # Log progress
-            if self.verbose:
-                self._log_beamsearch_progress(segment_idx, segment, top_idx)
-
-        # Save progress snapshot once at the end
-        self._save_progress_snapshot(time_step=0)
-
     def _generate_candidates_for_beam(
-        self, 
-        segment: Segment, 
+        self,
         beam_idx: int,
         prepend_prompt: bool = False
-    ) -> Tuple[List, List[Dict]]:
+    ) -> List[BeamState]:
         """
-        Generate candidates for a single beam.
+        Generate candidate BeamStates for a single beam.
+
+        If batch_size is set, generates candidates in batches to manage GPU memory.
 
         Args:
-            segment: The current segment being processed
             beam_idx: Index of the beam to generate candidates for
             prepend_prompt: Whether to prepend prompt to generated sequences
 
         Returns:
-            Tuple of (generated_sequences, kv_caches) for this beam (length=candidates_per_beam each)
+            List of BeamState candidates (length=candidates_per_beam)
         """
-        prompt = self.running_prompts[beam_idx]
-        replicated_prompts = [prompt] * self.candidates_per_beam
-
-        # Replicate KV cache if enabled
-        if self.use_kv_caching:
-            cur_kv_cache = self.top_beam_kv_caches[beam_idx]
-            replicated_kv_cache = self.generator.replicate_cache(cur_kv_cache, self.candidates_per_beam)
-        else:
-            replicated_kv_cache = None
+        beam = self.beams[beam_idx]
+        batch_size = self.batch_size or self.candidates_per_beam
 
         if self.verbose:
-            print(f"\n[Beam {beam_idx}] Generating {self.candidates_per_beam} candidates")
-            print(f"  Prompt: '{prompt[:50]}...' (len={len(prompt)})")
-            if self.use_kv_caching and replicated_kv_cache is not None:
-                kv = next(iter(replicated_kv_cache['mha'].key_value_memory_dict.values()))
-                offset = replicated_kv_cache['mha'].seqlen_offset
-                print("  Cache provided:")
-                print(f"    KV shape: {kv.shape}")
-                print(f"    KV device: {kv.device}")
-                print(f"    seqlen_offset: {offset}")
-            else:
-                print("  Cache: None (first segment, will build cache)")
-            print(f"  prepend_prompt: {prepend_prompt}")
+            self._log_beam_generation_start(beam_idx, beam)
 
-        self.generator.sample(
-            prompts=replicated_prompts,
-            prepend_prompt=prepend_prompt,
-            old_kv_cache=replicated_kv_cache,
-        )
+        candidates = []
+        for batch_start in range(0, self.candidates_per_beam, batch_size):
+            batch_count = min(batch_size, self.candidates_per_beam - batch_start)
 
-        # Collect generated sequences and KV caches
-        generated_sequences = [copy.deepcopy(seq) for seq in segment.candidate_sequences[:self.candidates_per_beam]]
-        
-        if self.verbose:
-            sample_seq = segment.candidate_sequences[0].sequence
-            print(f"  Generated sample: '{sample_seq[:50]}...' (len={len(sample_seq)})")
+            # Replicate prompt and KV cache for this batch
+            prompts = [beam.running_sequence] * batch_count
+            kv_cache = (
+                self.generator.replicate_cache(beam.kv_cache, batch_count)
+                if self.use_kv_caching and beam.kv_cache
+                else None
+            )
 
-        generated_kv_caches = self.generator.kv_caches if self.use_kv_caching else []
+            if self.verbose and batch_start == 0:
+                self._log_cache_state(kv_cache)
 
-        return generated_sequences, generated_kv_caches
+            # Generate candidates
+            self.generator.sample(prompts=prompts, prepend_prompt=prepend_prompt, old_kv_cache=kv_cache)
 
-    def _score_energy_active_constraints(self) -> None:
+            # Collect results from this batch
+            kv_caches = self.generator.kv_caches if self.use_kv_caching else [None] * batch_count
+            for i in range(batch_count):
+                generated_seq = self.segment.candidate_sequences[i].sequence
+                new_prompt = generated_seq if prepend_prompt else beam.running_sequence + generated_seq
+
+                candidates.append(BeamState(
+                    running_sequence=new_prompt,
+                    kv_cache=kv_caches[i],
+                    beam_scores=beam.beam_scores.copy(),
+                ))
+
+        return candidates
+
+    def _generate_and_score_with_resampling(
+        self,
+        prepend_prompt: bool = False
+    ) -> List[BeamState]:
         """
-        Score energy using only active constraints with all input segments populated.
+        Generate and score candidates, resampling beams until each has valid candidates.
 
-        Dynamically filters constraints to only evaluate those whose input segments
-        all have non-empty candidate pools. This enables multi-segment constraints
-        to work correctly as segments are generated sequentially by beam search.
-        """
-        # Filter to active constraints where all input segments have candidates
-        active_constraints = [
-            constraint for constraint in self.constraints
-            if all(seg.num_candidates > 0 for seg in constraint.inputs)
-        ]
-
-        # If no active constraints, set all energy scores to 0 and return
-        if not active_constraints:
-            self.energy_scores = [0.0] * self.num_candidates
-            return
-
-        # Temporarily use filtered constraints for scoring
-        orig_constraints = self.constraints
-        self.constraints = active_constraints
-        self.score_energy()
-
-        # Restore original constraints and weights
-        self.constraints = orig_constraints
-
-    def _generate_and_score_with_resampling(self, segment: Segment, prepend_prompt: bool = False) -> List[Dict]:
-        """
-        Generate and score candidates, resampling beams until each has candidates_per_beam valid candidates.
-        
-        Accumulates valid candidates across resampling attempts and selects the best by energy.
-        Always generates full batch size (candidates_per_beam) for each resample to maintain efficiency.
-        
         Args:
-            segment: Current segment being processed
             prepend_prompt: Whether to prepend prompt to generated sequences
-            
+
         Returns:
-            List of KV caches corresponding to final valid candidates in segment.candidate_sequences
-            
+            List of all valid candidate BeamStates with scores populated
+
         Raises:
-            RuntimeError: If unable to get all beams to produce enough valid candidates after max attempts
+            RuntimeError: If unable to get enough valid candidates after max attempts
         """
         # Track valid candidates per beam
-        beam_candidates = {b: [] for b in range(self.beam_width)}  # beam_idx -> [(seq, energy, kv_cache), ...]
-        
+        beam_candidates: Dict[int, List[BeamState]] = {b: [] for b in range(self.beam_width)}
+
         # Initial generation: Generate candidates for all beams
-        all_sequences = []
-        all_kv_caches = []
+        all_candidates = []
         for beam_idx in range(self.beam_width):
-            sequences, kv_caches = self._generate_candidates_for_beam(segment, beam_idx, prepend_prompt)
-            all_sequences.extend(sequences)
-            all_kv_caches.extend(kv_caches)
-        
-        segment.candidate_sequences = all_sequences
-        self._score_energy_active_constraints()
-        
-        # Collect valid candidates from initial generation
-        for i, energy in enumerate(self.energy_scores):
-            if not (math.isinf(energy) or math.isnan(energy)):
+            candidates = self._generate_candidates_for_beam(beam_idx, prepend_prompt)
+            all_candidates.extend(candidates)
+
+        # Score all candidates on their FULL accumulated sequences
+        self.segment.candidate_sequences = [
+            Sequence(sequence=beam.running_sequence, sequence_type=self.segment.sequence_type)
+            for beam in all_candidates
+        ]
+        self.score_energy()
+
+        # Collect valid candidates
+        for i, (candidate, score) in enumerate(zip(all_candidates, self.energy_scores)):
+            if not (math.isinf(score) or math.isnan(score)):
                 beam_idx = i // self.candidates_per_beam
-                beam_candidates[beam_idx].append((
-                    segment.candidate_sequences[i],
-                    energy,
-                    all_kv_caches[i] if self.use_kv_caching else None
-                ))
-        
+                candidate.beam_scores.append(score)
+                beam_candidates[beam_idx].append(candidate)
+
         # Resample beams until each has candidates_per_beam valid candidates
         for attempt in range(1, self.max_resample_attempts + 1):
-            beams_to_resample = [b for b in range(self.beam_width) 
+            beams_to_resample = [b for b in range(self.beam_width)
                                 if len(beam_candidates[b]) < self.candidates_per_beam]
-            
+
             if not beams_to_resample:
                 break  # All beams have enough valid candidates
-            
+
             if self.verbose:
                 counts = {b: len(beam_candidates[b]) for b in beams_to_resample}
                 print(f"  Resampling {len(beams_to_resample)} beams (attempt {attempt}): counts={counts}")
-            
+
             for beam_idx in beams_to_resample:
-                # Generate candidates for this single beam
-                sequences, kv_caches = self._generate_candidates_for_beam(segment, beam_idx, prepend_prompt)
-                segment.candidate_sequences = sequences
-                self._score_energy_active_constraints()
-                
-                # Collect ALL valid candidates from this generation to maximize selection quality
-                for i in range(self.candidates_per_beam):
-                    energy = self.energy_scores[i]
-                    if not (math.isinf(energy) or math.isnan(energy)):
-                        beam_candidates[beam_idx].append((
-                            segment.candidate_sequences[i],
-                            energy,
-                            kv_caches[i] if self.use_kv_caching else None
-                        ))
-        
+                candidates = self._generate_candidates_for_beam(beam_idx, prepend_prompt)
+
+                # Score candidates on their FULL accumulated sequences
+                self.segment.candidate_sequences = [
+                    Sequence(sequence=beam.running_sequence, sequence_type=self.segment.sequence_type)
+                    for beam in candidates
+                ]
+                self.score_energy()
+
+                for candidate, score in zip(candidates, self.energy_scores):
+                    if not (math.isinf(score) or math.isnan(score)):
+                        candidate.beam_scores.append(score)
+                        beam_candidates[beam_idx].append(candidate)
+
         # Verify each beam has at least candidates_per_beam valid candidates
-        insufficient_beams = [b for b in range(self.beam_width) 
+        insufficient_beams = [b for b in range(self.beam_width)
                              if len(beam_candidates[b]) < self.candidates_per_beam]
         if insufficient_beams:
             counts = {b: len(beam_candidates[b]) for b in insufficient_beams}
-            raise RuntimeError(f"After {self.max_resample_attempts} attempts, {len(insufficient_beams)} beams could not produce {self.candidates_per_beam} valid candidates: {counts}. Constraints may be too restrictive.")
-        
-        # Rebuild segment.candidate_sequences and energy_scores with exactly candidates_per_beam per beam
-        # Layout: beam_0_candidates + beam_1_candidates + ... + beam_N_candidates
-        segment.candidate_sequences = []
-        self.energy_scores = []
-        final_kv_caches = []
-        
+            raise RuntimeError(
+                f"After {self.max_resample_attempts} attempts, {len(insufficient_beams)} beams could not produce "
+                f"{self.candidates_per_beam} valid candidates: {counts}. Constraints may be too restrictive."
+            )
+
+        # Flatten and sort by energy to get all valid candidates
+        all_valid_candidates = []
         for beam_idx in range(self.beam_width):
-            # Sort this beam's candidates by energy (lower is better) and take top candidates_per_beam
-            beam_cands = sorted(beam_candidates[beam_idx], key=lambda x: x[1])[:self.candidates_per_beam]
-            
-            for seq, energy, kv in beam_cands:
-                # Deep copy only at final reconstruction to avoid unnecessary copies during collection
-                segment.candidate_sequences.append(copy.deepcopy(seq))
-                self.energy_scores.append(energy)
-                final_kv_caches.append(kv)
-        
-        return final_kv_caches
+            # Sort by most recent score and take top candidates_per_beam
+            sorted_candidates = sorted(
+                beam_candidates[beam_idx],
+                key=lambda b: b.beam_scores[-1]
+            )[:self.candidates_per_beam]
+            all_valid_candidates.extend(sorted_candidates)
 
-    def _select_topk(self, segment: Segment, all_kv_caches: List[Dict], prepend_prompt: bool = False) -> List[int]:
+        return all_valid_candidates
+
+    def _select_topk_beams(self, candidate_beams: List[BeamState]) -> None:
         """
-        Select top beam_width candidates by energy and update all beam search state.
-
-        1. Identifies top beam_width candidates by energy (lower is better)
-        2. Sets segment's selected_sequences and replicates them as candidates
-        3. Updates running prompts by extending with new tokens from selected sequences
-        4. Replicates energy_scores to match replicated candidate_sequences
+        Select top beam_width candidates and update beam states.
 
         Args:
-            segment: Current segment being processed
-            all_kv_caches: Updated KV caches for all generated candidates. Empty if KV caching is disabled.
-            prepend_prompt: Whether the prompt was prepended to generated sequences in this segment.
-                            If True, selected_seq.sequence already contains the full prompt+generation,
-                            so we replace running_prompts entirely. If False, we concatenate.
-
-        Returns:
-            List of indices for the top beam_width candidates
+            candidate_beams: All valid candidate BeamStates
         """
-        # 1. Get top beam_width candidates by energy
-        top_idx = np.argsort(self.energy_scores)[:self.beam_width].tolist()
-
-        # 2. Set selected sequences
-        segment.selected_sequences = [segment.candidate_sequences[i] for i in top_idx]
-
-        # 3. Replicate selected sequences as candidates
-        # This is required for subsequent evaluation of constraints applied across multiple segments
-        # since constraints applied across multiple segments concatenate across the candidate_sequences (batch) dimension.
-        segment.candidate_sequences = [
-            seq for selected_seq in segment.selected_sequences
-            for seq in [selected_seq] * self.candidates_per_beam
+        # Score candidates using aggregated scores
+        scored_candidates = [
+            (beam, self._get_aggregated_score(beam))
+            for beam in candidate_beams
         ]
 
-        # 4. Update running prompts from top candidates (stored in segment.selected_sequences)
-        # Candidates are generated sequentially per beam, so: beam_idx = candidate_idx // candidates_per_beam
-        if prepend_prompt:
-            # First segment with prepend_prompt=True: selected_seq.sequence already contains prompt+generation so replace running_prompts entirely (avoid duplication)
-            self.running_prompts = [selected_seq.sequence for selected_seq in segment.selected_sequences]
-        else:
-            # Subsequent segments: selected_seq.sequence contains only new tokens, concatenate
-            self.running_prompts = [
-                self.running_prompts[idx // self.candidates_per_beam] + selected_seq.sequence
-                for idx, selected_seq in zip(top_idx, segment.selected_sequences)
-            ]
+        # Select top beam_width and update scores
+        sorted_candidates = sorted(scored_candidates, key=lambda x: x[1])
+        self.beams = [beam for beam, _ in sorted_candidates[:self.beam_width]]
+        self.energy_scores = [score for _, score in sorted_candidates[:self.beam_width]]
 
-        # 5. Replicate energy scores to match replicated candidates
-        selected_energies = [self.energy_scores[i] for i in top_idx]
-        self.energy_scores = [
-            energy for selected_energy in selected_energies
-            for energy in [selected_energy] * self.candidates_per_beam
-        ]
+        if self.verbose:
+            print(f"Selected top {self.beam_width} beams:")
+            for i, (beam, score) in enumerate(sorted_candidates[:self.beam_width]):
+                print(f"  [{i}] score={score:.4f}, prompt_len={len(beam.running_sequence)}")
 
-        # 6. Update top beam KV caches if KV caching is enabled
-        if self.use_kv_caching:
-            self.top_beam_kv_caches = [all_kv_caches[idx] for idx in top_idx]
+    def _get_aggregated_score(self, beam: BeamState) -> float:
+        """Get aggregated score for a beam based on score_by setting."""
+        if not beam.beam_scores:
+            return 0.0
+        return float(np.mean(beam.beam_scores)) if self.score_by == "mean" else beam.beam_scores[-1]
 
-        return top_idx
+    ###########
+    # LOGGING #
+    ###########
 
-    def _log_beamsearch_progress(self, segment_idx: int, segment: Segment, top_idx: List[int]) -> None:
+    def _log_beamsearch_progress(self, beam_idx: int) -> None:
         """
-        Log progress information for a segment during beam search.
-
-        Args:
-            segment_idx: Index of the current segment
-            segment: The current segment being processed
-            top_idx: Indices of the top beam_width selected candidates
+        Log progress information for a beam during beam search.
         """
-        num_prompts = self.beam_width * self.candidates_per_beam
-        print(f"\n--- Segment {segment_idx + 1}/{len(self.construct.segments)} ---")
-        print(f"Generated {segment.num_candidates} candidates using {num_prompts} prompts ({self.beam_width} beams x {self.candidates_per_beam} candidates per beam)")
+        print(f"Completed beam {beam_idx + 1}/{self.num_beams}")
+        print(f"Top {self.beam_width} beams by {self.score_by} score:")
 
-        for i, sequence in enumerate(segment.candidate_sequences):
-            seq_preview = sequence.sequence[:50] + ('...' if len(sequence.sequence) > 50 else '')
-            print(f"  [{i}]: {seq_preview}")
-
-        print(f"Evaluated {len(self.energy_scores)} candidates")
-        best_energy = self.energy_scores[top_idx[0]]
-        worst_energy = self.energy_scores[top_idx[-1]]
-        print(f"Selected top {self.beam_width} sequences (energy range: {best_energy:.4f} - {worst_energy:.4f})")
-
-        for rank, idx in enumerate(top_idx):
-            seq = segment.candidate_sequences[idx]
-            energy = self.energy_scores[idx]
-            beam_idx = idx // self.candidates_per_beam
-            seq_preview = seq.sequence[:50] + ('...' if len(seq.sequence) > 50 else '')
-            print(f"  [{rank+1}] From beam {beam_idx}: '{seq_preview}' (energy: {energy:.4f})")
+        for i, beam in enumerate(self.beams):
+            agg_score = self._get_aggregated_score(beam)
+            last_score = beam.beam_scores[-1] if beam.beam_scores else 0.0
+            prompt_preview = beam.running_sequence[:50] + ('...' if len(beam.running_sequence) > 50 else '')
+            print(f"  [{i}] agg={agg_score:.4f}, last={last_score:.4f}, len={len(beam.running_sequence)}: '{prompt_preview}'")
 
         if self.custom_logging:
-            self.custom_logging(segment_idx, self.segments)
+            self.custom_logging(beam_idx, self.segments)
         sys.stdout.flush()
+
+    def _log_beam_generation_start(self, beam_idx: int, beam: BeamState) -> None:
+        """Log the start of candidate generation for a beam."""
+        print(f"\n[Beam {beam_idx}] Generating {self.candidates_per_beam} candidates")
+        print(f"  Prompt length: {len(beam.running_sequence)}")
+        if self.batch_size:
+            print(f"  Batch size: {self.batch_size}")
+
+    def _log_cache_state(self, kv_cache: Optional[Dict]) -> None:
+        """Log KV cache state for debugging."""
+        if kv_cache:
+            kv = next(iter(kv_cache['mha'].key_value_memory_dict.values()))
+            print(f"  Cache: KV shape={kv.shape}, seqlen_offset={kv_cache['mha'].seqlen_offset}")
+        else:
+            print("  Cache: None (first beam, will build cache)")
+
+    def _log_run_start(self) -> None:
+        """Log beam search configuration at the start of run()."""
+        print(f"Processing segment with {self.num_beams} beams (beam_length={self.beam_length})")
+        print(f"Total tokens to generate: {self.total_tokens}")
+        print(f"Beam width: {self.beam_width}, Candidates per beam: {self.candidates_per_beam}")
+        print(f"Score by: {self.score_by}")
+        print(f"KV caching: {'enabled' if self.use_kv_caching else 'disabled'}")
