@@ -401,4 +401,4 @@ class TestBeamSearchOptimizerGPU:
         print(f"  Speedup: {speedup:.2f}x")
 
         # KV caching should be faster
-        assert time_cached < time_uncached * 1.5, f"KV caching should be faster: {time_cached:.2f}s vs {time_uncached:.2f}s"
+        assert time_cached * 1.3 < time_uncached, f"KV caching should be 1.3x faster: {time_cached:.2f}s vs {time_uncached:.2f}s"
