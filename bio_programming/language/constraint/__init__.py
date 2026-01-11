@@ -33,6 +33,14 @@ from .protein_quality import (
     protein_domain_constraint,
 )
 
+# RNA secondary structure constraints
+from .rna_secondary_structure import (
+    rna_property_similarity_constraint,
+    rna_motif_similarity_constraint,
+    rna_feature_similarity_constraint,
+    rna_basepair_similarity_constraint,
+)
+
 # RNA splicing constraints
 from .rna_splicing import (
     splice_transformer_intron_boundary,
@@ -79,6 +87,11 @@ __all__ = [
     "sigma70_promoter_constraint",
     "seq_motif_constraint",
     "promoter_strength_constraint",
+    # RNA secondary structure
+    "rna_property_similarity_constraint",
+    "rna_motif_similarity_constraint",
+    "rna_feature_similarity_constraint",
+    "rna_basepair_similarity_constraint",
     # RNA splicing
     "splice_transformer_intron_boundary",
     "splice_transformer_specificity",
