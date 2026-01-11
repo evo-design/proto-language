@@ -377,7 +377,6 @@ def rna_property_similarity_constraint(
     # Fold reference
     ref_results = _fold_sequences([config.reference_sequence], config.temperature)
     ref_structure, _ = ref_results[0]
-
     if not ref_structure:
         logger.warning("Reference folding failed, returning worst scores")
         return [1.0] * len(candidates)
@@ -451,6 +450,9 @@ def rna_motif_similarity_constraint(
     # Fold reference
     ref_results = _fold_sequences([config.reference_sequence], config.temperature)
     ref_structure, _ = ref_results[0]
+    if not ref_structure:
+        logger.warning("Reference folding failed, returning worst scores")
+        return [1.0] * len(candidates)
     ref_motifs = set(_extract_structural_motifs(ref_structure))
 
     # Fold all candidates
@@ -459,6 +461,10 @@ def rna_motif_similarity_constraint(
 
     scores = []
     for (cand_structure, _), seq in zip(cand_results, candidates):
+        if not cand_structure:
+            scores.append(1.0)
+            continue
+
         cand_motifs = set(_extract_structural_motifs(cand_structure))
 
         # Jaccard similarity
@@ -510,6 +516,9 @@ def rna_feature_similarity_constraint(
     # Fold reference
     ref_results = _fold_sequences([config.reference_sequence], config.temperature)
     ref_structure, ref_mfe = ref_results[0]
+    if not ref_structure:
+        logger.warning("Reference folding failed, returning worst scores")
+        return [1.0] * len(candidates)
     ref_features = _extract_structure_features(ref_structure, ref_mfe)
     ref_norm = np.linalg.norm(ref_features)
 
@@ -519,6 +528,10 @@ def rna_feature_similarity_constraint(
 
     scores = []
     for (cand_structure, cand_mfe), seq in zip(cand_results, candidates):
+        if not cand_structure:
+            scores.append(1.0)
+            continue
+
         cand_features = _extract_structure_features(cand_structure, cand_mfe)
         cand_norm = np.linalg.norm(cand_features)
 
@@ -569,6 +582,9 @@ def rna_basepair_similarity_constraint(
     # Fold reference
     ref_results = _fold_sequences([config.reference_sequence], config.temperature)
     ref_structure, _ = ref_results[0]
+    if not ref_structure:
+        logger.warning("Reference folding failed, returning worst scores")
+        return [1.0] * len(candidates)
     ref_pairs = _get_base_pairs(ref_structure)
     ref_len = len(ref_structure)
 
@@ -578,6 +594,10 @@ def rna_basepair_similarity_constraint(
 
     scores = []
     for (cand_structure, _), seq in zip(cand_results, candidates):
+        if not cand_structure:
+            scores.append(1.0)
+            continue
+
         cand_len = len(cand_structure)
 
         # Check length ratio
