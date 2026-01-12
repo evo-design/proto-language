@@ -24,6 +24,8 @@ from .generator import (
     ProGen2GeneratorConfig,
     ProteinMPNNGenerator,
     ProteinMPNNGeneratorConfig,
+    LigandMPNNGenerator,
+    LigandMPNNGeneratorConfig,
 )
 
 from .optimizer import (
@@ -66,6 +68,8 @@ __all__ = [
     "ProGen2GeneratorConfig",
     "ProteinMPNNGenerator",
     "ProteinMPNNGeneratorConfig",
+    "LigandMPNNGenerator",
+    "LigandMPNNGeneratorConfig",
     # Optimizer registry
     "OptimizerRegistry",
     "OptimizerSpec",

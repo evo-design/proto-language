@@ -70,7 +70,7 @@ proteinmpnn_generator_config = ProteinMPNNGeneratorConfig(
     dynamic_structure_path=True,
     chain_ids=['A'],
     temperature=0.1,
-    unallowed_amino_acids=['C'],
+    excluded_amino_acids=['C'],
 )
 proteinmpnn_generator = ProteinMPNNGenerator(proteinmpnn_generator_config)
 proteinmpnn_generator.assign(protein)

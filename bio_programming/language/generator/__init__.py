@@ -34,6 +34,10 @@ from .proteinmpnn_generator import (
     ProteinMPNNGenerator,
     ProteinMPNNGeneratorConfig,
 )
+from .ligandmpnn_generator import (
+    LigandMPNNGenerator,
+    LigandMPNNGeneratorConfig,
+)
 
 __all__ = [
     # Registry
@@ -56,4 +60,6 @@ __all__ = [
     # Inverse folding generators
     "ProteinMPNNGenerator",
     "ProteinMPNNGeneratorConfig",
+    "LigandMPNNGenerator",
+    "LigandMPNNGeneratorConfig",
 ]

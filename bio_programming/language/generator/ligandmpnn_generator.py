@@ -1,44 +1,51 @@
 """
-ProteinMPNN Generator for structure-conditioned protein sequence design.
+LigandMPNN Generator for ligand-aware protein sequence design.
+
+LigandMPNN extends ProteinMPNN to consider ligand context when designing
+protein sequences, making it particularly effective for enzyme design
+and binding site optimization.
 """
 from __future__ import annotations
 
 import os
-from pydantic import model_validator
-from typing import final, Optional, Dict, List
+from typing import Dict, final, List, Optional
 
-from proto_language.language.core import Generator
+from pydantic import model_validator
+
 from proto_language.base_config import BaseConfig, ConfigField
+from proto_language.language.core import Generator
 from proto_language.language.generator.generator_registry import GeneratorRegistry
-from proto_language.tools.inverse_folding.proteinmpnn import run_proteinmpnn_sample
-from proto_language.tools.inverse_folding.schemas import (
-    InverseFoldingInput,
-    InverseFoldingConfig,
+from proto_language.tools.inverse_folding.ligandmpnn import (
+    LigandMPNNConfig,
+    run_ligandmpnn_sample,
 )
+from proto_language.tools.inverse_folding.schemas import InverseFoldingInput
 from proto_language.tools.structures import ProteinStructure
 
 
-class ProteinMPNNGeneratorConfig(BaseConfig):
-    """Configuration object for ProteinMPNNGenerator.
+class LigandMPNNGeneratorConfig(BaseConfig):
+    """Configuration object for LigandMPNNGenerator.
 
-    This class defines configuration parameters for the ProteinMPNN generator, which
-    uses the ProteinMPNN inverse folding model to design protein sequences conditioned
-    on a given 3D backbone structure.
+    This class defines configuration parameters for the LigandMPNN generator, which
+    uses the LigandMPNN inverse folding model to design protein sequences conditioned
+    on a given 3D backbone structure and ligand context.
 
-    ProteinMPNN is a message-passing neural network that predicts amino acid sequences
-    likely to fold into a specified protein backbone structure. It excels at redesigning
-    existing proteins while maintaining structural compatibility.
+    LigandMPNN extends ProteinMPNN to be aware of non-protein atoms (ligands, cofactors,
+    metal ions), making it particularly effective for:
+
+    - Enzyme active site design
+    - Binding pocket optimization
+    - Cofactor-dependent protein design
 
     Attributes:
         structure (str | ProteinStructure): Protein structure to condition
             sequence design on. Accepts multiple formats:
 
-            - Path to a PDB file (e.g., ``"/path/to/protein.pdb"``)
+            - Path to a PDB/CIF file (e.g., ``"/path/to/protein.pdb"``)
             - PDB content as a string
             - ``ProteinStructure`` instance
 
-            The structure defines the backbone geometry that designed sequences
-            should be compatible with.
+            The structure should include ligand atoms for ligand-aware design.
 
         chain_ids (Optional[List[str]]): Chain identifiers to design sequences for.
             If ``None``, automatically detects and uses all chains in the structure.
@@ -47,7 +54,7 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
             Default: ``None``.
 
         dynamic_structure_path (bool): If true, and ``structure`` is set to a valid
-            path, then this configures ``ProteinMPNNGenerator `` to dynamically load
+            path, then this configures ``LigandMPNNGenerator`` to dynamically load
             the PDB from the path on each call to ``sample()``, which is useful for
             optimization loops that continuously change the protein structure.
             Default: ``False``.
@@ -101,15 +108,15 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
             and sequence generation. Default: ``False``.
 
     Note:
-        For detailed information on ProteinMPNN, see:
+        For detailed information on LigandMPNN, see:
 
-        - Paper: Dauparas et al. "Robust deep learning-based protein sequence
-          design using ProteinMPNN" Science (2022)
-        - GitHub: https://github.com/dauparas/ProteinMPNN
+        - Paper: Dauparas et al. "Atomic context-conditioned protein sequence
+          design using LigandMPNN" (2023)
+        - The model considers ligand atoms within ~4Å of protein residues
 
     Example:
-        >>> config = ProteinMPNNGeneratorConfig(
-        ...     structure="/path/to/backbone.pdb",
+        >>> config = LigandMPNNGeneratorConfig(
+        ...     structure="/path/to/enzyme_with_ligand.pdb",
         ...     temperature=0.1,
         ...     fixed_positions={"A": [1, 2, 3]},  # Keep N-terminal residues
         ...     excluded_amino_acids=["C"],  # No cysteines
@@ -131,7 +138,7 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
     dynamic_structure_path: bool = ConfigField(
         default=False,
         title="Dynamic Structure Path",
-        description="Whether to reload the structure from a PDB file on each call to sample()"
+        description="Whether to reload the structure from a PDB file on each call to sample()",
     )
     temperature: float = ConfigField(
         default=0.1,
@@ -172,56 +179,58 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
         hidden=True,
     )
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_dynamic_structure_config(self):
         """Validate that dynamic structures have been set correctly."""
         if self.dynamic_structure_path:
             if not os.path.exists(self.structure):
-                raise ValueError(f"Dynamic structure configuration requires a valid structure path, found: {self.structure}")
+                raise ValueError(
+                    f"Dynamic structure configuration requires a valid structure path, found: {self.structure}"
+                )
         return self
 
 
 @GeneratorRegistry.register(
-    key="proteinmpnn",
-    label="ProteinMPNN Inverse Folding",
-    config=ProteinMPNNGeneratorConfig,
-    description="ProteinMPNN structure-conditioned protein sequence design",
+    key="ligandmpnn",
+    label="LigandMPNN Inverse Folding",
+    config=LigandMPNNGeneratorConfig,
+    description="LigandMPNN structure-conditioned protein sequence design with ligand awareness",
     requires_gpu=True,
-    tools_called=["proteinmpnn-sample"],
+    tools_called=["ligandmpnn-sample"],
     category="autoregressive",
     supported_sequence_types=["protein"],
 )
 @final
-class ProteinMPNNGenerator(Generator):
-    """Protein sequence generator using ProteinMPNN inverse folding model.
+class LigandMPNNGenerator(Generator):
+    """Protein sequence generator using LigandMPNN inverse folding model.
 
-    This generator uses ProteinMPNN to design protein sequences that are predicted
-    to fold into a given 3D backbone structure. Unlike mutation-based generators
-    that refine existing sequences, ProteinMPNN generates sequences directly from
-    structural information.
+    This generator uses LigandMPNN to design protein sequences that are predicted
+    to fold into a given 3D backbone structure while considering ligand context.
+    Unlike ProteinMPNN, LigandMPNN is aware of non-protein atoms (ligands, cofactors,
+    metal ions) in the structure.
 
-    ProteinMPNN is particularly effective for:
+    LigandMPNN is particularly effective for:
 
-    - Redesigning existing proteins while maintaining fold
-    - Designing sequences for computationally generated backbones
-    - Creating sequence diversity for experimental screening
-    - Stabilizing protein structures through sequence optimization
+    - Designing enzymes with specific active site geometries
+    - Optimizing binding pockets around ligands
+    - Creating sequences for cofactor-dependent proteins
+    - Redesigning protein-ligand interfaces
 
     Example:
-        >>> from proto_language.language.generator import ProteinMPNNGenerator, ProteinMPNNGeneratorConfig
+        >>> from proto_language.language.generator import LigandMPNNGenerator, LigandMPNNGeneratorConfig
         >>> from proto_language.language.core import Segment
-        >>> config = ProteinMPNNGeneratorConfig(
-        ...     structure="/path/to/backbone.pdb",
+        >>> config = LigandMPNNGeneratorConfig(
+        ...     structure="/path/to/enzyme_with_ligand.pdb",
         ...     temperature=0.1,
         ... )
-        >>> gen = ProteinMPNNGenerator(config)
+        >>> gen = LigandMPNNGenerator(config)
         >>> segment = Segment(length=100, sequence_type="protein")
         >>> gen.assign(segment)
-        >>> gen.sample()  # Generates sequences compatible with the backbone
+        >>> gen.sample()  # Generates sequences compatible with the backbone and ligand
     """
 
-    def __init__(self, config: ProteinMPNNGeneratorConfig) -> None:
-        """Initialize the ProteinMPNN generator with structure and sampling configuration.
+    def __init__(self, config: LigandMPNNGeneratorConfig) -> None:
+        """Initialize the LigandMPNN generator with structure and sampling configuration.
 
         Args:
             config: Configuration object containing all generator parameters.
@@ -249,8 +258,7 @@ class ProteinMPNNGenerator(Generator):
             self._load_and_validate_structure()
 
         # Store metrics from last sample call
-        self._last_perplexities: Optional[List[float]] = None
-        self._last_sequence_identities: Optional[List[float]] = None
+        self._last_scores: Optional[List[Dict[str, object]]] = None
 
     def _load_and_validate_structure(self) -> None:
         """
@@ -261,7 +269,9 @@ class ProteinMPNNGenerator(Generator):
         if isinstance(self.config_structure, ProteinStructure):
             self.structure = self.config_structure
         else:
-            self.structure = ProteinStructure(structure_filepath_or_content=self.config_structure)
+            self.structure = ProteinStructure(
+                structure_filepath_or_content=self.config_structure
+            )
 
         # Auto-detect chain IDs if not provided.
         if self.chain_ids is None:
@@ -288,18 +298,13 @@ class ProteinMPNNGenerator(Generator):
                 )
 
     def sample(self) -> None:
-        """Generate protein sequences conditioned on the assigned structure.
+        """Generate protein sequences conditioned on the assigned structure and ligand context.
 
-        Uses ProteinMPNN to design sequences for all candidates in the batch.
+        Uses LigandMPNN to design sequences for all candidates in the batch.
         The number of sequences generated equals the number of candidate
         sequences in the assigned segment.
 
-        After sampling, per-sequence metrics are available via:
-
-        - ``self._last_perplexities``: ProteinMPNN perplexity scores
-        - ``self._last_sequence_identities``: Sequence identity to original
-
-        The above are also added to the sequence metadata.
+        After sampling, per-sequence metrics are available via ``self.last_scores``.
 
         Raises:
             RuntimeError: If called before assign().
@@ -314,58 +319,39 @@ class ProteinMPNNGenerator(Generator):
             structures=[self.structure],
             all_chain_ids=[self.chain_ids],
         )
-        tool_config = InverseFoldingConfig(
+        tool_config = LigandMPNNConfig(
             batch_size=num_candidates,
             temperature=self.temperature,
             fixed_positions=self.fixed_positions,
             excluded_amino_acids=self.excluded_amino_acids,
             seed=self.seed,
             device=self.device,
-            keep_on_gpu=True,  # Keep for repeated calls.
             verbose=self.verbose,
         )
 
-        result = run_proteinmpnn_sample(inputs=tool_input, config=tool_config)
+        result = run_ligandmpnn_sample(inputs=tool_input, config=tool_config)
 
         # Extract sequences and metrics from first (only) structure result.
         designed = result.designed_sequences[0]
         generated_sequences = designed.sequences
-
-        # Store metrics for potential downstream use.
-        self._last_perplexities = designed.mpnn_perplexity
-        self._last_sequence_identities = designed.sequence_identity
+        self._last_scores = designed.ligandmpnn_scores
 
         # Update candidate sequences.
         for idx, sequence in enumerate(generated_sequences):
             if idx < len(self._assigned_segment.candidate_sequences):
                 candidate = self._assigned_segment.candidate_sequences[idx]
                 candidate.sequence = sequence
-                candidate._metadata.update({
-                    "proteinmpnn_perplexity": self._last_perplexities[idx],
-                    "proteinmpnn_sequence_identity": self._last_sequence_identities[idx],
-                })
+                if self._last_scores and idx < len(self._last_scores):
+                    candidate._metadata.update(
+                        {"ligandmpnn_scores": self._last_scores[idx]}
+                    )
 
     @property
-    def last_perplexities(self) -> Optional[List[float]]:
-        """Get ProteinMPNN perplexity scores from the last sample() call.
-
-        Lower perplexity indicates higher model confidence in the designed sequence.
+    def last_scores(self) -> Optional[List[Dict[str, object]]]:
+        """Get LigandMPNN scores from the last sample() call.
 
         Returns:
-            List of perplexity values, one per generated sequence, or None if
+            List of score dictionaries, one per generated sequence, or None if
             sample() has not been called.
         """
-        return self._last_perplexities
-
-    @property
-    def last_sequence_identities(self) -> Optional[List[float]]:
-        """Get sequence identity to original structure from the last sample() call.
-
-        Measures similarity between designed sequences and the sequence in the
-        input PDB structure.
-
-        Returns:
-            List of sequence identity values (0-1), one per generated sequence,
-            or None if sample() has not been called.
-        """
-        return self._last_sequence_identities
+        return self._last_scores

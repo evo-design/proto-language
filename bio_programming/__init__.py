@@ -62,6 +62,8 @@ from .language.generator import (
     ProGen2GeneratorConfig,
     ProteinMPNNGenerator,
     ProteinMPNNGeneratorConfig,
+    LigandMPNNGenerator,
+    LigandMPNNGeneratorConfig,
 )
 from .language.optimizer import (
     # Registry
@@ -126,6 +128,10 @@ from .tools import (
     ProdigalOrf,
     ProdigalOutput,
     run_prodigal_prediction,
+    # LigandMPNN tools
+    run_ligandmpnn_sample,
+    LigandMPNNConfig,
+    LigandMPNNSequences,
     # Structure prediction tools
     run_boltz,
     BoltzConfig,
@@ -219,8 +225,11 @@ __all__ = [
     "ESM3GeneratorConfig",
     "ProGen2Generator",
     "ProGen2GeneratorConfig",
+    # Inverse folding generators
     "ProteinMPNNGenerator",
     "ProteinMPNNGeneratorConfig",
+    "LigandMPNNGenerator",
+    "LigandMPNNGeneratorConfig",
     # Optimizer registry
     "OptimizerRegistry",
     "OptimizerSpec",
@@ -280,6 +289,10 @@ __all__ = [
     "ProdigalOrf",
     "ProdigalOutput",
     "run_prodigal_prediction",
+    # LigandMPNN tools
+    "run_ligandmpnn_sample",
+    "LigandMPNNConfig",
+    "LigandMPNNSequences",
     # Structure prediction tools
     "run_boltz",
     "BoltzConfig",
