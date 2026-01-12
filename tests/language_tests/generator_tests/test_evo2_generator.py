@@ -67,22 +67,22 @@ class TestEvo2Generator:
         expected_length = len(prompts_single[0]) + 100
         config_single = Evo2GeneratorConfig(prompts=prompts_single)
         evo2_generator_single = Evo2Generator(config_single)
-        
+
         segment_two_candidates = Segment(length=expected_length, sequence_type="dna")
         segment_two_candidates.candidate_sequences = [copy.deepcopy(segment_two_candidates.original_sequence) for _ in range(2)]
         evo2_generator_single.assign(segment_two_candidates)
         # Single prompt should be replicated for 2 candidates - no error
         evo2_generator_single.sample()
-        
+
         # Test 2: Mismatched multiple prompts (should raise error)
         prompts_multi = ["ATCG", "GGCC", "TTAA"]  # 3 prompts (same length)
         config_multi = Evo2GeneratorConfig(prompts=prompts_multi)
         evo2_generator_multi = Evo2Generator(config_multi)
-        
+
         segment_two_candidates2 = Segment(length=expected_length, sequence_type="dna")
         segment_two_candidates2.candidate_sequences = [copy.deepcopy(segment_two_candidates2.original_sequence) for _ in range(2)]
         evo2_generator_multi.assign(segment_two_candidates2)
-        
+
         # 3 prompts but 2 candidates - should raise ValueError
         with pytest.raises(ValueError, match="must either be 1"):
             evo2_generator_multi.sample()
@@ -114,6 +114,34 @@ class TestEvo2Generator:
         assert segment[0].sequence is not None
         assert segment[0].sequence_type == "dna"
 
+    def test_evo2_batch_size_parameter(self):
+        """Test Evo2 generator with custom batch_size for GPU memory management."""
+        # Create more prompts than batch_size to test batching
+        prompts = ["ATCG"] * 5  # 5 identical prompts
+        num_tokens = 50
+        expected_length = len(prompts[0]) + num_tokens
+        config = Evo2GeneratorConfig(
+            prompts=prompts,
+            batch_size=2,  # Process 2 at a time
+        )
+        evo2_generator = Evo2Generator(config)
+
+        # Create segment with matching candidate pool
+        segment = Segment(length=expected_length, sequence_type="dna")
+        segment.candidate_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(len(prompts))]
+        evo2_generator.assign(segment)
+
+        assert evo2_generator.batch_size == 2
+
+        # Sample and check all results were generated
+        evo2_generator.sample()
+
+        for i in range(len(prompts)):
+            assert segment.candidate_sequences[i].sequence is not None
+            assert len(segment.candidate_sequences[i].sequence) > len(prompts[i])
+            assert segment.candidate_sequences[i].sequence_type == "dna"
+
+
 class TestEvo2GeneratorValidation:
     """Test sequence type validation for Evo2 generator."""
 
@@ -122,7 +150,7 @@ class TestEvo2GeneratorValidation:
         config = Evo2GeneratorConfig(prompts="ATGC")
         generator = Evo2Generator(config)
         segment = Segment(length=100, sequence_type="dna")
-        
+
         # Should not raise
         generator.assign(segment)
         assert generator._assigned_segment is segment
@@ -132,10 +160,10 @@ class TestEvo2GeneratorValidation:
         config = Evo2GeneratorConfig(prompts="ATGC")
         generator = Evo2Generator(config)
         segment = Segment(length=100, sequence_type="protein")
-        
+
         with pytest.raises(ValueError) as exc_info:
             generator.assign(segment)
-        
+
         error_msg = str(exc_info.value)
         assert "does not support sequence type" in error_msg
         assert "protein" in error_msg.lower()
@@ -146,9 +174,17 @@ class TestEvo2GeneratorValidation:
         config = Evo2GeneratorConfig(prompts="ATGC")
         generator = Evo2Generator(config)
         segment = Segment(length=100, sequence_type="rna")
-        
+
         with pytest.raises(ValueError) as exc_info:
             generator.assign(segment)
-        
+
         assert "does not support sequence type" in str(exc_info.value)
         assert "rna" in str(exc_info.value).lower()
+
+    def test_batch_size_config(self):
+        """Test that batch_size parameter is properly set in config and generator."""
+        config = Evo2GeneratorConfig(prompts="ATGC", batch_size=5)
+        generator = Evo2Generator(config)
+
+        assert config.batch_size == 5
+        assert generator.batch_size == 5

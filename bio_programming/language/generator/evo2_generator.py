@@ -63,6 +63,10 @@ class Evo2GeneratorConfig(BaseConfig):
             are provided. Batched generation is faster but requires all prompts
             to have the same length. Default: ``True``.
 
+        batch_size (Optional[int]): Number of sequences to sample at once on the GPU.
+            ``batched` must be True. If not provided, puts all sequences on the GPU.
+            Default: ``None``.
+
         cached_generation (bool): Whether to use KV caching for faster generation.
             Caching stores intermediate states to avoid recomputation.
             Default: ``True``.
@@ -145,6 +149,13 @@ class Evo2GeneratorConfig(BaseConfig):
         description="Whether to use batched generation, set to true if # of prompts > 1.",
         hidden=True,
     )
+    batch_size: Optional[int] = ConfigField(
+        title="Batch Size",
+        default=None,
+        ge=1,
+        description="Max number of samples on the GPU at once",
+        advanced=True,
+    )
     cached_generation: bool = ConfigField(
         default=True,
         title="Cached Generation",
@@ -175,7 +186,7 @@ class Evo2GeneratorConfig(BaseConfig):
     def normalize_prompts(cls, v):
         """Convert single string to list for consistent internal handling."""
         return [v] if isinstance(v, str) else v
-    
+
     @model_validator(mode='after')
     def validate_prompts_length(self):
         """Validate that all prompts have the same length."""
@@ -253,6 +264,7 @@ class Evo2Generator(Generator):
         self.verbose = config.verbose
         self.cached_generation = config.cached_generation
         self.batched = config.batched
+        self.batch_size = config.batch_size
         self.store_kv_cache = config.store_kv_cache
         self.prepend_prompt = config.prepend_prompt
         self.num_tokens: Optional[int] = None # num_tokens will be calculated dynamically on assign()
@@ -284,11 +296,11 @@ class Evo2Generator(Generator):
         Args:
             prompts: Optional list of prompt sequences to use instead of self.prompts.
             prepend_prompt: Optional boolean to prepend prompts to generated sequences.
-            old_kv_cache: Optional cache state to continue from (batched format). 
+            old_kv_cache: Optional cache state to continue from (batched format).
         """
         # Use provided prompts or fall back to the default prompt
         sampling_prompts = prompts if prompts is not None else self.prompts
-        
+
         # When prompts are explicitly provided, use their count directly.
         # This allows beam search optimizers to generate candidates in batches.
         if prompts is not None:
@@ -319,7 +331,8 @@ class Evo2Generator(Generator):
             stop_at_eos=self.stop_at_eos,
             old_kv_cache=old_kv_cache,
             keep_on_gpu=True,  # Keep for repeated calls
-            batched=True,
+            batched=self.batched,
+            batch_size=self.batch_size,
         )
 
         # Run the sampling tool
