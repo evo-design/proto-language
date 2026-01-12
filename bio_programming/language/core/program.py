@@ -134,25 +134,10 @@ class Program:
         Each optimizer builds on the results of the previous one. State automatically
         persists between optimizers through the shared construct objects.
 
-        Prints initial state before first optimizer, intermediate states between
-        optimizers, and final state after all optimizers complete.
+        Also prints final state after all optimizers complete.
         """
         for optimizer_idx, optimizer in enumerate(self.optimizers):
             optimizer._initialize_sequence_pools()
-
-            # Calculate initial energy scores for this optimizer
-            optimizer.score_energy()
-
-            # Print initial state
-            print(f"Initial state for optimizer {optimizer_idx + 1}:")
-            num_seqs = len(self.constructs[0].joined_sequences)
-            for seq_idx in range(num_seqs):
-                energy = optimizer.energy_scores[seq_idx]
-                print(f"  [{seq_idx}] Energy: {energy:.4f}")
-                for construct_idx, construct in enumerate(self.constructs):
-                    seq = construct.joined_sequences[seq_idx]
-                    seq_preview = seq[:80] + ('...' if len(seq) > 80 else '')
-                    print(f"    Construct {construct_idx}: {seq_preview}")
 
             # Run this optimizer
             optimizer.run()
@@ -213,17 +198,6 @@ class Program:
         optimizer = self.optimizers[stage_index]
 
         optimizer._initialize_sequence_pools()
-        optimizer.score_energy()
-
-        print(f"Initial state for optimizer {stage_index + 1}:")
-        num_seqs = len(self.constructs[0].joined_sequences)
-        for seq_idx in range(num_seqs):
-            energy = optimizer.energy_scores[seq_idx]
-            print(f"  [{seq_idx}] Energy: {energy:.4f}")
-            for construct_idx, construct in enumerate(self.constructs):
-                seq = construct.joined_sequences[seq_idx]
-                seq_preview = seq[:80] + ('...' if len(seq) > 80 else '')
-                print(f"    Construct {construct_idx}: {seq_preview}")
 
         optimizer.run()
 
