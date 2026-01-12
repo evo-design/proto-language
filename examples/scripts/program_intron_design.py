@@ -380,11 +380,9 @@ if __name__ == '__main__':
 
     if args.intron_generator == "evo2":
         optimizer_config = TopKOptimizerConfig(
-            min_num_samples=args.n_steps,
+            num_samples=args.n_steps,
             k=args.n_steps,
             batch_size=1,
-            energy_threshold=None,
-            max_num_samples=args.n_steps,
             verbose=True,
         )
         optimizer = TopKOptimizer(

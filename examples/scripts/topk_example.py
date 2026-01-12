@@ -43,9 +43,9 @@ def custom_logger(round_idx, segments):
         for j, seq in enumerate(segment.selected_sequences):
             print(seq._metadata)
 
-# Configure TopK optimizer
+# Configure TopK optimizer (standard mode)
 topk_config = TopKOptimizerConfig(
-    min_num_samples=100, 
+    num_samples=100, 
     k=3,            
     batch_size=20,
     verbose=True, 

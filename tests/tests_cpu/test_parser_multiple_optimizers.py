@@ -26,7 +26,7 @@ def test_parse_single_optimizer():
                 "optimizer": {
                     "method": "topk",
                     "config": {
-                        "min_num_samples": 10,
+                        "num_samples": 10,
                         "k": 3,
                         "batch_size": 2
                     }
@@ -62,7 +62,7 @@ def test_parse_single_optimizer():
 
     # Verify optimizer config
     optimizer = program.optimizers[0]
-    assert optimizer.min_num_samples == 10
+    assert optimizer.num_samples == 10
     assert optimizer.k == 3
     assert optimizer.batch_size == 2
 
@@ -94,7 +94,7 @@ def test_parse_multiple_optimizers():
                 "optimizer": {
                     "method": "topk",
                     "config": {
-                        "min_num_samples": 10,
+                        "num_samples": 10,
                         "k": 3,
                         "batch_size": 2
                     }
@@ -160,7 +160,7 @@ def test_parse_multiple_optimizers():
 
     # Verify first optimizer
     opt1 = program.optimizers[0]
-    assert opt1.min_num_samples == 10
+    assert opt1.num_samples == 10
     assert opt1.k == 3
     assert opt1.batch_size == 2
     assert len(opt1.generators) == 1
@@ -286,7 +286,7 @@ def test_parse_missing_generators_in_stage():
             {
                 "optimizer": {
                     "method": "topk",
-                    "config": {"min_num_samples": 10, "k": 3, "batch_size": 2}
+                    "config": {"num_samples": 10, "k": 3, "batch_size": 2}
                 },
                 "constraints": []
             }
@@ -313,7 +313,7 @@ def test_parse_missing_constraints_in_stage():
             {
                 "optimizer": {
                     "method": "topk",
-                    "config": {"min_num_samples": 10, "k": 3, "batch_size": 2}
+                    "config": {"num_samples": 10, "k": 3, "batch_size": 2}
                 },
                 "generators": []
             }
@@ -372,7 +372,7 @@ def test_parse_generator_assignment_to_segments():
                 "optimizer": {
                     "method": "topk",
                     "config": {
-                        "min_num_samples": 10,
+                        "num_samples": 10,
                         "k": 3,
                         "batch_size": 2
                     }
@@ -439,7 +439,7 @@ def test_parse_different_generators_per_stage():
                 "optimizer": {
                     "method": "topk",
                     "config": {
-                        "min_num_samples": 10,
+                        "num_samples": 10,
                         "k": 3,
                         "batch_size": 2
                     }
@@ -515,7 +515,7 @@ def test_parse_different_constraints_per_stage():
                 "optimizer": {
                     "method": "topk",
                     "config": {
-                        "min_num_samples": 10,
+                        "num_samples": 10,
                         "k": 3,
                         "batch_size": 2
                     }
@@ -594,7 +594,7 @@ def test_parse_reusable_constraints():
                 "optimizer": {
                     "method": "topk",
                     "config": {
-                        "min_num_samples": 10,
+                        "num_samples": 10,
                         "k": 3,
                         "batch_size": 2
                     }

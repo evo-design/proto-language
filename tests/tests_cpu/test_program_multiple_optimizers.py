@@ -50,7 +50,7 @@ class TestMultipleOptimizers:
             constructs=[construct],
             generators=[gen1],
             constraints=[constraint1],
-            config=TopKOptimizerConfig(min_num_samples=10, k=2, batch_size=5),
+            config=TopKOptimizerConfig(num_samples=10, k=2, batch_size=5),
         )
 
         # Second optimizer: MCMC
@@ -110,7 +110,7 @@ class TestMultipleOptimizers:
                 constructs=[construct],
                 generators=[gen],
                 constraints=[constraint],
-                config=TopKOptimizerConfig(min_num_samples=5, k=1, batch_size=5),
+                config=TopKOptimizerConfig(num_samples=5, k=1, batch_size=5),
             )
             optimizers.append(optimizer)
 
@@ -182,14 +182,14 @@ class TestMultipleOptimizers:
             constructs=[construct],  # Same construct object
             generators=[gen1],
             constraints=[constraint],
-            config=TopKOptimizerConfig(min_num_samples=5, k=1, batch_size=5),
+            config=TopKOptimizerConfig(num_samples=5, k=1, batch_size=5),
         )
 
         optimizer2 = TopKOptimizer(
             constructs=[construct],  # Same construct object
             generators=[gen2],
             constraints=[constraint],
-            config=TopKOptimizerConfig(min_num_samples=5, k=1, batch_size=5),
+            config=TopKOptimizerConfig(num_samples=5, k=1, batch_size=5),
         )
 
         # Should not raise
@@ -227,14 +227,14 @@ class TestMultipleOptimizers:
             constructs=[construct1],  # Different construct
             generators=[gen1],
             constraints=[constraint1],
-            config=TopKOptimizerConfig(min_num_samples=5, k=1, batch_size=5),
+            config=TopKOptimizerConfig(num_samples=5, k=1, batch_size=5),
         )
 
         optimizer2 = TopKOptimizer(
             constructs=[construct2],  # Different construct
             generators=[gen2],
             constraints=[constraint2],
-            config=TopKOptimizerConfig(min_num_samples=5, k=1, batch_size=5),
+            config=TopKOptimizerConfig(num_samples=5, k=1, batch_size=5),
         )
 
         # Should raise ValueError
@@ -265,14 +265,14 @@ class TestMultipleOptimizers:
             constructs=[construct1],  # One construct
             generators=[gen1],
             constraints=[constraint],
-            config=TopKOptimizerConfig(min_num_samples=5, k=1, batch_size=5),
+            config=TopKOptimizerConfig(num_samples=5, k=1, batch_size=5),
         )
 
         optimizer2 = TopKOptimizer(
             constructs=[construct1, construct2],  # Two constructs
             generators=[gen2],
             constraints=[constraint],
-            config=TopKOptimizerConfig(min_num_samples=5, k=1, batch_size=5),
+            config=TopKOptimizerConfig(num_samples=5, k=1, batch_size=5),
         )
 
         # Should raise ValueError
@@ -337,7 +337,7 @@ class TestMultipleOptimizers:
             constructs=[construct],
             generators=[gen1],
             constraints=[constraint1],
-            config=TopKOptimizerConfig(min_num_samples=10, k=1, batch_size=5),
+            config=TopKOptimizerConfig(num_samples=10, k=1, batch_size=5),
         )
 
         # Run first optimizer standalone to get its output
@@ -405,7 +405,7 @@ class TestMultipleOptimizers:
             constructs=[construct],
             generators=[gen2],
             constraints=[constraint2],
-            config=TopKOptimizerConfig(min_num_samples=10, k=2, batch_size=5),
+            config=TopKOptimizerConfig(num_samples=10, k=2, batch_size=5),
         )
 
         program = Program(optimizers=[optimizer1, optimizer2])

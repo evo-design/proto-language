@@ -39,7 +39,7 @@ class TestProgramSerializer:
             config_dict={"min_gc": 40, "max_gc": 60}
         )
 
-        opt_config = TopKOptimizerConfig(min_num_samples=10, k=3, batch_size=2)
+        opt_config = TopKOptimizerConfig(num_samples=10, k=3, batch_size=2)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[generator],
@@ -75,7 +75,7 @@ class TestProgramSerializer:
         assert len(result["optimization_steps"]) == 1
         step = result["optimization_steps"][0]
         assert step["optimizer"]["method"] == "topk"
-        assert step["optimizer"]["config"]["min_num_samples"] == 10
+        assert step["optimizer"]["config"]["num_samples"] == 10
         assert step["optimizer"]["config"]["k"] == 3
         assert step["optimizer"]["config"]["batch_size"] == 2
 
@@ -110,7 +110,7 @@ class TestProgramSerializer:
             config_dict={"min_gc": 50, "max_gc": 100}
         )
 
-        opt1_config = TopKOptimizerConfig(min_num_samples=10, k=3, batch_size=2)
+        opt1_config = TopKOptimizerConfig(num_samples=10, k=3, batch_size=2)
         opt1 = TopKOptimizer(
             constructs=[construct],
             generators=[gen1],
@@ -173,7 +173,7 @@ class TestProgramSerializer:
                     "optimizer": {
                         "method": "topk",
                         "config": {
-                            "min_num_samples": 10,
+                            "num_samples": 10,
                             "k": 3,
                             "batch_size": 2
                         }
@@ -216,7 +216,7 @@ class TestProgramSerializer:
         orig_opt = original_json["optimization_steps"][0]["optimizer"]
         result_opt = result_json["optimization_steps"][0]["optimizer"]
         assert result_opt["method"] == orig_opt["method"]
-        assert result_opt["config"]["min_num_samples"] == orig_opt["config"]["min_num_samples"]
+        assert result_opt["config"]["num_samples"] == orig_opt["config"]["num_samples"]
         assert result_opt["config"]["k"] == orig_opt["config"]["k"]
         assert result_opt["config"]["batch_size"] == orig_opt["config"]["batch_size"]
 
@@ -261,7 +261,7 @@ class TestProgramSerializer:
             config_dict={"min_gc": 40, "max_gc": 60}
         )
 
-        opt_config = TopKOptimizerConfig(min_num_samples=10, k=3, batch_size=2)
+        opt_config = TopKOptimizerConfig(num_samples=10, k=3, batch_size=2)
         optimizer = TopKOptimizer(
             constructs=[construct1, construct2],
             generators=[gen1, gen2, gen3],
@@ -298,7 +298,7 @@ class TestProgramSerializer:
             config_dict={"min_gc": 40, "max_gc": 60}
         )
 
-        opt_config = TopKOptimizerConfig(min_num_samples=10, k=3, batch_size=2)
+        opt_config = TopKOptimizerConfig(num_samples=10, k=3, batch_size=2)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[generator],
@@ -330,7 +330,7 @@ class TestProgramSerializer:
             config_dict={"min_gc": 40, "max_gc": 60}
         )
 
-        opt_config = TopKOptimizerConfig(min_num_samples=10, k=3, batch_size=2)
+        opt_config = TopKOptimizerConfig(num_samples=10, k=3, batch_size=2)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[generator],
@@ -366,7 +366,7 @@ class TestProgramSerializer:
             config_dict={"min_gc": 40, "max_gc": 60}
         )
 
-        opt_config = TopKOptimizerConfig(min_num_samples=10, k=3, batch_size=2)
+        opt_config = TopKOptimizerConfig(num_samples=10, k=3, batch_size=2)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen1, gen2],
@@ -398,7 +398,7 @@ class TestProgramSerializer:
             label="my_custom_gc_constraint"
         )
 
-        opt_config = TopKOptimizerConfig(min_num_samples=10, k=3, batch_size=2)
+        opt_config = TopKOptimizerConfig(num_samples=10, k=3, batch_size=2)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[generator],
@@ -427,7 +427,7 @@ class TestProgramSerializer:
             config_dict={"min_gc": 40, "max_gc": 60}
         )
 
-        opt_config = TopKOptimizerConfig(min_num_samples=10, k=3, batch_size=2)
+        opt_config = TopKOptimizerConfig(num_samples=10, k=3, batch_size=2)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[generator],
@@ -461,7 +461,7 @@ class TestProgramSerializer:
                     "optimizer": {
                         "method": "topk",
                         "config": {
-                            "min_num_samples": 10,
+                            "num_samples": 10,
                             "k": 3,
                             "batch_size": 2
                         }
@@ -522,7 +522,7 @@ class TestProgramSerializer:
         # Verify first optimizer
         step1 = result_json["optimization_steps"][0]
         assert step1["optimizer"]["method"] == "topk"
-        assert step1["optimizer"]["config"]["min_num_samples"] == 10
+        assert step1["optimizer"]["config"]["num_samples"] == 10
         assert step1["generators"][0]["config"]["num_mutations"] == 10
         assert step1["constraints"][0]["config"]["min_gc"] == 50
 
@@ -549,7 +549,7 @@ class TestProgramSerializer:
             config_dict={"min_gc": 40, "max_gc": 60}
         )
 
-        opt_config = TopKOptimizerConfig(min_num_samples=10, k=3, batch_size=2)
+        opt_config = TopKOptimizerConfig(num_samples=10, k=3, batch_size=2)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[generator],
@@ -602,7 +602,7 @@ class TestProgramSerializer:
             config_dict={"min_length": 40, "max_length": 60}
         )
 
-        opt_config = TopKOptimizerConfig(min_num_samples=10, k=3, batch_size=2)
+        opt_config = TopKOptimizerConfig(num_samples=10, k=3, batch_size=2)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[generator],

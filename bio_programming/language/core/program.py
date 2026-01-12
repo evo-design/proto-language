@@ -24,7 +24,7 @@ class Program:
         ...     constructs=[construct],
         ...     generators=[broad_mutation_gen],
         ...     constraints=[gc_constraint_1],
-        ...     config=TopKOptimizerConfig(min_num_samples=100, k=3),
+        ...     config=TopKOptimizerConfig(num_samples=100, k=3),
         ... )
         >>>
         >>> # Second optimizer: fine-tuning with MCMC

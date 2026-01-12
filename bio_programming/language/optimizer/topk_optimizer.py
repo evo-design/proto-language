@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Callable, List, Optional, final
 import copy
 import heapq
+import logging
 import math
 
 import numpy as np
@@ -14,6 +15,8 @@ from proto_language.language.core import Optimizer, Construct, Generator, Constr
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.optimizer.optimizer_registry import OptimizerRegistry
 
+logger = logging.getLogger(__name__)
+
 
 class TopKOptimizerConfig(BaseConfig):
     """Configuration object for TopKOptimizer.
@@ -22,75 +25,65 @@ class TopKOptimizerConfig(BaseConfig):
     generates many candidate sequences and retains only the best K by lowest energy
     score.
 
+    The optimizer runs in one of two modes based on whether ``energy_threshold`` is set:
+
+    - **Standard mode** (``energy_threshold=None``): Generate exactly ``num_samples``
+      candidates and keep the top ``k``.
+
+    - **Threshold mode** (``energy_threshold`` set): Generate candidates until the
+      worst energy in top-k is below ``energy_threshold``, or until ``num_samples``
+      is reached (whichever comes first).
+
     Attributes:
-        min_num_samples (int): Minimum number of total samples to generate across
-            all rounds. Must be divisible by ``batch_size`` to ensure equal-sized
-            batches. If ``energy_threshold`` is set, may generate additional samples
-            beyond this minimum until threshold is met. Must be at least 1.
+        num_samples (int): Number of samples to generate. In standard mode, the optimizer 
+            samples exactly this number of candidates. In threshold mode, the optimizer 
+            samples until the energy threshold is met or the number of samples is reached.
+            Must be at least ``k``. Will be rounded up to the nearest multiple of ``batch_size`` 
+            if not evenly divisible.
 
         k (int): Number of top sequences to keep and return based on energy scores.
-            Must be at least 1 and cannot exceed ``min_num_samples``. Lower energy
-            scores are better (minimization objective). Must be at least 1.
+            The optimizer maintains a max-heap of size ``k`` to efficiently track
+            the best candidates. Must be at least 1.
 
         batch_size (int): Number of samples to generate per round. Enables batching
-            for efficient parallel generation. Total rounds equals
-            ``min_num_samples / batch_size``. Must be at least 1 and must evenly
-            divide ``min_num_samples``.
+            for efficient parallel generation with generators that support batched
+            inference (e.g., language models). Must be at least 1. Default: ``1``.
 
-        energy_threshold (Optional[float]): Optional threshold for early stopping.
-            If set, continues sampling beyond ``min_num_samples`` until the worst
-            energy in top-K is below this threshold, up to ``max_num_samples`` total.
-            If ``None``, generates exactly ``min_num_samples``. Must be at least 0
-            if provided. Default: ``None``.
-
-        max_num_samples (Optional[int]): Maximum number of samples to generate when
-            using threshold-based stopping. Prevents infinite sampling if threshold
-            is never met. Must be divisible by ``batch_size`` and at least
-            ``min_num_samples``. If ``None`` and ``energy_threshold`` is set,
-            defaults to ``min_num_samples x 10``. Default: ``None``.
+        energy_threshold (Optional[float]): Target energy threshold for early stopping.
+            When set, enables threshold mode where sampling stops when the worst
+            (highest) energy in the top-k heap falls below this value. Must be at
+            least 0 if set. Default: ``None`` (standard mode).
 
         verbose (bool): Whether to print detailed progress information including
-            round statistics, energy values, and threshold status. Default: ``False``.
+            round statistics, energy values, and stopping conditions. Default: ``False``.
 
-    Note:
-        The optimizer generates samples in rounds of size ``batch_size``. For
-        threshold-based stopping to work, both ``energy_threshold`` and
-        ``max_num_samples`` must be set. All sampling parameters must be divisible
-        by ``batch_size`` to ensure consistent batching.
     """
     # Required parameters
-    min_num_samples: int = ConfigField(
+    num_samples: int = ConfigField(
         ge=1,
-        title="Min Samples",
-        description="Minimum number of samples to generate.",  # If energy_threshold is set, may generate more candidates until threshold is met.
+        title="Num Samples",
+        description="Number of samples to generate. Rounded up to nearest batch_size multiple.",
     )
     k: int = ConfigField(
         ge=1,
         title="Top-k",
-        description="Number of top samples to keep and return. Must be greater than Num samples.",
+        description="Number of top samples to keep and return.",
     )
-    # TODO: Determine how to handle this for the client.
     batch_size: int = ConfigField(
+        default=1,
         ge=1,
         title="Batch Size",
-        description="Number of samples to generate per round (enables batching for generators).",  # "min_num_samples must be divisible by batch_size.",
+        description="Number of samples to generate per round (enables batching for generators).",
     )
 
-    # Advanced parameters
+    # Threshold mode parameter (presence determines mode)
     energy_threshold: Optional[float] = ConfigField(
         default=None,
         ge=0.0,
         title="Energy Threshold",
-        description="Continue sampling until worst energy in top-k is below this threshold.",  # If set, optimizer will generate at least min_num_samples, then continue until threshold is met or max_num_samples is reached.
-        advanced=True,
+        description="Early stop when all energy scores in top-k are below threshold.",
     )
-    max_num_samples: Optional[int] = ConfigField(
-        default=None,
-        ge=1,
-        title="Max Samples",
-        description="Maximum number of samples to generate until hard stop. Defaults to min_num_samples * 10",
-        advanced=True,
-    )
+
     verbose: bool = ConfigField(
         default=False,
         title="Verbose",
@@ -101,32 +94,9 @@ class TopKOptimizerConfig(BaseConfig):
     @model_validator(mode='after')
     def validate_params(self):
         """Validate parameter relationships."""
-        # k must not exceed total candidates
-        if self.k > self.min_num_samples:
-            raise ValueError(
-                f"k ({self.k}) cannot exceed min_num_samples ({self.min_num_samples}). "
-                "Cannot keep more sequences than generated."
-            )
-
-        # min_num_samples must be divisible by batch_size
-        if self.min_num_samples % self.batch_size != 0:
-            raise ValueError(
-                f"min_num_samples ({self.min_num_samples}) must be divisible by "
-                f"batch_size ({self.batch_size}). This ensures equal-sized batches."
-            )
-
-        # max_num_samples must be divisible by batch_size if set
-        if self.max_num_samples is not None:
-            if self.max_num_samples % self.batch_size != 0:
-                raise ValueError(
-                    f"max_num_samples ({self.max_num_samples}) must be divisible by "
-                    f"batch_size ({self.batch_size}). This ensures equal-sized batches."
-                )
-            if self.max_num_samples < self.min_num_samples:
-                raise ValueError(
-                    f"max_num_samples ({self.max_num_samples}) must be >= min_num_samples ({self.min_num_samples})"
-                )
-
+        # k must not exceed num_samples
+        if self.k > self.num_samples:
+            raise ValueError(f"k ({self.k}) cannot exceed num_samples ({self.num_samples}). Cannot keep more sequences than generated.")
         return self
 
 
@@ -148,24 +118,22 @@ class TopKOptimizer(Optimizer):
     In each round, the optimizer generates ``batch_size`` candidates, applies all
     generators sequentially to them, evaluates them with constraints, and updates
     the top-K list if any candidates are better than the current worst in top-K.
-    This continues for ``min_num_samples / batch_size`` rounds, and optionally
-    continues until an energy threshold is met or ``max_num_samples`` is reached.
+
+    The mode is determined by whether ``energy_threshold`` is set:
+
+    - **Standard mode** (no threshold): Generate ``num_samples`` candidates.
+    - **Threshold mode** (threshold set): Stop early when threshold is met.
 
     Attributes:
-        min_num_samples (int): Minimum total samples to generate.
-        batch_size (int): Samples per round (enables batching).
+        num_samples (int): Number of samples (rounded up to batch_size multiple).
         k (int): Number of top sequences to keep.
-        rounds (int): Number of rounds (``min_num_samples / batch_size``).
-        energy_threshold (Optional[float]): Optional threshold for early stopping.
-        max_num_samples (Optional[int]): Maximum samples with threshold stopping.
-        top_k_heap (List[tuple]): Max-heap tracking top-K candidates.
+        batch_size (int): Samples per round (enables batching).
+        energy_threshold (Optional[float]): Target threshold (enables threshold mode).
 
     Example:
-        >>> config = TopKOptimizerConfig(
-        ...     min_num_samples=100,
-        ...     k=10,
-        ...     batch_size=10
-        ... )
+        Standard mode - generate 100 samples:
+
+        >>> config = TopKOptimizerConfig(num_samples=100, k=10, batch_size=10)
         >>> optimizer = TopKOptimizer(
         ...     constructs=constructs,
         ...     generators=[mutation_gen],
@@ -175,8 +143,14 @@ class TopKOptimizer(Optimizer):
         >>> optimizer.run()
         >>> best_constructs = optimizer.constructs  # Top 10 sequences
 
-    Note:
-        - Lower energy scores are better (minimization objective)
+        Threshold mode - stop early when threshold met:
+
+        >>> config = TopKOptimizerConfig(
+        ...     num_samples=1000,
+        ...     energy_threshold=0.5,
+        ...     k=10,
+        ...     batch_size=10
+        ... )
     """
     # Class attribute required by OptimizerRegistry
     config_class = TopKOptimizerConfig
@@ -219,16 +193,21 @@ class TopKOptimizer(Optimizer):
             verbose=config.verbose,
         )
 
-        # Store TopK-specific parameters
-        self.min_num_samples: int = config.min_num_samples
-        self.batch_size: int = config.batch_size
+        # Store parameters
         self.k: int = config.k
-        self.rounds: int = config.min_num_samples // config.batch_size  # Derived from total and batch
+        self.batch_size: int = config.batch_size
         self.custom_logging: Optional[Callable] = custom_logging
-
-        # Threshold-based stopping parameters
         self.energy_threshold: Optional[float] = config.energy_threshold
-        self.max_num_samples: Optional[int] = config.max_num_samples or (config.min_num_samples * 10 if config.energy_threshold else None)
+
+        # Round up num_samples to nearest batch_size multiple
+        if config.num_samples % config.batch_size != 0:
+            self.num_samples = ((config.num_samples // config.batch_size) + 1) * config.batch_size
+            logger.warning(
+                f"num_samples ({config.num_samples}) is not divisible by batch_size ({config.batch_size}). "
+                f"Rounding up to {self.num_samples}."
+            )
+        else:
+            self.num_samples = config.num_samples
 
         # Storage for top-k candidates using a max-heap of size k
         # We negate energies since heapq is a min-heap but we want max-heap behavior
@@ -271,8 +250,8 @@ class TopKOptimizer(Optimizer):
         for generator in self.generators:
             generator.sample()
 
-        # 3. Evaluate all batch_size candidates after all generators
-        self.score_energy()  # Returns list of length batch_size
+        # 3. Evaluate all candidates after all generators
+        self.score_energy()
 
         # 4. Process each candidate in the batch
         for candidate_idx in range(self.batch_size):
@@ -310,36 +289,30 @@ class TopKOptimizer(Optimizer):
         """
         Execute TopK optimization through multiple sampling rounds.
 
-        This method:
-        1. Phase 1: Runs minimum 'rounds' number of independent sampling iterations
-        2. Phase 2 (optional): If energy_threshold is set, continues sampling until:
-           - Worst energy in top-k is below threshold, OR
-           - max_num_samples limit is reached
-        3. In each round:
-           - Resets all candidate_sequences to original_sequence
-           - Applies each generator sequentially (generators batch across candidates)
-           - Evaluates all batch_size candidates with constraints
-           - Updates the top-k list if any candidates are good enough
-        4. After all rounds, updates constructs with the top-k best
+        The mode is determined by whether ``energy_threshold`` is set:
+        - **Standard mode** (no threshold): Generate ``num_samples`` candidates.
+        - **Threshold mode** (threshold set): Stop early when threshold is met,
+          or when ``num_samples`` is reached.
 
-        With batch_size > 1, generators can batch their operations for efficiency.
+        Each round:
+        - Resets all candidate_sequences to original_sequence
+        - Runs each generator sequentially across segments (generators batch across candidates)
+        - Evaluates all candidates with constraints
+        - Updates the top-k sampled candidates
         """
         # Clear any previous top-k list
         self.top_k_heap = []
         candidates_generated = 0
-
-        # Phase 1: Generate min_num_samples
-        for round_idx in range(self.rounds):
-            self._run_round(round_idx)
-            candidates_generated += self.batch_size
-
-        # Phase 2: Continue if threshold not met (only if energy_threshold is set)
         threshold_met = False
-        if self.energy_threshold is not None and self.max_num_samples is not None:
-            round_idx = self.rounds
+        num_sampling_rounds = self.num_samples // self.batch_size
 
-            while candidates_generated < self.max_num_samples:
-                # Check if worst in top-k meets threshold
+        # Determine mode based on energy_threshold
+        threshold_mode = self.energy_threshold is not None
+
+        if threshold_mode:
+            # Threshold mode: Generate until threshold met or num_samples reached
+            for round_idx in range(num_sampling_rounds):
+                # Check if threshold is met (only after we have k candidates)
                 if len(self.top_k_heap) == self.k:
                     worst_energy = -self.top_k_heap[0][0]  # Un-negate to get actual energy
                     if worst_energy < self.energy_threshold:
@@ -348,18 +321,19 @@ class TopKOptimizer(Optimizer):
                             print(f"\nThreshold met! Worst in top-{self.k}: {worst_energy:.6f} < {self.energy_threshold:.6f}")
                         break
 
-                # Generate another batch
                 self._run_round(round_idx)
                 candidates_generated += self.batch_size
 
                 if self.verbose and (round_idx + 1) % 10 == 0:
                     worst_energy = -self.top_k_heap[0][0] if len(self.top_k_heap) == self.k else float('inf')
                     print(f"  Round {round_idx}: Generated {candidates_generated} candidates, worst in top-k: {worst_energy:.6f}")
-
-                round_idx += 1
+        else:
+            # Standard mode: Generate exactly num_samples
+            for round_idx in range(num_sampling_rounds):
+                self._run_round(round_idx)
+                candidates_generated += self.batch_size
 
         # Convert heap to sorted list (best first: lowest energy to highest)
-        # Sort by actual energy (un-negate the first element)
         top_k_list = sorted(self.top_k_heap, key=lambda x: -x[0])
 
         # Update constructs with top-k
@@ -370,24 +344,22 @@ class TopKOptimizer(Optimizer):
 
         # Log statistics
         if self.verbose:
-            print("\nOptimization complete:")
+            mode_str = "threshold" if threshold_mode else "standard"
+            print(f"\nOptimization complete ({mode_str} mode):")
             print(f"  Total samples generated: {candidates_generated}")
             print(f"  Batch size: {self.batch_size}")
-            print(f"  Rounds executed: {candidates_generated // self.batch_size}")
             print(f"  Top-k kept: {self.k}")
 
-            # Show threshold mode info if applicable
-            if self.energy_threshold is not None:
-                print("\nThreshold mode:")
+            if threshold_mode:
+                print(f"\nThreshold mode:")
                 print(f"  Target threshold: {self.energy_threshold:.6f}")
-                print(f"  Max samples: {self.max_num_samples}")
+                print(f"  Num samples (max): {self.num_samples}")
                 if threshold_met:
-                    print("  Status: ✓ Threshold met")
+                    print("  Status: Threshold met (early stop)")
                 else:
-                    print("  Status: ✗ Max samples reached without meeting threshold")
+                    print("  Status: Num samples reached without meeting threshold")
 
             if top_k_list:
-                # Un-negate energies for display (they're stored as negative in heap)
                 actual_energies = [-e for e, _, _, _ in top_k_list]
                 best_energy = actual_energies[0]
                 worst_in_topk = actual_energies[-1]
@@ -399,11 +371,10 @@ class TopKOptimizer(Optimizer):
                     print(f"  Worst in top-k: {worst_in_topk:.6f}")
                 print(f"  Mean energy:  {mean_energy:.6f}")
 
-                # Show individual rankings
-                if self.k <= 20:  # Only show individual rankings for small k
+                if self.k <= 20:
                     print(f"\nTop-{self.k} constructs:")
                     for i, (neg_energy, _, _, _) in enumerate(top_k_list):
-                        energy = -neg_energy  # Un-negate to get actual energy
+                        energy = -neg_energy
                         print(f"  Rank {i+1}: Energy={energy:.6f}")
                 print(f"\nTopK optimization complete. Returned {len(top_k_list)} best constructs.")
 

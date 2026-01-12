@@ -46,13 +46,13 @@ gc_constraint = Constraint(
     function_config={"min_gc": MIN_GC, "max_gc": MAX_GC},
 )
 
-# Optimizer config
+# Optimizer config (threshold mode)
 config = TopKOptimizerConfig(
-    min_num_samples=BATCH_SIZE,
-    k=2,                     
-    max_num_samples=BATCH_SIZE * 2,       
+    num_samples=BATCH_SIZE * 2,
+    energy_threshold=0.0,
+    k=2,
+    batch_size=BATCH_SIZE,
     verbose=True,
-    batch_size=BATCH_SIZE
 )
 
 # Create optimizer

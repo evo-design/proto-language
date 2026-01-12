@@ -42,7 +42,7 @@
       "optimizer": {
         "method": "topk",
         "config": {
-          "min_num_samples": 10,
+          "num_samples": 10,
           "k": 3,
           "batch_size": 2,
           "verbose": true
