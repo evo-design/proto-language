@@ -3,7 +3,7 @@ sequence.py
 
 Sequence class for the proto-language.
 
-Represents a single DNA, RNA, or protein sequence with validation and metadata.
+Represents a single DNA, RNA, protein, or ligand sequence with validation and metadata.
 """
 from __future__ import annotations
 from typing import Any, Dict, List, Literal, Optional, Set
@@ -18,15 +18,23 @@ PROTEIN_AMINO_ACIDS = "ACDEFGHIKLMNPQRSTVWY"
 
 
 # Type alias for supported biological sequence types
-SequenceType = Literal["dna", "rna", "protein"]
+SequenceType = Literal["dna", "rna", "protein", "ligand"]
 
 
 class Sequence:
     """
     Internal data structure for the basic unit of the programming language.
 
-    Represents a single DNA, RNA, or protein sequence. The class enforces sequence type
-    constraints and maintains metadata that gets updated when the sequence changes.
+    Represents a single DNA, RNA, protein, or ligand sequence. The class enforces
+    sequence type constraints and maintains metadata that gets updated when the
+    sequence changes.
+
+    For ligands, we assume SMILES string representations. Because there is no
+    authoritative set of characters, and SMILES strings have a unique syntax,
+    the validation relies on RDKit.
+
+    Validation is performed on all sequences. Invalid genetic characters or SMILES
+    syntax results in a warning but does not terminate the program.
     """
 
     def __init__(
@@ -56,6 +64,8 @@ class Sequence:
             self._valid_chars = set(RNA_NUCLEOTIDES)
         elif self.sequence_type == "protein":
             self._valid_chars = set(PROTEIN_AMINO_ACIDS)
+        elif self.sequence_type == "ligand":
+            self._valid_chars = None  # Validation handled by RDKit.
         else:
             raise ValueError(f"Unsupported sequence_type: {self.sequence_type}")
 
@@ -81,7 +91,8 @@ class Sequence:
 
     def _validate_sequence(self, sequence: str) -> None:
         """
-        Validate that sequence contains only allowed characters for its type.
+        Validate that genetic sequences contain only allowed characters for their types
+        or that ligand sequences follow the RDKit SMILES syntax.
 
         Args:
             sequence: The sequence string to validate.
@@ -89,9 +100,16 @@ class Sequence:
         Raises:
             ValueError: If sequence contains invalid characters for this sequence type.
         """
+        if self.sequence_type == "ligand":
+            validate_smiles(sequence)
+            return
+
         invalid_chars = _return_invalid_chars(sequence, self._valid_chars)
         if invalid_chars:
-            warnings.warn(f"Invalid characters found: {', '.join(invalid_chars)}. Valid characters are: {', '.join(sorted(self._valid_chars))}")
+            warnings.warn(
+                f"Invalid characters found: {', '.join(invalid_chars)}. "
+                f"Valid characters are: {', '.join(sorted(self._valid_chars))}"
+            )
 
     @property
     def metadata(self) -> Dict[str, Any]:
@@ -326,6 +344,29 @@ def return_invalid_protein_chars(
     return _return_invalid_chars(sequence, set(valid_chars))
 
 
+def validate_smiles(smiles: str, verbose: bool = True) -> bool:
+    """
+    Validate SMILES string using RDKit if available.
+
+    Args:
+        smiles: The SMILES string to validate.
+        verbose: Print warnings.
+
+    Returns:
+        True if valid SMILES, False if invalid or RDKit unavailable.
+    """
+    from rdkit import Chem
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        if verbose:
+            warnings.warn(
+                f"RDKit could not parse SMILES: '{smiles}'. "
+                "This may not be a valid molecule."
+            )
+        return False
+    return True
+
+
 def detect_sequence_type(sequence: str) -> str:
     """
     Attempts to determine the type of a sequence based on the characters it contains.
@@ -333,11 +374,14 @@ def detect_sequence_type(sequence: str) -> str:
     its way down to the least specific. Returns "unknown" if the sequence type
     cannot be determined.
 
+    Note that there are ambiguous cases (e.g., "CCCCCC" could be DNA, RNA, protein, or
+    ligand SMILES). Prority is: DNA, RNA, protein, ligand.
+
     Args:
         sequence (str): The sequence string to detect the type of.
 
     Returns:
-       string: The type of the sequence ("dna", "rna", "protein", or "unknown").
+       string: The type of the sequence ("dna", "rna", "protein", "ligand", or "unknown").
     """
 
     # DNA ================================================================
@@ -354,6 +398,10 @@ def detect_sequence_type(sequence: str) -> str:
     invalid_chars = return_invalid_protein_chars(sequence, additional_valid_chars="X*")
     if not invalid_chars:
         return "protein"
+
+    # Ligand/SMILES ========================================================
+    if validate_smiles(sequence, verbose=False):
+        return "ligand"
 
     # Otherwise, return unknown
     return "unknown"

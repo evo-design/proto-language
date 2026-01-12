@@ -9,6 +9,7 @@ from .sequence import (
     return_invalid_rna_chars,
     return_invalid_nucleotide_chars,
     return_invalid_protein_chars,
+    validate_smiles,
     detect_sequence_type,
 )
 from .segment import Segment
@@ -30,6 +31,7 @@ __all__ = [
     "return_invalid_rna_chars",
     "return_invalid_nucleotide_chars",
     "return_invalid_protein_chars",
+    "validate_smiles",
     "detect_sequence_type",
     "Segment",
     "Construct",

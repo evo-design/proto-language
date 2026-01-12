@@ -1,3 +1,5 @@
+import pytest
+
 from proto_language.language.core import Sequence, Segment
 
 
@@ -18,7 +20,7 @@ class TestSegment:
         """Tests that candidate_sequences can be directly manipulated."""
         import copy
         segment = Segment(sequence="ATCG", sequence_type="dna", metadata={"source": "original"})
-        
+
         # Directly set candidate sequences (like optimizer does)
         segment.candidate_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(5)]
         assert segment.num_candidates == 5
@@ -61,3 +63,9 @@ class TestSegment:
         assert empty_constant.constant is True
         assert empty_constant.sequence_length == 50
         assert empty_constant.original_sequence.sequence == ""
+
+    def test_ligand_constant(self):
+        """Tests that ligand segments are automatically marked as constant."""
+        with pytest.warns(UserWarning):  # Just check for any warning when constant is false.
+            ligand_segment = Segment(sequence="CCC", sequence_type="ligand", constant=False)
+        assert ligand_segment.constant is True

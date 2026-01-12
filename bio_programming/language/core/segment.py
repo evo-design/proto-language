@@ -5,6 +5,8 @@ Represents building blocks for biological constructs.
 """
 from __future__ import annotations
 from typing import Any, Dict, Iterator, List, Optional, Set
+import warnings
+
 from .sequence import Sequence, SequenceType
 
 
@@ -67,6 +69,11 @@ class Segment:
         else:
             initial_sequence = ""
             self.sequence_length = length
+
+        if sequence_type == "ligand":
+            if not constant:
+                warnings.warn("Segments with 'ligand' sequence type must be constant")
+            constant = True
 
         seq = Sequence(
             sequence=initial_sequence,
@@ -140,4 +147,3 @@ class Segment:
         segment.selected_sequences = [Sequence.from_dict(seq_data) for seq_data in data["selected_sequences"]]
 
         return segment
-
