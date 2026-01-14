@@ -27,7 +27,7 @@ from proto_language.language.constraint.constraint_registry import (
 from proto_language.tools.structure_prediction.schemas import (
     StructurePredictionComplex,
 )
-from .structure_prediction_dispatcher import predict_structures
+from proto_language.utils.helpers import predict_structures
 
 logger = getLogger(__name__)
 

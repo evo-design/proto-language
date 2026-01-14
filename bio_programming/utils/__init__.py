@@ -20,6 +20,8 @@ from .helpers import (
     mask_assigned_positions,
     run_subprocess_command,
     resolve_sequence_ids,
+    # Structure prediction
+    predict_structures,
 )
 
 # Infrastructure utilities (compute and file resolution)
@@ -65,4 +67,6 @@ __all__ = [
     "mask_assigned_positions",
     "run_subprocess_command",
     "resolve_sequence_ids",
+    # Structure prediction
+    "predict_structures",
 ]

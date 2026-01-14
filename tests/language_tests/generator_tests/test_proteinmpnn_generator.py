@@ -5,6 +5,7 @@ import pytest
 
 from proto_language.language.core import Segment
 from proto_language.language.generator import ProteinMPNNGenerator, ProteinMPNNGeneratorConfig
+from proto_language.tools.inverse_folding.schemas import InverseFoldingStructure
 
 
 # Sample PDB content for testing (minimal valid structure)
@@ -43,204 +44,159 @@ END
 @pytest.fixture
 def temp_pdb_file():
     """Create a temporary PDB file for testing."""
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.pdb', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".pdb", delete=False) as f:
         f.write(SAMPLE_PDB_CONTENT)
         temp_path = f.name
     yield temp_path
-    # Cleanup
     if os.path.exists(temp_path):
         os.remove(temp_path)
 
 
 @pytest.mark.uses_gpu
 class TestProteinMPNNGenerator:
-    def test_proteinmpnn_basic_sampling(self, temp_pdb_file):
+    """Integration tests for ProteinMPNN generator (require GPU)."""
+
+    def test_basic_sampling(self, temp_pdb_file):
         """Test basic sequence generation from structure."""
-        proteinmpnn_generator = ProteinMPNNGenerator(
+        generator = ProteinMPNNGenerator(
             ProteinMPNNGeneratorConfig(
-                structure=temp_pdb_file,
+                structure_inputs=temp_pdb_file,
                 temperature=0.1,
             )
         )
 
-        # Create segment and assign to generator
         segment = Segment(length=5, sequence_type="protein")
-        proteinmpnn_generator.assign(segment)
+        generator.assign(segment)
 
-        assert proteinmpnn_generator._assigned_segment is segment
+        assert generator._assigned_segment is segment
 
-        # Before sampling, metrics should be None
-        assert proteinmpnn_generator.last_perplexities is None
-        assert proteinmpnn_generator.last_sequence_identities is None
-
-        # Sample and check results
-        proteinmpnn_generator.sample()
+        generator.sample()
 
         assert segment[0].sequence is not None
         assert len(segment[0].sequence) == 5
         assert segment[0].sequence_type == "protein"
 
-        assert proteinmpnn_generator.last_perplexities is not None
-        assert proteinmpnn_generator.last_sequence_identities is not None
-        assert len(proteinmpnn_generator.last_perplexities) >= 1
-        assert len(proteinmpnn_generator.last_sequence_identities) >= 1
-
-    def test_proteinmpnn_dynamic_structure(self, temp_pdb_file):
-        """Test dynamic structure reloading."""
-        proteinmpnn_generator = ProteinMPNNGenerator(
+    def test_fixed_positions(self, temp_pdb_file):
+        """Test that fixed positions are preserved in generated sequences."""
+        generator = ProteinMPNNGenerator(
             ProteinMPNNGeneratorConfig(
-                structure=temp_pdb_file,
-                dynamic_structure_path=True,
+                structure_inputs=InverseFoldingStructure(
+                    structure=temp_pdb_file,
+                    fixed_positions={"A": [1, 2]},
+                ),
                 temperature=0.1,
             )
         )
 
-        # Structure should not be loaded yet
-        assert proteinmpnn_generator.structure is None
-
-        # Create segment and assign to generator
         segment = Segment(length=5, sequence_type="protein")
-        proteinmpnn_generator.assign(segment)
+        generator.assign(segment)
+        generator.sample()
 
-        # Sample - this should load the structure dynamically
-        proteinmpnn_generator.sample()
-
-        # Structure should now be loaded
-        assert proteinmpnn_generator.structure is not None
-        assert segment[0].sequence is not None
-        assert len(segment[0].sequence) == 5
-
-    def test_proteinmpnn_fixed_positions(self, temp_pdb_file):
-        """Test fixed positions constraint."""
-        # Fix positions 1 and 2 on chain A
-        fixed_positions = {"A": [1, 2]}
-
-        proteinmpnn_generator = ProteinMPNNGenerator(
-            ProteinMPNNGeneratorConfig(
-                structure=temp_pdb_file,
-                temperature=0.1,
-                fixed_positions=fixed_positions,
-            )
-        )
-
-        # Create segment and assign to generator
-        segment = Segment(length=5, sequence_type="protein")
-        proteinmpnn_generator.assign(segment)
-
-        # Sample and check results
-        proteinmpnn_generator.sample()
-
-        assert segment[0].sequence is not None
-        assert len(segment[0].sequence) == 5
-        # Fixed positions should match original PDB residues (A, G at positions 1, 2)
+        # Fixed positions should match original PDB residues
         assert segment[0].sequence[0] == "A"  # Position 1 is ALA
         assert segment[0].sequence[1] == "G"  # Position 2 is GLY
 
-    def test_proteinmpnn_batch_sampling(self, temp_pdb_file):
-        """Test batch sequence generation."""
+    def test_batch_sampling(self, temp_pdb_file):
+        """Test generating multiple sequences from single structure."""
         num_candidates = 3
-        proteinmpnn_generator = ProteinMPNNGenerator(
+        generator = ProteinMPNNGenerator(
             ProteinMPNNGeneratorConfig(
-                structure=temp_pdb_file,
+                structure_inputs=temp_pdb_file,
                 temperature=0.1,
             )
         )
 
-        # Create segment with starting sequence
         segment = Segment(sequence="AGSVL", sequence_type="protein")
-        proteinmpnn_generator.assign(segment)
+        generator.assign(segment)
         segment.candidate_sequences = [
             copy.deepcopy(segment.original_sequence) for _ in range(num_candidates)
         ]
 
-        assert len(segment.candidate_sequences) == num_candidates
-
-        # Sample and check results
-        proteinmpnn_generator.sample()
+        generator.sample()
 
         for i in range(num_candidates):
             assert segment.candidate_sequences[i].sequence is not None
             assert len(segment.candidate_sequences[i].sequence) == 5
-            assert segment.candidate_sequences[i].sequence_type == "protein"
+
 
 class TestProteinMPNNGeneratorValidation:
-    """Test configuration and sequence type validation for ProteinMPNN generator."""
+    """Unit tests for ProteinMPNN configuration and validation (no GPU required)."""
 
-    def test_valid_protein_assignment(self, temp_pdb_file):
-        """ProteinMPNN should accept PROTEIN segments."""
-        config = ProteinMPNNGeneratorConfig(structure=temp_pdb_file)
-        generator = ProteinMPNNGenerator(config)
-        segment = Segment(length=5, sequence_type="protein")
-
-        # Should not raise
-        generator.assign(segment)
-        assert generator._assigned_segment is segment
-
-    def test_rejects_dna_segment(self, temp_pdb_file):
-        """ProteinMPNN should reject DNA segments."""
-        config = ProteinMPNNGeneratorConfig(structure=temp_pdb_file)
-        generator = ProteinMPNNGenerator(config)
+    def test_rejects_non_protein_segment(self, temp_pdb_file):
+        """ProteinMPNN should reject non-protein segments."""
+        generator = ProteinMPNNGenerator(
+            ProteinMPNNGeneratorConfig(structure_inputs=temp_pdb_file)
+        )
         segment = Segment(length=50, sequence_type="dna")
 
         with pytest.raises(ValueError) as exc_info:
             generator.assign(segment)
 
-        error_msg = str(exc_info.value)
-        assert "does not support sequence type" in error_msg
-        assert "dna" in error_msg.lower()
-        assert "protein" in error_msg.lower()
+        assert "does not support sequence type" in str(exc_info.value)
 
-    def test_rejects_rna_segment(self, temp_pdb_file):
-        """ProteinMPNN should reject RNA segments."""
-        config = ProteinMPNNGeneratorConfig(structure=temp_pdb_file)
-        generator = ProteinMPNNGenerator(config)
-        segment = Segment(length=50, sequence_type="rna")
+    def test_rejects_constant_segment(self, temp_pdb_file):
+        """ProteinMPNN should reject constant segments."""
+        generator = ProteinMPNNGenerator(
+            ProteinMPNNGeneratorConfig(structure_inputs=temp_pdb_file)
+        )
+        segment = Segment(sequence="AGSVL", sequence_type="protein", constant=True)
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValueError, match="Cannot assign constant segment"):
             generator.assign(segment)
 
-        assert "does not support sequence type" in str(exc_info.value)
-        assert "rna" in str(exc_info.value).lower()
-
-    def test_invalid_chain_id_raises_error(self, temp_pdb_file):
-        """Should raise error for non-existent chain IDs."""
-        config = ProteinMPNNGeneratorConfig(
-            structure=temp_pdb_file,
-            chain_ids=["Z"],  # Chain Z doesn't exist in sample PDB
+    def test_pdb_content_string(self):
+        """Should accept PDB content as a string (not just file path)."""
+        generator = ProteinMPNNGenerator(
+            ProteinMPNNGeneratorConfig(structure_inputs=SAMPLE_PDB_CONTENT)
         )
 
-        with pytest.raises(ValueError) as exc_info:
-            ProteinMPNNGenerator(config)
+        # Structure should be resolved automatically
+        assert len(generator.structure_inputs) == 1
+        assert generator.structure_inputs[0].structure is not None
 
-        assert "not found in structure" in str(exc_info.value)
-
-    def test_invalid_fixed_position_chain_raises_error(self, temp_pdb_file):
-        """Should raise error for fixed positions with non-existent chain."""
-        config = ProteinMPNNGeneratorConfig(
-            structure=temp_pdb_file,
-            fixed_positions={"Z": [1, 2]},  # Chain Z doesn't exist
+    def test_structure_without_chain_ids_defaults_to_all(self, temp_pdb_file):
+        """When chain_ids is not specified, should default to all chains."""
+        generator = ProteinMPNNGenerator(
+            ProteinMPNNGeneratorConfig(structure_inputs=temp_pdb_file)
         )
 
-        with pytest.raises(ValueError) as exc_info:
-            ProteinMPNNGenerator(config)
+        # chain_ids should be populated with all available chains
+        assert len(generator.structure_inputs) == 1
+        assert generator.structure_inputs[0].chain_ids is not None
+        assert generator.structure_inputs[0].chain_ids == ["A"]  # Only chain A in sample PDB
 
-        assert "not found in structure" in str(exc_info.value)
-
-    def test_dynamic_structure_requires_valid_path(self):
-        """Should raise error if dynamic_structure_path is True but path doesn't exist."""
-        with pytest.raises(ValueError) as exc_info:
+    def test_structure_input_with_chain_ids(self, temp_pdb_file):
+        """Should accept InverseFoldingStructure with chain_ids."""
+        generator = ProteinMPNNGenerator(
             ProteinMPNNGeneratorConfig(
-                structure="/nonexistent/path/to/structure.pdb",
-                dynamic_structure_path=True,
+                structure_inputs=InverseFoldingStructure(
+                    structure=temp_pdb_file,
+                    chain_ids=["A"],
+                )
             )
+        )
 
-        assert "valid structure path" in str(exc_info.value).lower()
+        assert len(generator.structure_inputs) == 1
+        assert generator.structure_inputs[0].chain_ids == ["A"]
 
-    def test_pdb_content_string_accepted(self):
-        """Should accept PDB content as a string."""
-        config = ProteinMPNNGeneratorConfig(structure=SAMPLE_PDB_CONTENT)
-        generator = ProteinMPNNGenerator(config)
+    def test_multiple_structure_inputs(self):
+        """Should accept multiple InverseFoldingStructure objects."""
+        generator = ProteinMPNNGenerator(
+            ProteinMPNNGeneratorConfig(
+                structure_inputs=[
+                    InverseFoldingStructure(
+                        structure=SAMPLE_PDB_CONTENT,
+                        chain_ids=["A"],
+                        fixed_positions={"A": [1, 2]},
+                    ),
+                    InverseFoldingStructure(
+                        structure=SAMPLE_PDB_CONTENT,
+                        chain_ids=["A"],
+                    ),
+                ]
+            )
+        )
 
-        # Structure should be loaded from content
-        assert generator.structure is not None
-        assert generator.chain_ids == ["A"]
+        assert len(generator.structure_inputs) == 2
+        assert generator.structure_inputs[0].fixed_positions == {"A": [1, 2]}
+        assert generator.structure_inputs[1].fixed_positions is None

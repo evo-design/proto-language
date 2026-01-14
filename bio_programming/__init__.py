@@ -132,6 +132,12 @@ from .tools import (
     run_ligandmpnn_sample,
     LigandMPNNConfig,
     LigandMPNNSequences,
+    # Inverse folding schemas
+    InverseFoldingStructure,
+    InverseFoldingInput,
+    InverseFoldingConfig,
+    DesignedSequences,
+    InverseFoldingOutput,
     # Structure prediction tools
     run_boltz,
     BoltzConfig,
@@ -293,6 +299,12 @@ __all__ = [
     "run_ligandmpnn_sample",
     "LigandMPNNConfig",
     "LigandMPNNSequences",
+    # Inverse folding schemas
+    "InverseFoldingStructure",
+    "InverseFoldingInput",
+    "InverseFoldingConfig",
+    "DesignedSequences",
+    "InverseFoldingOutput",
     # Structure prediction tools
     "run_boltz",
     "BoltzConfig",

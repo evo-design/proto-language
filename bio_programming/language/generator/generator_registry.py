@@ -20,7 +20,7 @@ class GeneratorSpec(BaseSpec):
     Extends BaseSpec with generator-specific metadata for discovery and schema generation.
     """
 
-    category: Literal["autoregressive", "mutation"] = Field(description="Generator category: 'autoregressive' (left-to-right, e.g. Evo2) or 'mutation' (bidirectional/masked, e.g. ESM2)")
+    category: Literal["autoregressive", "mutation", "inverse_folding"] = Field(description="Generator category: 'autoregressive' (left-to-right, e.g. Evo2), 'mutation' (bidirectional/masked, e.g. ESM2), or 'inverse_folding' (structure-conditioned, e.g. ProteinMPNN)")
     requires_gpu: bool = Field(description="Whether generator requires GPU")
     tools_called: List[str] = Field(description="List of tool keys this generator calls (e.g., ['esm3', 'evo2']). Helps agent find relevant tool documentation.")
     supported_sequence_types: List[str] = Field(description="List of supported sequence types (e.g., ['dna', 'protein']). Empty list means supports all types.")
@@ -86,7 +86,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
         label: str,
         config: Type[BaseModel],
         description: str,
-        category: Literal["autoregressive", "mutation"],
+        category: Literal["autoregressive", "mutation", "inverse_folding"],
         requires_gpu: bool,
         tools_called: List[str] = [],
         supported_sequence_types: List[str] = [],
@@ -102,7 +102,8 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
             label: Readable external name (e.g., "Uniform Mutation Generator", "EVO2 Generator")
             config: Pydantic model class for configuration validation
             description: Readable description
-            category: "autoregressive" (left-to-right) or "mutation" (bidirectional/masked)
+            category: "autoregressive" (left-to-right), "mutation" (bidirectional/masked), 
+                or "inverse_folding" (structure-conditioned)
             requires_gpu: If True, generator requires GPU for computation
             tools_called: List of tool keys this generator calls
             supported_sequence_types: List of supported sequence types (e.g., ["dna", "protein"]). 

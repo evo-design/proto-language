@@ -3,15 +3,16 @@ ProteinMPNN Generator for structure-conditioned protein sequence design.
 """
 from __future__ import annotations
 
-import os
-from pydantic import model_validator
-from typing import final, Optional, Dict, List
+from typing import final, List, Optional
 
-from proto_language.language.core import Generator
+from pydantic import field_validator
+
 from proto_language.base_config import BaseConfig, ConfigField
+from proto_language.language.core import Generator
 from proto_language.language.generator.generator_registry import GeneratorRegistry
 from proto_language.tools.inverse_folding.proteinmpnn import run_proteinmpnn_sample
 from proto_language.tools.inverse_folding.schemas import (
+    InverseFoldingStructure,
     InverseFoldingInput,
     InverseFoldingConfig,
 )
@@ -30,27 +31,24 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
     existing proteins while maintaining structural compatibility.
 
     Attributes:
-        structure (str | ProteinStructure): Protein structure to condition
-            sequence design on. Accepts multiple formats:
+        structure_inputs (List[InverseFoldingStructure]): Structure(s) with per-structure design
+            constraints. Each ``InverseFoldingStructure`` bundles a structure with optional
+            ``chain_ids`` and ``fixed_positions`` specific to that structure.
 
-            - Path to a PDB file (e.g., ``"/path/to/protein.pdb"``)
-            - PDB content as a string
-            - ``ProteinStructure`` instance
+            **InverseFoldingStructure fields:**
 
-            The structure defines the backbone geometry that designed sequences
-            should be compatible with.
+            - ``structure``: File path, PDB content string, or ``ProteinStructure`` object
+            - ``chain_ids``: Optional list of chain IDs to design (e.g., ``["A", "B"]``).
+              If None, all chains in the structure are designed.
+            - ``fixed_positions``: Optional dict mapping chain IDs to residue positions
+              to keep fixed (e.g., ``{"A": [1, 2, 3]}``)
 
-        chain_ids (Optional[List[str]]): Chain identifiers to design sequences for.
-            If ``None``, automatically detects and uses all chains in the structure.
-            Use this to target specific chains in multi-chain complexes.
-            Example: ``["A", "B"]`` to design only chains A and B.
-            Default: ``None``.
+            **Accepts flexible input formats:**
 
-        dynamic_structure_path (bool): If true, and ``structure`` is set to a valid
-            path, then this configures ``ProteinMPNNGenerator `` to dynamically load
-            the PDB from the path on each call to ``sample()``, which is useful for
-            optimization loops that continuously change the protein structure.
-            Default: ``False``.
+            - A single string (file path or PDB content) - auto-converted to ``InverseFoldingStructure``
+            - A single ``InverseFoldingStructure`` object
+            - A list of strings or ``InverseFoldingStructure`` objects
+            - A list of dicts with ``structure``, ``chain_ids``, ``fixed_positions`` keys
 
         temperature (float): Controls randomness in amino acid sampling from the
             model's predicted probability distribution:
@@ -63,19 +61,6 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
             Lower temperatures produce more consensus-like sequences; higher
             temperatures explore more sequence diversity. Must be in range [0, 1].
             Default: ``0.1``.
-
-        fixed_positions (Optional[Dict[str, List[int]]]): Dictionary mapping chain
-            IDs to residue positions that should remain fixed (not redesigned).
-            Positions use the numbering from the input PDB structure (typically
-            1-indexed). Useful for:
-
-            - Preserving catalytic residues in enzymes
-            - Maintaining binding interface residues
-            - Keeping known functional motifs
-
-            Example: ``{"A": [1, 2, 3, 45, 46], "B": [10, 11, 12]}`` fixes
-            positions 1-3 and 45-46 on chain A, and 10-12 on chain B.
-            Default: ``None`` (redesign all positions).
 
         excluded_amino_acids (Optional[List[str]]): List of amino acids to exclude
             from designed sequences, specified as single-letter codes. Common uses:
@@ -100,51 +85,57 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
         verbose (bool): Whether to print status messages during model loading
             and sequence generation. Default: ``False``.
 
-    Note:
-        For detailed information on ProteinMPNN, see:
-
-        - Paper: Dauparas et al. "Robust deep learning-based protein sequence
-          design using ProteinMPNN" Science (2022)
-        - GitHub: https://github.com/dauparas/ProteinMPNN
-
     Example:
+        Simple usage with just a file path:
+
         >>> config = ProteinMPNNGeneratorConfig(
-        ...     structure="/path/to/backbone.pdb",
+        ...     structure_inputs="/path/to/backbone.pdb",
         ...     temperature=0.1,
-        ...     fixed_positions={"A": [1, 2, 3]},  # Keep N-terminal residues
-        ...     excluded_amino_acids=["C"],  # No cysteines
+        ... )
+
+        With per-structure chain selection and fixed positions:
+
+        >>> from proto_language.tools.inverse_folding.schemas import InverseFoldingStructure
+        >>> config = ProteinMPNNGeneratorConfig(
+        ...     structure_inputs=InverseFoldingStructure(
+        ...         structure="/path/to/backbone.pdb",
+        ...         chain_ids=["A"],  # Only design chain A
+        ...         fixed_positions={"A": [1, 2, 3]},  # Keep positions 1-3 fixed
+        ...     ),
+        ...     temperature=0.1,
+        ... )
+
+        Multiple structures with different constraints:
+
+        >>> config = ProteinMPNNGeneratorConfig(
+        ...     structure_inputs=[
+        ...         InverseFoldingStructure(
+        ...             structure="/path/to/struct1.pdb",
+        ...             chain_ids=["A"],
+        ...             fixed_positions={"A": [1, 2, 3]},
+        ...         ),
+        ...         InverseFoldingStructure(
+        ...             structure="/path/to/struct2.pdb",
+        ...             chain_ids=["A", "B"],
+        ...         ),
+        ...     ],
+        ...     temperature=0.1,
         ... )
     """
 
-    # Required parameters.
-    structure: str | ProteinStructure = ConfigField(
-        title="Structure",
-        description="PDB path, PDB content, or ProteinStructure object to condition design",
+    # Structure parameters - bundles structure, chain_ids, and fixed_positions per structure.
+    structure_inputs: List[InverseFoldingStructure] = ConfigField(
+        title="Structure Inputs",
+        description="Structure(s) with optional chain_ids and fixed_positions constraints.",
     )
 
     # Optional parameters.
-    chain_ids: Optional[List[str]] = ConfigField(
-        default=None,
-        title="Chain IDs",
-        description="Chain identifiers to design sequences for. If None, uses all chains in structure.",
-    )
-    dynamic_structure_path: bool = ConfigField(
-        default=False,
-        title="Dynamic Structure Path",
-        description="Whether to reload the structure from a PDB file on each call to sample()"
-    )
     temperature: float = ConfigField(
         default=0.1,
         ge=0.0,
         le=1.0,
         title="Temperature",
         description="Controls randomness in sampling. Lower values produce more deterministic sequences.",
-        advanced=True,
-    )
-    fixed_positions: Optional[Dict[str, List[int]]] = ConfigField(
-        default=None,
-        title="Fixed Positions",
-        description="Dictionary mapping chain IDs to residue positions to keep fixed during design.",
         advanced=True,
     )
     excluded_amino_acids: Optional[List[str]] = ConfigField(
@@ -172,13 +163,26 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
         hidden=True,
     )
 
-    @model_validator(mode='after')
-    def validate_dynamic_structure_config(self):
-        """Validate that dynamic structures have been set correctly."""
-        if self.dynamic_structure_path:
-            if not os.path.exists(self.structure):
-                raise ValueError(f"Dynamic structure configuration requires a valid structure path, found: {self.structure}")
-        return self
+    @field_validator("structure_inputs", mode="before")
+    @classmethod
+    def normalize_structure_inputs(cls, v):
+        """Convert various input formats to List[InverseFoldingStructure]."""
+        if not isinstance(v, list):
+            v = [v]
+
+        result = []
+        for item in v:
+            if isinstance(item, InverseFoldingStructure):
+                result.append(item)
+            elif isinstance(item, (str, ProteinStructure)):
+                # Simple path/content/object -> InverseFoldingStructure with no constraints
+                result.append(InverseFoldingStructure(structure=item))
+            elif isinstance(item, dict):
+                # Dict -> InverseFoldingStructure
+                result.append(InverseFoldingStructure(**item))
+            else:
+                raise ValueError(f"Unsupported structure_inputs item type: {type(item)}")
+        return result
 
 
 @GeneratorRegistry.register(
@@ -188,7 +192,7 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
     description="ProteinMPNN structure-conditioned protein sequence design",
     requires_gpu=True,
     tools_called=["proteinmpnn-sample"],
-    category="autoregressive",
+    category="inverse_folding",
     supported_sequence_types=["protein"],
 )
 @final
@@ -211,13 +215,13 @@ class ProteinMPNNGenerator(Generator):
         >>> from proto_language.language.generator import ProteinMPNNGenerator, ProteinMPNNGeneratorConfig
         >>> from proto_language.language.core import Segment
         >>> config = ProteinMPNNGeneratorConfig(
-        ...     structure="/path/to/backbone.pdb",
+        ...     structure_inputs="/path/to/backbone.pdb",
         ...     temperature=0.1,
         ... )
         >>> gen = ProteinMPNNGenerator(config)
         >>> segment = Segment(length=100, sequence_type="protein")
         >>> gen.assign(segment)
-        >>> gen.sample()  # Generates sequences compatible with the backbone
+        >>> gen.sample()  # Generates num_candidates sequences from the backbone
     """
 
     def __init__(self, config: ProteinMPNNGeneratorConfig) -> None:
@@ -228,144 +232,70 @@ class ProteinMPNNGenerator(Generator):
         """
         super().__init__()
 
-        self.config_structure = config.structure
-        self.dynamic_structure_path = config.dynamic_structure_path
-        self.chain_ids = config.chain_ids
+        self.structure_inputs = config.structure_inputs
         self.temperature = config.temperature
-        self.fixed_positions = config.fixed_positions
         self.excluded_amino_acids = config.excluded_amino_acids
         self.seed = config.seed
         self.device = config.device
         self.verbose = config.verbose
 
-        # Structure configuration.
-        if self.dynamic_structure_path:
-            # Initialize the structure to `None` and load on each call to
-            # `sample()`, allowing for dynamically changing structures during an
-            # optimization loop.
-            self.structure = None
+    def sample(self, structure_inputs: Optional[List[InverseFoldingStructure]] = None) -> None:
+        """Generate protein sequences using ProteinMPNN and update candidate sequences.
+
+        Args:
+            structure_inputs: Optional list of InverseFoldingStructure to use instead of config.
+                If provided, generates one sequence per structure. If None, uses
+                config structure_inputs (single structure generates batch_size sequences,
+                multiple structures generate one sequence each).
+        """
+        num_candidates = self._assigned_segment.num_candidates
+
+        # Use provided structure_inputs or fall back to config
+        sampling_structure_inputs = structure_inputs if structure_inputs is not None else self.structure_inputs
+
+        # Determine batch size based on number of structures
+        if len(sampling_structure_inputs) == 1:
+            batch_size = num_candidates
         else:
-            # Just load the structure now.
-            self._load_and_validate_structure()
+            if len(sampling_structure_inputs) != num_candidates:
+                raise ValueError(f"Number of structure_inputs({len(sampling_structure_inputs)}) must either be 1 or match number of candidates ({num_candidates})")
+            batch_size = 1
 
-        # Store metrics from last sample call
-        self._last_perplexities: Optional[List[float]] = None
-        self._last_sequence_identities: Optional[List[float]] = None
-
-    def _load_and_validate_structure(self) -> None:
-        """
-        Helper function for loading and validating the input structure.
-        Called before each `self.sample()` to allow for dynamically changing structures.
-        """
-        # Load and convert structure input to ProteinStructure if needed.
-        if isinstance(self.config_structure, ProteinStructure):
-            self.structure = self.config_structure
-        else:
-            self.structure = ProteinStructure(structure_filepath_or_content=self.config_structure)
-
-        # Auto-detect chain IDs if not provided.
-        if self.chain_ids is None:
-            self.chain_ids = self.structure.get_chain_ids()
-
-        # Validate that specified chain IDs exist in structure.
-        available_chains = set(self.structure.get_chain_ids())
-        requested_chains = set(self.chain_ids)
-        if not requested_chains.issubset(available_chains):
-            missing = requested_chains - available_chains
-            raise ValueError(
-                f"Chain IDs {missing} not found in structure. "
-                f"Available chains: {available_chains}"
-            )
-
-        # Validate fixed_positions chain IDs if provided.
-        if self.fixed_positions is not None:
-            fixed_chains = set(self.fixed_positions.keys())
-            if not fixed_chains.issubset(available_chains):
-                missing = fixed_chains - available_chains
-                raise ValueError(
-                    f"Fixed position chain IDs {missing} not found in structure. "
-                    f"Available chains: {available_chains}"
-                )
-
-    def sample(self) -> None:
-        """Generate protein sequences conditioned on the assigned structure.
-
-        Uses ProteinMPNN to design sequences for all candidates in the batch.
-        The number of sequences generated equals the number of candidate
-        sequences in the assigned segment.
-
-        After sampling, per-sequence metrics are available via:
-
-        - ``self._last_perplexities``: ProteinMPNN perplexity scores
-        - ``self._last_sequence_identities``: Sequence identity to original
-
-        The above are also added to the sequence metadata.
-
-        Raises:
-            RuntimeError: If called before assign().
-        """
-        if self.dynamic_structure_path:
-            # Load the structure in case it has changed.
-            self._load_and_validate_structure()
-
-        num_candidates = len(self._assigned_segment.candidate_sequences)
-
-        tool_input = InverseFoldingInput(
-            structures=[self.structure],
-            all_chain_ids=[self.chain_ids],
-        )
         tool_config = InverseFoldingConfig(
-            batch_size=num_candidates,
+            batch_size=batch_size,
             temperature=self.temperature,
-            fixed_positions=self.fixed_positions,
             excluded_amino_acids=self.excluded_amino_acids,
             seed=self.seed,
             device=self.device,
-            keep_on_gpu=True,  # Keep for repeated calls.
+            keep_on_gpu=True,
             verbose=self.verbose,
         )
 
-        result = run_proteinmpnn_sample(inputs=tool_input, config=tool_config)
+        # Run sampling
+        result = run_proteinmpnn_sample(inputs=InverseFoldingInput(inputs=sampling_structure_inputs), config=tool_config)
 
-        # Extract sequences and metrics from first (only) structure result.
-        designed = result.designed_sequences[0]
-        generated_sequences = designed.sequences
+        # Collect sequences and metrics from all structure results
+        generated_sequences = []
+        perplexities = []
+        sequence_identities = []
+        for designed in result.designed_sequences:
+            generated_sequences.extend(designed.sequences)
+            perplexities.extend(designed.mpnn_perplexity)
+            sequence_identities.extend(designed.sequence_identity)
 
-        # Store metrics for potential downstream use.
-        self._last_perplexities = designed.mpnn_perplexity
-        self._last_sequence_identities = designed.sequence_identity
+        if len(generated_sequences) != num_candidates:
+            raise RuntimeError(f"Expected generator to generate {num_candidates} sequences but got {len(generated_sequences)}")
 
-        # Update candidate sequences.
-        for idx, sequence in enumerate(generated_sequences):
-            if idx < len(self._assigned_segment.candidate_sequences):
-                candidate = self._assigned_segment.candidate_sequences[idx]
-                candidate.sequence = sequence
-                candidate._metadata.update({
-                    "proteinmpnn_perplexity": self._last_perplexities[idx],
-                    "proteinmpnn_sequence_identity": self._last_sequence_identities[idx],
-                })
-
-    @property
-    def last_perplexities(self) -> Optional[List[float]]:
-        """Get ProteinMPNN perplexity scores from the last sample() call.
-
-        Lower perplexity indicates higher model confidence in the designed sequence.
-
-        Returns:
-            List of perplexity values, one per generated sequence, or None if
-            sample() has not been called.
-        """
-        return self._last_perplexities
-
-    @property
-    def last_sequence_identities(self) -> Optional[List[float]]:
-        """Get sequence identity to original structure from the last sample() call.
-
-        Measures similarity between designed sequences and the sequence in the
-        input PDB structure.
-
-        Returns:
-            List of sequence identity values (0-1), one per generated sequence,
-            or None if sample() has not been called.
-        """
-        return self._last_sequence_identities
+        # Update candidate sequences
+        for candidate, sequence, perplexity, identity in zip(
+            self._assigned_segment.candidate_sequences,
+            generated_sequences,
+            perplexities,
+            sequence_identities,
+            strict=True,
+        ):
+            candidate.sequence = sequence
+            candidate._metadata.update({
+                "proteinmpnn_perplexity": perplexity,
+                "proteinmpnn_sequence_identity": identity,
+            })

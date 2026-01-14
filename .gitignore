@@ -32,4 +32,5 @@ build/
 
 # AI tools
 .cursor/
+.cursorignore
 .claude/

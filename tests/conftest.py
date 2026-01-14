@@ -9,11 +9,11 @@ import os
 
 
 # Helper to create a mock generator spec for patching
-def _create_mock_generator_spec(category: str = "autoregressive"):
+def _create_mock_generator_spec(category: str = "autoregressive", sequence_types: list = None):
     """Create a mock GeneratorSpec with the given category."""
     mock_spec = Mock()
     mock_spec.category = category
-    mock_spec.supported_sequence_types = ["dna"]
+    mock_spec.supported_sequence_types = sequence_types or ["dna"]
     return mock_spec
 
 
@@ -37,6 +37,8 @@ def mock_generator_registry(monkeypatch):
             return f"mock-{generator.__class__.__name__}"
         if generator.__class__.__name__ == "MockMutationGenerator":
             return "mock-mutation"
+        if generator.__class__.__name__ == "MockInverseFoldingGenerator":
+            return "mock-inverse-folding"
         return original_get_key(generator)
     
     def patched_get(key):
@@ -44,6 +46,8 @@ def mock_generator_registry(monkeypatch):
         if key.startswith("mock-"):
             if key == "mock-mutation":
                 return _create_mock_generator_spec("mutation")
+            if key == "mock-inverse-folding":
+                return _create_mock_generator_spec("inverse_folding", ["protein"])
             return _create_mock_generator_spec("autoregressive")
         return original_get(key)
     

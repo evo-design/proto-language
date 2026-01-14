@@ -25,7 +25,7 @@ from proto_language.tools.structure_prediction.schemas import (
     StructurePredictionComplex,
 )
 from proto_language.utils import MAX_ENERGY, sigmoid_score
-from .structure_prediction_dispatcher import predict_structures
+from proto_language.utils.helpers import predict_structures
 
 logger = getLogger(__name__)
 

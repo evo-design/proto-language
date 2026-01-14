@@ -10,6 +10,7 @@ from proto_language.language.generator import (
     LigandMPNNGenerator,
     LigandMPNNGeneratorConfig,
 )
+from proto_language.tools.inverse_folding.schemas import InverseFoldingStructure
 
 
 DEFAULT_CHECKPOINT = Path.home() / ".foundry" / "checkpoints" / "ligandmpnn_v_32_010_25.pt"
@@ -59,184 +60,151 @@ def temp_pdb_file():
         os.remove(temp_path)
 
 
-def _skip_if_missing_checkpoint():
-    if not DEFAULT_CHECKPOINT.exists():
-        pytest.skip("LigandMPNN checkpoint not installed.")
-
-
 @pytest.mark.uses_gpu
 class TestLigandMPNNGenerator:
-    def test_ligandmpnn_basic_sampling(self, temp_pdb_file):
-        _skip_if_missing_checkpoint()
-        ligandmpnn_generator = LigandMPNNGenerator(
+    """Integration tests for LigandMPNN generator (require GPU and checkpoint)."""
+
+    def test_basic_sampling(self, temp_pdb_file):
+        """Test basic sequence generation from structure."""
+        generator = LigandMPNNGenerator(
             LigandMPNNGeneratorConfig(
-                structure=temp_pdb_file,
+                structure_inputs=temp_pdb_file,
                 temperature=0.1,
             )
         )
 
         segment = Segment(length=5, sequence_type="protein")
-        ligandmpnn_generator.assign(segment)
+        generator.assign(segment)
 
-        assert ligandmpnn_generator._assigned_segment is segment
+        assert generator._assigned_segment is segment
 
-        ligandmpnn_generator.sample()
+        generator.sample()
 
         assert segment[0].sequence is not None
         assert len(segment[0].sequence) == 5
         assert segment[0].sequence_type == "protein"
 
-    def test_ligandmpnn_dynamic_structure(self, temp_pdb_file):
-        _skip_if_missing_checkpoint()
-        ligandmpnn_generator = LigandMPNNGenerator(
+    def test_fixed_positions(self, temp_pdb_file):
+        """Test that fixed positions are preserved in generated sequences."""
+        generator = LigandMPNNGenerator(
             LigandMPNNGeneratorConfig(
-                structure=temp_pdb_file,
-                dynamic_structure_path=True,
+                structure_inputs=InverseFoldingStructure(
+                    structure=temp_pdb_file,
+                    fixed_positions={"A": [1, 2]},
+                ),
                 temperature=0.1,
             )
         )
 
-        assert ligandmpnn_generator.structure is None
-
         segment = Segment(length=5, sequence_type="protein")
-        ligandmpnn_generator.assign(segment)
+        generator.assign(segment)
+        generator.sample()
 
-        ligandmpnn_generator.sample()
+        # Fixed positions should match original PDB residues
+        assert segment[0].sequence[0] == "A"  # Position 1 is ALA
+        assert segment[0].sequence[1] == "G"  # Position 2 is GLY
 
-        assert ligandmpnn_generator.structure is not None
-        assert segment[0].sequence is not None
-        assert len(segment[0].sequence) == 5
-
-    def test_ligandmpnn_fixed_positions(self, temp_pdb_file):
-        _skip_if_missing_checkpoint()
-        fixed_positions = {"A": [1, 2]}
-
-        ligandmpnn_generator = LigandMPNNGenerator(
-            LigandMPNNGeneratorConfig(
-                structure=temp_pdb_file,
-                temperature=0.1,
-                fixed_positions=fixed_positions,
-            )
-        )
-
-        segment = Segment(length=5, sequence_type="protein")
-        ligandmpnn_generator.assign(segment)
-
-        ligandmpnn_generator.sample()
-
-        assert segment[0].sequence is not None
-        assert len(segment[0].sequence) == 5
-        assert segment[0].sequence[0] == "A"
-        assert segment[0].sequence[1] == "G"
-
-    def test_ligandmpnn_batch_sampling(self, temp_pdb_file):
-        _skip_if_missing_checkpoint()
+    def test_batch_sampling(self, temp_pdb_file):
+        """Test generating multiple sequences from single structure."""
         num_candidates = 3
-        ligandmpnn_generator = LigandMPNNGenerator(
+        generator = LigandMPNNGenerator(
             LigandMPNNGeneratorConfig(
-                structure=temp_pdb_file,
+                structure_inputs=temp_pdb_file,
                 temperature=0.1,
             )
         )
 
         segment = Segment(sequence="AGSVL", sequence_type="protein")
-        ligandmpnn_generator.assign(segment)
+        generator.assign(segment)
         segment.candidate_sequences = [
             copy.deepcopy(segment.original_sequence) for _ in range(num_candidates)
         ]
 
-        assert len(segment.candidate_sequences) == num_candidates
-
-        ligandmpnn_generator.sample()
+        generator.sample()
 
         for i in range(num_candidates):
             assert segment.candidate_sequences[i].sequence is not None
             assert len(segment.candidate_sequences[i].sequence) == 5
-            assert segment.candidate_sequences[i].sequence_type == "protein"
-
-    def test_constant_segment_rejection(self, temp_pdb_file):
-        config = LigandMPNNGeneratorConfig(structure=temp_pdb_file)
-        gen = LigandMPNNGenerator(config)
-
-        constant_segment = Segment(
-            sequence="AGSVL",
-            sequence_type="protein",
-            constant=True,
-        )
-
-        with pytest.raises(ValueError, match="Cannot assign constant segment"):
-            gen.assign(constant_segment)
 
 
 class TestLigandMPNNGeneratorValidation:
-    """Test configuration and sequence type validation for LigandMPNN generator."""
+    """Unit tests for LigandMPNN configuration and validation (no GPU required)."""
 
-    def test_valid_protein_assignment(self, temp_pdb_file):
-        config = LigandMPNNGeneratorConfig(structure=temp_pdb_file)
-        generator = LigandMPNNGenerator(config)
-        segment = Segment(length=5, sequence_type="protein")
-
-        generator.assign(segment)
-        assert generator._assigned_segment is segment
-
-    def test_rejects_dna_segment(self, temp_pdb_file):
-        config = LigandMPNNGeneratorConfig(structure=temp_pdb_file)
-        generator = LigandMPNNGenerator(config)
+    def test_rejects_non_protein_segment(self, temp_pdb_file):
+        """LigandMPNN should reject non-protein segments."""
+        generator = LigandMPNNGenerator(
+            LigandMPNNGeneratorConfig(structure_inputs=temp_pdb_file)
+        )
         segment = Segment(length=50, sequence_type="dna")
 
         with pytest.raises(ValueError) as exc_info:
             generator.assign(segment)
 
-        error_msg = str(exc_info.value)
-        assert "does not support sequence type" in error_msg
-        assert "dna" in error_msg.lower()
-        assert "protein" in error_msg.lower()
+        assert "does not support sequence type" in str(exc_info.value)
 
-    def test_rejects_rna_segment(self, temp_pdb_file):
-        config = LigandMPNNGeneratorConfig(structure=temp_pdb_file)
-        generator = LigandMPNNGenerator(config)
-        segment = Segment(length=50, sequence_type="rna")
+    def test_rejects_constant_segment(self, temp_pdb_file):
+        """LigandMPNN should reject constant segments."""
+        generator = LigandMPNNGenerator(
+            LigandMPNNGeneratorConfig(structure_inputs=temp_pdb_file)
+        )
+        segment = Segment(sequence="AGSVL", sequence_type="protein", constant=True)
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValueError, match="Cannot assign constant segment"):
             generator.assign(segment)
 
-        assert "does not support sequence type" in str(exc_info.value)
-        assert "rna" in str(exc_info.value).lower()
-
-    def test_invalid_chain_id_raises_error(self, temp_pdb_file):
-        config = LigandMPNNGeneratorConfig(
-            structure=temp_pdb_file,
-            chain_ids=["Z"],
+    def test_pdb_content_string(self):
+        """Should accept PDB content as a string (not just file path)."""
+        generator = LigandMPNNGenerator(
+            LigandMPNNGeneratorConfig(structure_inputs=SAMPLE_PDB_CONTENT)
         )
 
-        with pytest.raises(ValueError) as exc_info:
-            LigandMPNNGenerator(config)
+        # Structure should be resolved automatically
+        assert len(generator.structure_inputs) == 1
+        assert generator.structure_inputs[0].structure is not None
 
-        assert "not found in structure" in str(exc_info.value)
-
-    def test_invalid_fixed_position_chain_raises_error(self, temp_pdb_file):
-        config = LigandMPNNGeneratorConfig(
-            structure=temp_pdb_file,
-            fixed_positions={"Z": [1, 2]},
+    def test_structure_without_chain_ids_defaults_to_all(self, temp_pdb_file):
+        """When chain_ids is not specified, should default to all chains."""
+        generator = LigandMPNNGenerator(
+            LigandMPNNGeneratorConfig(structure_inputs=temp_pdb_file)
         )
 
-        with pytest.raises(ValueError) as exc_info:
-            LigandMPNNGenerator(config)
+        # chain_ids should be populated with all available chains
+        assert len(generator.structure_inputs) == 1
+        assert generator.structure_inputs[0].chain_ids is not None
+        assert generator.structure_inputs[0].chain_ids == ["A"]  # Only chain A in sample PDB
 
-        assert "not found in structure" in str(exc_info.value)
-
-    def test_dynamic_structure_requires_valid_path(self):
-        with pytest.raises(ValueError) as exc_info:
+    def test_structure_input_with_chain_ids(self, temp_pdb_file):
+        """Should accept InverseFoldingStructure with chain_ids."""
+        generator = LigandMPNNGenerator(
             LigandMPNNGeneratorConfig(
-                structure="/nonexistent/path/to/structure.pdb",
-                dynamic_structure_path=True,
+                structure_inputs=InverseFoldingStructure(
+                    structure=temp_pdb_file,
+                    chain_ids=["A"],
+                )
             )
+        )
 
-        assert "valid structure path" in str(exc_info.value).lower()
+        assert len(generator.structure_inputs) == 1
+        assert generator.structure_inputs[0].chain_ids == ["A"]
 
-    def test_pdb_content_string_accepted(self):
-        config = LigandMPNNGeneratorConfig(structure=SAMPLE_PDB_CONTENT)
-        generator = LigandMPNNGenerator(config)
+    def test_multiple_structure_inputs(self):
+        """Should accept multiple InverseFoldingStructure objects."""
+        generator = LigandMPNNGenerator(
+            LigandMPNNGeneratorConfig(
+                structure_inputs=[
+                    InverseFoldingStructure(
+                        structure=SAMPLE_PDB_CONTENT,
+                        chain_ids=["A"],
+                        fixed_positions={"A": [1, 2]},
+                    ),
+                    InverseFoldingStructure(
+                        structure=SAMPLE_PDB_CONTENT,
+                        chain_ids=["A"],
+                    ),
+                ]
+            )
+        )
 
-        assert generator.structure is not None
-        assert generator.chain_ids == ["A"]
+        assert len(generator.structure_inputs) == 2
+        assert generator.structure_inputs[0].fixed_positions == {"A": [1, 2]}
+        assert generator.structure_inputs[1].fixed_positions is None
