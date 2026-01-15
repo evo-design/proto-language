@@ -1,0 +1,52 @@
+# Pre-commit hooks configuration
+# See https://pre-commit.com for more information
+#
+# Installation:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Manual run:
+#   pre-commit run --all-files
+
+repos:
+  # Auto-generate documentation from docstrings and READMEs
+  - repo: local
+    hooks:
+      - id: generate-docs
+        name: Generate documentation
+        entry: bash -c 'cd "$GIT_PREFIX" && python docs/generate_docs.py'
+        language: system
+        pass_filenames: false
+        files: |
+          (?x)^(
+              proto_language/tools/.*/README\.md|
+              proto_language/language/constraint/.*\.py|
+              proto_language/language/generator/.*\.py|
+              proto_language/language/optimizer/.*\.py|
+              docs/generate_docs\.py
+          )$
+        stages: [pre-commit]
+
+  # Code formatting
+  - repo: https://github.com/psf/black
+    rev: 24.1.1
+    hooks:
+      - id: black
+        language_version: python3.12
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ["--profile", "black"]
+
+  # Basic file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
