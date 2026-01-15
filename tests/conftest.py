@@ -97,24 +97,31 @@ def pytest_collection_modifyitems(config, items):
         if not any(mark.name == "uses_gpu" for mark in item.iter_markers()):
             item.add_marker(pytest.mark.uses_cpu)
 
+    # Skip tests marked with skip_ci when running in GitHub Actions
+    if os.getenv("GITHUB_ACTIONS") == "true":
+        skip_ci = pytest.mark.skip(reason="Skipped in GitHub Actions CI")
+        for item in items:
+            if "skip_ci" in item.keywords:
+                item.add_marker(skip_ci)
+
     # Skip GPU tests when --cpu is specified
     if config.getoption("--cpu"):
         skip_gpu = pytest.mark.skip(reason="--cpu specified")
         for item in items:
             if "uses_gpu" in item.keywords:
                 item.add_marker(skip_gpu)
-    
+
     # Skip CPU tests when --gpu is specified
     elif config.getoption("--gpu"):
         skip_cpu = pytest.mark.skip(reason="--gpu specified")
         for item in items:
             if "uses_cpu" in item.keywords and "uses_gpu" not in item.keywords:
                 item.add_marker(skip_cpu)
-    
+
     # Handle slow test filtering
     run_all = config.getoption("--all")
     run_slow_only = config.getoption("--slow")
-    
+
     if run_slow_only:
         # When --slow is specified, skip tests NOT marked as slow
         skip_non_slow = pytest.mark.skip(reason="--slow specified, skipping non-slow tests")

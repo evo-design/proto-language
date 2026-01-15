@@ -53,6 +53,8 @@ tools = [
     "ViennaRNA",
     # Structure visualization
     "py3Dmol>=2.0.0",
+    # File Parsing/Indexing
+    "pyfaidx",
 ]
 
 # GPU dependencies
@@ -163,6 +165,7 @@ markers = [
     "gpu: GPU-required tests",
     "slow: Slow tests that may take several minutes",
     "integration: Integration tests",
+    "skip_ci: Skip test in GitHub Actions CI",
 ]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

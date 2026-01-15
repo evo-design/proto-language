@@ -14,9 +14,13 @@ data/
 *.venvs
 *.hmm
 docs/_generated_navigation.json
+*mini_mmseqs_db
 
 # Database files
 *.db
+
+# ColabFold databases (large downloads, should not be committed)
+proto_language/tools/sequence_alignment/colabfold_search/databases/
 
 # Log files and directory
 *.log

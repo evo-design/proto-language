@@ -1,16 +1,17 @@
 """
 MSAGenerator for sampling mutations from multiple sequence alignment distributions.
 """
+
 from __future__ import annotations
 from typing import Dict, final, List, Optional
 import random
 
-from pydantic import field_validator
+from pydantic import field_validator, ConfigDict
 
 from proto_language.language.core import Generator, Segment
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.generator.generator_registry import GeneratorRegistry
-from proto_language.tools.tool_io import MSA
+from proto_language.tools.sequence_alignment.msas import MSA
 
 
 class MSAGeneratorConfig(BaseConfig):
@@ -59,6 +60,8 @@ class MSAGeneratorConfig(BaseConfig):
         advanced=True,
     )
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     @field_validator("msa", mode="before")
     @classmethod
     def validate_msa(cls, v):
@@ -66,8 +69,10 @@ class MSAGeneratorConfig(BaseConfig):
         if isinstance(v, MSA):
             return v
         if isinstance(v, list):
-            return MSA(aligned_sequences=v)
-        raise ValueError(f"msa must be an MSA object or list of aligned sequences, got {type(v)}")
+            return MSA(v)
+        raise ValueError(
+            f"msa must be an MSA object or list of aligned sequences, got {type(v)}"
+        )
 
 
 @GeneratorRegistry.register(
@@ -97,9 +102,9 @@ class MSAGenerator(Generator):
     Example:
         >>> from proto_language.language.generator import MSAGenerator, MSAGeneratorConfig
         >>> from proto_language.language.core import Segment
-        >>> from proto_language.tools.tool_io import MSA
+        >>> from proto_language.tools.sequence_alignment.msas import MSA
         >>> config = MSAGeneratorConfig(
-        ...     msa=MSA(aligned_sequences=["MVLS", "AVLS", "MVLS"]),
+        ...     msa=MSA(["MVLS", "AVLS", "MVLS"]),
         ...     num_mutations=1,
         ... )
         >>> gen = MSAGenerator(config)
@@ -107,6 +112,7 @@ class MSAGenerator(Generator):
         >>> gen.assign(segment)
         >>> gen.sample()  # Position 0 has 2/3 chance of M, 1/3 chance of A
     """
+
     def __init__(self, config: MSAGeneratorConfig) -> None:
         """Initialize the MSA generator.
 
@@ -150,7 +156,9 @@ class MSAGenerator(Generator):
         super().assign(assigned_segment)
 
         if self.msa.alignment_length != assigned_segment.sequence_length:
-            raise ValueError(f"MSA alignment length ({self.msa.alignment_length}) must match segment length ({assigned_segment.sequence_length})")
+            raise ValueError(
+                f"MSA alignment length ({self.msa.alignment_length}) must match segment length ({assigned_segment.sequence_length})"
+            )
 
         if not self.mutable_positions:
             raise ValueError("No mutable positions in MSA (all positions are gaps)")
