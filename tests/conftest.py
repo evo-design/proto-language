@@ -2,14 +2,17 @@
 Test configuration and fixtures for the proto-language test suite.
 """
 
-import pytest
+import os
 from unittest.mock import Mock, patch
 from uuid import uuid4
-import os
+
+import pytest
 
 
 # Helper to create a mock generator spec for patching
-def _create_mock_generator_spec(category: str = "autoregressive", sequence_types: list = None):
+def _create_mock_generator_spec(
+    category: str = "autoregressive", sequence_types: list = None
+):
     """Create a mock GeneratorSpec with the given category."""
     mock_spec = Mock()
     mock_spec.category = category
@@ -22,16 +25,16 @@ def _create_mock_generator_spec(category: str = "autoregressive", sequence_types
 def mock_generator_registry(monkeypatch):
     """Patch GeneratorRegistry to return autoregressive category for mock generators."""
     from proto_language.language.generator import generator_registry
-    
+
     original_get_key = generator_registry.GeneratorRegistry.get_key
     original_get = generator_registry.GeneratorRegistry.get
-    
+
     def patched_get_key(generator):
         # For mock generators, return a fake key
         if generator.__class__.__name__ in (
             "MockAutoregressiveGenerator",
             "ControlledMockGenerator",
-            "SegmentAwareMockGenerator", 
+            "SegmentAwareMockGenerator",
             "AccumulativeTrackingGenerator",
         ):
             return f"mock-{generator.__class__.__name__}"
@@ -40,7 +43,7 @@ def mock_generator_registry(monkeypatch):
         if generator.__class__.__name__ == "MockInverseFoldingGenerator":
             return "mock-inverse-folding"
         return original_get_key(generator)
-    
+
     def patched_get(key):
         # For mock generator keys, return appropriate mock spec
         if key.startswith("mock-"):
@@ -50,9 +53,17 @@ def mock_generator_registry(monkeypatch):
                 return _create_mock_generator_spec("inverse_folding", ["protein"])
             return _create_mock_generator_spec("autoregressive")
         return original_get(key)
-    
-    monkeypatch.setattr(generator_registry.GeneratorRegistry, "get_key", classmethod(lambda cls, gen: patched_get_key(gen)))
-    monkeypatch.setattr(generator_registry.GeneratorRegistry, "get", classmethod(lambda cls, key: patched_get(key)))
+
+    monkeypatch.setattr(
+        generator_registry.GeneratorRegistry,
+        "get_key",
+        classmethod(lambda cls, gen: patched_get_key(gen)),
+    )
+    monkeypatch.setattr(
+        generator_registry.GeneratorRegistry,
+        "get",
+        classmethod(lambda cls, key: patched_get(key)),
+    )
 
 
 def pytest_addoption(parser):
@@ -81,6 +92,12 @@ def pytest_addoption(parser):
         default=False,
         help="Run only slow tests",
     )
+    parser.addoption(
+        "--skip-ci",
+        action="store_true",
+        default=False,
+        help="Skip tests marked with skip_ci (mimics CI environment behavior)",
+    )
 
 
 def pytest_configure(config):
@@ -97,9 +114,11 @@ def pytest_collection_modifyitems(config, items):
         if not any(mark.name == "uses_gpu" for mark in item.iter_markers()):
             item.add_marker(pytest.mark.uses_cpu)
 
-    # Skip tests marked with skip_ci when running in GitHub Actions
-    if os.getenv("GITHUB_ACTIONS") == "true":
-        skip_ci = pytest.mark.skip(reason="Skipped in GitHub Actions CI")
+    # Skip tests marked with skip_ci when running in GitHub Actions or --skip-ci is specified
+    if os.getenv("GITHUB_ACTIONS") == "true" or config.getoption("--skip-ci"):
+        skip_ci = pytest.mark.skip(
+            reason="Skipped in CI environment (GitHub Actions or --skip-ci)"
+        )
         for item in items:
             if "skip_ci" in item.keywords:
                 item.add_marker(skip_ci)
@@ -124,13 +143,17 @@ def pytest_collection_modifyitems(config, items):
 
     if run_slow_only:
         # When --slow is specified, skip tests NOT marked as slow
-        skip_non_slow = pytest.mark.skip(reason="--slow specified, skipping non-slow tests")
+        skip_non_slow = pytest.mark.skip(
+            reason="--slow specified, skipping non-slow tests"
+        )
         for item in items:
             if "slow" not in item.keywords:
                 item.add_marker(skip_non_slow)
     elif not run_all:
         # By default (no --all flag), skip slow tests
-        skip_slow = pytest.mark.skip(reason="slow test (use --all to run, or --slow to run only slow tests)")
+        skip_slow = pytest.mark.skip(
+            reason="slow test (use --all to run, or --slow to run only slow tests)"
+        )
         for item in items:
             if "slow" in item.keywords:
                 item.add_marker(skip_slow)
@@ -140,24 +163,25 @@ def pytest_collection_modifyitems(config, items):
 def setup_cloud_environment():
     """Ensure cloud can find credentials in pytest context."""
     # Read cloud credentials from ~/.cloud.toml and set as environment variables
-    import toml
     from pathlib import Path
-    
-    cloud_config_path = Path.home() / '.cloud.toml'
+
+    import toml
+
+    cloud_config_path = Path.home() / ".cloud.toml"
     if cloud_config_path.exists():
         config = toml.load(cloud_config_path)
-        
+
         # Find active profile (proto-language)
-        if 'proto-language' in config:
-            os.environ['CLOUD_TOKEN_ID'] = config['proto-language']['token_id']
-            os.environ['CLOUD_TOKEN_SECRET'] = config['proto-language']['token_secret']
-            os.environ['CLOUD_ENVIRONMENT'] = 'main'
+        if "proto-language" in config:
+            os.environ["CLOUD_TOKEN_ID"] = config["proto-language"]["token_id"]
+            os.environ["CLOUD_TOKEN_SECRET"] = config["proto-language"]["token_secret"]
+            os.environ["CLOUD_ENVIRONMENT"] = "main"
             print("✓ Loaded cloud credentials for proto-language workspace")
-    
+
     yield
-    
+
     # Cleanup
-    for key in ['CLOUD_TOKEN_ID', 'CLOUD_TOKEN_SECRET', 'CLOUD_ENVIRONMENT']:
+    for key in ["CLOUD_TOKEN_ID", "CLOUD_TOKEN_SECRET", "CLOUD_ENVIRONMENT"]:
         if key in os.environ:
             del os.environ[key]
 
@@ -176,59 +200,61 @@ def gpu_available():
 @pytest.fixture(autouse=True)
 def mock_celery():
     """Mock the task queue and a cache dependencies for all tests."""
-    
+
     # Mock the task queue task
     mock_task = Mock()
     mock_task.delay.return_value = Mock(id=str(uuid4()))
-    
+
     # Mock the task queue app
     mock_celery_app = Mock()
     mock_celery_app.control.inspect.return_value.active.return_value = {"worker1": []}
     mock_celery_app.AsyncResult.return_value = Mock(status="PENDING")
-    
+
     # Check if API modules are available before patching
     patches = []
-    
+
     try:
         import api.main
-        patches.extend([
-            patch("api.main.celery_app", mock_celery_app),
-            patch("api.main.run_program_task", mock_task)
-        ])
+
+        patches.extend(
+            [
+                patch("api.main.celery_app", mock_celery_app),
+                patch("api.main.run_program_task", mock_task),
+            ]
+        )
     except ImportError:
         pass
-    
+
     try:
-        import api.workers.celery_config# noqa
+        import api.workers.celery_config  # noqa
+
         patches.append(patch("api.workers.celery_config.celery_app", mock_celery_app))
     except ImportError:
         pass
-    
+
     try:
-        import api.workers.tasks# noqa
-        patches.extend([
-            patch("api.workers.tasks.celery_app", mock_celery_app),
-            patch("api.workers.tasks.run_program_task", mock_task)
-        ])
+        import api.workers.tasks  # noqa
+
+        patches.extend(
+            [
+                patch("api.workers.tasks.celery_app", mock_celery_app),
+                patch("api.workers.tasks.run_program_task", mock_task),
+            ]
+        )
     except ImportError:
         pass
-    
+
     # Apply patches if any are available
     if patches:
         # Use contextlib.ExitStack to handle multiple patches
         from contextlib import ExitStack
+
         with ExitStack() as stack:
             for p in patches:
                 stack.enter_context(p)
-            yield {
-                "celery_app": mock_celery_app,
-                "task": mock_task
-            }
+            yield {"celery_app": mock_celery_app, "task": mock_task}
     else:
-        yield {
-            "celery_app": mock_celery_app,
-            "task": mock_task
-        }
+        yield {"celery_app": mock_celery_app, "task": mock_task}
 
 
 @pytest.fixture(autouse=True)
@@ -241,18 +267,27 @@ def mock_redis():
     mock_redis_sync.setex.return_value = True
     mock_redis_sync.exists.return_value = 0
     mock_redis_sync.get.return_value = None
-    
+
     # Async a cache mock
     from unittest.mock import AsyncMock
+
     mock_redis_async = AsyncMock()
     mock_redis_async.publish = AsyncMock(return_value=1)
     mock_redis_async.pubsub_numsub = AsyncMock(return_value=[("run:sse:test", 0)])
     mock_redis_async.pubsub_channels = AsyncMock(return_value=[])
-    
-    with patch("cache.a cache", return_value=mock_redis_sync), \
-         patch("cache.StrictRedis", return_value=mock_redis_sync), \
-         patch("api.core.sse.SSEManager.get_sync_redis_client", return_value=mock_redis_sync), \
-         patch("api.core.sse.SSEManager.get_async_redis_client", return_value=mock_redis_async):
+
+    with (
+        patch("cache.a cache", return_value=mock_redis_sync),
+        patch("cache.StrictRedis", return_value=mock_redis_sync),
+        patch(
+            "api.core.sse.SSEManager.get_sync_redis_client",
+            return_value=mock_redis_sync,
+        ),
+        patch(
+            "api.core.sse.SSEManager.get_async_redis_client",
+            return_value=mock_redis_async,
+        ),
+    ):
         yield mock_redis_sync
 
 
@@ -261,14 +296,15 @@ def mock_database():
     """Mock database dependencies for tests."""
     # Mock the database session
     mock_session = Mock()
-    
+
     # Mock SQLAlchemy text execution for health check
     mock_result = Mock()
     mock_result.fetchone.return_value = (1,)
     mock_session.execute.return_value = mock_result
-    
+
     # Mock a simple run object with all required attributes
     from datetime import datetime, timezone
+
     mock_run = Mock()
     mock_run.id = uuid4()  # Changed back to id
     mock_run.user_id = "test_user"  # Added user_id
@@ -286,38 +322,51 @@ def mock_database():
     mock_run.intermediate_state = None
     mock_run.result = None
     mock_run.error_message = None
-    
+
     # Mock session dependency (generator function, not async)
     def mock_get_session():
         yield mock_session
-    
+
     # Check if API modules are available before patching
     patches = []
-    
+
     try:
         import api.db.database
-        patches.extend([
-            patch("api.db.database.DatabaseManager.create_run", return_value=mock_run),
-            patch("api.db.database.DatabaseManager.get_run", return_value=mock_run),
-            patch("api.db.database.DatabaseManager.update_run", return_value=mock_run),
-            patch("api.db.database.DatabaseManager.get_timepoints", return_value=[])
-        ])
+
+        patches.extend(
+            [
+                patch(
+                    "api.db.database.DatabaseManager.create_run", return_value=mock_run
+                ),
+                patch("api.db.database.DatabaseManager.get_run", return_value=mock_run),
+                patch(
+                    "api.db.database.DatabaseManager.update_run", return_value=mock_run
+                ),
+                patch(
+                    "api.db.database.DatabaseManager.get_timepoints", return_value=[]
+                ),
+            ]
+        )
     except ImportError:
         pass
-    
+
     try:
-        import api.main # noqa
-        patches.extend([
-            patch("api.main.get_session", side_effect=mock_get_session),
-            patch("api.main.create_db_and_tables")
-        ])
+        import api.main  # noqa
+
+        patches.extend(
+            [
+                patch("api.main.get_session", side_effect=mock_get_session),
+                patch("api.main.create_db_and_tables"),
+            ]
+        )
     except ImportError:
         pass
-    
+
     # Apply patches if any are available
     if patches:
         # Use contextlib.ExitStack to handle multiple patches
         from contextlib import ExitStack
+
         with ExitStack() as stack:
             for p in patches:
                 stack.enter_context(p)
