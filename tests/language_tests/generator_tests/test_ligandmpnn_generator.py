@@ -10,10 +10,11 @@ from proto_language.language.generator import (
     LigandMPNNGenerator,
     LigandMPNNGeneratorConfig,
 )
-from proto_language.tools.inverse_folding.schemas import InverseFoldingStructure
+from proto_language.tools.inverse_folding.schemas import InverseFoldingStructureInput
 
-
-DEFAULT_CHECKPOINT = Path.home() / ".foundry" / "checkpoints" / "ligandmpnn_v_32_010_25.pt"
+DEFAULT_CHECKPOINT = (
+    Path.home() / ".foundry" / "checkpoints" / "ligandmpnn_v_32_010_25.pt"
+)
 
 
 # Sample PDB content for testing (minimal valid structure)
@@ -88,7 +89,7 @@ class TestLigandMPNNGenerator:
         """Test that fixed positions are preserved in generated sequences."""
         generator = LigandMPNNGenerator(
             LigandMPNNGeneratorConfig(
-                structure_inputs=InverseFoldingStructure(
+                structure_inputs=InverseFoldingStructureInput(
                     structure=temp_pdb_file,
                     fixed_positions={"A": [1, 2]},
                 ),
@@ -171,13 +172,15 @@ class TestLigandMPNNGeneratorValidation:
         # chain_ids should be populated with all available chains
         assert len(generator.structure_inputs) == 1
         assert generator.structure_inputs[0].chain_ids is not None
-        assert generator.structure_inputs[0].chain_ids == ["A"]  # Only chain A in sample PDB
+        assert generator.structure_inputs[0].chain_ids == [
+            "A"
+        ]  # Only chain A in sample PDB
 
     def test_structure_input_with_chain_ids(self, temp_pdb_file):
-        """Should accept InverseFoldingStructure with chain_ids."""
+        """Should accept InverseFoldingStructureInput with chain_ids."""
         generator = LigandMPNNGenerator(
             LigandMPNNGeneratorConfig(
-                structure_inputs=InverseFoldingStructure(
+                structure_inputs=InverseFoldingStructureInput(
                     structure=temp_pdb_file,
                     chain_ids=["A"],
                 )
@@ -188,16 +191,16 @@ class TestLigandMPNNGeneratorValidation:
         assert generator.structure_inputs[0].chain_ids == ["A"]
 
     def test_multiple_structure_inputs(self):
-        """Should accept multiple InverseFoldingStructure objects."""
+        """Should accept multiple InverseFoldingStructureInput objects."""
         generator = LigandMPNNGenerator(
             LigandMPNNGeneratorConfig(
                 structure_inputs=[
-                    InverseFoldingStructure(
+                    InverseFoldingStructureInput(
                         structure=SAMPLE_PDB_CONTENT,
                         chain_ids=["A"],
                         fixed_positions={"A": [1, 2]},
                     ),
-                    InverseFoldingStructure(
+                    InverseFoldingStructureInput(
                         structure=SAMPLE_PDB_CONTENT,
                         chain_ids=["A"],
                     ),

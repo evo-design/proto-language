@@ -5,9 +5,10 @@ LigandMPNN extends ProteinMPNN to consider ligand context when designing
 protein sequences, making it particularly effective for enzyme design
 and binding site optimization.
 """
+
 from __future__ import annotations
 
-from typing import final, List, Optional
+from typing import List, Optional, final
 
 from pydantic import field_validator
 
@@ -18,7 +19,10 @@ from proto_language.tools.inverse_folding.ligandmpnn import (
     LigandMPNNConfig,
     run_ligandmpnn_sample,
 )
-from proto_language.tools.inverse_folding.schemas import InverseFoldingStructure, InverseFoldingInput
+from proto_language.tools.inverse_folding.schemas import (
+    InverseFoldingInput,
+    InverseFoldingStructureInput,
+)
 from proto_language.tools.structures import ProteinStructure
 
 
@@ -37,11 +41,15 @@ class LigandMPNNGeneratorConfig(BaseConfig):
     - Cofactor-dependent protein design
 
     Attributes:
-        structure_inputs (List[InverseFoldingStructure]): Structure(s) with per-structure design
-            constraints. Each ``InverseFoldingStructure`` bundles a structure with optional
+        structure_inputs (Optional[List[InverseFoldingStructureInput]]): Structure(s) with per-structure
+            design constraints. Each ``InverseFoldingStructureInput`` bundles a structure with optional
             ``chain_ids`` and ``fixed_positions`` specific to that structure.
 
-            **InverseFoldingStructure fields:**
+            This field is optional (defaults to ``None``) primarily to support ``CyclicalOptimizer``
+            workflows, where the structure is provided dynamically from a previous step (e.g.,
+            structure prediction) rather than being specified upfront in the config.
+
+            **InverseFoldingStructureInput fields:**
 
             - ``structure``: File path, PDB content string, or ``ProteinStructure`` object
             - ``chain_ids``: Optional list of chain IDs to design (e.g., ``["A", "B"]``).
@@ -51,9 +59,9 @@ class LigandMPNNGeneratorConfig(BaseConfig):
 
             **Accepts flexible input formats:**
 
-            - A single string (file path or PDB content) - auto-converted to ``InverseFoldingStructure``
-            - A single ``InverseFoldingStructure`` object
-            - A list of strings or ``InverseFoldingStructure`` objects
+            - A single string (file path or PDB content) - auto-converted to ``InverseFoldingStructureInput``
+            - A single ``InverseFoldingStructureInput`` object
+            - A list of strings or ``InverseFoldingStructureInput`` objects
             - A list of dicts with ``structure``, ``chain_ids``, ``fixed_positions`` keys
 
         temperature (float): Controls randomness in amino acid sampling from the
@@ -101,9 +109,9 @@ class LigandMPNNGeneratorConfig(BaseConfig):
 
         With per-structure chain selection and fixed positions (e.g., preserve catalytic residues):
 
-        >>> from proto_language.tools.inverse_folding.schemas import InverseFoldingStructure
+        >>> from proto_language.tools.inverse_folding.schemas import InverseFoldingStructureInput
         >>> config = LigandMPNNGeneratorConfig(
-        ...     structure_inputs=InverseFoldingStructure(
+        ...     structure_inputs=InverseFoldingStructureInput(
         ...         structure="/path/to/enzyme.pdb",
         ...         chain_ids=["A"],
         ...         fixed_positions={"A": [45, 67, 89]},  # Catalytic triad
@@ -115,12 +123,12 @@ class LigandMPNNGeneratorConfig(BaseConfig):
 
         >>> config = LigandMPNNGeneratorConfig(
         ...     structure_inputs=[
-        ...         InverseFoldingStructure(
+        ...         InverseFoldingStructureInput(
         ...             structure="/path/to/struct1.pdb",
         ...             chain_ids=["A"],
         ...             fixed_positions={"A": [1, 2, 3]},
         ...         ),
-        ...         InverseFoldingStructure(
+        ...         InverseFoldingStructureInput(
         ...             structure="/path/to/struct2.pdb",
         ...             chain_ids=["A", "B"],
         ...         ),
@@ -130,7 +138,8 @@ class LigandMPNNGeneratorConfig(BaseConfig):
     """
 
     # Structure parameters - bundles structure, chain_ids, and fixed_positions per structure.
-    structure_inputs: List[InverseFoldingStructure] = ConfigField(
+    structure_inputs: Optional[List[InverseFoldingStructureInput]] = ConfigField(
+        default=None,
         title="Structure Inputs",
         description="Structure(s) with optional chain_ids and fixed_positions constraints.",
     )
@@ -172,24 +181,28 @@ class LigandMPNNGeneratorConfig(BaseConfig):
     @field_validator("structure_inputs", mode="before")
     @classmethod
     def normalize_structure_inputs(cls, v):
-        """Convert various input formats to List[InverseFoldingStructure]."""
+        """Convert various input formats to List[InverseFoldingStructureInput]."""
+        if v is None:
+            return None
+
         if not isinstance(v, list):
             v = [v]
 
         result = []
         for item in v:
-            if isinstance(item, InverseFoldingStructure):
+            if isinstance(item, InverseFoldingStructureInput):
                 result.append(item)
             elif isinstance(item, (str, ProteinStructure)):
-                # Simple path/content/object -> InverseFoldingStructure with no constraints
-                result.append(InverseFoldingStructure(structure=item))
+                # Simple path/content/object -> InverseFoldingStructureInput with no constraints
+                result.append(InverseFoldingStructureInput(structure=item))
             elif isinstance(item, dict):
-                # Dict -> InverseFoldingStructure
-                result.append(InverseFoldingStructure(**item))
+                # Dict -> InverseFoldingStructureInput
+                result.append(InverseFoldingStructureInput(**item))
             else:
-                raise ValueError(f"Unsupported structure_inputs item type: {type(item)}")
+                raise ValueError(
+                    f"Unsupported structure_inputs item type: {type(item)}"
+                )
         return result
-
 
 
 @GeneratorRegistry.register(
@@ -246,26 +259,44 @@ class LigandMPNNGenerator(Generator):
         self.device = config.device
         self.verbose = config.verbose
 
-    def sample(self, structure_inputs: Optional[List[InverseFoldingStructure]] = None) -> None:
+    def sample(
+        self, structure_inputs: Optional[List[InverseFoldingStructureInput]] = None
+    ) -> None:
         """Generate protein sequences using LigandMPNN and update candidate sequences.
 
         Args:
-            structure_inputs: Optional list of InverseFoldingStructure to use instead of config.
+            structure_inputs: Optional structure inputs to use instead of config.
+                Accepts flexible formats (same as config): single structure, list of structures,
+                ``ProteinStructure`` objects, file paths, or ``InverseFoldingStructureInput`` objects.
                 If provided, generates one sequence per structure. If None, uses
                 config structure_inputs (single structure generates batch_size sequences,
                 multiple structures generate one sequence each).
+
+        Raises:
+            ValueError: If no structure_inputs provided and none configured.
         """
         num_candidates = self._assigned_segment.num_candidates
 
-        # Use provided structure_inputs or fall back to config
-        sampling_structure_inputs = structure_inputs if structure_inputs is not None else self.structure_inputs
+        # Normalize and use provided structure_inputs, or fall back to config
+        sampling_structure_inputs = (
+            LigandMPNNGeneratorConfig.normalize_structure_inputs(structure_inputs)
+            if structure_inputs is not None
+            else self.structure_inputs
+        )
+
+        if sampling_structure_inputs is None:
+            raise ValueError(
+                "No structure_inputs provided. Either pass structure_inputs to sample() or configure structure_inputs in the generator config."
+            )
 
         # Determine batch size based on number of structures
         if len(sampling_structure_inputs) == 1:
             batch_size = num_candidates
         else:
             if len(sampling_structure_inputs) != num_candidates:
-                raise ValueError(f"Number of structure_inputs({len(sampling_structure_inputs)}) must either be 1 or match number of candidates ({num_candidates})")
+                raise ValueError(
+                    f"Number of structure_inputs({len(sampling_structure_inputs)}) must either be 1 or match number of candidates ({num_candidates})"
+                )
             batch_size = 1
 
         tool_config = LigandMPNNConfig(
@@ -278,7 +309,10 @@ class LigandMPNNGenerator(Generator):
         )
 
         # Run sampling
-        result = run_ligandmpnn_sample(inputs=InverseFoldingInput(inputs=sampling_structure_inputs), config=tool_config)
+        result = run_ligandmpnn_sample(
+            inputs=InverseFoldingInput(inputs=sampling_structure_inputs),
+            config=tool_config,
+        )
 
         # Collect sequences and metrics from all structure results
         generated_sequences = []
@@ -288,7 +322,9 @@ class LigandMPNNGenerator(Generator):
             all_scores.extend(design.ligandmpnn_scores)
 
         if len(generated_sequences) != num_candidates:
-            raise RuntimeError(f"Expected generator to generate {num_candidates} sequences but got {len(generated_sequences)}")
+            raise RuntimeError(
+                f"Expected generator to generate {num_candidates} sequences but got {len(generated_sequences)}"
+            )
 
         # Update candidate sequences
         for candidate, sequence, score in zip(

@@ -6,7 +6,7 @@ generators and constraints to search for optimal biological sequences.
 """
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Literal
+from typing import Any, Callable, Dict, List, Literal, Optional
 import copy
 import math
 
@@ -48,6 +48,7 @@ class Optimizer(ABC):
         num_candidates: int,
         num_selected: int,
         clear_tool_cache: int | bool | List[str] = 100 * 1024 * 1024,
+        custom_logging: Optional[Callable] = None,
         verbose: bool = False,
     ) -> None:
         """
@@ -62,6 +63,8 @@ class Optimizer(ABC):
             clear_tool_cache: (int) Maximum size of cache in bytes, defaults to 100 MB.
                               (bool) Whether to clear the tool cache on each iteration.
                               (List[str]) Restrict clearing cache to a list of tool names.
+            custom_logging: Optional callback called after each optimization step with
+                signature ``(step: int, segments: tuple) -> None``.
             verbose: Whether to print detailed progress information. Default: False.
         """
         self.constructs = constructs
@@ -70,6 +73,7 @@ class Optimizer(ABC):
         self.num_candidates = num_candidates
         self.num_selected = num_selected
         self.clear_tool_cache = clear_tool_cache
+        self.custom_logging = custom_logging
         self.verbose = verbose
         self.energy_scores: List[float] = []  # Each index corresponds to a candidate, empty until first score_energy() call
         self.history: List[Dict[str, Any]] = []

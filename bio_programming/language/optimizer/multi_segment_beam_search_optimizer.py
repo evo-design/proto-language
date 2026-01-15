@@ -195,6 +195,7 @@ class MultiSegmentBeamSearchOptimizer(Optimizer):
             num_candidates=config.beam_width * config.candidates_per_beam,
             num_selected=config.beam_width,
             clear_tool_cache=clear_tool_cache,
+            custom_logging=custom_logging,
             verbose=config.verbose,
         )
 
@@ -203,7 +204,6 @@ class MultiSegmentBeamSearchOptimizer(Optimizer):
         self.candidates_per_beam: int = config.candidates_per_beam
         self.use_kv_caching: bool = config.use_kv_caching
         self.max_resample_attempts: int = config.max_resample_attempts
-        self.custom_logging: Optional[Callable] = custom_logging
 
         # Beam search state parameters (running prompts and corresponding KV caches)
         self.running_prompts: List[str] = [self.prompt] * self.beam_width

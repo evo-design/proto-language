@@ -142,12 +142,17 @@ class Program:
             # Run this optimizer
             optimizer.run()
 
+            # TODO: fix base program and optimizer classes for optimizers that don't compute energy scores
             # Print final state for this optimizer
             print(f"\nFinal state for optimizer {optimizer_idx + 1}:")
             num_seqs = len(self.constructs[0].joined_sequences)
             for seq_idx in range(num_seqs):
-                energy = optimizer.energy_scores[seq_idx]
-                print(f"  [{seq_idx}] Energy: {energy:.4f}")
+                # Only print energy if scores were computed (e.g., when constraints exist)
+                if optimizer.energy_scores and seq_idx < len(optimizer.energy_scores):
+                    energy = optimizer.energy_scores[seq_idx]
+                    print(f"  [{seq_idx}] Energy: {energy:.4f}")
+                else:
+                    print(f"  [{seq_idx}]")
                 for construct_idx, construct in enumerate(self.constructs):
                     seq = construct.joined_sequences[seq_idx]
                     print(f"    Construct {construct_idx}: {seq}")
@@ -204,8 +209,12 @@ class Program:
         print(f"\nFinal state for optimizer {stage_index + 1}:")
         num_seqs = len(self.constructs[0].joined_sequences)
         for seq_idx in range(num_seqs):
-            energy = optimizer.energy_scores[seq_idx]
-            print(f"  [{seq_idx}] Energy: {energy:.4f}")
+            # Only print energy if scores were computed (e.g., when constraints exist)
+            if optimizer.energy_scores and seq_idx < len(optimizer.energy_scores):
+                energy = optimizer.energy_scores[seq_idx]
+                print(f"  [{seq_idx}] Energy: {energy:.4f}")
+            else:
+                print(f"  [{seq_idx}]")
             for construct_idx, construct in enumerate(self.constructs):
                 seq = construct.joined_sequences[seq_idx]
                 seq_preview = seq[:80] + ('...' if len(seq) > 80 else '')
@@ -213,8 +222,8 @@ class Program:
 
         # Capture results for this stage
         all_sequences = [seq.sequence for seq in self.constructs[0].joined_sequences]
-        all_energies = list(optimizer.energy_scores)
-        best_idx = min(range(len(all_energies)), key=lambda i: all_energies[i])
+        all_energies = list(optimizer.energy_scores) if optimizer.energy_scores else [0.0] * len(all_sequences)
+        best_idx = min(range(len(all_energies)), key=lambda i: all_energies[i]) if all_energies else 0
 
         results = {
             "best_sequence": all_sequences[best_idx],

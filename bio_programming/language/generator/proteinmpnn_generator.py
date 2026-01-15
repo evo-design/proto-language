@@ -1,9 +1,10 @@
 """
 ProteinMPNN Generator for structure-conditioned protein sequence design.
 """
+
 from __future__ import annotations
 
-from typing import final, List, Optional
+from typing import List, Optional, final
 
 from pydantic import field_validator
 
@@ -12,9 +13,9 @@ from proto_language.language.core import Generator
 from proto_language.language.generator.generator_registry import GeneratorRegistry
 from proto_language.tools.inverse_folding.proteinmpnn import run_proteinmpnn_sample
 from proto_language.tools.inverse_folding.schemas import (
-    InverseFoldingStructure,
-    InverseFoldingInput,
     InverseFoldingConfig,
+    InverseFoldingInput,
+    InverseFoldingStructureInput,
 )
 from proto_language.tools.structures import ProteinStructure
 
@@ -31,11 +32,15 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
     existing proteins while maintaining structural compatibility.
 
     Attributes:
-        structure_inputs (List[InverseFoldingStructure]): Structure(s) with per-structure design
-            constraints. Each ``InverseFoldingStructure`` bundles a structure with optional
+        structure_inputs (Optional[List[InverseFoldingStructureInput]]): Structure(s) with per-structure
+            design constraints. Each ``InverseFoldingStructureInput`` bundles a structure with optional
             ``chain_ids`` and ``fixed_positions`` specific to that structure.
 
-            **InverseFoldingStructure fields:**
+            This field is optional (defaults to ``None``) primarily to support ``CyclicalOptimizer``
+            workflows, where the structure is provided dynamically from a previous step (e.g.,
+            structure prediction) rather than being specified upfront in the config.
+
+            **InverseFoldingStructureInput fields:**
 
             - ``structure``: File path, PDB content string, or ``ProteinStructure`` object
             - ``chain_ids``: Optional list of chain IDs to design (e.g., ``["A", "B"]``).
@@ -45,9 +50,9 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
 
             **Accepts flexible input formats:**
 
-            - A single string (file path or PDB content) - auto-converted to ``InverseFoldingStructure``
-            - A single ``InverseFoldingStructure`` object
-            - A list of strings or ``InverseFoldingStructure`` objects
+            - A single string (file path or PDB content) - auto-converted to ``InverseFoldingStructureInput``
+            - A single ``InverseFoldingStructureInput`` object
+            - A list of strings or ``InverseFoldingStructureInput`` objects
             - A list of dicts with ``structure``, ``chain_ids``, ``fixed_positions`` keys
 
         temperature (float): Controls randomness in amino acid sampling from the
@@ -95,9 +100,9 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
 
         With per-structure chain selection and fixed positions:
 
-        >>> from proto_language.tools.inverse_folding.schemas import InverseFoldingStructure
+        >>> from proto_language.tools.inverse_folding.schemas import InverseFoldingStructureInput
         >>> config = ProteinMPNNGeneratorConfig(
-        ...     structure_inputs=InverseFoldingStructure(
+        ...     structure_inputs=InverseFoldingStructureInput(
         ...         structure="/path/to/backbone.pdb",
         ...         chain_ids=["A"],  # Only design chain A
         ...         fixed_positions={"A": [1, 2, 3]},  # Keep positions 1-3 fixed
@@ -109,12 +114,12 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
 
         >>> config = ProteinMPNNGeneratorConfig(
         ...     structure_inputs=[
-        ...         InverseFoldingStructure(
+        ...         InverseFoldingStructureInput(
         ...             structure="/path/to/struct1.pdb",
         ...             chain_ids=["A"],
         ...             fixed_positions={"A": [1, 2, 3]},
         ...         ),
-        ...         InverseFoldingStructure(
+        ...         InverseFoldingStructureInput(
         ...             structure="/path/to/struct2.pdb",
         ...             chain_ids=["A", "B"],
         ...         ),
@@ -124,7 +129,8 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
     """
 
     # Structure parameters - bundles structure, chain_ids, and fixed_positions per structure.
-    structure_inputs: List[InverseFoldingStructure] = ConfigField(
+    structure_inputs: Optional[List[InverseFoldingStructureInput]] = ConfigField(
+        default=None,
         title="Structure Inputs",
         description="Structure(s) with optional chain_ids and fixed_positions constraints.",
     )
@@ -166,22 +172,27 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
     @field_validator("structure_inputs", mode="before")
     @classmethod
     def normalize_structure_inputs(cls, v):
-        """Convert various input formats to List[InverseFoldingStructure]."""
+        """Convert various input formats to List[InverseFoldingStructureInput]."""
+        if v is None:
+            return None
+
         if not isinstance(v, list):
             v = [v]
 
         result = []
         for item in v:
-            if isinstance(item, InverseFoldingStructure):
+            if isinstance(item, InverseFoldingStructureInput):
                 result.append(item)
             elif isinstance(item, (str, ProteinStructure)):
-                # Simple path/content/object -> InverseFoldingStructure with no constraints
-                result.append(InverseFoldingStructure(structure=item))
+                # Simple path/content/object -> InverseFoldingStructureInput with no constraints
+                result.append(InverseFoldingStructureInput(structure=item))
             elif isinstance(item, dict):
-                # Dict -> InverseFoldingStructure
-                result.append(InverseFoldingStructure(**item))
+                # Dict -> InverseFoldingStructureInput
+                result.append(InverseFoldingStructureInput(**item))
             else:
-                raise ValueError(f"Unsupported structure_inputs item type: {type(item)}")
+                raise ValueError(
+                    f"Unsupported structure_inputs item type: {type(item)}"
+                )
         return result
 
 
@@ -239,26 +250,44 @@ class ProteinMPNNGenerator(Generator):
         self.device = config.device
         self.verbose = config.verbose
 
-    def sample(self, structure_inputs: Optional[List[InverseFoldingStructure]] = None) -> None:
+    def sample(
+        self, structure_inputs: Optional[List[InverseFoldingStructureInput]] = None
+    ) -> None:
         """Generate protein sequences using ProteinMPNN and update candidate sequences.
 
         Args:
-            structure_inputs: Optional list of InverseFoldingStructure to use instead of config.
+            structure_inputs: Optional structure inputs to use instead of config.
+                Accepts flexible formats (same as config): single structure, list of structures,
+                ``ProteinStructure`` objects, file paths, or ``InverseFoldingStructureInput`` objects.
                 If provided, generates one sequence per structure. If None, uses
                 config structure_inputs (single structure generates batch_size sequences,
                 multiple structures generate one sequence each).
+
+        Raises:
+            ValueError: If no structure_inputs provided and none configured.
         """
         num_candidates = self._assigned_segment.num_candidates
 
-        # Use provided structure_inputs or fall back to config
-        sampling_structure_inputs = structure_inputs if structure_inputs is not None else self.structure_inputs
+        # Normalize and use provided structure_inputs, or fall back to config inputs
+        sampling_structure_inputs = (
+            ProteinMPNNGeneratorConfig.normalize_structure_inputs(structure_inputs)
+            if structure_inputs is not None
+            else self.structure_inputs
+        )
+
+        if sampling_structure_inputs is None:
+            raise ValueError(
+                "No structure_inputs provided. Either pass structure_inputs to sample() or configure structure_inputs in the generator config."
+            )
 
         # Determine batch size based on number of structures
         if len(sampling_structure_inputs) == 1:
             batch_size = num_candidates
         else:
             if len(sampling_structure_inputs) != num_candidates:
-                raise ValueError(f"Number of structure_inputs({len(sampling_structure_inputs)}) must either be 1 or match number of candidates ({num_candidates})")
+                raise ValueError(
+                    f"Number of structure_inputs({len(sampling_structure_inputs)}) must either be 1 or match number of candidates ({num_candidates})"
+                )
             batch_size = 1
 
         tool_config = InverseFoldingConfig(
@@ -272,7 +301,10 @@ class ProteinMPNNGenerator(Generator):
         )
 
         # Run sampling
-        result = run_proteinmpnn_sample(inputs=InverseFoldingInput(inputs=sampling_structure_inputs), config=tool_config)
+        result = run_proteinmpnn_sample(
+            inputs=InverseFoldingInput(inputs=sampling_structure_inputs),
+            config=tool_config,
+        )
 
         # Collect sequences and metrics from all structure results
         generated_sequences = []
@@ -284,7 +316,9 @@ class ProteinMPNNGenerator(Generator):
             sequence_identities.extend(designed.sequence_identity)
 
         if len(generated_sequences) != num_candidates:
-            raise RuntimeError(f"Expected generator to generate {num_candidates} sequences but got {len(generated_sequences)}")
+            raise RuntimeError(
+                f"Expected generator to generate {num_candidates} sequences but got {len(generated_sequences)}"
+            )
 
         # Update candidate sequences
         for candidate, sequence, perplexity, identity in zip(
@@ -295,7 +329,9 @@ class ProteinMPNNGenerator(Generator):
             strict=True,
         ):
             candidate.sequence = sequence
-            candidate._metadata.update({
-                "proteinmpnn_perplexity": perplexity,
-                "proteinmpnn_sequence_identity": identity,
-            })
+            candidate._metadata.update(
+                {
+                    "proteinmpnn_perplexity": perplexity,
+                    "proteinmpnn_sequence_identity": identity,
+                }
+            )

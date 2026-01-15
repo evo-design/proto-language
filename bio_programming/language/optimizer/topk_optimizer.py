@@ -190,13 +190,13 @@ class TopKOptimizer(Optimizer):
             num_candidates=config.batch_size,
             num_selected=config.k,
             clear_tool_cache=clear_tool_cache,
+            custom_logging=custom_logging,
             verbose=config.verbose,
         )
 
         # Store parameters
         self.k: int = config.k
         self.batch_size: int = config.batch_size
-        self.custom_logging: Optional[Callable] = custom_logging
         self.energy_threshold: Optional[float] = config.energy_threshold
 
         # Round up num_samples to nearest batch_size multiple

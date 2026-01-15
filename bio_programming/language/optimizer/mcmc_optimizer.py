@@ -206,6 +206,7 @@ class MCMCOptimizer(Optimizer):
             num_candidates=config.num_selected * config.mcmc_width,
             num_selected=config.num_selected,
             clear_tool_cache=clear_tool_cache,
+            custom_logging=custom_logging,
             verbose=config.verbose,
         )
 
@@ -216,7 +217,6 @@ class MCMCOptimizer(Optimizer):
         self.max_temperature: float = config.max_temperature
         self.min_temperature: float = config.min_temperature
         self.track_step_size: int = config.track_step_size
-        self.custom_logging: Optional[Callable] = custom_logging
 
     def run(self) -> None:
         """

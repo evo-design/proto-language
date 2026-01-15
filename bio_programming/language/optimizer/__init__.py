@@ -19,6 +19,10 @@ from .topk_optimizer import (
     TopKOptimizer,
     TopKOptimizerConfig,
 )
+from .cyclical_optimizer import (
+    CyclicalOptimizer,
+    CyclicalOptimizerConfig,
+)
 
 __all__ = [
     # Registry
@@ -37,4 +41,7 @@ __all__ = [
     # TopK Optimizer
     "TopKOptimizer",
     "TopKOptimizerConfig",
+    # Cyclical Optimizer
+    "CyclicalOptimizer",
+    "CyclicalOptimizerConfig",
 ]

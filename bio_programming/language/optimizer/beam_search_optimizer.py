@@ -254,6 +254,7 @@ class BeamSearchOptimizer(Optimizer):
             num_candidates=config.beam_width * config.candidates_per_beam,
             num_selected=config.beam_width,
             clear_tool_cache=clear_tool_cache,
+            custom_logging=custom_logging,
             verbose=config.verbose,
         )
 
@@ -264,7 +265,6 @@ class BeamSearchOptimizer(Optimizer):
         self.use_kv_caching: bool = config.use_kv_caching
         self.max_resample_attempts: int = config.max_resample_attempts
         self.batch_size: Optional[int] = config.batch_size
-        self.custom_logging: Optional[Callable] = custom_logging
 
         # Initialize beam states
         self.beams: List[BeamState] = [BeamState(running_sequence=self.prompt) for _ in range(self.beam_width)]
