@@ -115,6 +115,7 @@ class ProteinDomainConfig(BaseConfig):
     concatenate=True,
     tools_called=["pyhmmer", "prodigal"],
     category="protein quality",
+    supported_sequence_types=["dna", "protein"],
 )
 def protein_domain_constraint(sequences: List[Sequence], config: ProteinDomainConfig) -> List[float]:
     """Evaluate whether sequences contain protein domains matching specified keywords.
@@ -217,14 +218,9 @@ def protein_domain_constraint(sequences: List[Sequence], config: ProteinDomainCo
         if seq.sequence_type == "dna":
             dna_sequences.append((idx, seq))
             sequence_type_map.append(('dna', len(dna_sequences) - 1))
-        elif seq.sequence_type == "protein":
+        else:  # protein (validated by Constraint._validate_sequence_types)
             protein_sequences.append((idx, seq))
             sequence_type_map.append(('protein', len(protein_sequences) - 1))
-        else:
-            raise ValueError(f"Unsupported sequence type: {seq.sequence_type}")
-        
-    if len(dna_sequences) + len(protein_sequences) != len(sequences):
-        raise ValueError("All sequences must be either DNA or PROTEIN type")
 
     dna_scores = {}
     protein_scores = {}

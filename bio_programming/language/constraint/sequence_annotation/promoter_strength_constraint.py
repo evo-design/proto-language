@@ -130,6 +130,7 @@ class PromoterStrengthConfig(BaseConfig):
     concatenate=True,
     tools_called=["promoter_calculator"],
     category="sequence annotation",
+    supported_sequence_types=["dna"],
 )
 def promoter_strength_constraint(sequences: List[Sequence], config: PromoterStrengthConfig) -> List[float]:
     """Evaluate bacterial promoter strength using Salis Lab Promoter Calculator.

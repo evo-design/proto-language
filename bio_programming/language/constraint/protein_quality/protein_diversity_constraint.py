@@ -53,6 +53,7 @@ class ProteinDiversityConfig(BaseConfig):
     concatenate=True,
     tools_called=[],
     category="protein quality",
+    supported_sequence_types=["protein"],
 )
 def protein_diversity_constraint(sequences: List[Sequence], config: ProteinDiversityConfig) -> List[float]:
     """Evaluate amino acid diversity in protein sequences.
@@ -104,9 +105,6 @@ def protein_diversity_constraint(sequences: List[Sequence], config: ProteinDiver
         >>> print(seq._metadata["unique_amino_acid_count"])  # e.g., 13
         >>> print(seq._metadata["unique_amino_acids"])  # e.g., ['A', 'D', 'E', 'F', ...]
     """
-    for seq in sequences:
-        assert seq.sequence_type == "protein", "Input must be protein"
-
     seq_strings = [seq.sequence for seq in sequences]
     seq_lengths = np.array([len(s) for s in seq_strings])
 

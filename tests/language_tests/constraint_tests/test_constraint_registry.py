@@ -53,7 +53,8 @@ class TestRegistration:
             key="test-temp-constraint",
             label="Test Temp Constraint",
             config=TestConfig,
-            description="Temporary test constraint"
+            description="Temporary test constraint",
+            supported_sequence_types=["dna", "protein"],
         )
         def test_constraint(sequence: Sequence, config: TestConfig) -> float:
             return 0.5
@@ -85,6 +86,7 @@ class TestRegistration:
             description="batched constraint",
             batched=True,
             concatenate=False,
+            supported_sequence_types=["dna"],
         )
         def test_constraint(sequences, config):
             return [0.0] * len(sequences)
@@ -109,7 +111,8 @@ class TestRegistration:
             key="test-return",
             label="Test Return",
             config=TestConfig,
-            description="Test"
+            description="Test",
+            supported_sequence_types=["protein"],
         )(original_func)
 
         assert registered_func == original_func
@@ -129,7 +132,8 @@ class TestRegistration:
             key="test-duplicate-check",
             label="Test Duplicate Check",
             config=TestConfig,
-            description="Test constraint"
+            description="Test constraint",
+            supported_sequence_types=["dna"],
         )
         def test_constraint_1(sequence, config):
             return 0.0
@@ -143,7 +147,8 @@ class TestRegistration:
                 key="test-duplicate-check",  # Same key!
                 label="Test Duplicate Check 2",
                 config=TestConfig,
-                description="Another test"
+                description="Another test",
+                supported_sequence_types=["dna"],
             )
             def test_constraint_2(sequence, config):
                 return 0.0
@@ -342,6 +347,42 @@ class TestFactoryMethod:
 
         assert constraint.label == "test_gc_label"
 
+    def test_create_validates_sequence_type(self, dna_segment, protein_segment):
+        """Test that create validates sequence type compatibility."""
+        # gc-content only supports dna and rna, not protein
+        with pytest.raises(ValueError, match="does not support sequence type"):
+            ConstraintRegistry.create(
+                key="gc-content",
+                segments=[protein_segment],
+                config_dict={"min_gc": 40.0, "max_gc": 60.0}
+            )
+
+        # protein-length only supports protein, not dna
+        with pytest.raises(ValueError, match="does not support sequence type"):
+            ConstraintRegistry.create(
+                key="protein-length",
+                segments=[dna_segment],
+                config_dict={"min_length": 10, "max_length": 500}
+            )
+
+    def test_create_with_compatible_sequence_type(self, dna_segment, protein_segment):
+        """Test that create works with compatible sequence types."""
+        # gc-content with dna segment
+        constraint = ConstraintRegistry.create(
+            key="gc-content",
+            segments=[dna_segment],
+            config_dict={"min_gc": 40.0, "max_gc": 60.0}
+        )
+        assert constraint is not None
+
+        # protein-length with protein segment
+        constraint = ConstraintRegistry.create(
+            key="protein-length",
+            segments=[protein_segment],
+            config_dict={"min_length": 10, "max_length": 500}
+        )
+        assert constraint is not None
+
 
 # ============================================================================
 # Integration Tests
@@ -513,6 +554,89 @@ class TestBuiltinConstraints:
             assert key in constraints_dict, f"CPU constraint {key} not registered"
             assert constraints_dict[key].gpu_required is False, \
                 f"Constraint {key} should be marked as gpu_required=False"
+
+    def test_supported_sequence_types_field_present(self):
+        """Test that all constraints have supported_sequence_types field."""
+        all_constraints = ConstraintRegistry.list_all()
+        
+        for spec in all_constraints:
+            assert hasattr(spec, 'supported_sequence_types'), \
+                f"Constraint {spec.key} missing supported_sequence_types field"
+            assert isinstance(spec.supported_sequence_types, list), \
+                f"Constraint {spec.key} supported_sequence_types should be a list"
+
+    def test_protein_only_constraints_have_correct_types(self):
+        """Test that protein-only constraints have correct supported_sequence_types."""
+        protein_only_constraints = [
+            "protein-length",
+            "protein-diversity",
+            "protein-repetitiveness",
+            "protein-complexity",
+            "balanced-aa",
+        ]
+
+        all_constraints = ConstraintRegistry.list_all()
+        constraints_dict = {spec.key: spec for spec in all_constraints}
+
+        for key in protein_only_constraints:
+            assert key in constraints_dict, f"Constraint {key} not registered"
+            assert constraints_dict[key].supported_sequence_types == ["protein"], \
+                f"Constraint {key} should only support protein, got {constraints_dict[key].supported_sequence_types}"
+
+    def test_dna_rna_constraints_have_correct_types(self):
+        """Test that DNA/RNA constraints have correct supported_sequence_types."""
+        dna_rna_constraints = {
+            "gc-content": ["dna", "rna"],
+            "rna-property-similarity": ["dna", "rna"],
+            "rna-motif-similarity": ["dna", "rna"],
+            "rna-feature-similarity": ["dna", "rna"],
+            "rna-basepair-similarity": ["dna", "rna"],
+        }
+
+        all_constraints = ConstraintRegistry.list_all()
+        constraints_dict = {spec.key: spec for spec in all_constraints}
+
+        for key, expected_types in dna_rna_constraints.items():
+            assert key in constraints_dict, f"Constraint {key} not registered"
+            assert set(constraints_dict[key].supported_sequence_types) == set(expected_types), \
+                f"Constraint {key} should support {expected_types}, got {constraints_dict[key].supported_sequence_types}"
+
+    def test_all_constraints_have_explicit_types(self):
+        """Test that all constraints have non-empty supported_sequence_types."""
+        all_constraints = ConstraintRegistry.list_all()
+
+        for spec in all_constraints:
+            assert len(spec.supported_sequence_types) > 0, \
+                f"Constraint {spec.key} must have non-empty supported_sequence_types"
+
+    def test_structure_constraints_support_protein(self):
+        """Test that structure prediction constraints support protein sequences."""
+        structure_constraints = [
+            "structure-plddt",
+            "structure-ptm",
+            "structure-pae",
+            "structure-iptm",
+            "structure-rmsd",
+            "structure-tmscore",
+        ]
+
+        all_constraints = ConstraintRegistry.list_all()
+        constraints_dict = {spec.key: spec for spec in all_constraints}
+
+        for key in structure_constraints:
+            assert key in constraints_dict, f"Constraint {key} not registered"
+            assert "protein" in constraints_dict[key].supported_sequence_types, \
+                f"Constraint {key} should support protein, got {constraints_dict[key].supported_sequence_types}"
+
+    def test_boltz_binding_supports_multiple_types(self):
+        """Test that boltz-binding-strength supports multiple sequence types."""
+        all_constraints = ConstraintRegistry.list_all()
+        constraints_dict = {spec.key: spec for spec in all_constraints}
+
+        spec = constraints_dict["boltz-binding-strength"]
+        expected_types = {"dna", "rna", "protein", "ligand"}
+        assert set(spec.supported_sequence_types) == expected_types, \
+            f"boltz-binding-strength should support {expected_types}, got {spec.supported_sequence_types}"
     
     def test_config_validation_patterns(self):
         """

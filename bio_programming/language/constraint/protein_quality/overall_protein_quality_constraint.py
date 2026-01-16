@@ -388,6 +388,7 @@ class OverallProteinQualityConfig(BaseConfig):
     concatenate=True,
     tools_called=["prodigal", "segmasker"],
     category="protein quality",
+    supported_sequence_types=["dna", "protein"],
 )
 def overall_protein_quality_constraint(sequences: List[Sequence], config: OverallProteinQualityConfig) -> List[float]:
     """Evaluate overall protein quality using multiple configurable sub-constraints.
@@ -549,12 +550,9 @@ def overall_protein_quality_constraint(sequences: List[Sequence], config: Overal
     diversity_config = protein_quality_config.get_diversity_config()
     balanced_config = protein_quality_config.get_balanced_config()
 
-    # Separate DNA and protein sequences
+    # Separate DNA and protein sequences (validated by Constraint._validate_sequence_types)
     dna_sequences = [seq for seq in sequences if seq.sequence_type == "dna"]
     protein_sequences = [seq for seq in sequences if seq.sequence_type == "protein"]
-
-    if len(dna_sequences) + len(protein_sequences) != len(sequences):
-        raise ValueError("All sequences must be either DNA or PROTEIN type")
 
     dna_scores = []
     protein_scores = []

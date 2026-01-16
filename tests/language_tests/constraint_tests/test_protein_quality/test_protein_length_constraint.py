@@ -61,15 +61,13 @@ class TestProteinLengthConstraint:
         )
 
     def test_invalid_sequence_type(self):
-        """Test that DNA sequence raises assertion (constraint-specific check)."""
+        """Test that DNA sequence raises ValueError at construction (centralized validation)."""
         segment = Segment(sequence="ATCGATCG", sequence_type="dna")
         config = ProteinLengthConfig(min_length=10, max_length=50)
 
-        constraint = Constraint(
-            inputs=[segment],
-            function=protein_length_constraint,
-            function_config=config,
-        )
-
-        with pytest.raises(AssertionError):
-            constraint.evaluate()
+        with pytest.raises(ValueError, match="does not support sequence type 'dna'"):
+            Constraint(
+                inputs=[segment],
+                function=protein_length_constraint,
+                function_config=config,
+            )

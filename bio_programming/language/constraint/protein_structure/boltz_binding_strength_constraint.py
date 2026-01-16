@@ -260,6 +260,7 @@ class BoltzBindingStrengthConfig(BaseConfig):
     gpu_required=True,
     tools_called=["boltz"],
     category="protein_structure",
+    supported_sequence_types=["dna", "rna", "protein", "ligand"],
 )
 def boltz_binding_strength_constraint(
     complex_sequences: List[List[Sequence]], config: BoltzBindingStrengthConfig

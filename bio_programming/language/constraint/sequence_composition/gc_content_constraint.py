@@ -62,6 +62,7 @@ class GCContentConfig(BaseConfig):
     concatenate=True,
     tools_called=[],
     category="sequence_composition",
+    supported_sequence_types=["dna", "rna"],
 )
 def gc_content_constraint(sequences: List[Sequence], config: GCContentConfig) -> List[float]:
     """Enforce GC content within specified range.
@@ -107,9 +108,7 @@ def gc_content_constraint(sequences: List[Sequence], config: GCContentConfig) ->
    
     scores = []
    
-    for seq in sequences: 
-        if seq.sequence_type not in {"dna", "rna"}:
-            raise ValueError(f"Input must be DNA or RNA sequence, found {seq.sequence_type}")
+    for seq in sequences:
         if len(seq.sequence) == 0:
             seq._metadata["gc_content"] = 0.0
             scores.append(MAX_ENERGY)

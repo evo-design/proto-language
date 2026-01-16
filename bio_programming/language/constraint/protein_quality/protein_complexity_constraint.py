@@ -70,6 +70,7 @@ class ProteinComplexityConfig(BaseConfig):
     concatenate=True,
     tools_called=["segmasker"],
     category="protein quality",
+    supported_sequence_types=["protein"],
 )
 def protein_complexity_constraint(sequences: List[Sequence], config: ProteinComplexityConfig) -> List[float]:
     """Evaluate protein sequence complexity using segmasker to detect low-complexity regions.
@@ -128,9 +129,6 @@ def protein_complexity_constraint(sequences: List[Sequence], config: ProteinComp
         >>> print(seq._metadata["low_complexity_fraction"])  # e.g., 0.15
         >>> print(seq._metadata["segmasker_lowercase_count"])  # e.g., 5
     """
-    for seq in sequences:
-        assert seq.sequence_type == "protein", "Input must be protein"
-    
     segmasker_inputs = SegmaskerInput(sequences=[seq.sequence for seq in sequences])
     segmasker_config = SegmaskerConfig(segmasker_path=config.segmasker_path)
 

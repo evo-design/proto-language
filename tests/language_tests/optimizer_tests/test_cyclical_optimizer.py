@@ -90,6 +90,7 @@ def _setup_cyclical_components(
         filter_func._constraint_batched = False
         filter_func._constraint_concatenate = True
         filter_func._constraint_config_class = EmptyConfig
+        filter_func._constraint_supported_sequence_types = ["protein"]
         constraints.append(
             Constraint(
                 inputs=[target_segment],
@@ -215,6 +216,7 @@ class TestCyclicalOptimizerValidation:
         scoring_func._constraint_batched = False
         scoring_func._constraint_concatenate = True
         scoring_func._constraint_config_class = EmptyConfig
+        scoring_func._constraint_supported_sequence_types = ["protein"]
 
         scoring_constraint = Constraint(
             inputs=[components["target_segment"]],
@@ -358,6 +360,7 @@ class TestCyclicalOptimizerRun:
         partial_filter._constraint_batched = False
         partial_filter._constraint_concatenate = True
         partial_filter._constraint_config_class = EmptyConfig
+        partial_filter._constraint_supported_sequence_types = ["protein"]
 
         constraint = Constraint(
             inputs=[target_segment],

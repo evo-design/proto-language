@@ -23,6 +23,7 @@ class ConstraintSpec(BaseSpec):
     gpu_required: bool = Field(description="Whether constraint requires GPU")
     tools_called: List[str] = Field(description="List of tool keys this constraint calls (e.g., ['esmfold', 'prodigal']). Helps agent find relevant tool documentation.")
     category: Optional[str] = Field(default=None, description="Optional category for organization (e.g., 'protein_structure', 'sequence_composition'). Not required for custom constraints.")
+    supported_sequence_types: List[str] = Field(description="List of supported sequence types (e.g., ['dna', 'protein']). Must be non-empty.")
 
     # Private field - excluded from serialization
     function: SkipJsonSchema[Callable] = Field(exclude=True)
@@ -94,6 +95,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         gpu_required: bool = False,
         tools_called: List[str] = [],
         category: Optional[str] = None,
+        supported_sequence_types: List[str] = [],
     ):
         """
         Decorator to register a constraint function.
@@ -113,6 +115,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             gpu_required: If True, constraint requires GPU for computation (e.g., ESMFold, Boltz).
             tools_called: List of tool keys this constraint calls (helps agent find relevant documentation).
             category: Optional category for organization (e.g., 'protein_structure', 'sequence_composition').
+            supported_sequence_types: List of supported sequence types (e.g., ["dna", "protein"]).
 
         Returns:
             Decorator that registers the function and returns it unchanged
@@ -126,6 +129,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             ...     batched=False,
             ...     concatenate=True,
             ...     gpu_required=False,
+            ...     supported_sequence_types=["dna", "rna"],
             ... )
             ... def gc_content_constraint(sequence: Sequence, config: GCContentConfig) -> float:
             ...     return calculate_penalty(sequence, config.min_gc, config.max_gc)
@@ -137,11 +141,16 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             # Validate return type annotation
             cls._validate_return_type(func, batched)
 
+            # Validate supported_sequence_types is non-empty
+            if not supported_sequence_types:
+                raise ValueError(f"supported_sequence_types must be non-empty for constraint '{key}'")
+
             # Store metadata as function attributes
             func._constraint_batched = batched
             func._constraint_concatenate = concatenate
             func._constraint_gpu_required = gpu_required
             func._constraint_config_class = config
+            func._constraint_supported_sequence_types = supported_sequence_types
             
             cls._registry[key] = ConstraintSpec(
                 key=key,
@@ -154,6 +163,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
                 gpu_required=gpu_required,
                 tools_called=tools_called,
                 category=category,
+                supported_sequence_types=supported_sequence_types,
             )
             return func
         return decorator

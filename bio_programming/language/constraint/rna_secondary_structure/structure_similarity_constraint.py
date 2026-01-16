@@ -363,6 +363,7 @@ class RNABasePairSimilarityConfig(RNAStructureConstraintBaseConfig):
     gpu_required=False,
     tools_called=["viennarna"],
     category="rna_secondary_structure",
+    supported_sequence_types=["dna", "rna"],
 )
 def rna_property_similarity_constraint(
     candidates: List[Sequence],
@@ -436,6 +437,7 @@ def rna_property_similarity_constraint(
     gpu_required=False,
     tools_called=["viennarna"],
     category="rna_secondary_structure",
+    supported_sequence_types=["dna", "rna"],
 )
 def rna_motif_similarity_constraint(
     candidates: List[Sequence],
@@ -503,6 +505,7 @@ def rna_motif_similarity_constraint(
     gpu_required=False,
     tools_called=["viennarna"],
     category="rna_secondary_structure",
+    supported_sequence_types=["dna", "rna"],
 )
 def rna_feature_similarity_constraint(
     candidates: List[Sequence],
@@ -569,6 +572,7 @@ def rna_feature_similarity_constraint(
     gpu_required=False,
     tools_called=["viennarna"],
     category="rna_secondary_structure",
+    supported_sequence_types=["dna", "rna"],
 )
 def rna_basepair_similarity_constraint(
     candidates: List[Sequence],

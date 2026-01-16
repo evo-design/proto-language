@@ -67,6 +67,7 @@ class BalancedAaConfig(BaseConfig):
     concatenate=True,
     tools_called=[],
     category="protein quality",
+    supported_sequence_types=["protein"],
 )
 def balanced_aa_constraint(sequences: List[Sequence], config: BalancedAaConfig) -> List[float]:
     """Evaluate the presence of underrepresented amino acids in protein sequences.
@@ -126,9 +127,6 @@ def balanced_aa_constraint(sequences: List[Sequence], config: BalancedAaConfig) 
         >>> print(scores[0])  # Will be > 0.0
         >>> print(seq._metadata["underrepresented_aa_count"])  # 17
     """
-    for seq in sequences:
-        assert seq.sequence_type == "protein", "Input must be protein"
-    
     seq_strings = [seq.sequence for seq in sequences]
     seq_lengths = np.array([len(s) for s in seq_strings])
     aa_alphabet = PROTEIN_AMINO_ACIDS

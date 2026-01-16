@@ -69,6 +69,7 @@ class ProteinRepetitivenessConfig(BaseConfig):
     concatenate=True,
     tools_called=[],
     category="protein quality",
+    supported_sequence_types=["protein"],
 )
 def protein_repetitiveness_constraint(sequences: List[Sequence], config: ProteinRepetitivenessConfig) -> List[float]:
     """Evaluate protein sequence repetitiveness based on k-mer frequency analysis.
@@ -123,8 +124,6 @@ def protein_repetitiveness_constraint(sequences: List[Sequence], config: Protein
         >>> print(scores[0])  # 0.0 if repetitiveness < 40%
         >>> print(seq._metadata["repetitiveness_score"])  # e.g., 0.15
     """
-    for seq in sequences:
-        assert seq.sequence_type == "protein", "Input must be protein"
     seq_strings = [seq.sequence for seq in sequences]
     repetitiveness_scores = np.array([
         _calculate_repetitiveness_score(s, config.min_repeat_length) 

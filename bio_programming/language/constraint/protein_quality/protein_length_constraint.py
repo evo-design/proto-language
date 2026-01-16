@@ -56,6 +56,7 @@ class ProteinLengthConfig(BaseConfig):
     concatenate=True,
     tools_called=[],
     category="protein quality",
+    supported_sequence_types=["protein"],
 )
 def protein_length_constraint(sequences: List[Sequence], config: ProteinLengthConfig) -> List[float]:
     """Evaluate whether protein sequence lengths fall within an acceptable range.
@@ -102,7 +103,6 @@ def protein_length_constraint(sequences: List[Sequence], config: ProteinLengthCo
     scores = []
     
     for seq in sequences:
-        assert seq.sequence_type == "protein", "Input must be protein"
         actual_length = len(seq)
         seq._metadata["protein_length"] = actual_length
         score = calculate_range_deviation(actual_length, config.min_length, config.max_length)

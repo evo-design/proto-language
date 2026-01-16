@@ -583,6 +583,7 @@ def _prepare_target_structure(config: StructureConstraintBaseConfig) -> Optional
     gpu_required=True,
     tools_called=["esmfold", "alphafold3", "boltz", "chai", "pymol"],
     category="protein_structure",
+    supported_sequence_types=["protein"],
 )
 def structure_rmsd_constraint(
     candidates: List[Tuple[Sequence, ...]], config: StructureRMSDConfig
@@ -662,6 +663,7 @@ def _count_pdb_chains(pdb_text: str) -> int:
     gpu_required=True,
     tools_called=["esmfold", "alphafold3", "boltz", "chai", "tmalign", "usalign"],
     category="protein_structure",
+    supported_sequence_types=["protein"],
 )
 def structure_tmscore_constraint(
     candidates: List[Tuple[Sequence, ...]], config: StructureTMScoreConfig

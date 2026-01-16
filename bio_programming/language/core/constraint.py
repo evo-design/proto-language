@@ -120,6 +120,7 @@ class Constraint:
 
         # Validate inputs
         self._validate_inputs()
+        self._validate_sequence_types()
 
     def evaluate(
         self,
@@ -302,3 +303,18 @@ class Constraint:
                     raise ValueError(f"All segments must have the same sequence type. Expected: {sequence_type}, Found: {seg.sequence_type} at index {ind}")
                 if seg._valid_chars != valid_chars:
                     raise ValueError(f"All segments must have the same valid_chars. Expected: {valid_chars}, Found: {seg._valid_chars} at index {ind}")
+
+    def _validate_sequence_types(self) -> None:
+        """Validate that input segment sequence types are supported by this constraint."""
+        supported_types = getattr(self.function, '_constraint_supported_sequence_types', None)
+        
+        if supported_types is None:
+            raise ValueError(f"Constraint function '{self.function.__name__}' missing supported_sequence_types attribute")
+        
+        for seg in self.inputs:
+            if seg.sequence_type not in supported_types:
+                supported_str = ", ".join(supported_types)
+                raise ValueError(
+                    f"Constraint '{self.label}' does not support sequence type '{seg.sequence_type}'. "
+                    f"Supported types: [{supported_str}]"
+                )

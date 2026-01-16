@@ -13,6 +13,8 @@ from .utils import (
     mock_single_input_scoring_function,
     mock_multi_input_scoring_function,
     mock_multi_input_scoring_function_disjoint,
+    mock_dna_only_scoring_function,
+    mock_protein_only_scoring_function,
 )
 
 
@@ -195,6 +197,43 @@ class TestConstraintValidation:
                 function_config=MockConstraintConfig(),
             )
 
+    def test_unsupported_sequence_type_raises_error(self):
+        """Test that unsupported sequence type raises ValueError."""
+        # Create a protein segment and try to use it with DNA-only constraint
+        protein_seg = Segment(sequence="MVLSPADKTN", sequence_type="protein")
+
+        with pytest.raises(ValueError, match="does not support sequence type 'protein'"):
+            Constraint(
+                inputs=[protein_seg],
+                function=mock_dna_only_scoring_function,
+                function_config=MockConstraintConfig(),
+            )
+
+    def test_supported_sequence_type_passes_validation(self):
+        """Test that supported sequence types pass validation."""
+        # DNA segment with DNA-only constraint should work
+        dna_seg = Segment(sequence="ATCGATCG", sequence_type="dna")
+
+        constraint = Constraint(
+            inputs=[dna_seg],
+            function=mock_dna_only_scoring_function,
+            function_config=MockConstraintConfig(),
+        )
+        assert constraint is not None
+
+    def test_sequence_type_validation_checks_all_segments(self):
+        """Test that validation checks sequence types for all input segments."""
+        # Even with concatenate=False, all segments should be validated
+        dna_seg = Segment(sequence="ATCGATCG", sequence_type="dna")
+
+        # protein_only constraint with DNA segment should fail
+        with pytest.raises(ValueError, match="does not support sequence type 'dna'"):
+            Constraint(
+                inputs=[dna_seg],
+                function=mock_protein_only_scoring_function,
+                function_config=MockConstraintConfig(),
+            )
+
 
 # =============================================================================
 # TESTS FOR CUSTOM LABEL HANDLING
@@ -300,6 +339,7 @@ class TestConstraintThreshold:
         mock_scoring._constraint_batched = True
         mock_scoring._constraint_concatenate = True
         mock_scoring._constraint_config_class = MockConstraintConfig
+        mock_scoring._constraint_supported_sequence_types = ["dna"]
 
         sequences = ["ATCG", "ATCGATCG", "AT"]  # lengths 4, 8, 2 → scores 0.4, 0.8, 0.2
         segment = _make_segment_with_candidates(sequences, "dna")
@@ -323,6 +363,7 @@ class TestConstraintThreshold:
         mock_scoring._constraint_batched = True
         mock_scoring._constraint_concatenate = True
         mock_scoring._constraint_config_class = MockConstraintConfig
+        mock_scoring._constraint_supported_sequence_types = ["dna"]
 
         sequences = ["ATCG", "GGGG"]
         segment = _make_segment_with_candidates(sequences, "dna")
@@ -363,6 +404,7 @@ class TestConstraintWeight:
         mock_scoring._constraint_batched = True
         mock_scoring._constraint_concatenate = True
         mock_scoring._constraint_config_class = MockConstraintConfig
+        mock_scoring._constraint_supported_sequence_types = ["dna"]
 
         sequences = ["AT", "GC"]
         segment = _make_segment_with_candidates(sequences, "dna")

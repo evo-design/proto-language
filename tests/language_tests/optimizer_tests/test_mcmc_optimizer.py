@@ -96,6 +96,7 @@ class TestMCMCOptimizer:
         dummy_scoring_func._constraint_batched = False
         dummy_scoring_func._constraint_concatenate = True
         dummy_scoring_func._constraint_config_class = EmptyConfig
+        dummy_scoring_func._constraint_supported_sequence_types = ["dna"]
 
         dummy_constraint = Constraint(
             inputs=[test_segment],
@@ -558,6 +559,7 @@ class TestMCMCOptimizer:
         perfect_g_energy._constraint_batched = False
         perfect_g_energy._constraint_concatenate = True
         perfect_g_energy._constraint_config_class = EmptyConfig
+        perfect_g_energy._constraint_supported_sequence_types = ["dna"]
 
         constraint = Constraint(
             inputs=[segment],
@@ -732,6 +734,7 @@ class TestMCMCOptimizer:
         dummy_scoring_func._constraint_batched = False
         dummy_scoring_func._constraint_concatenate = True
         dummy_scoring_func._constraint_config_class = EmptyConfig
+        dummy_scoring_func._constraint_supported_sequence_types = ["dna"]
 
         construct = Construct([segment])
         constraint = Constraint(

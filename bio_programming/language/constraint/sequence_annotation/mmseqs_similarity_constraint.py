@@ -146,6 +146,7 @@ class MMseqsSimilarityConfig(BaseConfig):
     concatenate=True,
     tools_called=["mmseqs", "prodigal", "orfipy"],
     category="sequence annotation",
+    supported_sequence_types=["dna", "protein"],
 )
 def mmseqs_similarity_constraint(sequences: List[Sequence], config: MMseqsSimilarityConfig) -> List[float]:
     """Evaluate sequence similarity using MMseqs2 protein database search.

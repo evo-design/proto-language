@@ -152,6 +152,7 @@ class KmerFrequencyConfig(BaseConfig):
     concatenate=True,
     tools_called=[],
     category="sequence_composition",
+    supported_sequence_types=["dna", "rna", "protein"],
 )
 def kmer_frequency_constraint(sequences: List[Sequence], config: KmerFrequencyConfig) -> List[float]:
     """Evaluate k-mer frequencies or usage deviations with configurable mer length and scoring modes
@@ -236,9 +237,6 @@ def kmer_frequency_constraint(sequences: List[Sequence], config: KmerFrequencyCo
     scores = []
 
     for seq in sequences:
-        if seq.sequence_type not in {"dna", "rna", "protein"}:
-            raise ValueError("Input must be a dna, rna, or protein SequenceType")
-
         # Handle sequences shorter than k
         if len(seq) < config.k:
             seq._metadata[f"{config.k}mer_data"] = {}
