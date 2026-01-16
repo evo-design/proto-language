@@ -26,12 +26,10 @@ from proto_language.language.optimizer import (
     TopKOptimizer,
     TopKOptimizerConfig,
 )
-import pytest
 
 class TestProgramSerializer:
     """Tests for serialize_program function."""
 
-    @pytest.mark.skip("will fix in next pr")
     def test_serialize_single_optimizer(self):
         """Test serialization of a simple single-optimizer program."""
         # Create a simple program
@@ -320,7 +318,6 @@ class TestProgramSerializer:
         assert seg["sequence"] == "ATGCATGCATGC"
         assert "length" not in seg
 
-    @pytest.mark.skip("will fix in next pr")
     def test_segment_with_sequence_serialization(self):
         """Test that segments with sequences are correctly serialized."""
         context_segment = Segment(sequence="ATGC", sequence_type="dna", label="context")

@@ -1,16 +1,23 @@
 """
 Evo2 Generator for DNA sequence generation
 """
+
 from __future__ import annotations
-from typing import List, Optional, Dict, final
 
-from pydantic import model_validator, field_validator
+from typing import Dict, List, Optional, final
 
-from proto_language.language.core import Generator, Segment
+from pydantic import field_validator, model_validator
+
 from proto_language.base_config import BaseConfig, ConfigField
-from proto_language.tools.language_models.evo2 import run_evo2_sample, Evo2SampleInput, Evo2SampleConfig
-from proto_language.tools.language_models.evo2.inference import EVO2_MODEL_CHECKPOINTS
+from proto_language.language.core import Generator, Segment
 from proto_language.language.generator.generator_registry import GeneratorRegistry
+from proto_language.tools.language_models.evo2 import (
+    Evo2SampleConfig,
+    Evo2SampleInput,
+    run_evo2_sample,
+)
+from proto_language.tools.language_models.evo2.inference import EVO2_MODEL_CHECKPOINTS
+
 
 class Evo2GeneratorConfig(BaseConfig):
     """Configuration object for Evo2Generator.
@@ -87,6 +94,7 @@ class Evo2GeneratorConfig(BaseConfig):
         All prompts must have identical lengths for batched generation. For detailed
         information on Evo2 parameters, see: https://github.com/arcinstitute/evo2
     """
+
     # Required parameters
     prompts: List[str] = ConfigField(
         title="Prompts",
@@ -187,7 +195,7 @@ class Evo2GeneratorConfig(BaseConfig):
         """Convert single string to list for consistent internal handling."""
         return [v] if isinstance(v, str) else v
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_prompts_length(self):
         """Validate that all prompts have the same length."""
         if len(set(len(seq) for seq in self.prompts)) != 1:
@@ -268,7 +276,7 @@ class Evo2Generator(Generator):
         self.store_kv_cache = config.store_kv_cache
         self.prepend_prompt = config.prepend_prompt
         self.num_tokens: Optional[int] = None # num_tokens will be calculated dynamically on assign()
-        self.kv_caches: List[Dict] = [] # store old KV caches for cached generation
+        self.kv_caches: List[Dict] = []  # store old KV caches for cached generation
 
     def assign(self, assigned_segment: Segment) -> None:
         """
@@ -278,15 +286,28 @@ class Evo2Generator(Generator):
         """
         super().assign(assigned_segment)
 
-        prompt_length = len(self.prompts[0]) if isinstance(self.prompts, list) else len(self.prompts)
+        prompt_length = (
+            len(self.prompts[0])
+            if isinstance(self.prompts, list)
+            else len(self.prompts)
+        )
 
         # Calculate num_tokens according to sequence_length and prepend_prompt
-        self.num_tokens = (assigned_segment.sequence_length - prompt_length) if self.prepend_prompt else assigned_segment.sequence_length
+        self.num_tokens = (
+            (assigned_segment.sequence_length - prompt_length)
+            if self.prepend_prompt
+            else assigned_segment.sequence_length
+        )
 
         if self.num_tokens < 1:
             raise ValueError(f"Must increase segment length (currently {assigned_segment.sequence_length})")
 
-    def sample(self, prompts: Optional[List[str]] = None, prepend_prompt: Optional[bool] = None, old_kv_cache: Optional[Dict] = None) -> None:
+    def sample(
+        self,
+        prompts: Optional[List[str]] = None,
+        prepend_prompt: Optional[bool] = None,
+        old_kv_cache: Optional[Dict] = None,
+    ) -> None:
         """
         Generate sequences using the Evo2 model and update generator output.
 
@@ -298,6 +319,7 @@ class Evo2Generator(Generator):
             prepend_prompt: Optional boolean to prepend prompts to generated sequences.
             old_kv_cache: Optional cache state to continue from (batched format).
         """
+        self._validate_generator()
         # Use provided prompts or fall back to the default prompt
         sampling_prompts = prompts if prompts is not None else self.prompts
 
@@ -312,12 +334,14 @@ class Evo2Generator(Generator):
                 if len(sampling_prompts) == 1:
                     sampling_prompts = sampling_prompts * num_candidates
                 else:
-                    raise ValueError(f"Number of prompts ({len(sampling_prompts)}) must either be 1 (will be replicated) or match the number of candidates ({num_candidates})")
+                    raise ValueError(
+                        f"Number of prompts ({len(sampling_prompts)}) must either be 1 (will be replicated) or match the number of candidates ({num_candidates})"
+                    )
 
         # Create config for the tool
         inputs = Evo2SampleInput(prompts=sampling_prompts)
         sample_config = Evo2SampleConfig(
-            prepend_prompt=prepend_prompt if prepend_prompt is not None else self.prepend_prompt,
+            prepend_prompt=(prepend_prompt if prepend_prompt is not None else self.prepend_prompt),
             model_checkpoint=self.model_checkpoint,
             local_path=self.local_path,
             top_k=self.top_k,
@@ -346,21 +370,22 @@ class Evo2Generator(Generator):
 
     def replicate_cache(self, cache: Dict, n_replicates: int) -> Dict:
         """Replicate cache N times for beam branching."""
-        from vortex.model.cache import InferenceParams, HyenaCascadeIIRInferenceParams, HyenaCascadeFIRInferenceParams
+        from vortex.model.cache import HyenaCascadeFIRInferenceParams, HyenaCascadeIIRInferenceParams, InferenceParams
+
         if not cache:
             return cache
 
         if n_replicates < 1:
-            raise ValueError(f'n_replicates must be at least 1 (found {n_replicates}).')
+            raise ValueError(f"n_replicates must be at least 1 (found {n_replicates}).")
 
-        kv = next(iter(cache['mha'].key_value_memory_dict.values()))
+        kv = next(iter(cache["mha"].key_value_memory_dict.values()))
         if kv.shape[0] != 1:
-            raise ValueError(f'Cache must only have one cache entry to replicate (found {kv.shape[0]}).')
+            raise ValueError(f"Cache must only have one cache entry to replicate (found {kv.shape[0]}).")
 
-        mha, hcl, hcm, hcs = cache['mha'], cache['hcl'], cache['hcm'], cache['hcs']
+        mha, hcl, hcm, hcs = cache["mha"], cache["hcl"], cache["hcm"], cache["hcs"]
 
         return {
-            'mha': InferenceParams(
+            "mha": InferenceParams(
                 max_seqlen=mha.max_seqlen,
                 max_batch_size=mha.max_batch_size,
                 seqlen_offset=mha.seqlen_offset,
@@ -370,7 +395,7 @@ class Evo2Generator(Generator):
                     for key, data in mha.key_value_memory_dict.items()
                 },
             ),
-            'hcl': HyenaCascadeIIRInferenceParams(
+            "hcl": HyenaCascadeIIRInferenceParams(
                 fir_filter_length=hcl.fir_filter_length,
                 state_dim=hcl.state_dim,
                 seqlen_offset=hcl.seqlen_offset,
@@ -383,7 +408,7 @@ class Evo2Generator(Generator):
                     for key, data in hcl.state_dict.items()
                 },
             ),
-            'hcm': HyenaCascadeFIRInferenceParams(
+            "hcm": HyenaCascadeFIRInferenceParams(
                 fir_filter_length=hcm.fir_filter_length,
                 seqlen_offset=hcm.seqlen_offset,
                 fir_inner_filter_length=hcm.fir_inner_filter_length,
@@ -400,7 +425,7 @@ class Evo2Generator(Generator):
                     for key, data in hcm.state_dict.items()
                 },
             ),
-            'hcs': HyenaCascadeFIRInferenceParams(
+            "hcs": HyenaCascadeFIRInferenceParams(
                 fir_filter_length=hcs.fir_filter_length,
                 seqlen_offset=hcs.seqlen_offset,
                 fir_inner_filter_length=hcs.fir_inner_filter_length,
@@ -416,5 +441,5 @@ class Evo2Generator(Generator):
                     key: data.repeat(n_replicates, 1, 1)
                     for key, data in hcs.state_dict.items()
                 },
-            )
+            ),
         }

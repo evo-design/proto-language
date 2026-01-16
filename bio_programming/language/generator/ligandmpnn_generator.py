@@ -275,6 +275,7 @@ class LigandMPNNGenerator(Generator):
         Raises:
             ValueError: If no structure_inputs provided and none configured.
         """
+        self._validate_generator()
         num_candidates = self._assigned_segment.num_candidates
 
         # Normalize and use provided structure_inputs, or fall back to config

@@ -3,13 +3,14 @@ MSAGenerator for sampling mutations from multiple sequence alignment distributio
 """
 
 from __future__ import annotations
-from typing import Dict, final, List, Optional
+
 import random
+from typing import Dict, List, Optional, final
 
-from pydantic import field_validator, ConfigDict
+from pydantic import ConfigDict, field_validator
 
-from proto_language.language.core import Generator, Segment
 from proto_language.base_config import BaseConfig, ConfigField
+from proto_language.language.core import Generator, Segment
 from proto_language.language.generator.generator_registry import GeneratorRegistry
 from proto_language.tools.sequence_alignment.msas import MSA
 
@@ -132,7 +133,9 @@ class MSAGenerator(Generator):
     def _compute_position_probabilities(self) -> None:
         """Compute empirical probability distribution for each position in the MSA."""
         for position in range(self.msa.alignment_length):
-            probs = self.msa.get_position_frequencies(position, include_gaps=self.include_gaps)
+            probs = self.msa.get_position_frequencies(
+                position, include_gaps=self.include_gaps
+            )
 
             if not probs:
                 # All gaps at this position - cannot mutate
@@ -174,6 +177,7 @@ class MSAGenerator(Generator):
         Raises:
             RuntimeError: If called before assign().
         """
+        self._validate_generator()
         for sequence in self._assigned_segment.candidate_sequences:
             seq_list = list(sequence.sequence)
 

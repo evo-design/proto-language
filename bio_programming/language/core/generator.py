@@ -3,6 +3,7 @@ Generator base class for the biological programming language.
 
 Provides the abstract interface for sequence generation algorithms.
 """
+
 from __future__ import annotations
 
 import random
@@ -28,6 +29,17 @@ class Generator(ABC):
         """
         # TODO: add logic to handle multiple assigned segments (if necessary)
         self._assigned_segment: Optional[Segment] = None
+        self.__spec: Optional["GeneratorSpec"] = None  # Lazy-loaded via property
+
+    # Required lazy loading for mock generators to function in tests.
+    @property
+    def _spec(self) -> "GeneratorSpec":
+        """Lazy-load the generator spec from the registry."""
+        if self.__spec is None:
+            from proto_language.language.generator.generator_registry import GeneratorRegistry
+            self.__spec = GeneratorRegistry.get(GeneratorRegistry.get_key(self))
+        return self.__spec
+        
 
     def assign(self, assigned_segment: Segment) -> None:
         """Assign a Segment to the generator.
@@ -38,34 +50,18 @@ class Generator(ABC):
         Raises:
             ValueError: If segment is a ligand or has incompatible sequence type.
         """
-        from proto_language.language.generator.generator_registry import GeneratorRegistry
-
         # Ligand segments cannot be mutated by generators
         if assigned_segment.is_ligand:
-            raise ValueError(
-                f"Cannot assign generator to ligand segment '{assigned_segment.label}'. "
-                "Ligand segments cannot be mutated."
-            )
+            raise ValueError(f"Cannot assign generator to ligand segment '{assigned_segment.label}'. Ligand segments cannot be mutated.")
 
         # Validate sequence type compatibility from registry
-        spec = GeneratorRegistry.get(GeneratorRegistry.get_key(self))
-        supported_types = spec.supported_sequence_types
+        supported_types = self._spec.supported_sequence_types
 
         if supported_types and assigned_segment.sequence_type not in supported_types:
             supported_types_str = ", ".join(supported_types)
             raise ValueError(f"Generator {self.__class__.__name__} does not support sequence type '{assigned_segment.sequence_type}'. Supported types: [{supported_types_str}]")
-
         self._assigned_segment = assigned_segment
 
-        # Warn if segment already has candidate sequences that will be overwritten (autoregressive only)
-        if spec.category == "autoregressive" and assigned_segment.candidate_sequences:
-            warnings.warn(f"Segment '{assigned_segment.label or 'unlabeled'}' has populated candidate sequence(s) that will be overwritten by {self.__class__.__name__}.")
-
-        # For mutation generators, initialize a random starting sequence if not provided
-        if spec.category == "mutation" and not assigned_segment.original_sequence.sequence:
-            warnings.warn(f"No starting sequence provided for generator {self.__class__.__name__}. Initializing a random starting sequence.")
-            valid_chars = list(assigned_segment._valid_chars - set(" "))
-            assigned_segment.original_sequence.sequence = "".join(random.choice(valid_chars) for _ in range(assigned_segment.sequence_length))
 
     @abstractmethod
     def sample(self) -> None:
@@ -73,3 +69,21 @@ class Generator(ABC):
         Sample new sequences by modifying the assigned Segment's candidate_sequences in-place.
         """
         raise NotImplementedError(f"Subclass {self.__class__.__name__} must implement the sample() method.")
+
+    def _validate_generator(self) -> None:
+        """Validate the generator."""
+        if self._assigned_segment is None:
+            raise RuntimeError(f"Generator {self.__class__.__name__} has no segment assigned.")
+
+        # Warn if segment already has populated sequences that will be overwritten (autoregressive only)
+        if self._spec.category == "autoregressive" and self._assigned_segment.candidate_sequences[0].sequence:
+            warnings.warn(f"Segment '{self._assigned_segment.label or 'unlabeled'}' has an input sequence that will be overwritten by {self.__class__.__name__}.")
+        
+        if self._spec.category == "mutation":
+            if not self._assigned_segment.has_original_sequence:
+                warnings.warn(f"Generator {self.__class__.__name__} is a mutation generator, but the segment has no original sequence. Initializing a random starting sequence.")
+                valid_chars = list(self._assigned_segment._valid_chars - set(" "))
+                random_sequence = "".join(random.choice(valid_chars) for _ in range(self._assigned_segment.sequence_length))
+                # Only populate candidate_sequences, leave original_sequence empty
+                for sequence in self._assigned_segment.candidate_sequences:
+                    sequence.sequence = random_sequence

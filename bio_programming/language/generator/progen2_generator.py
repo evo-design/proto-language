@@ -1,25 +1,27 @@
 """
 ProGen2 Generator for protein sequence generation.
 """
+
 from __future__ import annotations
+
 from typing import List, Optional, final
 
 from pydantic import field_validator
 
-from proto_language.language.core import Generator, Segment
 from proto_language.base_config import BaseConfig, ConfigField
+from proto_language.language.core import Generator, Segment
 from proto_language.language.generator.generator_registry import GeneratorRegistry
-
 from proto_language.tools.language_models.progen2 import (
-    run_progen2_sample,
-    ProGen2SampleInput,
     ProGen2SampleConfig,
+    ProGen2SampleInput,
+    run_progen2_sample,
 )
-from proto_language.tools.language_models.progen2.inference import ( # noqa: F401
-    PROGEN2_MODEL_CHECKPOINTS,
-    PROGEN2_START_TOKEN, 
+from proto_language.tools.language_models.progen2.inference import (  # noqa: F401
     PROGEN2_END_TOKEN,
+    PROGEN2_MODEL_CHECKPOINTS,
+    PROGEN2_START_TOKEN,
 )
+
 
 class ProGen2GeneratorConfig(BaseConfig):
     """Configuration object for ProGen2Generator.
@@ -34,9 +36,9 @@ class ProGen2GeneratorConfig(BaseConfig):
         prompts (List[str]): Prompt sequence(s) to start protein generation.
             Can be a single prompt string (automatically converted to list) or list of
             prompts for batch generation.
-            
+
             ProGen2 uses special tokens: '1' (start) and '2' (end/stop).
-            
+
             **Important**: If you provide only amino acid characters (e.g., "MKTL"),
             the generator will automatically prepend the start token '1' and emit
             a warning. For explicit control, include the start token yourself: "1MKTL".
@@ -62,7 +64,7 @@ class ProGen2GeneratorConfig(BaseConfig):
             Must be greater than 0. Default: 0.2 (following ProGen2 defaults).
 
         top_p (float): Nucleus sampling parameter. Chooses tokens whose cumulative
-            probability mass is at least ``top_p``. Range: (0.0, 1.0]. 
+            probability mass is at least ``top_p``. Range: (0.0, 1.0].
             Default: 0.95 (following ProGen2 defaults).
 
         top_k (int): Limits sampling to the top-k most probable tokens at each
@@ -87,7 +89,7 @@ class ProGen2GeneratorConfig(BaseConfig):
         verbose (bool): Whether to print detailed generation progress and timing.
             Default: ``False``.
     Note:
-        For detailed information on ProGen2, see: 
+        For detailed information on ProGen2, see:
         - HuggingFace: https://huggingface.co/hugohrban/
         - GitHub: https://github.com/hugohrban/ProGen2-finetuning
         - Original GitHub: https://github.com/enijkamp/progen2
@@ -163,6 +165,7 @@ class ProGen2GeneratorConfig(BaseConfig):
         """Convert single string to list for consistent internal handling."""
         return [v] if isinstance(v, str) else v
 
+
 @GeneratorRegistry.register(
     key="progen2",
     label="ProGen2 Protein Language Model",
@@ -189,7 +192,7 @@ class ProGen2Generator(Generator):
         self.strip_special_tokens = config.strip_special_tokens
         self.prepend_prompt = config.prepend_prompt
         self.verbose = config.verbose
-        
+
         # This should get assigned during `self.assign()`.
         self.max_length: Optional[int] = None
 
@@ -197,7 +200,11 @@ class ProGen2Generator(Generator):
         """Assign a Segment to this generator and calculate lengths."""
         super().assign(assigned_segment)
 
-        prompt_length = len(self.prompts[0]) if isinstance(self.prompts, list) else len(self.prompts)
+        prompt_length = (
+            len(self.prompts[0])
+            if isinstance(self.prompts, list)
+            else len(self.prompts)
+        )
 
         self.max_length = assigned_segment.sequence_length
         if self.prepend_prompt:
@@ -207,10 +214,10 @@ class ProGen2Generator(Generator):
 
     def sample(self, prompts: Optional[List[str]] = None) -> None:
         """Generate protein sequences using ProGen2 tool."""
-
+        self._validate_generator()
         sampling_prompts = prompts if prompts is not None else self.prompts
         num_candidates = len(self._assigned_segment.candidate_sequences)
-        
+
         # Handle prompt count matching
         if len(sampling_prompts) != num_candidates:
             if len(sampling_prompts) == 1:

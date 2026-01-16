@@ -1,14 +1,20 @@
 """
 ESM2 Generator for protein sequence generation
 """
-from __future__ import annotations
-from typing import final, Literal
 
-from proto_language.language.core import Generator
+from __future__ import annotations
+
+from typing import Literal, final
+
 from proto_language.base_config import BaseConfig, ConfigField
-from proto_language.tools.language_models.esm2.esm2 import run_esm2_sample, ESM2SampleConfig, LanguageModelInput
-from proto_language.tools.language_models.esm2.inference import ESM2_MODEL_CHECKPOINTS
+from proto_language.language.core import Generator
 from proto_language.language.generator.generator_registry import GeneratorRegistry
+from proto_language.tools.language_models.esm2.esm2 import (
+    ESM2SampleConfig,
+    LanguageModelInput,
+    run_esm2_sample,
+)
+from proto_language.tools.language_models.esm2.inference import ESM2_MODEL_CHECKPOINTS
 
 
 class ESM2GeneratorConfig(BaseConfig):
@@ -52,6 +58,7 @@ class ESM2GeneratorConfig(BaseConfig):
             Higher values explore more of sequence space but may reduce biological
             plausibility. Must be at least 1. Default: 1.
     """
+
     model_checkpoint: ESM2_MODEL_CHECKPOINTS = ConfigField(
         default="esm2_t33_650M_UR50D",
         title="Model Checkpoint",
@@ -136,7 +143,6 @@ class ESM2Generator(Generator):
         self.decoding_method = config.decoding_method
         self.num_mutations = config.num_mutations
 
-
     def sample(self) -> None:
         """
         Sample new amino acids at selected high-uncertainty positions for all sequences in the batch.
@@ -147,10 +153,11 @@ class ESM2Generator(Generator):
 
         Raises:
             RuntimeError: If called before assign().
-        """  
+        """
+        self._validate_generator()
         # Cap num_mutations to sequence length
         actual_mutations = min(self.num_mutations, self._assigned_segment.sequence_length)
-        
+
         # Create input and config objects
         sequences = [seq.sequence for seq in self._assigned_segment.candidate_sequences]
         esm2_input = LanguageModelInput(sequences=sequences)
@@ -160,7 +167,7 @@ class ESM2Generator(Generator):
             decoding_method=self.decoding_method,
             num_mutations=actual_mutations,
             keep_on_gpu=True,  # Keep for repeated calls
-            verbose=False
+            verbose=False,
         )
         result = run_esm2_sample(inputs=esm2_input, config=config)
         mutated_sequences = result.sequences

@@ -1,13 +1,19 @@
 """
 ESM3 Generator for protein sequence generation
 """
-from __future__ import annotations
-from typing import final, Literal
 
-from proto_language.language.core import Generator
+from __future__ import annotations
+
+from typing import Literal, final
+
 from proto_language.base_config import BaseConfig, ConfigField
-from proto_language.tools.language_models.esm3.esm3 import run_esm3_sample, ESM3SampleConfig, LanguageModelInput
+from proto_language.language.core import Generator
 from proto_language.language.generator.generator_registry import GeneratorRegistry
+from proto_language.tools.language_models.esm3.esm3 import (
+    ESM3SampleConfig,
+    LanguageModelInput,
+    run_esm3_sample,
+)
 from proto_language.tools.language_models.esm3.inference import ESM3_MODEL_CHECKPOINTS
 
 
@@ -51,6 +57,7 @@ class ESM3GeneratorConfig(BaseConfig):
     Note:
         ESM3 is the open-source version of EvolutionaryScale's protein language model.
     """
+
     # Advanced parameters
     model_checkpoint: ESM3_MODEL_CHECKPOINTS = ConfigField(
         default="esm3_sm_open_v1",
@@ -145,7 +152,8 @@ class ESM3Generator(Generator):
 
         Raises:
             RuntimeError: If called before assign().
-        """        
+        """
+        self._validate_generator()
         # Cap num_mutations to sequence length
         actual_mutations = min(self.num_mutations, self._assigned_segment.sequence_length)
         
@@ -158,7 +166,7 @@ class ESM3Generator(Generator):
             decoding_method=self.decoding_method,
             num_mutations=actual_mutations,
             keep_on_gpu=True,  # Keep for repeated calls
-            verbose=False
+            verbose=False,
         )
 
         result = run_esm3_sample(inputs=esm3_input, config=config)

@@ -17,7 +17,6 @@ class TestUniformMutationGenerator:
         gen = UniformMutationGenerator(config)
         assert gen.num_mutations == 1
 
-    @pytest.mark.skip("will fix in next pr")
     def test_assign_and_initialization(self):
         """Tests the assign method initializes the output segment correctly."""
         seq_len = 20

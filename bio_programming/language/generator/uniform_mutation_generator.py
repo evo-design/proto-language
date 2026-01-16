@@ -1,25 +1,28 @@
 """
 UniformMutationGenerator for random point mutations.
 """
+
 from __future__ import annotations
-from typing import final, Optional
+
 import random
 import time
+from typing import Optional, final
 
 from pydantic import field_validator, model_validator
 
-from proto_language.language.core import Generator, Segment
 from proto_language.base_config import BaseConfig, ConfigField
+from proto_language.language.core import Generator, Segment
 from proto_language.language.generator.generator_registry import GeneratorRegistry
 
 
 class MutationWindow(BaseConfig):
     """Configuration for mutation window specifying the range to mutate.
-    
+
     Attributes:
         start (Optional[int]): Start index (0-based, inclusive). Must be non-negative.
         end (Optional[int]): End index (0-based, exclusive). Must be greater than start.
     """
+
     start: Optional[int] = ConfigField(
         ge=0,
         title="Start Index",
@@ -36,12 +39,16 @@ class MutationWindow(BaseConfig):
         """Validate mutation window constraints."""
         # Both start and end must be provided together
         if (self.start is None) != (self.end is None):
-            raise ValueError("Both start and end must be provided together for mutation window")
-        
+            raise ValueError(
+                "Both start and end must be provided together for mutation window"
+            )
+
         # If both are provided, validate that end > start
         if self.start is not None and self.end <= self.start:
-            raise ValueError(f"Mutation window end ({self.end}) must be greater than start ({self.start})")
-        
+            raise ValueError(
+                f"Mutation window end ({self.end}) must be greater than start ({self.start})"
+            )
+
         return self
 
 
@@ -64,7 +71,7 @@ class UniformMutationGeneratorConfig(BaseConfig):
             - A tuple/list: ``(start, end)`` using Python indexing (0-based, end-exclusive)
             - A dict: ``{"start": 0, "end": 100}``
             - A MutationWindow instance
-            
+
             Examples:
             - ``(0, 100)``: Mutate only first 100 positions
             - ``{"start": 5, "end": 10}``: Mutate only positions 5-9
@@ -78,6 +85,7 @@ class UniformMutationGeneratorConfig(BaseConfig):
             during sampling. Only use for testing parallel execution or profiling.
             Default: ``False``.
     """
+
     # Advanced parameters (have default values)
     num_mutations: int = ConfigField(
         default=1,
@@ -105,12 +113,12 @@ class UniformMutationGeneratorConfig(BaseConfig):
         """Convert tuple/list input to dict format for Pydantic model parsing."""
         if v is None:
             return v
-        
+
         if isinstance(v, (tuple, list)):
             if len(v) != 2:
                 raise ValueError(f"Mutation window tuple must have exactly 2 elements, got {len(v)}")
             return {"start": v[0], "end": v[1]}
-        
+
         return v
 
 
@@ -173,9 +181,14 @@ class UniformMutationGenerator(Generator):
         super().assign(assigned_segment)
 
         # Validate mutation window against segment's sequence_length
-        if (self.mutation_window is not None and 
-            self.mutation_window.start is not None and
-            (self.mutation_window.start >= assigned_segment.sequence_length or self.mutation_window.end > assigned_segment.sequence_length)):
+        if (
+            self.mutation_window is not None
+            and self.mutation_window.start is not None
+            and (
+                self.mutation_window.start >= assigned_segment.sequence_length
+                or self.mutation_window.end > assigned_segment.sequence_length
+            )
+        ):
             raise ValueError(f"Mutation window ({self.mutation_window.start}, {self.mutation_window.end}) incompatible with segment length {assigned_segment.sequence_length}.")
 
     def sample(self) -> None:
@@ -189,6 +202,7 @@ class UniformMutationGenerator(Generator):
             RuntimeError: If called before assign().
             ValueError: If candidate pool is empty.
         """
+        self._validate_generator()
         # Sleep for testing purposes if debug_with_sleep_calls is enabled
         if self.debug_with_sleep_calls:
             time.sleep(1.0)
@@ -220,9 +234,9 @@ class UniformMutationGenerator(Generator):
                 ]
                 mutated_char = random.choice(possible_mutations)
                 current_sequence = (
-                    current_sequence[:pos]
-                    + mutated_char
-                    + current_sequence[pos + 1:]
+                    current_sequence[:pos] + 
+                    mutated_char + 
+                    current_sequence[pos + 1:]
                 )
 
             sequence.sequence = current_sequence
