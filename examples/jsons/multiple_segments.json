@@ -49,45 +49,35 @@
           "config": {
             "num_mutations": 2
           },
-          "targets": [
-            "promoter"
-          ]
+          "target": "promoter"
         },
         {
           "key": "uniform-mutation",
           "config": {
             "num_mutations": 2
           },
-          "targets": [
-            "gene"
-          ]
+          "target": "gene"
         },
         {
           "key": "uniform-mutation",
           "config": {
             "num_mutations": 2
           },
-          "targets": [
-            "terminator"
-          ]
+          "target": "terminator"
         },
         {
           "key": "uniform-mutation",
           "config": {
             "num_mutations": 2
           },
-          "targets": [
-            "enhancer"
-          ]
+          "target": "enhancer"
         },
         {
           "key": "uniform-mutation",
           "config": {
             "num_mutations": 2
           },
-          "targets": [
-            "coding_region"
-          ]
+          "target": "coding_region"
         }
       ],
       "constraints": [

@@ -32,18 +32,14 @@
           "config": {
             "num_mutations": 1
           },
-          "targets": [
-            "construct1-segment1"
-          ]
+          "target": "construct1-segment1"
         },
         {
           "key": "uniform-mutation",
           "config": {
             "num_mutations": 1
           },
-          "targets": [
-            "construct2-segment1"
-          ]
+          "target": "construct2-segment1"
         }
       ],
       "constraints": [
