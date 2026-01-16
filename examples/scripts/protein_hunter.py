@@ -59,8 +59,11 @@ TOOL_CONFIG = {
 # Define the Protein Segment
 # =============================================================================
 
+# Initialize with 'X' (unknown) residues - the 'hallucination trick' from Protein Hunter.
+# Starting with unknown residues allows structure predictors to explore novel folds
+# without being biased by an input sequence.
 protein = Segment(
-    length=DESIGN_LENGTH,
+    sequence="X" * DESIGN_LENGTH,
     sequence_type="protein",
     label="designed_protein",
 )
@@ -108,25 +111,6 @@ def structure_conditioning_fn(sequences: List[Sequence]) -> List:
 
 
 # =============================================================================
-# Initialization Function (Protein Hunter Hallucination Trick)
-# =============================================================================
-
-def init_unknown_sequences(segment: Segment) -> None:
-    """
-    Initialize sequences with 'X' (unknown) residues.
-
-    This is the 'hallucination trick' from Protein Hunter - starting with unknown
-    residues allows structure predictors to explore novel folds without being
-    biased by an input sequence.
-    """
-    unknown_seq = "X" * segment.sequence_length
-    for seq in segment.candidate_sequences:
-        seq.sequence = unknown_seq
-    for seq in segment.selected_sequences:
-        seq.sequence = unknown_seq
-
-
-# =============================================================================
 # Custom Logging
 # =============================================================================
 
@@ -151,11 +135,10 @@ optimizer_config = CyclingOptimizerConfig(
 optimizer = CyclingOptimizer(
     target_segment=protein,
     constructs=[protein_construct],
-    generators=[proteinmpnn_generator], # Must be a list with exactly one generator
-    constraints=[],  # No filtering constraints - pure Protein Hunter cycling
+    generators=[proteinmpnn_generator],
+    constraints=[],
     config=optimizer_config,
     conditioning_fn=structure_conditioning_fn,
-    init_fn=init_unknown_sequences,
     custom_logging=custom_logging,
 )
 

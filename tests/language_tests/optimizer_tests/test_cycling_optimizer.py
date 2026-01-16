@@ -259,41 +259,6 @@ class TestCyclingOptimizerRun:
         for entry in optimizer.history:
             assert "time_step" in entry and "constructs" in entry
 
-    def test_init_fn_called_once(self):
-        """Test that init_fn is called exactly once at initialization."""
-        components = _setup_cycling_components(num_steps=3, num_candidates=2)
-
-        init_call_count = [0]
-
-        def init_fn(segment: Segment):
-            init_call_count[0] += 1
-            for seq in segment.candidate_sequences:
-                seq.sequence = "X" * segment.sequence_length
-
-        def mock_sample(structure_inputs=None):
-            for c in components["target_segment"].candidate_sequences:
-                c.sequence = "MKTAYIAKQRQISFVKSHFS"
-
-        components["generator"].sample = mock_sample
-
-        optimizer = CyclingOptimizer(
-            target_segment=components["target_segment"],
-            constructs=[components["construct"]],
-            generators=[components["generator"]],
-            constraints=[],
-            config=components["config"],
-            conditioning_fn=components["conditioning_fn"],
-            init_fn=init_fn,
-        )
-
-        # init_fn should be called during __init__
-        assert init_call_count[0] == 1
-
-        optimizer.run()
-
-        # init_fn should still only be called once
-        assert init_call_count[0] == 1
-
     def test_filter_constraint_rollback(self):
         """Test that failing candidates are rolled back to previous sequences."""
         components = _setup_cycling_components(
@@ -424,7 +389,8 @@ class TestCyclingOptimizerGPU:
         chain_seq = pdb_structure.get_chain_sequence("A")
         seq_length = len(chain_seq)
 
-        target_segment = Segment(sequence="A" * seq_length, sequence_type="protein")
+        # Inverse folding generators auto-initialize to "X" when no sequence provided
+        target_segment = Segment(length=seq_length, sequence_type="protein")
         construct = Construct([target_segment])
 
         generator = LigandMPNNGenerator(
@@ -444,13 +410,6 @@ class TestCyclingOptimizerGPU:
             ]
             return predict_structures(complexes, "boltz", {}).structures
 
-        def init_unknown(segment):
-            unknown_seq = "X" * segment.sequence_length
-            for seq in segment.candidate_sequences:
-                seq.sequence = unknown_seq
-            for seq in segment.selected_sequences:
-                seq.sequence = unknown_seq
-
         config = CyclingOptimizerConfig(
             num_steps=2,
             num_candidates=2,
@@ -465,14 +424,13 @@ class TestCyclingOptimizerGPU:
             constraints=[],
             config=config,
             conditioning_fn=structure_conditioning_fn,
-            init_fn=init_unknown,
         )
         optimizer.run()
 
         assert len(target_segment.selected_sequences) == 2
         for seq in target_segment.selected_sequences:
             assert len(seq.sequence) == seq_length
-            assert seq.sequence != "A" * seq_length
+            assert seq.sequence != "X" * seq_length
 
     @pytest.mark.slow
     def test_with_filter_constraint(self, pdb_structure):
@@ -485,7 +443,8 @@ class TestCyclingOptimizerGPU:
         chain_seq = pdb_structure.get_chain_sequence("A")
         seq_length = len(chain_seq)
 
-        target_segment = Segment(sequence="A" * seq_length, sequence_type="protein")
+        # Inverse folding generators auto-initialize to "X" when no sequence provided
+        target_segment = Segment(length=seq_length, sequence_type="protein")
         construct = Construct([target_segment])
 
         generator = LigandMPNNGenerator(
@@ -519,13 +478,6 @@ class TestCyclingOptimizerGPU:
             ]
             return predict_structures(complexes, "boltz", {}).structures
 
-        def init_unknown(segment):
-            unknown_seq = "X" * segment.sequence_length
-            for seq in segment.candidate_sequences:
-                seq.sequence = unknown_seq
-            for seq in segment.selected_sequences:
-                seq.sequence = unknown_seq
-
         config = CyclingOptimizerConfig(
             num_steps=2,
             num_candidates=2,
@@ -540,7 +492,6 @@ class TestCyclingOptimizerGPU:
             constraints=[constraint],
             config=config,
             conditioning_fn=structure_conditioning_fn,
-            init_fn=init_unknown,
         )
         optimizer.run()
 

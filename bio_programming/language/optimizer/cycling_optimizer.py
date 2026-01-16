@@ -149,7 +149,6 @@ class CyclingOptimizer(Optimizer):
         constraints: List[Constraint],
         config: CyclingOptimizerConfig,
         conditioning_fn: Callable[[List[Sequence]], List[Any]],
-        init_fn: Optional[Callable[[Segment], None]] = None,
         custom_logging: Optional[Callable[[int, tuple], None]] = None,
         clear_tool_cache: int | bool | List[str] = 100 * 1024 * 1024,
     ) -> None:
@@ -167,8 +166,6 @@ class CyclingOptimizer(Optimizer):
             conditioning_fn: User-defined function that produces conditioning data.
                 Signature: ``(sequences: List[Sequence]) -> List[Any]``
                 Returns one conditioning item per candidate.
-            init_fn: Optional function to initialize the target segment's sequences.
-                Signature: ``(segment: Segment) -> None``. Called once before optimization.
             custom_logging: Optional callback called after each cycle with
                 signature ``(cycle: int, segments: tuple) -> None``.
             clear_tool_cache: Cache management setting. (int) byte threshold,
@@ -189,7 +186,6 @@ class CyclingOptimizer(Optimizer):
         self.generator: Generator = generator
         self.conditioning_fn = conditioning_fn
         self.conditioning_param_name: str = config.conditioning_param_name
-        self.init_fn = init_fn
 
         super().__init__(
             constructs=constructs,
@@ -206,10 +202,6 @@ class CyclingOptimizer(Optimizer):
         self.num_steps: int = config.num_steps
         self.num_candidates: int = config.num_candidates
 
-        # Run user initialization if provided
-        if self.init_fn is not None:
-            self.init_fn(self.target_segment)
-
     def run(self) -> None:
         """Execute the cycling optimization loop."""
         if self.verbose:
@@ -225,7 +217,7 @@ class CyclingOptimizer(Optimizer):
                 ]
 
             # 2. Call conditioning function with current sequences
-            current_sequences = List(self.target_segment.candidate_sequences)
+            current_sequences = list(self.target_segment.candidate_sequences)
             conditioning_data = self.conditioning_fn(current_sequences)
 
             # 3. Generate sequences conditioned on the conditioning data
@@ -264,10 +256,6 @@ class CyclingOptimizer(Optimizer):
         # Validate conditioning_fn is callable
         if not callable(self.conditioning_fn):
             raise TypeError(f"conditioning_fn must be callable, got {type(self.conditioning_fn)}")
-
-        # Validate init_fn is callable (if provided)
-        if self.init_fn is not None and not callable(self.init_fn):
-            raise TypeError(f"init_fn must be callable, got {type(self.init_fn)}")
 
         # Validate conditioning_param_name is accepted by generator.sample()
         sample_sig = inspect.signature(self.generator.sample)

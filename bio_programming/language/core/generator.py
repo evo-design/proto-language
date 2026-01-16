@@ -87,3 +87,10 @@ class Generator(ABC):
                 random_sequence = "".join(random.choice(valid_chars) for _ in range(self._assigned_segment.sequence_length))
                 for sequence in self._assigned_segment.candidate_sequences:
                     sequence.sequence = random_sequence
+
+        # Initialize unknown (X) sequences for inverse folding generators if no input sequence provided.
+        if self._spec.category == "inverse_folding":
+            if not self._assigned_segment.candidates_populated:
+                unknown_sequence = "X" * self._assigned_segment.sequence_length
+                for sequence in self._assigned_segment.candidate_sequences:
+                    sequence.sequence = unknown_sequence
