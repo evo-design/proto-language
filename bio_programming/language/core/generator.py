@@ -76,14 +76,14 @@ class Generator(ABC):
             raise RuntimeError(f"Generator {self.__class__.__name__} has no segment assigned.")
 
         # Warn if segment already has populated sequences that will be overwritten (autoregressive only)
-        if self._spec.category == "autoregressive" and self._assigned_segment.candidate_sequences[0].sequence:
+        if self._spec.category == "autoregressive" and self._assigned_segment.candidates_populated:
             warnings.warn(f"Segment '{self._assigned_segment.label or 'unlabeled'}' has an input sequence that will be overwritten by {self.__class__.__name__}.")
-        
+
+        # Initialize random sequences for mutation generators if no input template sequence provided.
         if self._spec.category == "mutation":
-            if not self._assigned_segment.has_original_sequence:
-                warnings.warn(f"Generator {self.__class__.__name__} is a mutation generator, but the segment has no original sequence. Initializing a random starting sequence.")
+            if not self._assigned_segment.candidates_populated:
+                warnings.warn(f"Generator {self.__class__.__name__} is a mutation generator, but candidates have no sequences. Initializing random starting sequences.")
                 valid_chars = list(self._assigned_segment._valid_chars - set(" "))
                 random_sequence = "".join(random.choice(valid_chars) for _ in range(self._assigned_segment.sequence_length))
-                # Only populate candidate_sequences, leave original_sequence empty
                 for sequence in self._assigned_segment.candidate_sequences:
                     sequence.sequence = random_sequence

@@ -6,8 +6,9 @@ Minimal tests verifying core behavior of the TopKOptimizer.
 
 import pytest
 import logging
+import heapq
 from proto_language.language.core import (
-    Construct, Segment, Constraint)
+    Construct, Segment, Constraint, Sequence)
 from proto_language.language.generator import (
     UniformMutationGenerator,
     UniformMutationGeneratorConfig
@@ -288,7 +289,7 @@ class TestTopKOptimizerStandardMode:
         assert len(segment.selected_sequences) == 5
         assert len(optimizer.energy_scores) == 5
 
-    def test_infinite_energy_rejection(self):
+    def test_inf_and_nan_energy_rejection(self):
         """Test that TopK optimizer skips inf/nan energies from heap."""
         import math
         from proto_language.language.constraint.sequence_composition.gc_content_constraint import GCContentConfig
@@ -457,3 +458,105 @@ class TestTopKOptimizerValidation:
         """Test that default (no energy_threshold) is standard mode."""
         config = TopKOptimizerConfig(num_samples=10, k=5)
         assert config.energy_threshold is None
+
+
+class TestTopKOptimizerInternals:
+    """Test TopKOptimizer internal methods."""
+
+    def test_sort_topk_by_energy(self):
+        """Test _sort_topk_by_energy correctly sorts sequences by energy."""
+        # Create optimizer with minimal setup
+        segment1 = Segment(sequence="ATCG", sequence_type="dna")
+        segment2 = Segment(sequence="GCTA", sequence_type="dna")
+        construct = Construct([segment1, segment2])
+
+        gen = UniformMutationGenerator(UniformMutationGeneratorConfig(num_mutations=1))
+        gen.assign(segment1)
+
+        constraint = Constraint(
+            inputs=[segment1],
+            function=sequence_length_constraint,
+            function_config={"target_length": 4},
+        )
+
+        config = TopKOptimizerConfig(num_samples=5, k=3, batch_size=1)
+        optimizer = TopKOptimizer(
+            constructs=[construct],
+            generators=[gen],
+            constraints=[constraint],
+            config=config,
+        )
+
+        # Manually populate heap and selected_sequences with unsorted data
+        # Simulate having 4 sequences with energies: [5.0, 2.0, 8.0, 1.0]
+        energies = [5.0, 2.0, 8.0, 1.0]
+        sequences_seg1 = [
+            Sequence("ATCG", "dna"),
+            Sequence("ATCC", "dna"),
+            Sequence("ATCA", "dna"),
+            Sequence("ATCT", "dna"),
+        ]
+        sequences_seg2 = [
+            Sequence("GCTA", "dna"),
+            Sequence("GCTC", "dna"),
+            Sequence("GCTG", "dna"),
+            Sequence("GCTT", "dna"),
+        ]
+
+        # Build heap with negated energies
+        optimizer._energy_heap = []
+        for idx, energy in enumerate(energies):
+            heapq.heappush(optimizer._energy_heap, (-energy, idx))
+
+        # Populate selected_sequences (unsorted)
+        segment1.selected_sequences = sequences_seg1
+        segment2.selected_sequences = sequences_seg2
+
+        # Call _sort_topk_by_energy
+        optimizer._sort_topk_by_energy()
+
+        # Verify energy_scores are sorted (best first: lowest to highest)
+        assert optimizer.energy_scores == [1.0, 2.0, 5.0, 8.0]
+
+        # Verify selected_sequences are reordered to match sorted energies
+        assert segment1.selected_sequences[0].sequence == "ATCT"  # energy 1.0
+        assert segment1.selected_sequences[1].sequence == "ATCC"  # energy 2.0
+        assert segment1.selected_sequences[2].sequence == "ATCG"  # energy 5.0
+        assert segment1.selected_sequences[3].sequence == "ATCA"  # energy 8.0
+
+        assert segment2.selected_sequences[0].sequence == "GCTT"  # energy 1.0
+        assert segment2.selected_sequences[1].sequence == "GCTC"  # energy 2.0
+        assert segment2.selected_sequences[2].sequence == "GCTA"  # energy 5.0
+        assert segment2.selected_sequences[3].sequence == "GCTG"  # energy 8.0
+
+    def test_sort_topk_by_energy_empty_heap(self):
+        """Test _sort_topk_by_energy handles empty heap correctly."""
+        segment = Segment(sequence="ATCG", sequence_type="dna")
+        construct = Construct([segment])
+
+        gen = UniformMutationGenerator(UniformMutationGeneratorConfig(num_mutations=1))
+        gen.assign(segment)
+
+        constraint = Constraint(
+            inputs=[segment],
+            function=sequence_length_constraint,
+            function_config={"target_length": 4},
+        )
+
+        config = TopKOptimizerConfig(num_samples=5, k=3, batch_size=1)
+        optimizer = TopKOptimizer(
+            constructs=[construct],
+            generators=[gen],
+            constraints=[constraint],
+            config=config,
+        )
+
+        # Empty heap
+        optimizer._energy_heap = []
+        segment.selected_sequences = []
+
+        # Should handle gracefully
+        optimizer._sort_topk_by_energy()
+
+        assert optimizer.energy_scores == []
+        assert segment.selected_sequences == []

@@ -144,7 +144,7 @@ class Program:
         all_segments = [seg for construct in self.constructs for seg in construct.segments]
         for segment in all_segments:
             has_generator = segment in all_generator_segments
-            if not has_generator and not segment.has_original_sequence:
+            if not has_generator and not segment.populated_sequences:
                 raise ValueError(
                     f"Segment '{segment.label or 'unlabeled'}' is never populated. "
                     "It has no input sequence and no generator is assigned to it in any optimizer."

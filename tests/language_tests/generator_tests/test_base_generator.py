@@ -109,7 +109,6 @@ class TestGeneratorBase:
                 gen.assign(segment_protein)
                 assert gen._assigned_segment is segment_protein
 
-    @pytest.mark.skip("fix in next pr")
     def test_mutation_generator_initializes_random_sequence_on_sample(self):
         """Tests that mutation generators initialize a random sequence on first sample() if none provided."""
         from proto_language.language.generator import (

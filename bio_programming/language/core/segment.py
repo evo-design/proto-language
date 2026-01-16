@@ -75,7 +75,8 @@ class Segment:
             initial_sequence = ""
             self.sequence_length = length
 
-        self.original_sequence: Sequence = Sequence(
+        # Original sequence is read-only after construction
+        self._original_sequence: Sequence = Sequence(
             sequence=initial_sequence,
             sequence_type=sequence_type,
             metadata=metadata,
@@ -83,11 +84,11 @@ class Segment:
         )
         # Dual pools: candidates (work space) and selected (results space)
         # These are deep copies so modifications don't affect original_sequence
-        self.candidate_sequences: List[Sequence] = [copy.deepcopy(self.original_sequence)]
-        self.selected_sequences: List[Sequence] = [copy.deepcopy(self.original_sequence)]
+        self.candidate_sequences: List[Sequence] = [copy.deepcopy(self._original_sequence)]
+        self.selected_sequences: List[Sequence] = [copy.deepcopy(self._original_sequence)]
 
-        self.sequence_type: SequenceType = self.original_sequence.sequence_type
-        self._valid_chars: Optional[Set[str]] = self.original_sequence._valid_chars
+        self.sequence_type: SequenceType = self._original_sequence.sequence_type
+        self._valid_chars: Optional[Set[str]] = self._original_sequence._valid_chars
         self.label: Optional[str] = label
 
     @property
@@ -101,9 +102,31 @@ class Segment:
         return len(self.candidate_sequences)
 
     @property
+    def original_sequence(self) -> Sequence:
+        """Original sequence (read-only). Preserves user intent for serialization."""
+        return self._original_sequence
+
+    @property
     def has_original_sequence(self) -> bool:
-        """Whether this segment was created with an input sequence (vs just a length placeholder)."""
-        return bool(self.original_sequence.sequence)
+        """Whether segment was created with a sequence (vs just a length)."""
+        return bool(self._original_sequence.sequence)
+
+    @property
+    def populated_sequences(self) -> bool:
+        """
+        Whether segment has sequences from original input or previous optimization.
+        Only checks original sequence (original user input) and selected sequences (previous optimization results).
+        Candidate sequences are not considered because they the staging area for optimizations.
+        """
+        return bool(
+            self._original_sequence.sequence or
+            (self.selected_sequences and self.selected_sequences[0].sequence)
+        )
+
+    @property
+    def candidates_populated(self) -> bool:
+        """Whether candidate sequences have actual sequences (not empty)."""
+        return bool(self.candidate_sequences[0].sequence)
 
     @property
     def is_ligand(self) -> bool:

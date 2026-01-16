@@ -2,16 +2,15 @@
 TopK Optimizer that runs multiple independent sampling rounds and returns the top-k best constructs.
 """
 from __future__ import annotations
-from typing import Callable, List, Optional, final
+from typing import Callable, Dict, List, Optional, final
 import copy
 import heapq
 import logging
 import math
 
-import numpy as np
 from pydantic import model_validator
 
-from proto_language.language.core import Optimizer, Construct, Generator, Constraint
+from proto_language.language.core import Optimizer, Construct, Generator, Constraint, Sequence
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.optimizer.optimizer_registry import OptimizerRegistry
 
@@ -180,6 +179,10 @@ class TopKOptimizer(Optimizer):
         Raises:
             ValueError: If any validation checks fail.
         """
+        # Initialize _initial_sequences state before super().__init__() which calls _initialize_sequence_pools
+        # Used to reset candidates to initial states in each round.
+        self._initial_sequence_states: Dict[int, str] = {}
+
         # Map TopK variables to base Optimizer:
         # - batch_size → num_candidates (candidate pool size per round)
         # - k → num_selected (top-k to keep in results)
@@ -208,24 +211,27 @@ class TopKOptimizer(Optimizer):
             )
         else:
             self.num_samples = config.num_samples
-
-        # Storage for top-k candidates using a max-heap of size k
-        # We negate energies since heapq is a min-heap but we want max-heap behavior
-        # This keeps the worst (highest) energy at the root for easy replacement
-        self.top_k_heap: List[tuple] = []
+        # Max-heap for tracking top-k: stores (-energy, heap_idx) tuples
+        # heap_idx corresponds to position in selected_sequences
+        self._energy_heap: List[tuple] = []
 
     def _initialize_sequence_pools(self) -> None:
         """
-        Initialize sequence pools for TopK optimizer.
+        Initialize sequence pools for TopK optimizer. Overrides the base Optimizer method.
 
-        TopK starts with an empty selected pool and only populates candidates.
-        Unlike MCMC which maintains N selected sequences throughout, TopK builds
-        up the top-k list as optimization progresses through sampling rounds.
+        Captures initial sequence state for resetting candidates each round. Initializes
+        selected_sequences to empty - it will be populated during optimization via in-place
+        updates to maintain the top-k sequences. Initializes candidate pool with batch_size copies.
 
-        The selected pool will be populated by set_topk_constructs() as rounds complete.
+        Note: Unlike the base optimizer, selected_sequences grows dynamically during optimization
+        as better sequences are discovered, rather than being pre-allocated.
         """
-        for segment in self.segments:
-            # Start with empty selected pool (will be populated by set_topk_constructs)
+        for seg_idx, segment in enumerate(self.segments):
+            # Capture initial state (from previous optimizer or original)
+            source = segment.selected_sequences[0] if segment.selected_sequences else segment.original_sequence
+            self._initial_sequence_states[seg_idx] = source.sequence
+
+            # Start with empty selected pool (will be populated during optimization)
             segment.selected_sequences = []
 
             # Initialize candidate pool with batch_size copies for sampling
@@ -234,17 +240,23 @@ class TopKOptimizer(Optimizer):
                 for _ in range(self.num_candidates)
             ]
 
-    def _run_round(self, round_idx: int) -> None:
+    def _run_sampling_round(self, round_idx: int) -> None:
         """
         Execute a single sampling round.
 
         Args:
             round_idx: The index of the current round (for tracking purposes).
         """
-        # 1. Reset all candidate sequences to original state at the start of each round
-        for segment in self.segments:
-            for candidate_seq in segment.candidate_sequences:
-                candidate_seq.sequence = copy.deepcopy(segment.original_sequence.sequence)
+        # 1. Create fresh candidate sequences at the start of each round (clean metadata state)
+        for seg_idx, segment in enumerate(self.segments):
+            segment.candidate_sequences = [
+                Sequence(
+                    sequence=self._initial_sequence_states[seg_idx],
+                    sequence_type=segment.sequence_type,
+                    valid_chars=segment._valid_chars
+                )
+                for _ in range(self.num_candidates)
+            ]
 
         # 2. Sample each generator in sequence (they see all batch_size candidates)
         for generator in self.generators:
@@ -253,7 +265,7 @@ class TopKOptimizer(Optimizer):
         # 3. Evaluate all candidates after all generators
         self.score_energy()
 
-        # 4. Process each candidate in the batch
+        # 4. Process each candidate in the batch - store directly in selected_sequences
         for candidate_idx in range(self.batch_size):
             energy = self.energy_scores[candidate_idx]
 
@@ -261,29 +273,25 @@ class TopKOptimizer(Optimizer):
             if math.isinf(energy) or math.isnan(energy):
                 continue
 
-            # Save the resulting sequences from this candidate
-            candidate_sequences = {
-                seg_idx: copy.deepcopy(segment.candidate_sequences[candidate_idx])
-                for seg_idx, segment in enumerate(self.segments)
-            }
+            # 5. Maintain top-k in selected_sequences (in-place) with max-heap
+            # selected_sequences pool < k (not full yet) - append and push to heap
+            if len(self._energy_heap) < self.k:
+                heap_idx = len(self._energy_heap)
+                heapq.heappush(self._energy_heap, (-energy, heap_idx))
+                for segment in self.segments:
+                    segment.selected_sequences.append(copy.deepcopy(segment.candidate_sequences[candidate_idx]))
 
-            # 5. Maintain a max-heap of size k to track the k smallest energies
-            if len(self.top_k_heap) < self.k:
-                # Haven't filled top-k yet, just add (negate energy for max-heap)
-                heapq.heappush(self.top_k_heap, (-energy, round_idx, candidate_idx, candidate_sequences))
-            elif energy < -self.top_k_heap[0][0]:
-                # This energy is smaller (better) than the worst in our top-k
-                # Replace the worst with this better one
-                heapq.heapreplace(self.top_k_heap, (-energy, round_idx, candidate_idx, candidate_sequences))
+            # Better than worst in top-k (selected_sequences pool) - replace worst
+            elif energy < -self._energy_heap[0][0]:
+                # Pop worst entry and reuse its slot index for the new better sequence
+                # heap_idx is a stable identifier for a position in selected_sequences, not heap position
+                _, worst_heap_idx = heapq.heappop(self._energy_heap)
+                heapq.heappush(self._energy_heap, (-energy, worst_heap_idx))
+                for segment in self.segments:
+                    segment.selected_sequences[worst_heap_idx] = copy.deepcopy(segment.candidate_sequences[candidate_idx])
 
-        # 6. Sync selected_sequences with current top-k heap for custom logging
-        if self.top_k_heap:
-            top_k_sorted = sorted(self.top_k_heap, key=lambda x: -x[0])
-            self.set_topk_constructs(top_k_sorted)
-
-        # 7. Custom logging after selected_sequences are synced
-        if self.custom_logging:
-            self.custom_logging(round_idx, self.segments)
+        # Sort for logging (both default and custom)
+        self._log_round_progress(round_idx)
 
     def run(self) -> None:
         """
@@ -298,10 +306,13 @@ class TopKOptimizer(Optimizer):
         - Resets all candidate_sequences to original_sequence
         - Runs each generator sequentially across segments (generators batch across candidates)
         - Evaluates all candidates with constraints
-        - Updates the top-k sampled candidates
+        - Updates the top-k in selected_sequences (in-place)
         """
-        # Clear any previous top-k list
-        self.top_k_heap = []
+        # Reset top-k tracking state for fresh run
+        self._energy_heap = []
+        for segment in self.segments:
+            segment.selected_sequences = []
+
         candidates_generated = 0
         threshold_met = False
         num_sampling_rounds = self.num_samples // self.batch_size
@@ -313,91 +324,94 @@ class TopKOptimizer(Optimizer):
             # Threshold mode: Generate until threshold met or num_samples reached
             for round_idx in range(num_sampling_rounds):
                 # Check if threshold is met (only after we have k candidates)
-                if len(self.top_k_heap) == self.k:
-                    worst_energy = -self.top_k_heap[0][0]  # Un-negate to get actual energy
+                if len(self._energy_heap) == self.k:
+                    worst_energy = -self._energy_heap[0][0]  # Un-negate from heap
                     if worst_energy < self.energy_threshold:
                         threshold_met = True
                         if self.verbose:
                             print(f"\nThreshold met! Worst in top-{self.k}: {worst_energy:.6f} < {self.energy_threshold:.6f}")
                         break
 
-                self._run_round(round_idx)
+                self._run_sampling_round(round_idx)
                 candidates_generated += self.batch_size
-
-                if self.verbose and (round_idx + 1) % 10 == 0:
-                    worst_energy = -self.top_k_heap[0][0] if len(self.top_k_heap) == self.k else float('inf')
-                    print(f"  Round {round_idx}: Generated {candidates_generated} candidates, worst in top-k: {worst_energy:.6f}")
         else:
             # Standard mode: Generate exactly num_samples
             for round_idx in range(num_sampling_rounds):
-                self._run_round(round_idx)
+                self._run_sampling_round(round_idx)
                 candidates_generated += self.batch_size
 
-        # Convert heap to sorted list (best first: lowest energy to highest)
-        top_k_list = sorted(self.top_k_heap, key=lambda x: -x[0])
-
-        # Update constructs with top-k
-        self.set_topk_constructs(top_k_list)
+        # Sort selected_sequences and energy_scores by energy (best first)
+        self._sort_topk_by_energy()
 
         # Save single final timepoint with top-k results
         self._save_progress_snapshot(time_step=0)
 
         # Log statistics
         if self.verbose:
-            mode_str = "threshold" if threshold_mode else "standard"
-            print(f"\nOptimization complete ({mode_str} mode):")
-            print(f"  Total samples generated: {candidates_generated}")
-            print(f"  Batch size: {self.batch_size}")
-            print(f"  Top-k kept: {self.k}")
+            self._log_optimization_summary(threshold_mode, threshold_met, candidates_generated)
 
-            if threshold_mode:
-                print(f"\nThreshold mode:")
-                print(f"  Target threshold: {self.energy_threshold:.6f}")
-                print(f"  Num samples (max): {self.num_samples}")
-                if threshold_met:
-                    print("  Status: Threshold met (early stop)")
-                else:
-                    print("  Status: Num samples reached without meeting threshold")
+    def _sort_topk_by_energy(self) -> None:
+        """Sort selected_sequences and energy_scores by energy (best first)."""
+        if self._energy_heap:
+            idx_to_energy = {idx: -neg_energy for neg_energy, idx in self._energy_heap}
+            sorted_indices = sorted(idx_to_energy.keys(), key=lambda i: idx_to_energy[i])
+            self.energy_scores = [idx_to_energy[i] for i in sorted_indices]
+            for segment in self.segments:
+                segment.selected_sequences = [segment.selected_sequences[i] for i in sorted_indices]
+        else:
+            self.energy_scores = []
 
-            if top_k_list:
-                actual_energies = [-e for e, _, _, _ in top_k_list]
-                best_energy = actual_energies[0]
-                worst_in_topk = actual_energies[-1]
-                mean_energy = np.mean(actual_energies)
+    def _log_round_progress(self, round_idx: int) -> None:
+        """Log round progress."""
+        if self.verbose:
+            num_selected = len(self._energy_heap)
+            if num_selected > 0:
+                energies = [-neg_energy for neg_energy, _ in self._energy_heap]
+                best_energy = min(energies)
+                worst_energy = -self._energy_heap[0][0]  # Max-heap root is worst
+                # Show round progress relative to total
+                total_rounds = self.num_samples // self.batch_size
+                progress_pct = ((round_idx + 1) / total_rounds) * 100
+                print(f"  Round {round_idx+1}/{total_rounds} ({progress_pct:.0f}%): {num_selected}/{self.k} in top-k, best={best_energy:.4f}, worst={worst_energy:.4f}")
 
-                print(f"\nTop-{self.k} statistics:")
-                print(f"  Best energy:  {best_energy:.6f}")
-                if len(top_k_list) > 1:
-                    print(f"  Worst in top-k: {worst_in_topk:.6f}")
-                print(f"  Mean energy:  {mean_energy:.6f}")
+        if self.custom_logging:
+            self._sort_topk_by_energy()
+            self.custom_logging(round_idx, self.segments)
 
-                if self.k <= 20:
-                    print(f"\nTop-{self.k} constructs:")
-                    for i, (neg_energy, _, _, _) in enumerate(top_k_list):
-                        energy = -neg_energy
-                        print(f"  Rank {i+1}: Energy={energy:.6f}")
-                print(f"\nTopK optimization complete. Returned {len(top_k_list)} best constructs.")
+    def _log_optimization_summary(
+        self,
+        threshold_mode: bool,
+        threshold_met: bool,
+        candidates_generated: int
+    ) -> None:
+        """Log optimization statistics and results."""
+        mode_str = "threshold" if threshold_mode else "standard"
+        print(f"\nOptimization complete ({mode_str} mode):")
+        print(f"  Total samples generated: {candidates_generated}")
+        print(f"  Batch size: {self.batch_size}")
+        print(f"  Top-k kept: {self.k}")
 
-    def set_topk_constructs(self, top_k_list: List[tuple]) -> None:
-        """
-        Set the top-k constructs to segments' selected_sequences pool.
+        if threshold_mode:
+            print(f"\nThreshold mode:")
+            print(f"  Target threshold: {self.energy_threshold:.6f}")
+            print(f"  Num samples (max): {self.num_samples}")
+            if threshold_met:
+                print("  Status: Threshold met (early stop)")
+            else:
+                print("  Status: Num samples reached without meeting threshold")
 
-        Args:
-            top_k_list: List of (neg_energy, round_idx, candidate_idx, candidate_sequences) tuples.
-        """
-        # Initialize selected pool to empty lists for building
-        for segment in self.segments:
-            segment.selected_sequences = []
+        if self.energy_scores:
+            best_energy = self.energy_scores[0]
+            worst_in_topk = self.energy_scores[-1]
 
-        # Build selected_sequences by appending top-k results
-        energies = []
-        for neg_energy, round_idx, candidate_idx, candidate_sequences in top_k_list:
-            energy = -neg_energy  # Un-negate to get actual energy
-            energies.append(energy)
+            print(f"\nTop-{self.k} statistics:")
+            print(f"  Best energy:  {best_energy:.6f}")
+            if len(self.energy_scores) > 1:
+                print(f"  Worst in top-k: {worst_in_topk:.6f}")
 
-            # Append each segment's sequence to the selected pool
-            for seg_idx, segment in enumerate(self.segments):
-                segment.selected_sequences.append(copy.deepcopy(candidate_sequences[seg_idx]))
+            if self.k <= 20:
+                print(f"\nTop-{self.k} constructs:")
+                for i, energy in enumerate(self.energy_scores):
+                    print(f"  Rank {i+1}: Energy={energy:.6f}")
+            print(f"\nTopK optimization complete. Returned {len(self.energy_scores)} best constructs.")
 
-        # Update energy scores
-        self.energy_scores = energies

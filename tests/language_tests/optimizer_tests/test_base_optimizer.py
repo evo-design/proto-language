@@ -125,11 +125,19 @@ class TestSequencePoolInitialization:
 
     def test_fresh_initialization(self):
         """Tests initialization when no previous candidates exist."""
-        construct, generator, constraint, segment = _setup_optimizer_components(num_candidates=5)
+        original_seq = "ATCG"
+        segment = Segment(sequence=original_seq, sequence_type="dna")
         segment.candidate_sequences = []
         segment.selected_sequences = []
-        original_seq = "ATCG"
-        segment.original_sequence = Sequence(sequence=original_seq, sequence_type="dna")
+        construct = Construct([segment])
+        generator = MockGenerator()
+        generator.assign(segment)
+        constraint = MagicMock(spec=Constraint)
+        constraint.inputs = [segment]
+        constraint.label = "MockConstraint"
+        constraint.threshold = None
+        constraint.weight = 1.0
+        constraint.evaluate.return_value = [1.0] * 5
 
         optimizer = ConcreteOptimizer(
             constructs=[construct],

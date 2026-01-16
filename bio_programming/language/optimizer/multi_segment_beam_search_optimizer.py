@@ -18,6 +18,7 @@ from proto_language.language.core import (
     Generator,
     Optimizer,
     Segment,
+    Sequence,
 )
 from proto_language.language.optimizer.optimizer_registry import OptimizerRegistry
 
@@ -524,12 +525,18 @@ class MultiSegmentBeamSearchOptimizer(Optimizer):
         # 2. Set selected sequences
         segment.selected_sequences = [segment.candidate_sequences[i] for i in top_idx]
 
-        # 3. Replicate selected sequences as candidates
-        # This is required for subsequent evaluation of constraints applied across multiple segments
-        # since constraints applied across multiple segments concatenate across the candidate_sequences (batch) dimension.
+        # 3. Replicate selected sequences as candidates (fresh objects to avoid metadata collision)
+        # This is necessary if we want proper constraint evaluation for the next segment if constraints 
+        # are applied across multiple segments. This is because constraints applied across multiple 
+        # segments are concatenated across the candidate_sequences (batch) dimension.
         segment.candidate_sequences = [
-            seq for selected_seq in segment.selected_sequences
-            for seq in [selected_seq] * self.candidates_per_beam
+            Sequence(
+                sequence=selected_seq.sequence,
+                sequence_type=segment.sequence_type,
+                valid_chars=segment._valid_chars
+            )
+            for selected_seq in segment.selected_sequences
+            for _ in range(self.candidates_per_beam)
         ]
 
         # 4. Update running prompts from top candidates (stored in segment.selected_sequences)

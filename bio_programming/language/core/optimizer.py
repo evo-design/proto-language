@@ -319,7 +319,7 @@ class Optimizer(ABC):
         for constraint in self.constraints:
             for segment in constraint.inputs:
                 has_generator = segment in assigned_segments
-                if not segment.has_original_sequence and not has_generator:
+                if not segment.populated_sequences and not has_generator:
                     raise RuntimeError(
                         f"Constraint '{constraint.label}' references segment '{segment.label or 'unlabeled'}' "
                         "which has no populated sequence and no generator assigned. "
@@ -327,39 +327,27 @@ class Optimizer(ABC):
                     )
 
     def _initialize_sequence_pools(self) -> None:
-        """Initialize the sequence pools for all segments.
-
-        Creates independent copies of sequences for both pools. When running multiple
-        sequential optimizers, preserves the best sequences from the previous optimizer
-
+        """Initialize sequence pools from previous optimizer or original sequence.
 
         Behavior:
-        - If previous optimizer produced sequences: uses up to num_selected best sequences
-        - If fewer available than needed: pads with copies of the best sequence
-        - If no previous sequences: uses original_sequence for all
+        - Uses previous optimizer's selected_sequences if available (sorted best-first)
+        - Falls back to candidate_sequences, then original_sequence
+        - Pads with copies of best sequence if fewer than num_selected available
+        - Candidates are all initialized from best sequence (will be mutated by generators)
         """
         for segment in self.segments:
-            if segment.selected_sequences:
-                # Take up to num_selected sequences from previous optimizer (already sorted best-first)
-                start_sequences = segment.selected_sequences[:self.num_selected]
+            # Source: previous optimizer's results or original sequence
+            # TODO: The best sequence logic here is incorrect. Should we move initialize_sequence_pools to the program level?
+            source = segment.selected_sequences or segment.candidate_sequences or [segment.original_sequence]
+            best_seq = source[0]
 
-                # If previous optimizer produced fewer sequences, pad with copies of the best
-                if len(start_sequences) < self.num_selected:
-                    best_seq = start_sequences[0]
-                    start_sequences.extend([copy.deepcopy(best_seq)
-                                           for _ in range(self.num_selected - len(start_sequences))])
-            elif segment.candidate_sequences:
-                # Fallback to candidates if selected pool is empty (shouldn't normally happen)
-                start_sequences = segment.candidate_sequences[:self.num_selected]
-                if len(start_sequences) < self.num_selected:
-                    start_sequences.extend([copy.deepcopy(start_sequences[0])
-                                           for _ in range(self.num_selected - len(start_sequences))])
-            else:
-                # First optimizer - use original_sequence
-                start_sequences = [segment.original_sequence] * self.num_selected
+            # Selected pool: up to num_selected from source, pad with best
+            segment.selected_sequences = [
+                copy.deepcopy(source[i] if i < len(source) else best_seq)
+                for i in range(self.num_selected)
+            ]
 
-            # Create independent copies for selected pool
-            segment.selected_sequences = [copy.deepcopy(seq) for seq in start_sequences]
-
-            # Candidates initialized from best sequence (will be mutated by generators)
-            segment.candidate_sequences = [copy.deepcopy(start_sequences[0]) for _ in range(self.num_candidates)]
+            # Candidate pool: all copies of best (will be mutated by generators)
+            segment.candidate_sequences = [
+                copy.deepcopy(best_seq) for _ in range(self.num_candidates)
+            ]
