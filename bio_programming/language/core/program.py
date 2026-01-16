@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from typing import Dict, List
 
 from .optimizer import Optimizer
@@ -95,16 +96,21 @@ class Program:
         Raises:
             RuntimeError: If run() hasn't been called yet.
         """
-        if not hasattr(self.optimizers[-1], 'energy_scores'):
+        if not hasattr(self.optimizers[-1], "energy_scores"):
             raise RuntimeError("Optimization not complete. Call run() first.")
         return self.optimizers[-1].energy_scores
 
     def _validate_program(self) -> None:
         """
-        Validate that all optimizers share the same construct objects.
+        Validate program configuration.
+
+        Validates:
+        1. All optimizers share the same construct objects (by identity)
+        2. No dangling segments (segments with no input sequence and no generator assigned
+           in any optimizer)
 
         Raises:
-            ValueError: If optimizers don't share identical construct objects (by identity).
+            ValueError: If optimizers don't share identical construct objects (by identity) or if any segment is never populated.
         """
         reference_constructs = self.optimizers[0].constructs
 
@@ -126,6 +132,23 @@ class Program:
                         "same construct objects (by identity) to ensure state "
                         "persistence between sequential optimizations."
                     )
+
+        # Collect all segments assigned to generators across ALL optimizers
+        all_generator_segments = set()
+        for optimizer in self.optimizers:
+            for gen in optimizer.generators:
+                if gen._assigned_segment:
+                    all_generator_segments.add(gen._assigned_segment)
+
+        # Validate no dangling segments (no input sequence AND no generator ever assigned)
+        all_segments = [seg for construct in self.constructs for seg in construct.segments]
+        for segment in all_segments:
+            has_generator = segment in all_generator_segments
+            if not has_generator and not segment.has_original_sequence:
+                raise ValueError(
+                    f"Segment '{segment.label or 'unlabeled'}' is never populated. "
+                    "It has no input sequence and no generator is assigned to it in any optimizer."
+                )
 
         # Validate no generator/constraint reuse across optimizers
         self._validate_no_instance_reuse()
@@ -261,13 +284,20 @@ class Program:
                 print(f"  [{seq_idx}]")
             for construct_idx, construct in enumerate(self.constructs):
                 seq = construct.joined_sequences[seq_idx]
-                seq_preview = seq[:80] + ('...' if len(seq) > 80 else '')
-                print(f"    Construct {construct_idx}: {seq_preview}")
+                print(f"    Construct {construct_idx}: {seq}")
 
         # Capture results for this stage
         all_sequences = [seq.sequence for seq in self.constructs[0].joined_sequences]
-        all_energies = list(optimizer.energy_scores) if optimizer.energy_scores else [0.0] * len(all_sequences)
-        best_idx = min(range(len(all_energies)), key=lambda i: all_energies[i]) if all_energies else 0
+        all_energies = (
+            list(optimizer.energy_scores)
+            if optimizer.energy_scores
+            else [0.0] * len(all_sequences)
+        )
+        best_idx = (
+            min(range(len(all_energies)), key=lambda i: all_energies[i])
+            if all_energies
+            else 0
+        )
 
         results = {
             "best_sequence": all_sequences[best_idx],
@@ -354,9 +384,9 @@ class Program:
 
     def cleanup(self) -> None:
         """Clean up cached models to free GPU memory."""
-        from proto_language.tools.language_models.evo2.evo2 import clear_evo2_cache
-        from proto_language.tools.language_models.esm3.esm3 import clear_esm3_cache
         from proto_language.tools.language_models.esm2.esm2 import clear_esm2_cache
+        from proto_language.tools.language_models.esm3.esm3 import clear_esm3_cache
+        from proto_language.tools.language_models.evo2.evo2 import clear_evo2_cache
 
         clear_evo2_cache()
         clear_esm3_cache()

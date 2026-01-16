@@ -137,14 +137,16 @@ class TestProteinMPNNGeneratorValidation:
 
         assert "does not support sequence type" in str(exc_info.value)
 
-    def test_rejects_constant_segment(self, temp_pdb_file):
-        """ProteinMPNN should reject constant segments."""
+    def test_rejects_ligand_segment(self, temp_pdb_file):
+        """ProteinMPNN should reject ligand segments (ligands cannot be mutated)."""
         generator = ProteinMPNNGenerator(
             ProteinMPNNGeneratorConfig(structure_inputs=temp_pdb_file)
         )
-        segment = Segment(sequence="AGSVL", sequence_type="protein", constant=True)
+        segment = Segment(sequence="CCC", sequence_type="ligand")
 
-        with pytest.raises(ValueError, match="Cannot assign constant segment"):
+        with pytest.raises(
+            ValueError, match="Cannot assign generator to ligand segment"
+        ):
             generator.assign(segment)
 
     def test_pdb_content_string(self):

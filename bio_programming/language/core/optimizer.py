@@ -4,16 +4,19 @@ Optimizer base class for the biological programming language.
 Base class for iterative optimization algorithms that coordinate multiple
 generators and constraints to search for optimal biological sequences.
 """
+
 from __future__ import annotations
-from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Literal, Optional
+
 import copy
 import math
+from abc import ABC, abstractmethod
+from typing import Any, Callable, Dict, List, Literal, Optional
+
+from proto_language.tools.tool_cache import ToolCache, _program_tool_cache
 
 from .constraint import Constraint
 from .construct import Construct
 from .generator import Generator
-from proto_language.tools.tool_cache import ToolCache, _program_tool_cache
 
 
 class Optimizer(ABC):
@@ -126,7 +129,7 @@ class Optimizer(ABC):
     def score_energy(
         self,
         operation: Literal["add", "multiply"] = "add",
-        filter_penalty: float = float('inf')
+        filter_penalty: float = float("inf"),
     ) -> None:
         """
         Compute energy scores by combining all constraint evaluation scores on the candidate sequences.
@@ -150,8 +153,7 @@ class Optimizer(ABC):
         self._validate_optimizer()
 
         num_sequences = (
-            len(self.segments[0].candidate_sequences)
-            if self.segments else 0
+            len(self.segments[0].candidate_sequences) if self.segments else 0
         )
         passed = [True] * num_sequences
 
@@ -160,7 +162,7 @@ class Optimizer(ABC):
         scorers = [c for c in self.constraints if c.threshold is None]
 
         if self.verbose:
-            op = 'Σ' if operation == 'add' else 'Π'
+            op = "Σ" if operation == "add" else "Π"
             print(
                 f"\n{'='*60}\n"
                 f"Energy Scoring: {len(filters)} filters, {len(scorers)} scoring\n"
@@ -313,30 +315,15 @@ class Optimizer(ABC):
                 raise RuntimeError(f"Generator '{gen.__class__.__name__}' has no segment assigned. All generators in an optimizer must have an assigned segment.")
             assigned_segments.add(gen._assigned_segment)
 
-        # Validate each segment: must be constant OR have an active generator (not both, not neither)
-        for segment in self.segments:
-            has_active_generator = segment in assigned_segments
-            is_constant = segment.constant
-
-            if has_active_generator and is_constant:
-                raise RuntimeError(
-                    f"Segment '{segment.label or 'unlabeled'}' is both constant and assigned to a generator. "
-                    "A segment cannot be both - either assign a generator to it or mark it as constant."
-                )
-            if not has_active_generator and not is_constant:
-                raise RuntimeError(
-                    f"Segment '{segment.label or 'unlabeled'}' is neither constant nor assigned to a generator in this optimizer. "
-                    "Each segment must be either assigned to a generator (to be mutated) or marked as constant (to be skipped)."
-                )
-
-        # Validate constraints don't reference empty constant segments
+        # Validate constraints don't reference empty segments without generators
         for constraint in self.constraints:
             for segment in constraint.inputs:
-                if segment.constant and not segment.original_sequence.sequence:
+                has_generator = segment in assigned_segments
+                if not segment.has_original_sequence and not has_generator:
                     raise RuntimeError(
-                        f"Constraint '{constraint.label}' has input segment '{segment.label}' "
-                        "which is constant but has no input sequence. A constant segment used as a "
-                        "constraint input must have a input sequence to evaluate or a generator assigned."
+                        f"Constraint '{constraint.label}' references segment '{segment.label or 'unlabeled'}' "
+                        "which has no populated sequence and no generator assigned. "
+                        "Segments must have sequences or generators before constraints can be evaluated."
                     )
 
     def _initialize_sequence_pools(self) -> None:

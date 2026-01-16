@@ -4,7 +4,7 @@ Tests for serialization/deserialization of core language objects.
 Tests roundtrip serialization (to_dict -> from_dict) for Sequence, Segment, and Construct.
 """
 
-from proto_language.language.core import Sequence, Segment, Construct
+from proto_language.language.core import Construct, Segment, Sequence
 
 
 class TestSequenceSerialization:
@@ -37,11 +37,7 @@ class TestSequenceSerialization:
         """Test sequence with metadata serialization."""
         # Create sequence with metadata
         metadata = {"gc_content": 0.5, "custom_field": "test_value"}
-        seq = Sequence(
-            sequence="ATCGATCG",
-            sequence_type="dna",
-            metadata=metadata
-        )
+        seq = Sequence(sequence="ATCGATCG", sequence_type="dna", metadata=metadata)
 
         # Serialize and deserialize
         seq_dict = seq.to_dict()
@@ -87,7 +83,7 @@ class TestSegmentSerialization:
         assert seg_restored.label == seg.label
         assert str(seg_restored.original_sequence) == str(seg.original_sequence)
         assert seg_restored.sequence_type == seg.sequence_type
-        assert seg_restored.constant == seg.constant
+        assert seg_restored.has_original_sequence == seg.has_original_sequence
 
     def test_segment_with_pools_roundtrip(self):
         """Test segment with candidate and selected pools."""
@@ -113,34 +109,44 @@ class TestSegmentSerialization:
         assert str(seg_restored.candidate_sequences[1]) == "TTTTTTTT"
         assert str(seg_restored.selected_sequences[0]) == "GGGGGGGG"
 
-    def test_constant_segment_roundtrip(self):
-        """Test constant segment serialization."""
-        seg = Segment(sequence="ATATCG",
+    def test_segment_with_sequence_roundtrip(self):
+        """Test segment with sequence has has_sequence=True after roundtrip."""
+        seg = Segment(
+            sequence="ATATCG",
             sequence_type="dna",
             label="promoter",
-            constant=True
         )
 
         seg_dict = seg.to_dict()
         seg_restored = Segment.from_dict(seg_dict)
 
-        assert seg_restored.constant is True
+        assert seg_restored.has_original_sequence is True
         assert str(seg_restored.original_sequence) == "ATATCG"
+
+    def test_segment_with_length_only_roundtrip(self):
+        """Test segment with length only has has_sequence=False after roundtrip."""
+        seg = Segment(length=50, sequence_type="dna", label="variable")
+
+        seg_dict = seg.to_dict()
+        seg_restored = Segment.from_dict(seg_dict)
+
+        assert seg_restored.has_original_sequence is False
+        assert seg_restored.sequence_length == 50
 
     def test_segment_with_metadata_roundtrip(self):
         """Test segment with sequence metadata."""
         metadata = {"annotation": "strong_promoter"}
-        seg = Segment(sequence="ATATCG",
-            sequence_type="dna",
-            label="promoter",
-            metadata=metadata
+        seg = Segment(
+            sequence="ATATCG", sequence_type="dna", label="promoter", metadata=metadata
         )
 
         seg_dict = seg.to_dict()
         seg_restored = Segment.from_dict(seg_dict)
 
         assert "annotation" in seg_restored.original_sequence.metadata
-        assert seg_restored.original_sequence.metadata["annotation"] == "strong_promoter"
+        assert (
+            seg_restored.original_sequence.metadata["annotation"] == "strong_promoter"
+        )
 
 
 class TestConstructSerialization:
@@ -179,8 +185,12 @@ class TestConstructSerialization:
         construct_restored = Construct.from_dict(construct_dict)
 
         assert len(construct_restored.segments) == 4
-        assert [seg.label for seg in construct_restored.segments] == \
-               ["promoter", "five_utr", "cds", "terminator"]
+        assert [seg.label for seg in construct_restored.segments] == [
+            "promoter",
+            "five_utr",
+            "cds",
+            "terminator",
+        ]
 
     def test_construct_joined_sequences_after_roundtrip(self):
         """Test that joined_sequences works after deserialization."""
@@ -198,16 +208,15 @@ class TestConstructSerialization:
         assert len(joined) == 1
         assert str(joined[0]) == "ATCGGGGG"
 
-
-    def test_construct_with_constant_segment_roundtrip(self):
-        """Test construct with constant segment."""
-        seg1 = Segment(sequence="ATATCG", sequence_type="dna", label="promoter", constant=True)
-        seg2 = Segment(sequence="ATATCG", sequence_type="dna", label="cds", constant=False)
+    def test_construct_with_mixed_segments_roundtrip(self):
+        """Test construct with segments that have/don't have sequences."""
+        seg1 = Segment(sequence="ATATCG", sequence_type="dna", label="promoter")
+        seg2 = Segment(length=50, sequence_type="dna", label="variable")
 
         construct = Construct([seg1, seg2])
 
         construct_dict = construct.to_dict()
         construct_restored = Construct.from_dict(construct_dict)
 
-        assert construct_restored.segments[0].constant == True
-        assert construct_restored.segments[1].constant == False
+        assert construct_restored.segments[0].has_original_sequence is True
+        assert construct_restored.segments[1].has_original_sequence is False

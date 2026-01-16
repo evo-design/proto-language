@@ -1,16 +1,24 @@
 """
 Multi-Segment Beam Search Optimizer that uses beam search across multiple segments in a Construct.
 """
+
 from __future__ import annotations
-from typing import List, Optional, Dict, Callable, Tuple
+
 import copy
-import sys
 import math
+import sys
+from typing import Callable, Dict, List, Optional, Tuple
+
 import numpy as np
 
-
-from proto_language.language.core import Optimizer, Construct, Constraint, Generator, Segment
 from proto_language.base_config import BaseConfig, ConfigField
+from proto_language.language.core import (
+    Constraint,
+    Construct,
+    Generator,
+    Optimizer,
+    Segment,
+)
 from proto_language.language.optimizer.optimizer_registry import OptimizerRegistry
 
 
@@ -63,6 +71,7 @@ class MultiSegmentBeamSearchOptimizerConfig(BaseConfig):
         by energy score. The total number of sequences evaluated grows linearly with
         the number of segments, not exponentially, due to pruning at each step.
     """
+
     # Required parameters
     prompt: str = ConfigField(
         title="Prompt", description="The prompt to start the beam search (e.g. ATCG)"
@@ -152,6 +161,7 @@ class MultiSegmentBeamSearchOptimizer(Optimizer):
         >>> beam_search.run()
         >>> top_sequences = beam_search.target_construct.joined_sequences
     """
+
     # Class attribute required by OptimizerRegistry
     config_class = MultiSegmentBeamSearchOptimizerConfig
 
@@ -220,15 +230,14 @@ class MultiSegmentBeamSearchOptimizer(Optimizer):
 
     def _validate_optimizer(self) -> None:
         """
-        MultiSegmentBeamSearch processes ALL segments in the target construct sequentially with a single generator. 
-        
+        MultiSegmentBeamSearch processes ALL segments in the target construct sequentially with a single generator.
+
         Validation ensures:
         1. Constructs are valid and non-empty
         2. Constraints are valid and have input segments
-        3. target_construct is in the constructs list and has only non-constant segments
-        4. Non-target segments (in other constructs) must be marked as constant
-        5. Generator is valid and autoregressive
-        6. Prompt is not empty
+        3. target_construct is in the constructs list and has segments
+        4. Generator is valid and autoregressive
+        5. Prompt is not empty
         """
         from proto_language.language.generator.generator_registry import GeneratorRegistry
         # Validate constructs list is not empty and contains valid Constructs
@@ -246,21 +255,12 @@ class MultiSegmentBeamSearchOptimizer(Optimizer):
                 raise TypeError(f"Constraint {i} has type {type(constraint)}, expected Constraint")
             if not constraint.inputs:
                 raise RuntimeError(f"Constraint {i} has no input segment(s) assigned")
-        
-        # Validate target_construct is in the constructs list and have only non-constant segments
+
+        # Validate target_construct is in the constructs list
         if self.target_construct not in self.constructs:
             raise ValueError("target_construct is not in the constructs list")
         if not self.target_construct.segments:
             raise ValueError("target_construct has no segments")
-        if any(segment.constant for segment in self.target_construct.segments):
-            constant_segments = ", ".join([segment.label or 'unlabeled' for segment in self.target_construct.segments if segment.constant])
-            raise ValueError(f"target_construct has constant segments: {constant_segments}")
-
-        # Validate non-target segments (in other constructs) are constant
-        non_target_segments = [seg for construct in self.constructs if construct is not self.target_construct for seg in construct.segments]
-        non_constant_non_target = [seg for seg in non_target_segments if not seg.constant]
-        if non_constant_non_target:
-            raise ValueError(f"Non-target segments must be marked as constant for multi-step optimization: {', '.join([seg.label or 'unlabeled' for seg in non_constant_non_target])}")
 
         # Validate generator is valid and autoregressive
         if not isinstance(self.generator, Generator):
@@ -324,10 +324,7 @@ class MultiSegmentBeamSearchOptimizer(Optimizer):
         self._save_progress_snapshot(time_step=0)
 
     def _generate_candidates_for_beam(
-        self, 
-        segment: Segment, 
-        beam_idx: int,
-        prepend_prompt: bool = False
+        self, segment: Segment, beam_idx: int, prepend_prompt: bool = False
     ) -> Tuple[List, List[Dict]]:
         """
         Generate candidates for a single beam.
@@ -411,17 +408,17 @@ class MultiSegmentBeamSearchOptimizer(Optimizer):
     def _generate_and_score_with_resampling(self, segment: Segment, prepend_prompt: bool = False) -> List[Dict]:
         """
         Generate and score candidates, resampling beams until each has candidates_per_beam valid candidates.
-        
+
         Accumulates valid candidates across resampling attempts and selects the best by energy.
         Always generates full batch size (candidates_per_beam) for each resample to maintain efficiency.
-        
+
         Args:
             segment: Current segment being processed
             prepend_prompt: Whether to prepend prompt to generated sequences
-            
+
         Returns:
             List of KV caches corresponding to final valid candidates in segment.candidate_sequences
-            
+
         Raises:
             RuntimeError: If unable to get all beams to produce enough valid candidates after max attempts
         """
@@ -435,10 +432,10 @@ class MultiSegmentBeamSearchOptimizer(Optimizer):
             sequences, kv_caches = self._generate_candidates_for_beam(segment, beam_idx, prepend_prompt)
             all_sequences.extend(sequences)
             all_kv_caches.extend(kv_caches)
-        
+
         segment.candidate_sequences = all_sequences
         self._score_energy_active_constraints()
-        
+
         # Collect valid candidates from initial generation
         for i, energy in enumerate(self.energy_scores):
             if not (math.isinf(energy) or math.isnan(energy)):
@@ -456,7 +453,7 @@ class MultiSegmentBeamSearchOptimizer(Optimizer):
             
             if not beams_to_resample:
                 break  # All beams have enough valid candidates
-            
+
             if self.verbose:
                 counts = {b: len(beam_candidates[b]) for b in beams_to_resample}
                 print(f"  Resampling {len(beams_to_resample)} beams (attempt {attempt}): counts={counts}")
@@ -466,7 +463,7 @@ class MultiSegmentBeamSearchOptimizer(Optimizer):
                 sequences, kv_caches = self._generate_candidates_for_beam(segment, beam_idx, prepend_prompt)
                 segment.candidate_sequences = sequences
                 self._score_energy_active_constraints()
-                
+
                 # Collect ALL valid candidates from this generation to maximize selection quality
                 for i in range(self.candidates_per_beam):
                     energy = self.energy_scores[i]
@@ -489,7 +486,7 @@ class MultiSegmentBeamSearchOptimizer(Optimizer):
         segment.candidate_sequences = []
         self.energy_scores = []
         final_kv_caches = []
-        
+
         for beam_idx in range(self.beam_width):
             # Sort this beam's candidates by energy (lower is better) and take top candidates_per_beam
             beam_cands = sorted(beam_candidates[beam_idx], key=lambda x: x[1])[:self.candidates_per_beam]
@@ -499,7 +496,7 @@ class MultiSegmentBeamSearchOptimizer(Optimizer):
                 segment.candidate_sequences.append(copy.deepcopy(seq))
                 self.energy_scores.append(energy)
                 final_kv_caches.append(kv)
-        
+
         return final_kv_caches
 
     def _select_topk(self, segment: Segment, all_kv_caches: List[Dict], prepend_prompt: bool = False) -> List[int]:
@@ -574,8 +571,7 @@ class MultiSegmentBeamSearchOptimizer(Optimizer):
         print(f"Generated {segment.num_candidates} candidates using {num_prompts} prompts ({self.beam_width} beams x {self.candidates_per_beam} candidates per beam)")
 
         for i, sequence in enumerate(segment.candidate_sequences):
-            seq_preview = sequence.sequence[:50] + ('...' if len(sequence.sequence) > 50 else '')
-            print(f"  [{i}]: {seq_preview}")
+            print(f"  [{i}]: {sequence.sequence}")
 
         print(f"Evaluated {len(self.energy_scores)} candidates")
         best_energy = self.energy_scores[top_idx[0]]

@@ -4,17 +4,27 @@ Beam Search Optimizer that performs beam search for sequence generation.
 This optimizer splits a single long segment into beams of `beam_length` tokens and
 performs beam search, accumulating KV cache state across beams.
 """
-from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Callable, Literal
-from pydantic import model_validator
-import copy
-import sys
-import math
-import numpy as np
 
-from proto_language.language.core import Optimizer, Construct, Constraint, Generator, Segment, Sequence
+from __future__ import annotations
+
+import copy
+import math
+import sys
+from dataclasses import dataclass, field
+from typing import Callable, Dict, List, Literal, Optional
+
+import numpy as np
+from pydantic import model_validator
+
 from proto_language.base_config import BaseConfig, ConfigField
+from proto_language.language.core import (
+    Constraint,
+    Construct,
+    Generator,
+    Optimizer,
+    Segment,
+    Sequence,
+)
 from proto_language.language.generator.generator_registry import GeneratorRegistry
 from proto_language.language.optimizer.optimizer_registry import OptimizerRegistry
 
@@ -22,12 +32,13 @@ from proto_language.language.optimizer.optimizer_registry import OptimizerRegist
 @dataclass
 class BeamState:
     """State for a single beam during beam search.
-    
+
     Attributes:
         running_sequence: Accumulated sequence (initial prompt + all generated tokens so far)
         kv_cache: KV cache state for this beam (None if KV caching disabled)
         beam_scores: Per-beam energy scores for score aggregation
     """
+
     running_sequence: str
     kv_cache: Optional[Dict] = None
     beam_scores: List[float] = field(default_factory=list)
@@ -90,6 +101,7 @@ class BeamSearchOptimizerConfig(BaseConfig):
             beam energies, selected sequences, and generation statistics at each
             iteration. Default: ``False``.
     """
+
     # Required parameters
     prompt: str = ConfigField(
         title="Prompt", 
@@ -150,7 +162,7 @@ class BeamSearchOptimizerConfig(BaseConfig):
         hidden=True,
     )
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_config(self):
         """Validate beam search configuration."""
         if not self.prompt:
@@ -169,7 +181,7 @@ class BeamSearchOptimizerConfig(BaseConfig):
 class BeamSearchOptimizer(Optimizer):
     """Beam search optimizer for sequence generation.
 
-    This optimizer implements beam search for sequence optimization where a single target 
+    This optimizer implements beam search for sequence optimization where a single target
     segment is generated with beam search. The optimizer maintains K beams (running sequences)
     and generates K x N total candidates at each step by producing N variations per beam.
     After constraint evaluation on the FULL accumulated sequence, only the top K sequences by
@@ -208,6 +220,7 @@ class BeamSearchOptimizer(Optimizer):
         >>> beam_search.run()
         >>> top_sequences = beam_search.target_segment.selected_sequences
     """
+
     # Class attribute required by OptimizerRegistry
     config_class = BeamSearchOptimizerConfig
 
@@ -286,11 +299,10 @@ class BeamSearchOptimizer(Optimizer):
         Validation ensures:
         1. Constructs are valid and non-empty
         2. Constraints are valid and have input segments
-        3. target_segment is in one of the constructs and is not constant
-        4. Non-target segments must be marked as constant
-        5. Generator is valid and autoregressive
-        6. Prompt is not empty
-        7. beam_length does not exceed target_segment length
+        3. target_segment is in one of the constructs
+        4. Generator is valid and autoregressive
+        5. Prompt is not empty
+        6. beam_length does not exceed target_segment length
         """
         # Validate constructs list is not empty and contains valid Constructs
         if not self.constructs:
@@ -308,16 +320,9 @@ class BeamSearchOptimizer(Optimizer):
             if not constraint.inputs:
                 raise RuntimeError(f"Constraint {i} has no input segment(s) assigned")
 
-        # Validate target_segment belongs to one of the constructs and is not constant
+        # Validate target_segment belongs to one of the constructs
         if self.target_segment not in self.segments:
             raise ValueError(f"target_segment '{self.target_segment.label or 'unlabeled'}' is not in any of the provided constructs")
-        if self.target_segment.constant:
-            raise ValueError(f"target_segment '{self.target_segment.label or 'unlabeled'}' is constant but BeamSearchOptimizer requires a non-constant segment")
-
-        # Validate non-target segments are constant
-        non_target_non_constant = [seg for seg in self.segments if seg is not self.target_segment and not seg.constant]
-        if non_target_non_constant:
-            raise ValueError(f"Non-target segments must be marked as constant for multi-step optimization: {', '.join([seg.label or 'unlabeled' for seg in non_target_non_constant])}")
 
         # Validate generator is valid and autoregressive
         if not isinstance(self.generator, Generator):
@@ -447,10 +452,7 @@ class BeamSearchOptimizer(Optimizer):
 
         return candidates
 
-    def _generate_and_score_with_resampling(
-        self,
-        prepend_prompt: bool = False
-    ) -> List[BeamState]:
+    def _generate_and_score_with_resampling(self, prepend_prompt: bool = False) -> List[BeamState]:
         """
         Generate and score candidates, resampling beams until each has valid candidates.
 
@@ -528,9 +530,8 @@ class BeamSearchOptimizer(Optimizer):
         for beam_idx in range(self.beam_width):
             # Sort by most recent score and take top candidates_per_beam
             sorted_candidates = sorted(
-                beam_candidates[beam_idx],
-                key=lambda b: b.beam_scores[-1]
-            )[:self.candidates_per_beam]
+                beam_candidates[beam_idx], key=lambda b: b.beam_scores[-1]
+            )[: self.candidates_per_beam]
             all_valid_candidates.extend(sorted_candidates)
 
         return all_valid_candidates
@@ -578,8 +579,7 @@ class BeamSearchOptimizer(Optimizer):
         for i, beam in enumerate(self.beams):
             agg_score = self._get_aggregated_score(beam)
             last_score = beam.beam_scores[-1] if beam.beam_scores else 0.0
-            prompt_preview = beam.running_sequence[:50] + ('...' if len(beam.running_sequence) > 50 else '')
-            print(f"  [{i}] agg={agg_score:.4f}, last={last_score:.4f}, len={len(beam.running_sequence)}: '{prompt_preview}'")
+            print(f"  [{i}] agg={agg_score:.4f}, last={last_score:.4f}, len={len(beam.running_sequence)}: '{beam.running_sequence}'")
 
         if self.custom_logging:
             self.custom_logging(beam_idx, self.segments)

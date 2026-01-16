@@ -261,12 +261,10 @@ if __name__ == '__main__':
 
         left_flank = Segment(sequence=target_seq[: donor_start_pos_in_target + 2],
             sequence_type="dna",
-            constant=True,
         )
 
         right_flank = Segment(sequence=target_seq[acceptor_end_pos_in_target - 1 :],
             sequence_type="dna",
-            constant=True,
         )
 
         intron_construct = Construct([left_flank, intron, right_flank])

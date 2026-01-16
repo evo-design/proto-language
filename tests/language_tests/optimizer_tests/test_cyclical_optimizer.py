@@ -68,7 +68,6 @@ def _setup_cyclical_components(
         context_segment = Segment(
             sequence="MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQ",
             sequence_type="protein",
-            constant=True,
         )
         segments.append(context_segment)
 
@@ -185,32 +184,6 @@ class TestCyclicalOptimizerValidation:
                 generators=[components["generator"]],
                 constraints=[],
                 config=components["config"],
-            )
-
-    def test_non_target_segments_must_be_constant(self):
-        """Test that non-target segments must be marked as constant."""
-        target = Segment(sequence="ACDEFGHIK", sequence_type="protein")
-        non_constant = Segment(sequence="MKTAYIAKQRQISFVK", sequence_type="protein")
-        construct = Construct([target, non_constant])
-
-        generator = ProteinMPNNGenerator(
-            ProteinMPNNGeneratorConfig(
-                structure_inputs=InverseFoldingStructureInput(
-                    structure=make_mock_structure()
-                )
-            )
-        )
-        generator.assign(target)
-
-        with pytest.raises(
-            ValueError, match="Non-target segments must be marked as constant"
-        ):
-            CyclicalOptimizer(
-                target_segment=target,
-                constructs=[construct],
-                generators=[generator],
-                constraints=[],
-                config=CyclicalOptimizerConfig(num_cycles=1, num_candidates=1),
             )
 
     def test_generator_must_be_inverse_folding(self):

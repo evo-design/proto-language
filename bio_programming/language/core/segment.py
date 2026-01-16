@@ -3,9 +3,11 @@ Segment class for the proto-language.
 
 Represents building blocks for biological constructs.
 """
+
 from __future__ import annotations
+
+import copy
 from typing import Any, Dict, Iterator, List, Optional, Set
-import warnings
 
 from .sequence import Sequence, SequenceType
 
@@ -37,7 +39,6 @@ class Segment:
         valid_chars: Optional[Set[str]] = None,
         label: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        constant: bool = False,
     ) -> None:
         """
         Initialize a Segment with dual sequence pools.
@@ -49,16 +50,20 @@ class Segment:
             valid_chars: Optional custom set of valid characters for sequence validation.
             label: Optional label for this segment (e.g., "promoter", "coding_region").
             metadata: Additional data associated with this sequence.
-            constant: If True, the sequence is constant and cannot be mutated.
 
         Raises:
-            ValueError: If both sequence and length are provided, or if neither is provided.
+            ValueError: If both sequence and length are provided, if neither is provided,
+                or if a ligand segment is created with only a length (ligands require a sequence).
         """
         # Exactly one of sequence or length must be provided
         if sequence is None and length is None:
             raise ValueError("Must provide either 'sequence' or 'length'")
         elif sequence is not None and length is not None:
             raise ValueError("Cannot provide both 'sequence' and 'length' - choose one")
+
+        # Ligand segments must be initialized with a sequence (SMILES string), not just a length
+        if sequence_type == "ligand" and sequence is None:
+            raise ValueError("Ligand segments must be initialized with a sequence (SMILES string), not just a length")
 
         # If sequence is provided - set sequence_length and initial_sequence
         elif sequence is not None:
@@ -70,28 +75,20 @@ class Segment:
             initial_sequence = ""
             self.sequence_length = length
 
-        if sequence_type == "ligand":
-            if not constant:
-                warnings.warn("Segments with 'ligand' sequence type must be constant")
-            constant = True
-
-        seq = Sequence(
+        self.original_sequence: Sequence = Sequence(
             sequence=initial_sequence,
             sequence_type=sequence_type,
             metadata=metadata,
             valid_chars=valid_chars,
         )
-        self.original_sequence: Sequence = seq
         # Dual pools: candidates (work space) and selected (results space)
-        self.candidate_sequences: List[Sequence] = [seq]
-        self.selected_sequences: List[Sequence] = [seq]
+        # These are deep copies so modifications don't affect original_sequence
+        self.candidate_sequences: List[Sequence] = [copy.deepcopy(self.original_sequence)]
+        self.selected_sequences: List[Sequence] = [copy.deepcopy(self.original_sequence)]
 
-        self.sequence_type: SequenceType = seq.sequence_type
-        self._valid_chars: Optional[Set[str]] = seq._valid_chars
+        self.sequence_type: SequenceType = self.original_sequence.sequence_type
+        self._valid_chars: Optional[Set[str]] = self.original_sequence._valid_chars
         self.label: Optional[str] = label
-
-        # Validation happens at the optimizer level (segment must be constant XOR have active generator)
-        self.constant = constant # if True, segment should not be mutated in this optimization step
 
     @property
     def num_selected(self) -> int:
@@ -102,6 +99,16 @@ class Segment:
     def num_candidates(self) -> int:
         """Number of sequences in candidate pool (proposal space)."""
         return len(self.candidate_sequences)
+
+    @property
+    def has_original_sequence(self) -> bool:
+        """Whether this segment was created with an input sequence (vs just a length placeholder)."""
+        return bool(self.original_sequence.sequence)
+
+    @property
+    def is_ligand(self) -> bool:
+        """Whether this segment is a ligand (ligands cannot be mutated by generators)."""
+        return self.sequence_type == "ligand"
 
     def __iter__(self) -> Iterator[Sequence]:
         """Iterate over selected sequences (user-facing results)."""
@@ -121,7 +128,6 @@ class Segment:
             "sequence_type": self.sequence_type,
             "valid_chars": list(self._valid_chars) if self._valid_chars else None,
             "label": self.label,
-            "constant": self.constant,
         }
 
     @classmethod
@@ -130,7 +136,7 @@ class Segment:
         # Reconstruct original sequence
         original_seq = Sequence.from_dict(data["original_sequence"])
 
-        # Use sequence if available, otherwise use length
+        # Use input sequence if available, otherwise use length
         segment = cls(
             sequence=original_seq.sequence if original_seq.sequence else None,
             length=data["sequence_length"] if not original_seq.sequence else None,
@@ -138,11 +144,9 @@ class Segment:
             valid_chars=set(data["valid_chars"]) if "valid_chars" in data else None,
             label=data.get("label"),
             metadata=original_seq._metadata,
-            constant=data.get("constant", False),
         )
 
         # Restore sequence pools
-        segment.original_sequence = original_seq
         segment.candidate_sequences = [Sequence.from_dict(seq_data) for seq_data in data["candidate_sequences"]]
         segment.selected_sequences = [Sequence.from_dict(seq_data) for seq_data in data["selected_sequences"]]
 

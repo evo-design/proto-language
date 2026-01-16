@@ -1,6 +1,4 @@
-import pytest
-
-from proto_language.language.core import Sequence, Segment
+from proto_language.language.core import Segment, Sequence
 
 
 class TestSegment:
@@ -19,10 +17,15 @@ class TestSegment:
     def test_candidate_sequences_manipulation(self):
         """Tests that candidate_sequences can be directly manipulated."""
         import copy
-        segment = Segment(sequence="ATCG", sequence_type="dna", metadata={"source": "original"})
+
+        segment = Segment(
+            sequence="ATCG", sequence_type="dna", metadata={"source": "original"}
+        )
 
         # Directly set candidate sequences (like optimizer does)
-        segment.candidate_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(5)]
+        segment.candidate_sequences = [
+            copy.deepcopy(segment.original_sequence) for _ in range(5)
+        ]
         assert segment.num_candidates == 5
         for i in range(5):
             assert segment.candidate_sequences[i].sequence == "ATCG"
@@ -45,27 +48,24 @@ class TestSegment:
         sequences = [s.sequence for s in segment]
         assert sequences == ["A", "T", "C"]
 
-    def test_constant_segment_initialization(self):
-        """Tests that constant segments are initialized correctly."""
-        # Regular segment
-        regular_segment = Segment(sequence="ATCG", sequence_type="dna")
-        assert regular_segment.constant is False
+    def test_has_sequence_property(self):
+        """Tests that has_sequence correctly identifies segments with input sequences."""
+        # Segment with a sequence
+        segment_with_seq = Segment(sequence="ATCG", sequence_type="dna")
+        assert segment_with_seq.has_original_sequence is True
 
-        # Constant segment
-        constant_segment = Segment(sequence="ATCG", sequence_type="dna", constant=True)
-        assert constant_segment.constant is True
-        assert constant_segment.selected_sequences[0].sequence == "ATCG"
+        # Segment with just length (no sequence)
+        segment_without_seq = Segment(length=50, sequence_type="dna")
+        assert segment_without_seq.has_original_sequence is False
+        assert segment_without_seq.sequence_length == 50
+        assert segment_without_seq.original_sequence.sequence == ""
 
-    def test_empty_constant_segment_allowed(self):
-        """Tests that constant segments can be created with length only (no sequence)."""
-        # Empty constant segment (for multi-step optimization where it will be filled later)
-        empty_constant = Segment(length=50, sequence_type="dna", constant=True)
-        assert empty_constant.constant is True
-        assert empty_constant.sequence_length == 50
-        assert empty_constant.original_sequence.sequence == ""
+    def test_is_ligand_property(self):
+        """Tests that is_ligand correctly identifies ligand segments."""
+        # DNA segment
+        dna_segment = Segment(sequence="ATCG", sequence_type="dna")
+        assert dna_segment.is_ligand is False
 
-    def test_ligand_constant(self):
-        """Tests that ligand segments are automatically marked as constant."""
-        with pytest.warns(UserWarning):  # Just check for any warning when constant is false.
-            ligand_segment = Segment(sequence="CCC", sequence_type="ligand", constant=False)
-        assert ligand_segment.constant is True
+        # Ligand segment
+        ligand_segment = Segment(sequence="CCC", sequence_type="ligand")
+        assert ligand_segment.is_ligand is True

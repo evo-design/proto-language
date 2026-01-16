@@ -1,18 +1,34 @@
 """Tests for BeamSearchOptimizer - single-segment iterative beam search."""
+
 from __future__ import annotations
-import pytest
+
 import random
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 from unittest.mock import Mock
 
-from proto_language.language.core import Construct, Segment, Constraint, Generator, Sequence
+import pytest
+
 from proto_language.language.constraint import gc_content_constraint
-from proto_language.language.constraint.sequence_composition.gc_content_constraint import GCContentConfig
-from proto_language.language.optimizer import BeamSearchOptimizer, BeamSearchOptimizerConfig, BeamState
+from proto_language.language.constraint.sequence_composition.gc_content_constraint import (
+    GCContentConfig,
+)
+from proto_language.language.core import (
+    Constraint,
+    Construct,
+    Generator,
+    Segment,
+    Sequence,
+)
+from proto_language.language.optimizer import (
+    BeamSearchOptimizer,
+    BeamSearchOptimizerConfig,
+    BeamState,
+)
 
 
 class MockAutoregressiveGenerator(Generator):
     """Mock autoregressive generator for testing without GPU."""
+
     def __init__(self, use_kv_caching: bool = True):
         super().__init__()
         self.use_kv_caching = use_kv_caching
@@ -22,22 +38,28 @@ class MockAutoregressiveGenerator(Generator):
     def assign(self, assigned_segment: Segment) -> None:
         self._assigned_segment = assigned_segment
 
-    def sample(self, prompts: Optional[List[str]] = None, prepend_prompt: Optional[bool] = None,
-               old_kv_cache: Optional[Dict] = None) -> None:
+    def sample(
+        self,
+        prompts: Optional[List[str]] = None,
+        prepend_prompt: Optional[bool] = None,
+        old_kv_cache: Optional[Dict] = None,
+    ) -> None:
         if prompts is None:
             prompts = [""]
         sequences = []
         for prompt in prompts:
-            new_seq = ''.join(random.choice("ATCG") for _ in range(self.num_tokens))
+            new_seq = "".join(random.choice("ATCG") for _ in range(self.num_tokens))
             sequences.append(prompt + new_seq if prepend_prompt else new_seq)
         self._assigned_segment.candidate_sequences = [
             Sequence(sequence=seq, sequence_type="dna") for seq in sequences
         ]
-        if self.use_kv_caching and getattr(self, 'store_kv_cache', False):
+        if self.use_kv_caching and getattr(self, "store_kv_cache", False):
             mock_mha = Mock()
             mock_mha.key_value_memory_dict = {0: Mock(shape=(1, 2, 3))}
             mock_mha.seqlen_offset = 10
-            self.kv_caches = [{'mha': mock_mha, 'hcl': Mock()} for _ in range(len(prompts))]
+            self.kv_caches = [
+                {"mha": mock_mha, "hcl": Mock()} for _ in range(len(prompts))
+            ]
         else:
             self.kv_caches = []
 
@@ -47,6 +69,7 @@ class MockAutoregressiveGenerator(Generator):
 
 class MockMutationGenerator(Generator):
     """Mock non-autoregressive generator for testing rejection."""
+
     def __init__(self):
         super().__init__()
         self.kv_caches: List[Dict] = []
@@ -61,27 +84,44 @@ class MockMutationGenerator(Generator):
         return cache
 
 
-def _setup_beam_search(segment_length: int = 100, beam_length: int = 20, beam_width: int = 3,
-                       candidates_per_beam: int = 5, gc_range: tuple = (40.0, 60.0),
-                       use_kv_caching: bool = True, prompt: str = "ATCG", score_by: str = "mean",
-                       prepend_prompt: bool = True, batch_size: Optional[int] = None):
+def _setup_beam_search(
+    segment_length: int = 100,
+    beam_length: int = 20,
+    beam_width: int = 3,
+    candidates_per_beam: int = 5,
+    gc_range: tuple = (40.0, 60.0),
+    use_kv_caching: bool = True,
+    prompt: str = "ATCG",
+    score_by: str = "mean",
+    prepend_prompt: bool = True,
+    batch_size: Optional[int] = None,
+):
     """Helper to set up a BeamSearchOptimizer for testing."""
     segment = Segment(length=segment_length, sequence_type="dna")
     construct = Construct([segment])
     generator = MockAutoregressiveGenerator(use_kv_caching=use_kv_caching)
     generator._assigned_segment = segment
     constraint = Constraint(
-        inputs=[segment], function=gc_content_constraint,
+        inputs=[segment],
+        function=gc_content_constraint,
         function_config=GCContentConfig(min_gc=gc_range[0], max_gc=gc_range[1]),
     )
     config = BeamSearchOptimizerConfig(
-        prompt=prompt, beam_length=beam_length, beam_width=beam_width,
-        candidates_per_beam=candidates_per_beam, score_by=score_by,
-        use_kv_caching=use_kv_caching, prepend_prompt=prepend_prompt,
-        batch_size=batch_size, verbose=False,
+        prompt=prompt,
+        beam_length=beam_length,
+        beam_width=beam_width,
+        candidates_per_beam=candidates_per_beam,
+        score_by=score_by,
+        use_kv_caching=use_kv_caching,
+        prepend_prompt=prepend_prompt,
+        batch_size=batch_size,
+        verbose=False,
     )
     optimizer = BeamSearchOptimizer(
-        constructs=[construct], generators=[generator], constraints=[constraint], config=config,
+        constructs=[construct],
+        generators=[generator],
+        constraints=[constraint],
+        config=config,
         target_segment=segment,
     )
     return optimizer, generator, constraint, segment
@@ -93,7 +133,11 @@ class TestBeamSearchOptimizer:
     # --- Config Validation ---
     def test_valid_config(self):
         config = BeamSearchOptimizerConfig(
-            prompt="ATCG", beam_width=5, candidates_per_beam=10, beam_length=2000, score_by="mean",
+            prompt="ATCG",
+            beam_width=5,
+            candidates_per_beam=10,
+            beam_length=2000,
+            score_by="mean",
         )
         assert config.prompt == "ATCG"
         assert config.beam_width == 5
@@ -101,24 +145,38 @@ class TestBeamSearchOptimizer:
 
     def test_empty_prompt_fails(self):
         from pydantic import ValidationError
+
         with pytest.raises(ValidationError):
-            BeamSearchOptimizerConfig(prompt="", beam_width=3, candidates_per_beam=5, beam_length=10)
+            BeamSearchOptimizerConfig(
+                prompt="", beam_width=3, candidates_per_beam=5, beam_length=10
+            )
 
     def test_invalid_beam_width_fails(self):
         from pydantic import ValidationError
+
         with pytest.raises(ValidationError):
-            BeamSearchOptimizerConfig(prompt="ATCG", beam_width=0, candidates_per_beam=5, beam_length=10)
+            BeamSearchOptimizerConfig(
+                prompt="ATCG", beam_width=0, candidates_per_beam=5, beam_length=10
+            )
 
     def test_invalid_score_by_fails(self):
         from pydantic import ValidationError
+
         with pytest.raises(ValidationError):
-            BeamSearchOptimizerConfig(prompt="ATCG", beam_width=5, candidates_per_beam=10, score_by="invalid")
+            BeamSearchOptimizerConfig(
+                prompt="ATCG", beam_width=5, candidates_per_beam=10, score_by="invalid"
+            )
 
     def test_batch_size_exceeds_total_candidates_fails(self):
         from pydantic import ValidationError
+
         with pytest.raises(ValidationError):
             BeamSearchOptimizerConfig(
-                prompt="ATCG", beam_width=2, candidates_per_beam=3, beam_length=10, batch_size=10
+                prompt="ATCG",
+                beam_width=2,
+                candidates_per_beam=3,
+                beam_length=10,
+                batch_size=10,
             )
 
     # --- Initialization ---
@@ -133,21 +191,29 @@ class TestBeamSearchOptimizer:
 
     def test_multi_segment_construct_with_target_segment(self):
         """Multi-segment constructs are allowed when target_segment is specified."""
-        segments = [Segment(length=20, sequence_type="dna") for _ in range(3)]
-        # Mark non-target segments as constant
-        segments[1].constant = True
-        segments[2].constant = True
+        # Target segment has no sequence (will be generated)
+        target_segment = Segment(length=20, sequence_type="dna")
+        # Context segments have sequences
+        context_segment1 = Segment(sequence="ATCGATCGATCGATCGATCG", sequence_type="dna")
+        context_segment2 = Segment(sequence="GCGCGCGCGCGCGCGCGCGC", sequence_type="dna")
+        segments = [target_segment, context_segment1, context_segment2]
         construct = Construct(segments)
         generator = MockAutoregressiveGenerator()
         generator._assigned_segment = segments[0]
         constraint = Constraint(
-            inputs=[segments[0]], function=gc_content_constraint,
+            inputs=[segments[0]],
+            function=gc_content_constraint,
             function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
         )
-        config = BeamSearchOptimizerConfig(prompt="ATCG", beam_length=10, beam_width=3, candidates_per_beam=5)
+        config = BeamSearchOptimizerConfig(
+            prompt="ATCG", beam_length=10, beam_width=3, candidates_per_beam=5
+        )
         # Should work when target_segment is specified
         optimizer = BeamSearchOptimizer(
-            constructs=[construct], generators=[generator], constraints=[constraint], config=config,
+            constructs=[construct],
+            generators=[generator],
+            constraints=[constraint],
+            config=config,
             target_segment=segments[0],
         )
         assert optimizer.target_segment == segments[0]
@@ -160,51 +226,49 @@ class TestBeamSearchOptimizer:
         generator = MockAutoregressiveGenerator()
         generator._assigned_segment = other_segment
         constraint = Constraint(
-            inputs=[segment], function=gc_content_constraint,
+            inputs=[segment],
+            function=gc_content_constraint,
             function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
         )
-        config = BeamSearchOptimizerConfig(prompt="ATCG", beam_length=10, beam_width=3, candidates_per_beam=5)
-        with pytest.raises(ValueError, match="is not in any of the provided constructs"):
+        config = BeamSearchOptimizerConfig(
+            prompt="ATCG", beam_length=10, beam_width=3, candidates_per_beam=5
+        )
+        with pytest.raises(
+            ValueError, match="is not in any of the provided constructs"
+        ):
             BeamSearchOptimizer(
                 target_segment=other_segment,
-                constructs=[construct], generators=[generator], constraints=[constraint], config=config,
+                constructs=[construct],
+                generators=[generator],
+                constraints=[constraint],
+                config=config,
             )
 
-    def test_target_segment_constant_fails(self):
-        """target_segment cannot be constant."""
-        segment = Segment(length=20, sequence_type="dna", constant=True)
-        construct = Construct([segment])
-        generator = MockAutoregressiveGenerator()
-        generator._assigned_segment = segment
-        constraint = Constraint(
-            inputs=[segment], function=gc_content_constraint,
-            function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
-        )
-        config = BeamSearchOptimizerConfig(prompt="ATCG", beam_length=10, beam_width=3, candidates_per_beam=5)
-        with pytest.raises(ValueError, match="is constant"):
-            BeamSearchOptimizer(
-                target_segment=segment,
-                constructs=[construct], generators=[generator], constraints=[constraint], config=config,
-            )
-
-    def test_non_target_segment_not_constant_fails(self):
-        """Non-target segments must be marked as constant."""
+    def test_multi_segment_with_context_segments(self):
+        """Multi-segment constructs work when non-target segments have sequences."""
         target_segment = Segment(length=20, sequence_type="dna")
-        other_segment = Segment(length=20, sequence_type="dna")  # Not constant
-        construct = Construct([target_segment, other_segment])
+        context_segment = Segment(sequence="ATCGATCGATCGATCGATCG", sequence_type="dna")
+        construct = Construct([target_segment, context_segment])
         generator = MockAutoregressiveGenerator()
         generator._assigned_segment = target_segment
         constraint = Constraint(
-            inputs=[target_segment], function=gc_content_constraint,
+            inputs=[target_segment],
+            function=gc_content_constraint,
             function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
         )
-        config = BeamSearchOptimizerConfig(prompt="ATCG", beam_length=10, beam_width=3, candidates_per_beam=5)
-        
-        with pytest.raises(ValueError, match="Non-target segments must be marked as constant"):
-            BeamSearchOptimizer(
-                target_segment=target_segment,
-                constructs=[construct], generators=[generator], constraints=[constraint], config=config,
-            )
+        config = BeamSearchOptimizerConfig(
+            prompt="ATCG", beam_length=10, beam_width=3, candidates_per_beam=5
+        )
+
+        # Should work - context segment has a sequence
+        optimizer = BeamSearchOptimizer(
+            target_segment=target_segment,
+            constructs=[construct],
+            generators=[generator],
+            constraints=[constraint],
+            config=config,
+        )
+        assert optimizer.target_segment == target_segment
 
     def test_non_autoregressive_generator_fails(self):
         segment = Segment(length=100, sequence_type="dna")
@@ -212,14 +276,20 @@ class TestBeamSearchOptimizer:
         generator = MockMutationGenerator()
         generator._assigned_segment = segment
         constraint = Constraint(
-            inputs=[segment], function=gc_content_constraint,
+            inputs=[segment],
+            function=gc_content_constraint,
             function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
         )
-        config = BeamSearchOptimizerConfig(prompt="ATCG", beam_length=10, beam_width=3, candidates_per_beam=5)
+        config = BeamSearchOptimizerConfig(
+            prompt="ATCG", beam_length=10, beam_width=3, candidates_per_beam=5
+        )
         with pytest.raises(ValueError, match="requires autoregressive generators"):
             BeamSearchOptimizer(
                 target_segment=segment,
-                constructs=[construct], generators=[generator], constraints=[constraint], config=config,
+                constructs=[construct],
+                generators=[generator],
+                constraints=[constraint],
+                config=config,
             )
 
     def test_beam_length_exceeds_segment_length_fails(self):
@@ -228,13 +298,22 @@ class TestBeamSearchOptimizer:
         generator = MockAutoregressiveGenerator()
         generator._assigned_segment = segment
         constraint = Constraint(
-            inputs=[segment], function=gc_content_constraint,
+            inputs=[segment],
+            function=gc_content_constraint,
             function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
         )
-        config = BeamSearchOptimizerConfig(prompt="ATCG", beam_length=100, beam_width=3, candidates_per_beam=5)
-        with pytest.raises(ValueError, match="beam_length.*cannot be greater than target_segment length"):
+        config = BeamSearchOptimizerConfig(
+            prompt="ATCG", beam_length=100, beam_width=3, candidates_per_beam=5
+        )
+        with pytest.raises(
+            ValueError,
+            match="beam_length.*cannot be greater than target_segment length",
+        ):
             BeamSearchOptimizer(
-                constructs=[construct], generators=[generator], constraints=[constraint], config=config,
+                constructs=[construct],
+                generators=[generator],
+                constraints=[constraint],
+                config=config,
                 target_segment=segment,
             )
 
@@ -292,14 +371,18 @@ class TestBeamSearchOptimizer:
     def test_run_generates_correct_sequence_length(self):
         prompt = "ATCG"
         segment_length = 100
-        optimizer, _, _, segment = _setup_beam_search(segment_length=segment_length, prompt=prompt)
+        optimizer, _, _, segment = _setup_beam_search(
+            segment_length=segment_length, prompt=prompt
+        )
         optimizer.run()
         expected_length = len(prompt) + segment_length
         for seq in segment.selected_sequences:
             assert len(seq.sequence) == expected_length
 
     def test_beam_scores_accumulated(self):
-        optimizer, _, _, _ = _setup_beam_search(segment_length=60, beam_length=20, beam_width=2)
+        optimizer, _, _, _ = _setup_beam_search(
+            segment_length=60, beam_length=20, beam_width=2
+        )
         optimizer.run()
         for beam in optimizer.beams:
             assert len(beam.beam_scores) == 3  # 60/20 = 3 beams
@@ -318,7 +401,9 @@ class TestBeamSearchOptimizer:
     # --- Prepend Prompt ---
     def test_prepend_prompt_true(self):
         prompt = "ATCGATCG"
-        optimizer, _, _, segment = _setup_beam_search(prompt=prompt, segment_length=40, prepend_prompt=True)
+        optimizer, _, _, segment = _setup_beam_search(
+            prompt=prompt, segment_length=40, prepend_prompt=True
+        )
         optimizer.run()
         for seq in segment.selected_sequences:
             assert seq.sequence.startswith(prompt)
@@ -334,7 +419,9 @@ class TestBeamSearchOptimizer:
 
     # --- KV Caching ---
     def test_kv_caching_disabled(self):
-        optimizer, _, _, segment = _setup_beam_search(use_kv_caching=False, segment_length=60, beam_length=20)
+        optimizer, _, _, segment = _setup_beam_search(
+            use_kv_caching=False, segment_length=60, beam_length=20
+        )
         optimizer.run()
         assert len(segment.selected_sequences) == optimizer.beam_width
         for beam in optimizer.beams:
@@ -343,7 +430,11 @@ class TestBeamSearchOptimizer:
     # --- Batch Size ---
     def test_batch_size_smaller_than_candidates(self):
         optimizer, _, _, segment = _setup_beam_search(
-            segment_length=40, beam_length=20, beam_width=2, candidates_per_beam=6, batch_size=2
+            segment_length=40,
+            beam_length=20,
+            beam_width=2,
+            candidates_per_beam=6,
+            batch_size=2,
         )
         optimizer.run()
         assert len(segment.selected_sequences) == optimizer.beam_width
@@ -355,15 +446,25 @@ class TestBeamSearchOptimizer:
         generator = MockAutoregressiveGenerator(use_kv_caching=False)
         generator._assigned_segment = segment
         constraint = Constraint(
-            inputs=[segment], function=gc_content_constraint,
-            function_config=GCContentConfig(min_gc=100.0, max_gc=100.0), threshold=0.0,
+            inputs=[segment],
+            function=gc_content_constraint,
+            function_config=GCContentConfig(min_gc=100.0, max_gc=100.0),
+            threshold=0.0,
         )
         config = BeamSearchOptimizerConfig(
-            prompt="ATCG", beam_length=20, beam_width=2, candidates_per_beam=3,
-            max_resample_attempts=3, use_kv_caching=False, verbose=False,
+            prompt="ATCG",
+            beam_length=20,
+            beam_width=2,
+            candidates_per_beam=3,
+            max_resample_attempts=3,
+            use_kv_caching=False,
+            verbose=False,
         )
         optimizer = BeamSearchOptimizer(
-            constructs=[construct], generators=[generator], constraints=[constraint], config=config,
+            constructs=[construct],
+            generators=[generator],
+            constraints=[constraint],
+            config=config,
             target_segment=segment,
         )
         with pytest.raises(RuntimeError, match="could not produce.*valid candidates"):
@@ -371,18 +472,24 @@ class TestBeamSearchOptimizer:
 
     # --- Edge Cases ---
     def test_beam_width_one(self):
-        optimizer, _, _, segment = _setup_beam_search(beam_width=1, candidates_per_beam=5)
+        optimizer, _, _, segment = _setup_beam_search(
+            beam_width=1, candidates_per_beam=5
+        )
         optimizer.run()
         assert len(segment.selected_sequences) == 1
 
     def test_candidates_per_beam_one(self):
-        optimizer, _, _, segment = _setup_beam_search(beam_width=3, candidates_per_beam=1)
+        optimizer, _, _, segment = _setup_beam_search(
+            beam_width=3, candidates_per_beam=1
+        )
         optimizer.run()
         assert len(segment.selected_sequences) == 3
 
     # --- Verbose ---
     def test_verbose_output(self, capsys):
-        optimizer, _, _, _ = _setup_beam_search(segment_length=40, beam_length=20, beam_width=2)
+        optimizer, _, _, _ = _setup_beam_search(
+            segment_length=40, beam_length=20, beam_width=2
+        )
         optimizer.verbose = True
         optimizer.run()
         captured = capsys.readouterr()
@@ -395,22 +502,36 @@ class TestBeamSearchOptimizerGPU:
     """GPU-dependent integration tests."""
 
     def test_with_evo2_generator(self):
-        from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
+        from proto_language.language.generator import (
+            Evo2Generator,
+            Evo2GeneratorConfig,
+        )
+
         prompt = "ATCGATCGATCG"
         segment = Segment(length=100, sequence_type="dna")
         construct = Construct([segment])
-        gen_config = Evo2GeneratorConfig(prompts=[prompt], prepend_prompt=True, stop_at_eos=False)
+        gen_config = Evo2GeneratorConfig(
+            prompts=[prompt], prepend_prompt=True, stop_at_eos=False
+        )
         generator = Evo2Generator(config=gen_config)
         generator.assign(segment)
         constraint = Constraint(
-            inputs=[segment], function=gc_content_constraint,
+            inputs=[segment],
+            function=gc_content_constraint,
             function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
         )
         config = BeamSearchOptimizerConfig(
-            prompt=prompt, beam_length=50, beam_width=3, candidates_per_beam=5, use_kv_caching=True,
+            prompt=prompt,
+            beam_length=50,
+            beam_width=3,
+            candidates_per_beam=5,
+            use_kv_caching=True,
         )
         optimizer = BeamSearchOptimizer(
-            constructs=[construct], generators=[generator], constraints=[constraint], config=config,
+            constructs=[construct],
+            generators=[generator],
+            constraints=[constraint],
+            config=config,
             target_segment=segment,
         )
         optimizer.run()
@@ -420,28 +541,42 @@ class TestBeamSearchOptimizerGPU:
 
     def test_kv_caching_speedup(self):
         """Benchmark KV caching speedup with real Evo2 generator."""
-        import time
         import gc
+        import time
+
         import torch
-        from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
+
+        from proto_language.language.generator import (
+            Evo2Generator,
+            Evo2GeneratorConfig,
+        )
 
         def run_optimizer(use_kv_caching: bool) -> float:
             prompt = "ATCGATCGATCG"
             segment = Segment(length=200, sequence_type="dna")
             construct = Construct([segment])
-            gen_config = Evo2GeneratorConfig(prompts=[prompt], prepend_prompt=True, stop_at_eos=False)
+            gen_config = Evo2GeneratorConfig(
+                prompts=[prompt], prepend_prompt=True, stop_at_eos=False
+            )
             generator = Evo2Generator(config=gen_config)
             generator.assign(segment)
             constraint = Constraint(
-                inputs=[segment], function=gc_content_constraint,
+                inputs=[segment],
+                function=gc_content_constraint,
                 function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
             )
             config = BeamSearchOptimizerConfig(
-                prompt=prompt, beam_length=50, beam_width=3, candidates_per_beam=5,
+                prompt=prompt,
+                beam_length=50,
+                beam_width=3,
+                candidates_per_beam=5,
                 use_kv_caching=use_kv_caching,
             )
             optimizer = BeamSearchOptimizer(
-                constructs=[construct], generators=[generator], constraints=[constraint], config=config,
+                constructs=[construct],
+                generators=[generator],
+                constraints=[constraint],
+                config=config,
                 target_segment=segment,
             )
             start = time.time()
@@ -463,18 +598,20 @@ class TestBeamSearchOptimizerGPU:
         print(f"  Speedup: {speedup:.2f}x")
 
         # KV caching should be faster
-        assert time_cached * 1.3 < time_uncached, f"KV caching should be 1.3x faster: {time_cached:.2f}s vs {time_uncached:.2f}s"
+        assert (
+            time_cached * 1.3 < time_uncached
+        ), f"KV caching should be 1.3x faster: {time_cached:.2f}s vs {time_uncached:.2f}s"
 
 
 class TestBeamSearchMultiStepOptimization:
     """Tests for multi-step optimization with BeamSearchOptimizer."""
 
-    def test_multi_segment_construct_with_constant_segments(self):
-        """Test BeamSearchOptimizer with multi-segment construct where non-target segments are constant."""
-        # Create segments - target segment and constant segment
+    def test_multi_segment_construct_with_context_segments(self):
+        """Test BeamSearchOptimizer with multi-segment construct where non-target segments provide context."""
+        # Create segments - target segment and context segment (has sequence)
         target_segment = Segment(length=40, sequence_type="dna")
-        constant_segment = Segment(sequence="ATCGATCGATCGATCGATCG", sequence_type="dna", constant=True)
-        construct = Construct([target_segment, constant_segment])
+        context_segment = Segment(sequence="ATCGATCGATCGATCGATCG", sequence_type="dna")
+        construct = Construct([target_segment, context_segment])
 
         generator = MockAutoregressiveGenerator(use_kv_caching=False)
         generator._assigned_segment = target_segment
@@ -509,14 +646,14 @@ class TestBeamSearchMultiStepOptimization:
         for seq in target_segment.selected_sequences:
             assert len(seq.sequence) == 40 + 4  # prompt + segment length
 
-        # Verify constant segment was not modified
-        assert constant_segment.original_sequence.sequence == "ATCGATCGATCGATCGATCG"
+        # Verify context segment was not modified
+        assert context_segment.original_sequence.sequence == "ATCGATCGATCGATCGATCG"
 
     def test_multiple_constructs_with_target_segment(self):
         """Test BeamSearchOptimizer with multiple constructs, targeting one segment."""
         # Create two constructs
         target_segment = Segment(length=40, sequence_type="dna")
-        other_segment = Segment(sequence="GCGCGCGCGC", sequence_type="dna", constant=True)
+        other_segment = Segment(sequence="GCGCGCGCGC", sequence_type="dna")
         construct1 = Construct([target_segment])
         construct2 = Construct([other_segment])
 
@@ -565,7 +702,10 @@ class TestBeamSearchMultiStepOptimization:
             function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
         )
         config = BeamSearchOptimizerConfig(
-            prompt="ATCG", beam_length=20, beam_width=2, candidates_per_beam=3,
+            prompt="ATCG",
+            beam_length=20,
+            beam_width=2,
+            candidates_per_beam=3,
         )
 
         optimizer = BeamSearchOptimizer(

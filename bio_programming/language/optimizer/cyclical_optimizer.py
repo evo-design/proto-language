@@ -35,7 +35,7 @@ class CyclicalOptimizerConfig(BaseConfig):
 
     This optimizer cycles between structure prediction and inverse folding to
     iteratively refine protein sequences. It operates on a single target segment
-    while optionally including other constant segments for structural context
+    while optionally including other context segments for structural context
     (e.g., a target protein for binder design).
 
     Attributes:
@@ -132,7 +132,7 @@ class CyclicalOptimizer(Optimizer):
     5. Repeat for num_cycles
 
     The optimizer operates on a single target segment while including other
-    constant segments for structural context (e.g., binder design with a target).
+    context segments for structural context (e.g., binder design with a target).
 
     Attributes:
         target_segment (Segment): The segment to optimize with inverse folding.
@@ -186,10 +186,10 @@ class CyclicalOptimizer(Optimizer):
 
         Args:
             target_segment: The specific Segment to optimize. Must belong to one
-                of the constructs and not be constant.
+                of the constructs.
             constructs: List of Construct objects. The target_segment must belong
                 to one of these. Other segments provide structural context and
-                must be constant.
+                must have input sequences.
             generators: List containing exactly one inverse_folding Generator
                 (ProteinMPNN or LigandMPNN).
             constraints: List of Constraint objects for filtering. Can be empty.
@@ -202,8 +202,8 @@ class CyclicalOptimizer(Optimizer):
 
         Raises:
             ValueError: If generators list doesn't contain exactly one generator,
-                target_segment is not in constructs, non-target segments are not
-                constant, or constraints don't have thresholds set.
+                target_segment is not in constructs, non-target segments don't have
+                input sequences, or constraints don't have thresholds set.
         """
         if len(generators) != 1:
             raise ValueError(
@@ -303,10 +303,9 @@ class CyclicalOptimizer(Optimizer):
 
         Validates:
         1. Constructs are valid and non-empty
-        2. target_segment belongs to one of the constructs and is not constant
-        3. Non-target segments must be constant
-        4. Generator is valid
-        5. Constraints (if any) must be filter constraints (have threshold set)
+        2. target_segment belongs to one of the constructs
+        3. Generator is valid (inverse_folding category)
+        4. Constraints (if any) must be filter constraints (have threshold set)
         """
         # Validate constructs
         if not self.constructs:
@@ -323,24 +322,6 @@ class CyclicalOptimizer(Optimizer):
         if self.target_segment not in self.segments:
             raise ValueError(
                 f"target_segment '{self.target_segment.label or 'unlabeled'}' is not in any of the provided constructs"
-            )
-
-        # Validate target_segment is not constant
-        if self.target_segment.constant:
-            raise ValueError(
-                f"target_segment '{self.target_segment.label or 'unlabeled'}' is constant but CyclicalOptimizer requires a non-constant segment"
-            )
-
-        # Validate non-target segments are constant
-        non_target_non_constant = [
-            seg
-            for seg in self.segments
-            if seg is not self.target_segment and not seg.constant
-        ]
-        if non_target_non_constant:
-            labels = [seg.label or "unlabeled" for seg in non_target_non_constant]
-            raise ValueError(
-                f"Non-target segments must be marked as constant: {', '.join(labels)}. Only the target_segment can be optimized."
             )
 
         # Validate generator is inverse_folding category

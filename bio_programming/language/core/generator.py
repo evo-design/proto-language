@@ -4,9 +4,10 @@ Generator base class for the biological programming language.
 Provides the abstract interface for sequence generation algorithms.
 """
 from __future__ import annotations
-from abc import ABC, abstractmethod
+
 import random
 import warnings
+from abc import ABC, abstractmethod
 from typing import Optional
 
 from .segment import Segment
@@ -31,17 +32,20 @@ class Generator(ABC):
     def assign(self, assigned_segment: Segment) -> None:
         """Assign a Segment to the generator.
 
-        For mutation generators, initializes a random starting sequence if none is 
-        provided. Subclasses should call super().assign() first, then perform any 
+        Subclasses should call super().assign() first, then perform any
         additional validation/initialization as necessary.
 
         Raises:
-            ValueError: If segment is constant or has incompatible sequence type.
+            ValueError: If segment is a ligand or has incompatible sequence type.
         """
         from proto_language.language.generator.generator_registry import GeneratorRegistry
 
-        if assigned_segment.constant:
-            raise ValueError(f"Cannot assign constant segment '{assigned_segment.label}' to generator. Constant segments should not be mutated during optimization.")
+        # Ligand segments cannot be mutated by generators
+        if assigned_segment.is_ligand:
+            raise ValueError(
+                f"Cannot assign generator to ligand segment '{assigned_segment.label}'. "
+                "Ligand segments cannot be mutated."
+            )
 
         # Validate sequence type compatibility from registry
         spec = GeneratorRegistry.get(GeneratorRegistry.get_key(self))
