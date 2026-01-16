@@ -25,9 +25,7 @@
             "temperature": 1.0,
             "decoding_method": "random"
           },
-          "targets": [
-            "binder_protein"
-          ]
+          "target": "binder_protein"
         }
       ],
       "constraints": [

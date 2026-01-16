@@ -27,9 +27,7 @@
             "temperature": 0.8,
             "prepend_prompt": true
           },
-          "targets": [
-            "construct1-segment1"
-          ]
+          "target": "construct1-segment1"
         }
       ],
       "constraints": [

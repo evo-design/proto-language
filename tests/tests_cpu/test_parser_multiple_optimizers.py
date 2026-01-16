@@ -34,8 +34,9 @@ def test_parse_single_optimizer():
                 "generators": [
                     {
                         "key": "uniform-mutation",
-                        "targets": ["seg1"],
-                        "config": {                            "num_mutations": 5
+                        "target": "seg1",
+                        "config": {                            
+                            "num_mutations": 5
                         }
                     }
                 ],
@@ -102,8 +103,9 @@ def test_parse_multiple_optimizers():
                 "generators": [
                     {
                         "key": "uniform-mutation",
-                        "targets": ["seg1"],
-                        "config": {                            "num_mutations": 10
+                        "target": "seg1",
+                        "config": {                            
+                            "num_mutations": 10
                         }
                     }
                 ],
@@ -131,8 +133,9 @@ def test_parse_multiple_optimizers():
                 "generators": [
                     {
                         "key": "uniform-mutation",
-                        "targets": ["seg1"],
-                        "config": {                            "num_mutations": 1
+                        "target": "seg1",
+                        "config": {                            
+                            "num_mutations": 1
                         }
                     }
                 ],
@@ -380,13 +383,14 @@ def test_parse_generator_assignment_to_segments():
                 "generators": [
                     {
                         "key": "uniform-mutation",
-                        "targets": ["seg1"],
-                        "config": {                            "num_mutations": 5
+                        "target": "seg1",
+                        "config": {                            
+                            "num_mutations": 5
                         }
                     },
                     {
                         "key": "uniform-mutation",
-                        "targets": ["seg2"],
+                        "target": "seg2",
                         "config": {
                             "num_mutations": 3
                         }
@@ -447,8 +451,9 @@ def test_parse_different_generators_per_stage():
                 "generators": [
                     {
                         "key": "uniform-mutation",
-                        "targets": ["seg1"],
-                        "config": {                            "num_mutations": 10
+                        "target": "seg1",
+                        "config": {                            
+                            "num_mutations": 10
                         }
                     }
                 ],
@@ -472,8 +477,9 @@ def test_parse_different_generators_per_stage():
                 "generators": [
                     {
                         "key": "uniform-mutation",
-                        "targets": ["seg1"],
-                        "config": {                            "num_mutations": 1
+                        "target": "seg1",
+                        "config": {                            
+                            "num_mutations": 1
                         }
                     }
                 ],
@@ -523,7 +529,7 @@ def test_parse_different_constraints_per_stage():
                 "generators": [
                     {
                         "key": "uniform-mutation",
-                        "targets": ["seg1"],
+                        "target": "seg1",
                         "config": {"num_mutations": 1}
                     }
                 ],
@@ -550,7 +556,7 @@ def test_parse_different_constraints_per_stage():
                 "generators": [
                     {
                         "key": "uniform-mutation",
-                        "targets": ["seg1"],
+                        "target": "seg1",
                         "config": {"num_mutations": 1}
                     }
                 ],
@@ -602,8 +608,9 @@ def test_parse_reusable_constraints():
                 "generators": [
                     {
                         "key": "uniform-mutation",
-                        "targets": ["seg1"],
-                        "config": {                            "num_mutations": 10
+                        "target": "seg1",
+                        "config": {                            
+                            "num_mutations": 10
                         }
                     }
                 ],
@@ -630,8 +637,9 @@ def test_parse_reusable_constraints():
                 "generators": [
                     {
                         "key": "uniform-mutation",
-                        "targets": ["seg1"],
-                        "config": {                            "num_mutations": 1
+                        "target": "seg1",
+                        "config": {                            
+                            "num_mutations": 1
                         }
                     }
                 ],

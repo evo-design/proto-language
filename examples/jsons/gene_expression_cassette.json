@@ -33,27 +33,21 @@
           "config": {
             "num_mutations": 2
           },
-          "targets": [
-            "promoter"
-          ]
+          "target": "promoter"
         },
         {
           "key": "uniform-mutation",
           "config": {
             "num_mutations": 3
           },
-          "targets": [
-            "gene"
-          ]
+          "target": "gene"
         },
         {
           "key": "uniform-mutation",
           "config": {
             "num_mutations": 2
           },
-          "targets": [
-            "terminator"
-          ]
+          "target": "terminator"
         }
       ],
       "constraints": [

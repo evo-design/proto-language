@@ -23,9 +23,7 @@
           "config": {
             "debug_with_sleep_calls": true
           },
-          "targets": [
-            "segment1"
-          ]
+          "target": "segment1"
         }
       ],
       "constraints": [

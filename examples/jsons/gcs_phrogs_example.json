@@ -22,9 +22,7 @@
           "config": {
             "num_mutations": 1
           },
-          "targets": [
-            "test_segment"
-          ]
+          "target": "test_segment"
         }
       ],
       "constraints": [

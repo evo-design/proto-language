@@ -89,7 +89,7 @@ class TestProgramSerializer:
         assert len(stage["generators"]) == 1
         gen = stage["generators"][0]
         assert gen["key"] == "uniform-mutation"
-        assert gen["targets"] == ["construct0-segment0"]
+        assert gen["target"] == "construct0-segment0"
         assert gen["config"]["num_mutations"] == 5
 
         # Verify constraint
@@ -181,7 +181,7 @@ class TestProgramSerializer:
                     "generators": [
                         {
                             "key": "uniform-mutation",
-                            "targets": ["seg1"],
+                            "target": "seg1",
                             "config": {"num_mutations": 5},
                         }
                     ],
@@ -281,9 +281,9 @@ class TestProgramSerializer:
 
         # Verify generator targets
         generators = result["optimization_stages"][0]["generators"]
-        assert generators[0]["targets"] == ["construct0-segment0"]
-        assert generators[1]["targets"] == ["construct0-segment1"]
-        assert generators[2]["targets"] == ["construct1-segment0"]
+        assert generators[0]["target"] == "construct0-segment0"
+        assert generators[1]["target"] == "construct0-segment1"
+        assert generators[2]["target"] == "construct1-segment0"
 
     def test_segment_with_sequence(self):
         """Test serialization of segment with sequence instead of length."""
@@ -469,7 +469,7 @@ class TestProgramSerializer:
                     "generators": [
                         {
                             "key": "uniform-mutation",
-                            "targets": ["seg1"],
+                            "target": "seg1",
                             "config": {"num_mutations": 10},
                         }
                     ],
@@ -493,7 +493,7 @@ class TestProgramSerializer:
                     "generators": [
                         {
                             "key": "uniform-mutation",
-                            "targets": ["seg1"],
+                            "target": "seg1",
                             "config": {"num_mutations": 1},
                         }
                     ],

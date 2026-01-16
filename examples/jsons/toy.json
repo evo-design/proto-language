@@ -19,9 +19,7 @@
       "generators": [
         {
           "key": "uniform-mutation",
-          "targets": [
-            "construct1-segment1"
-          ],
+          "target": "construct1-segment1",
           "config": {
             "num_mutations": 1
           }

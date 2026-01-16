@@ -19,9 +19,7 @@
       "generators": [
         {
           "key": "uniform-mutation",
-          "targets": [
-            "seq1"
-          ],
+          "target": "seq1",
           "config": {
             "num_mutations": 10
           }
@@ -53,9 +51,7 @@
       "generators": [
         {
           "key": "uniform-mutation",
-          "targets": [
-            "seq1"
-          ],
+          "target": "seq1",
           "config": {
             "num_mutations": 1
           }
