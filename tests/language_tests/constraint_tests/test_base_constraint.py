@@ -225,7 +225,6 @@ class TestConstraintValidation:
         """Test that validation checks sequence types for all input segments."""
         # Even with concatenate=False, all segments should be validated
         dna_seg = Segment(sequence="ATCGATCG", sequence_type="dna")
-        protein_seg = Segment(sequence="MVLSPADKTN", sequence_type="protein")
 
         # protein_only constraint with DNA segment should fail
         with pytest.raises(ValueError, match="does not support sequence type 'dna'"):
