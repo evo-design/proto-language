@@ -15,7 +15,7 @@
       ]
     }
   ],
-  "optimization_steps": [
+  "optimization_stages": [
     {
       "generators": [
         {

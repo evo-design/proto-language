@@ -66,7 +66,7 @@ class Optimizer(ABC):
             clear_tool_cache: (int) Maximum size of cache in bytes, defaults to 100 MB.
                               (bool) Whether to clear the tool cache on each iteration.
                               (List[str]) Restrict clearing cache to a list of tool names.
-            custom_logging: Optional callback called after each optimization step with
+            custom_logging: Optional callback called after each iteration with
                 signature ``(step: int, segments: tuple) -> None``.
             verbose: Whether to print detailed progress information. Default: False.
         """

@@ -61,7 +61,7 @@ class TestProgramSerializer:
 
         # Verify structure
         assert "constructs" in result
-        assert "optimization_steps" in result
+        assert "optimization_stages" in result
         assert "verbose" in result
 
         # Verify construct
@@ -77,24 +77,24 @@ class TestProgramSerializer:
         assert "length" in seg
         assert seg["length"] == 20
 
-        # Verify optimization step
-        assert len(result["optimization_steps"]) == 1
-        step = result["optimization_steps"][0]
-        assert step["optimizer"]["method"] == "topk"
-        assert step["optimizer"]["config"]["num_samples"] == 10
-        assert step["optimizer"]["config"]["k"] == 3
-        assert step["optimizer"]["config"]["batch_size"] == 2
+        # Verify optimization stage
+        assert len(result["optimization_stages"]) == 1
+        stage = result["optimization_stages"][0]
+        assert stage["optimizer"]["method"] == "topk"
+        assert stage["optimizer"]["config"]["num_samples"] == 10
+        assert stage["optimizer"]["config"]["k"] == 3
+        assert stage["optimizer"]["config"]["batch_size"] == 2
 
         # Verify generator
-        assert len(step["generators"]) == 1
-        gen = step["generators"][0]
+        assert len(stage["generators"]) == 1
+        gen = stage["generators"][0]
         assert gen["key"] == "uniform-mutation"
         assert gen["targets"] == ["construct0-segment0"]
         assert gen["config"]["num_mutations"] == 5
 
         # Verify constraint
-        assert len(step["constraints"]) == 1
-        con = step["constraints"][0]
+        assert len(stage["constraints"]) == 1
+        con = stage["constraints"][0]
         assert con["key"] == "gc-content"
         assert con["targets"] == ["construct0-segment0"]
         assert con["config"]["min_gc"] == 40
@@ -148,20 +148,20 @@ class TestProgramSerializer:
         # Serialize
         result = serialize_program(program)
 
-        # Verify two optimization steps
-        assert len(result["optimization_steps"]) == 2
+        # Verify two optimization stages
+        assert len(result["optimization_stages"]) == 2
 
-        # Verify first step
-        step1 = result["optimization_steps"][0]
-        assert step1["optimizer"]["method"] == "topk"
-        assert step1["generators"][0]["config"]["num_mutations"] == 10
-        assert step1["constraints"][0]["config"]["min_gc"] == 50
+        # Verify first stage
+        stage1 = result["optimization_stages"][0]
+        assert stage1["optimizer"]["method"] == "topk"
+        assert stage1["generators"][0]["config"]["num_mutations"] == 10
+        assert stage1["constraints"][0]["config"]["min_gc"] == 50
 
-        # Verify second step
-        step2 = result["optimization_steps"][1]
-        assert step2["optimizer"]["method"] == "mcmc"
-        assert step2["generators"][0]["config"]["num_mutations"] == 1
-        assert step2["constraints"][0]["config"]["min_gc"] == 80
+        # Verify second stage
+        stage2 = result["optimization_stages"][1]
+        assert stage2["optimizer"]["method"] == "mcmc"
+        assert stage2["generators"][0]["config"]["num_mutations"] == 1
+        assert stage2["constraints"][0]["config"]["min_gc"] == 80
 
     def test_round_trip_serialization(self):
         """Test that JSON -> Program -> JSON produces equivalent output."""
@@ -172,7 +172,7 @@ class TestProgramSerializer:
                     "segments": [{"id": "seg1", "label": "segment1", "length": 20}],
                 }
             ],
-            "optimization_steps": [
+            "optimization_stages": [
                 {
                     "optimizer": {
                         "method": "topk",
@@ -207,32 +207,32 @@ class TestProgramSerializer:
         # Verify key fields match
         assert result_json["verbose"] == original_json["verbose"]
         assert len(result_json["constructs"]) == len(original_json["constructs"])
-        assert len(result_json["optimization_steps"]) == len(
-            original_json["optimization_steps"]
+        assert len(result_json["optimization_stages"]) == len(
+            original_json["optimization_stages"]
         )
 
         # Verify construct type
         assert result_json["constructs"][0]["type"] == "DNA"
 
         # Verify optimizer config
-        orig_opt = original_json["optimization_steps"][0]["optimizer"]
-        result_opt = result_json["optimization_steps"][0]["optimizer"]
+        orig_opt = original_json["optimization_stages"][0]["optimizer"]
+        result_opt = result_json["optimization_stages"][0]["optimizer"]
         assert result_opt["method"] == orig_opt["method"]
         assert result_opt["config"]["num_samples"] == orig_opt["config"]["num_samples"]
         assert result_opt["config"]["k"] == orig_opt["config"]["k"]
         assert result_opt["config"]["batch_size"] == orig_opt["config"]["batch_size"]
 
         # Verify generator config
-        orig_gen = original_json["optimization_steps"][0]["generators"][0]
-        result_gen = result_json["optimization_steps"][0]["generators"][0]
+        orig_gen = original_json["optimization_stages"][0]["generators"][0]
+        result_gen = result_json["optimization_stages"][0]["generators"][0]
         assert result_gen["key"] == orig_gen["key"]
         assert (
             result_gen["config"]["num_mutations"] == orig_gen["config"]["num_mutations"]
         )
 
         # Verify constraint config
-        orig_con = original_json["optimization_steps"][0]["constraints"][0]
-        result_con = result_json["optimization_steps"][0]["constraints"][0]
+        orig_con = original_json["optimization_stages"][0]["constraints"][0]
+        result_con = result_json["optimization_stages"][0]["constraints"][0]
         assert result_con["key"] == orig_con["key"]
         assert result_con["config"]["min_gc"] == orig_con["config"]["min_gc"]
         assert result_con["config"]["max_gc"] == orig_con["config"]["max_gc"]
@@ -280,7 +280,7 @@ class TestProgramSerializer:
         assert result["constructs"][1]["segments"][0]["id"] == "construct1-segment0"
 
         # Verify generator targets
-        generators = result["optimization_steps"][0]["generators"]
+        generators = result["optimization_stages"][0]["generators"]
         assert generators[0]["targets"] == ["construct0-segment0"]
         assert generators[1]["targets"] == ["construct0-segment1"]
         assert generators[2]["targets"] == ["construct1-segment0"]
@@ -383,7 +383,7 @@ class TestProgramSerializer:
         program = Program(optimizers=[optimizer])
         result = serialize_program(program)
 
-        con = result["optimization_steps"][0]["constraints"][0]
+        con = result["optimization_stages"][0]["constraints"][0]
         assert len(con["targets"]) == 2
         assert "construct0-segment0" in con["targets"]
         assert "construct0-segment1" in con["targets"]
@@ -415,7 +415,7 @@ class TestProgramSerializer:
         program = Program(optimizers=[optimizer])
         result = serialize_program(program)
 
-        con = result["optimization_steps"][0]["constraints"][0]
+        con = result["optimization_stages"][0]["constraints"][0]
         assert con["label"] == "my_custom_gc_constraint"
 
     def test_serialize_program_function(self):
@@ -460,7 +460,7 @@ class TestProgramSerializer:
                     "segments": [{"id": "seg1", "label": "sequence1", "length": 20}],
                 }
             ],
-            "optimization_steps": [
+            "optimization_stages": [
                 {
                     "optimizer": {
                         "method": "topk",
@@ -516,23 +516,23 @@ class TestProgramSerializer:
         # Serialize back to JSON
         result_json = serialize_program(program)
 
-        # Verify two optimization steps
-        assert len(result_json["optimization_steps"]) == 2
+        # Verify two optimization stages
+        assert len(result_json["optimization_stages"]) == 2
 
         # Verify first optimizer
-        step1 = result_json["optimization_steps"][0]
-        assert step1["optimizer"]["method"] == "topk"
-        assert step1["optimizer"]["config"]["num_samples"] == 10
-        assert step1["generators"][0]["config"]["num_mutations"] == 10
-        assert step1["constraints"][0]["config"]["min_gc"] == 50
+        stage1 = result_json["optimization_stages"][0]
+        assert stage1["optimizer"]["method"] == "topk"
+        assert stage1["optimizer"]["config"]["num_samples"] == 10
+        assert stage1["generators"][0]["config"]["num_mutations"] == 10
+        assert stage1["constraints"][0]["config"]["min_gc"] == 50
 
         # Verify second optimizer
-        step2 = result_json["optimization_steps"][1]
-        assert step2["optimizer"]["method"] == "mcmc"
-        assert step2["optimizer"]["config"]["num_selected"] == 1
-        assert step2["optimizer"]["config"]["mcmc_width"] == 20
-        assert step2["generators"][0]["config"]["num_mutations"] == 1
-        assert step2["constraints"][0]["config"]["min_gc"] == 80
+        stage2 = result_json["optimization_stages"][1]
+        assert stage2["optimizer"]["method"] == "mcmc"
+        assert stage2["optimizer"]["config"]["num_selected"] == 1
+        assert stage2["optimizer"]["config"]["mcmc_width"] == 20
+        assert stage2["generators"][0]["config"]["num_mutations"] == 1
+        assert stage2["constraints"][0]["config"]["min_gc"] == 80
 
     def test_verbose_flag_preserved(self):
         """Test that verbose flag is correctly serialized."""

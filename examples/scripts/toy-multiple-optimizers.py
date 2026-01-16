@@ -19,7 +19,7 @@ seq1 = Segment(length=20, sequence_type="dna")
 construct = Construct([seq1])
 
 
-# OPTIMIZATION STEP 1 
+# OPTIMIZATION STAGE 1 
 
 # Generator
 uniform_gen_config_1 = UniformMutationGeneratorConfig(
@@ -62,7 +62,7 @@ optimizer_1 = TopKOptimizer(
 
 )
 
-# OPTIMIZATION STEP 2
+# OPTIMIZATION STAGE 2
 
 # Generator
 uniform_gen_config_2 = UniformMutationGeneratorConfig(

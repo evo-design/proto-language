@@ -21,7 +21,7 @@ def test_parse_single_optimizer():
                 "segments": [{"id": "seg1", "label": "segment1", "length": 20}]
             }
         ],
-        "optimization_steps": [
+        "optimization_stages": [
             {
                 "optimizer": {
                     "method": "topk",
@@ -89,7 +89,7 @@ def test_parse_multiple_optimizers():
                 "segments": [{"id": "seg1", "label": "sequence1", "length": 20}]
             }
         ],
-        "optimization_steps": [
+        "optimization_stages": [
             {
                 "optimizer": {
                     "method": "topk",
@@ -182,7 +182,7 @@ def test_parse_multiple_optimizers():
 
 
 def test_parse_missing_optimizations_field():
-    """Test error handling when 'optimization_steps' field is missing."""
+    """Test error handling when 'optimization_stages' field is missing."""
     json_data = {
         "name": "missing_optimizations",
         "constructs": [
@@ -195,12 +195,12 @@ def test_parse_missing_optimizations_field():
 
     parser = DarwinParser(json_data)
 
-    with pytest.raises(ValueError, match="JSON must include 'optimization_steps' array"):
+    with pytest.raises(ValueError, match="JSON must include 'optimization_stages' array"):
         parser.parse()
 
 
 def test_parse_empty_optimizations_array():
-    """Test error handling when 'optimization_steps' array is empty."""
+    """Test error handling when 'optimization_stages' array is empty."""
     json_data = {
         "name": "empty_optimizations",
         "constructs": [
@@ -209,7 +209,7 @@ def test_parse_empty_optimizations_array():
                 "segments": [{"id": "seg1", "length": 20}]
             }
         ],
-        "optimization_steps": []
+        "optimization_stages": []
     }
 
     parser = DarwinParser(json_data)
@@ -228,7 +228,7 @@ def test_parse_missing_method_in_stage():
                 "segments": [{"id": "seg1", "length": 20}]
             }
         ],
-        "optimization_steps": [
+        "optimization_stages": [
             {
                 "optimizer": {
                     "config": {}
@@ -255,7 +255,7 @@ def test_parse_missing_config_in_stage():
                 "segments": [{"id": "seg1", "length": 20}]
             }
         ],
-        "optimization_steps": [
+        "optimization_stages": [
             {
                 "optimizer": {
                     "method": "topk"
@@ -282,7 +282,7 @@ def test_parse_missing_generators_in_stage():
                 "segments": [{"id": "seg1", "length": 20}]
             }
         ],
-        "optimization_steps": [
+        "optimization_stages": [
             {
                 "optimizer": {
                     "method": "topk",
@@ -309,7 +309,7 @@ def test_parse_missing_constraints_in_stage():
                 "segments": [{"id": "seg1", "length": 20}]
             }
         ],
-        "optimization_steps": [
+        "optimization_stages": [
             {
                 "optimizer": {
                     "method": "topk",
@@ -336,7 +336,7 @@ def test_parse_unknown_optimizer_method():
                 "segments": [{"id": "seg1", "length": 20}]
             }
         ],
-        "optimization_steps": [
+        "optimization_stages": [
             {
                 "optimizer": {
                     "method": "invalid_optimizer",
@@ -367,7 +367,7 @@ def test_parse_generator_assignment_to_segments():
                 ]
             }
         ],
-        "optimization_steps": [
+        "optimization_stages": [
             {
                 "optimizer": {
                     "method": "topk",
@@ -434,7 +434,7 @@ def test_parse_different_generators_per_stage():
                 "segments": [{"id": "seg1", "label": "sequence1", "length": 20}]
             }
         ],
-        "optimization_steps": [
+        "optimization_stages": [
             {
                 "optimizer": {
                     "method": "topk",
@@ -510,7 +510,7 @@ def test_parse_different_constraints_per_stage():
                 "segments": [{"id": "seg1", "label": "sequence1", "length": 20}]
             }
         ],
-        "optimization_steps": [
+        "optimization_stages": [
             {
                 "optimizer": {
                     "method": "topk",
@@ -589,7 +589,7 @@ def test_parse_reusable_constraints():
                 "segments": [{"id": "seg1", "label": "sequence1", "length": 20}]
             }
         ],
-        "optimization_steps": [
+        "optimization_stages": [
             {
                 "optimizer": {
                     "method": "topk",
