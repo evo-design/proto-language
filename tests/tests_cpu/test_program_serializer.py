@@ -281,9 +281,9 @@ class TestProgramSerializer:
 
         # Verify generator targets
         generators = result["optimization_stages"][0]["generators"]
-        assert generators[0]["target"] == ["construct0-segment0"]
-        assert generators[1]["target"] == ["construct0-segment1"]
-        assert generators[2]["target"] == ["construct1-segment0"]
+        assert generators[0]["target"] == "construct0-segment0"
+        assert generators[1]["target"] == "construct0-segment1"
+        assert generators[2]["target"] == "construct1-segment0"
 
     def test_segment_with_sequence(self):
         """Test serialization of segment with sequence instead of length."""
