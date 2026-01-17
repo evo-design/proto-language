@@ -50,9 +50,7 @@ DESIGN_LENGTH = 100      # Length of the protein to design
 STRUCTURE_TOOL = "boltz" # Structure prediction tool: "boltz", "chai", "alphafold3"
 
 # Tool-specific configuration for structure prediction
-TOOL_CONFIG = {
-    "use_msa_server": False,
-}
+TOOL_CONFIG = {} # use all default values
 
 
 # =============================================================================
