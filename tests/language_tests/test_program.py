@@ -110,24 +110,46 @@ class TestProgramRestart:
 
     def test_program_restores_from_opt1_initial_state(self):
         """Test that re-running restores state from opt1's captured initial."""
-        program = _create_simple_program(num_stages=1)
+        original_seq = "ATGCATGCATGCATGCATGC"
+        program = _create_simple_program(num_stages=1, sequence=original_seq)
 
         # First run
         program.run()
         assert program.optimizers[0]._initial_state is not None
+        
+        # Verify captured state contains original sequence
+        segment = program.constructs[0].segments[0]
+        seg_id = id(segment)
+        captured_state = program.optimizers[0]._initial_state['segments'][seg_id]
+        captured_selected = captured_state['selected']
+        captured_candidates = captured_state['candidates']
+        
+        # Verify captured sequences match original
+        assert len(captured_selected) == 1
+        assert captured_selected[0].sequence == original_seq
+        assert len(captured_candidates) > 0
+        assert all(c.sequence == original_seq for c in captured_candidates)
 
         # Manually modify sequences
-        for seq in program.constructs[0].segments[0].selected_sequences:
+        for seq in segment.selected_sequences:
             seq.sequence = "MODIFIED_SEQUENCE_123"
+        for seq in segment.candidate_sequences:
+            seq.sequence = "MODIFIED_CANDIDATE_12"
 
         # Second run should restore from opt1's initial state
         program.run()
 
         # Sequences should not remain as "MODIFIED" (they were restored before running)
         current_sequences = [
-            seq.sequence for seq in program.constructs[0].segments[0].selected_sequences
+            seq.sequence for seq in segment.selected_sequences
         ]
         assert all("MODIFIED" not in seq for seq in current_sequences)
+        
+        # Verify candidates were also restored
+        candidate_sequences = [
+            seq.sequence for seq in segment.candidate_sequences
+        ]
+        assert all("MODIFIED" not in seq for seq in candidate_sequences)
 
 
 class TestRunStageRestart:

@@ -7,7 +7,6 @@ performs beam search, accumulating KV cache state across beams.
 
 from __future__ import annotations
 
-import copy
 import math
 import sys
 from dataclasses import dataclass, field

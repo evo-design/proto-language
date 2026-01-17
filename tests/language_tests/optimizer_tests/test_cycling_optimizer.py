@@ -547,15 +547,13 @@ class TestCyclingOptimizerRestart:
         assert len(optimizer.history) == 3  # step 0, 1, 2
 
     def test_initial_state_captured_correctly(self):
-        """Test that initial state captures segment state."""
+        """Test that initial state captures segment state with actual sequence content."""
         components = _setup_cycling_components(num_steps=1, num_candidates=2)
 
         def mock_sample(structure_inputs=None):
             pass  # Don't modify sequences
 
         components["generator"].sample = mock_sample
-
-        original_seq = components["target_segment"].candidate_sequences[0].sequence
 
         optimizer = CyclingOptimizer(
             target_segment=components["target_segment"],
@@ -566,9 +564,29 @@ class TestCyclingOptimizerRestart:
             conditioning_fn=components["conditioning_fn"],
         )
 
+        # Capture original sequences before run
+        original_selected = [copy.deepcopy(s) for s in components["target_segment"].selected_sequences]
+        original_candidates = [copy.deepcopy(s) for s in components["target_segment"].candidate_sequences]
+
         optimizer.run()
 
         # Verify state was captured
         assert optimizer._initial_state is not None
         seg_id = id(components["target_segment"])
         assert seg_id in optimizer._initial_state['segments']
+        
+        # Verify captured state contains actual sequence content
+        captured_selected = optimizer._initial_state['segments'][seg_id]['selected']
+        captured_candidates = optimizer._initial_state['segments'][seg_id]['candidates']
+        
+        assert len(captured_selected) == len(original_selected)
+        assert len(captured_candidates) == len(original_candidates)
+        
+        # Verify sequences match
+        for orig, captured in zip(original_selected, captured_selected):
+            assert orig.sequence == captured.sequence
+            assert orig.sequence_type == captured.sequence_type
+            
+        for orig, captured in zip(original_candidates, captured_candidates):
+            assert orig.sequence == captured.sequence
+            assert orig.sequence_type == captured.sequence_type

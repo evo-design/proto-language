@@ -815,17 +815,39 @@ class TestMCMCOptimizer:
             seq_length=20, num_mcmc_steps=5
         )
 
+        # Capture original state before any run
+        original_seq = segment.selected_sequences[0].sequence
+        assert original_seq == "A" * 20  # Initial sequence
+
         # First run
         optimizer.run()
         first_run_final_seq = segment.selected_sequences[0].sequence
 
-        # Verify state was captured
+        # Verify state was captured with correct content
         assert optimizer._initial_state is not None
+        seg_id = id(segment)
+        assert seg_id in optimizer._initial_state['segments']
+        
+        # Verify captured state contains original sequence
+        captured_selected = optimizer._initial_state['segments'][seg_id]['selected']
+        assert len(captured_selected) == 1
+        assert captured_selected[0].sequence == original_seq
+        
+        # Verify energy scores were captured
+        assert 'energy_scores' in optimizer._initial_state
+        assert len(optimizer._initial_state['energy_scores']) == optimizer.num_candidates
 
-        # Second run should restart from initial state
+        # Manually modify the sequence to verify restore works
+        segment.selected_sequences[0].sequence = "MODIFIED_SEQUENCE_123"
+        segment.candidate_sequences[0].sequence = "MODIFIED_CANDIDATE_12"
+
+        # Second run should restore from initial state (original "AAAA...")
         optimizer.run()
         second_run_final_seq = segment.selected_sequences[0].sequence
 
-        # Both runs should start from "AAAA..." (initial state)
-        # The final sequences may differ due to randomness, but history should be fresh
-        assert len(optimizer.history) > 0  # History populated from second run only
+        # Verify sequences were restored (not "MODIFIED")
+        assert "MODIFIED" not in second_run_final_seq
+        
+        # Both runs should have started from original state
+        # History should be fresh (cleared on restart)
+        assert len(optimizer.history) > 0
