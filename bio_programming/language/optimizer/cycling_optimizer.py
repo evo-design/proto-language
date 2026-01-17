@@ -204,6 +204,8 @@ class CyclingOptimizer(Optimizer):
 
     def run(self) -> None:
         """Execute the cycling optimization loop."""
+        self._prepare_run()
+
         if self.verbose:
             print(f"CyclingOptimizer: {self.num_steps} steps, {self.num_candidates} candidates")
         self._save_progress_snapshot(time_step=0)

@@ -392,3 +392,71 @@ class TestProgressSnapshot:
         assert "constructs" in snapshot
         # Should be deep copy
         assert snapshot["constructs"] is not optimizer.constructs
+
+
+class TestStateRestartBehavior:
+    """Tests for optimizer state capture and restore on re-run."""
+
+    def test_prepare_run_captures_state_on_first_call(self):
+        """Tests that _prepare_run captures state on first call."""
+        construct, generator, constraint, segment = _setup_optimizer_components(num_candidates=2)
+        optimizer = ConcreteOptimizer([construct], [generator], [constraint], 2, 2)
+
+        assert optimizer._initial_state is None
+
+        optimizer._prepare_run()
+
+        assert optimizer._initial_state is not None
+        assert 'segments' in optimizer._initial_state
+        assert 'energy_scores' in optimizer._initial_state
+
+    def test_prepare_run_restores_state_on_subsequent_calls(self):
+        """Tests that _prepare_run restores state on subsequent calls."""
+        construct, generator, constraint, segment = _setup_optimizer_components(num_candidates=2)
+        optimizer = ConcreteOptimizer([construct], [generator], [constraint], 2, 2)
+
+        # Capture initial state
+        original_seq = segment.candidate_sequences[0].sequence
+        optimizer._prepare_run()
+
+        # Modify state
+        segment.candidate_sequences[0].sequence = "GGGG"
+        segment.selected_sequences[0].sequence = "CCCC"
+        optimizer.energy_scores = [999.0, 999.0]
+        optimizer.history = [{"test": "data"}]
+
+        # Restore
+        optimizer._prepare_run()
+
+        # Verify state restored
+        assert segment.candidate_sequences[0].sequence == original_seq
+        assert segment.selected_sequences[0].sequence == original_seq
+        assert optimizer.energy_scores == [float("inf"), float("inf")]
+        assert optimizer.history == []
+
+    def test_restore_initial_state_clears_history(self):
+        """Tests that _restore_initial_state clears history."""
+        construct, generator, constraint, _ = _setup_optimizer_components(num_candidates=2)
+        optimizer = ConcreteOptimizer([construct], [generator], [constraint], 2, 2)
+
+        optimizer._capture_initial_state()
+        optimizer.history = [{"step": 1}, {"step": 2}]
+
+        optimizer._restore_initial_state()
+
+        assert optimizer.history == []
+
+    def test_state_independence_via_deepcopy(self):
+        """Tests that captured state is independent of current state."""
+        construct, generator, constraint, segment = _setup_optimizer_components(num_candidates=2)
+        optimizer = ConcreteOptimizer([construct], [generator], [constraint], 2, 2)
+
+        optimizer._capture_initial_state()
+
+        # Modify current state
+        segment.candidate_sequences[0].sequence = "XXXX"
+
+        # Captured state should be unchanged
+        seg_id = id(segment)
+        captured_seq = optimizer._initial_state['segments'][seg_id]['candidates'][0].sequence
+        assert captured_seq == "ATCG"

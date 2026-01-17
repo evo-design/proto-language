@@ -497,3 +497,78 @@ class TestCyclingOptimizerGPU:
         assert len(target_segment.selected_sequences) == 2
         for seq in target_segment.selected_sequences:
             assert len(seq.sequence) > 10
+
+
+# =============================================================================
+# State Restart Tests
+# =============================================================================
+
+
+class TestCyclingOptimizerRestart:
+    """Tests for CyclingOptimizer state restart behavior."""
+
+    def test_run_restarts_from_initial_state(self):
+        """Test that calling run() twice restarts from initial state."""
+        components = _setup_cycling_components(num_steps=2, num_candidates=2)
+
+        # Mock the generator.sample to track calls and modify sequences
+        call_count = [0]
+        def mock_sample(structure_inputs=None):
+            call_count[0] += 1
+            for c in components["target_segment"].candidate_sequences:
+                c.sequence = f"SAMPLE{call_count[0]:014d}"  # 20 chars total
+
+        components["generator"].sample = mock_sample
+
+        optimizer = CyclingOptimizer(
+            target_segment=components["target_segment"],
+            constructs=[components["construct"]],
+            generators=[components["generator"]],
+            constraints=[],
+            config=components["config"],
+            conditioning_fn=components["conditioning_fn"],
+        )
+
+        # First run
+        optimizer.run()
+        assert optimizer._initial_state is not None
+        first_run_calls = call_count[0]
+        first_run_seqs = [s.sequence for s in components["target_segment"].selected_sequences]
+
+        # Second run should restart - call count continues but state is fresh
+        optimizer.run()
+        assert call_count[0] > first_run_calls
+        second_run_seqs = [s.sequence for s in components["target_segment"].selected_sequences]
+        
+        # Verify sequences were modified (mock changes them)
+        assert all("SAMPLE" in seq for seq in first_run_seqs)
+        assert all("SAMPLE" in seq for seq in second_run_seqs)
+        # History should be from second run only (cleared on restart)
+        assert len(optimizer.history) == 3  # step 0, 1, 2
+
+    def test_initial_state_captured_correctly(self):
+        """Test that initial state captures segment state."""
+        components = _setup_cycling_components(num_steps=1, num_candidates=2)
+
+        def mock_sample(structure_inputs=None):
+            pass  # Don't modify sequences
+
+        components["generator"].sample = mock_sample
+
+        original_seq = components["target_segment"].candidate_sequences[0].sequence
+
+        optimizer = CyclingOptimizer(
+            target_segment=components["target_segment"],
+            constructs=[components["construct"]],
+            generators=[components["generator"]],
+            constraints=[],
+            config=components["config"],
+            conditioning_fn=components["conditioning_fn"],
+        )
+
+        optimizer.run()
+
+        # Verify state was captured
+        assert optimizer._initial_state is not None
+        seg_id = id(components["target_segment"])
+        assert seg_id in optimizer._initial_state['segments']

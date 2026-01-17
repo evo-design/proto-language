@@ -208,6 +208,45 @@ class TestTopKOptimizerStandardMode:
             diff_count = sum(1 for a, b in zip(initial_seq, seq) if a != b)
             assert diff_count == 1, f"Expected 1 mutation, got {diff_count} differences"
 
+    def test_run_restarts_from_initial_state(self):
+        """Test that calling run() twice restarts from initial state."""
+        segment = Segment(sequence="ATCGATCG", sequence_type="dna")
+        construct = Construct([segment])
+
+        gen = UniformMutationGenerator(
+            UniformMutationGeneratorConfig(num_mutations=1)
+        )
+        gen.assign(segment)
+
+        constraint = Constraint(
+            inputs=[segment],
+            function=sequence_length_constraint,
+            function_config={"target_length": 8},
+        )
+
+        config = TopKOptimizerConfig(
+            num_samples=5,
+            k=3,
+            batch_size=1,
+            verbose=False
+        )
+        optimizer = TopKOptimizer(
+            constructs=[construct],
+            generators=[gen],
+            constraints=[constraint],
+            config=config,
+        )
+
+        # First run
+        optimizer.run()
+        assert len(segment.selected_sequences) == 3
+        assert optimizer._initial_state is not None
+
+        # Second run should restart - heap should be cleared
+        optimizer.run()
+        assert len(segment.selected_sequences) == 3
+        assert len(optimizer._energy_heap) == 3  # Rebuilt from scratch
+
     def test_topk_with_batch_size(self):
         """Test TopK with batch_size > 1 for efficient batching."""
         segment = Segment(sequence="ATCGATCG", sequence_type="dna")

@@ -808,3 +808,24 @@ class TestMCMCOptimizer:
         assert len(optimizer.energy_scores) == optimizer.num_candidates
         assert len(segment1.selected_sequences) == num_selected
         assert len(segment2.selected_sequences) == num_selected
+
+    def test_run_restarts_from_initial_state(self):
+        """Tests that calling run() twice restarts from initial state."""
+        optimizer, _, _, segment = _setup_mcmc_components(
+            seq_length=20, num_mcmc_steps=5
+        )
+
+        # First run
+        optimizer.run()
+        first_run_final_seq = segment.selected_sequences[0].sequence
+
+        # Verify state was captured
+        assert optimizer._initial_state is not None
+
+        # Second run should restart from initial state
+        optimizer.run()
+        second_run_final_seq = segment.selected_sequences[0].sequence
+
+        # Both runs should start from "AAAA..." (initial state)
+        # The final sequences may differ due to randomness, but history should be fresh
+        assert len(optimizer.history) > 0  # History populated from second run only

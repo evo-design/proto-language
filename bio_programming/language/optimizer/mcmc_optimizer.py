@@ -234,6 +234,8 @@ class MCMCOptimizer(Optimizer):
             - Total proposals per step: num_selected x mcmc_width
             - Snapshots of constructs at tracked timesteps are stored in self.history.
         """
+        self._prepare_run()
+
         # Score initial state if sequences are non-empty (skip for autoregressive generators like ProGen2)
         if any(seq.sequence for segment in self.segments for seq in segment.candidate_sequences):
             self.score_energy()

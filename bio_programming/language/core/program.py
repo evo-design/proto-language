@@ -203,8 +203,13 @@ class Program:
 
         Also prints final state after all optimizers complete.
         """
+        # On re-run, restore segments from opt1's initial state (the original state)
+        if self.optimizers[0]._initial_state is not None:
+            self.optimizers[0]._restore_initial_state()
+
         for optimizer_idx, optimizer in enumerate(self.optimizers):
             optimizer._initialize_sequence_pools()
+            optimizer._initial_state = None  # Force re-capture for this pipeline run
 
             # Run this optimizer
             optimizer.run()
@@ -269,7 +274,12 @@ class Program:
 
         optimizer = self.optimizers[stage_index]
 
+        # On re-run of first stage, restore segments from opt1's initial state
+        if stage_index == 0 and optimizer._initial_state is not None:
+            optimizer._restore_initial_state()
+
         optimizer._initialize_sequence_pools()
+        optimizer._initial_state = None  # Force re-capture for this pipeline run
 
         optimizer.run()
 

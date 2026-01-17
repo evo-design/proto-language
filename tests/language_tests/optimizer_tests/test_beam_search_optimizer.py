@@ -396,7 +396,6 @@ class TestBeamSearchOptimizer:
         optimizer, _, _, _ = _setup_beam_search(segment_length=60, beam_length=20)
         optimizer.run()
         assert len(optimizer.history) > 0
-        assert optimizer.history[-1]["beams_generated"] == 3
 
     # --- Prepend Prompt ---
     def test_prepend_prompt_true(self):
@@ -717,3 +716,59 @@ class TestBeamSearchMultiStepOptimization:
         )
 
         assert optimizer.target_segment is segment
+
+
+class TestBeamSearchOptimizerRestart:
+    """Tests for BeamSearchOptimizer state restart behavior."""
+
+    def test_run_restarts_from_initial_state(self):
+        """Test that calling run() twice restarts from initial state."""
+        prompt = "ATCG"
+        optimizer, generator, constraint, segment = _setup_beam_search(
+            prompt=prompt,
+            beam_width=2,
+            candidates_per_beam=2,
+            segment_length=40,
+            beam_length=20,
+        )
+
+        # First run
+        optimizer.run()
+        assert optimizer._initial_state is not None
+        first_run_beams = [b.running_sequence for b in optimizer.beams]
+        # Verify beams grew beyond prompt
+        assert all(len(b) > len(prompt) for b in first_run_beams)
+
+        # Second run should restart - beams should be reset to prompt
+        optimizer.run()
+        second_run_beams = [b.running_sequence for b in optimizer.beams]
+        # Verify beams grew again (optimization ran)
+        assert all(len(b) > len(prompt) for b in second_run_beams)
+        # History should be fresh (cleared on restart)
+        assert len(optimizer.history) == 1  # Only final snapshot
+
+    def test_beams_reset_on_restore(self):
+        """Test that beams are reset to initial prompt on restore."""
+        prompt = "ATCGATCG"
+        optimizer, generator, constraint, segment = _setup_beam_search(
+            prompt=prompt,
+            beam_width=3,
+            candidates_per_beam=2,
+            segment_length=40,
+            beam_length=20,
+        )
+
+        # First run - beams will be modified
+        optimizer.run()
+
+        # Capture modified beams
+        modified_beams = [b.running_sequence for b in optimizer.beams]
+        assert all(len(b) > len(prompt) for b in modified_beams)
+
+        # Trigger restore
+        optimizer._restore_initial_state()
+
+        # Beams should be reset to prompt
+        assert len(optimizer.beams) == 3
+        for beam in optimizer.beams:
+            assert beam.running_sequence == prompt

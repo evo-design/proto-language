@@ -80,6 +80,7 @@ class Optimizer(ABC):
         self.verbose = verbose
         self.energy_scores: List[float] = [float("inf")] * num_candidates  # Initialized to inf (unscored)
         self.history: List[Dict[str, Any]] = []
+        self._initial_state: Optional[Dict] = None  # Captured on first run() for restart
 
         # Default value for progress tracking (can be overridden by subclasses)
         self.num_steps: int = 1
@@ -350,3 +351,32 @@ class Optimizer(ABC):
             segment.candidate_sequences = [
                 copy.deepcopy(best_seq) for _ in range(self.num_candidates)
             ]
+
+    def _prepare_run(self) -> None:
+        """Call at start of run(). Captures state on first run, restores on subsequent."""
+        if self._initial_state is None:
+            self._capture_initial_state()
+        else:
+            self._restore_initial_state()
+
+    def _capture_initial_state(self) -> None:
+        """Capture current segment and optimizer state."""
+        self._initial_state = {
+            'segments': {
+                id(seg): {
+                    'selected': copy.deepcopy(seg.selected_sequences),
+                    'candidates': copy.deepcopy(seg.candidate_sequences),
+                }
+                for seg in self.segments
+            },
+            'energy_scores': self.energy_scores.copy(),
+        }
+
+    def _restore_initial_state(self) -> None:
+        """Restore to captured state. Override for optimizer-specific state."""
+        for seg in self.segments:
+            state = self._initial_state['segments'][id(seg)]
+            seg.selected_sequences = copy.deepcopy(state['selected'])
+            seg.candidate_sequences = copy.deepcopy(state['candidates'])
+        self.energy_scores = self._initial_state['energy_scores'].copy()
+        self.history = []

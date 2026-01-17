@@ -293,6 +293,16 @@ class TopKOptimizer(Optimizer):
         # Sort for logging (both default and custom)
         self._log_round_progress(round_idx)
 
+    def _capture_initial_state(self) -> None:
+        """Capture state and clear TopK-specific state for fresh run."""
+        super()._capture_initial_state()
+        self._energy_heap = []
+
+    def _restore_initial_state(self) -> None:
+        """Restore to captured state and reset TopK-specific state."""
+        super()._restore_initial_state()
+        self._energy_heap = []
+
     def run(self) -> None:
         """
         Execute TopK optimization through multiple sampling rounds.
@@ -308,10 +318,7 @@ class TopKOptimizer(Optimizer):
         - Evaluates all candidates with constraints
         - Updates the top-k in selected_sequences (in-place)
         """
-        # Reset top-k tracking state for fresh run
-        self._energy_heap = []
-        for segment in self.segments:
-            segment.selected_sequences = []
+        self._prepare_run()
 
         candidates_generated = 0
         threshold_met = False
