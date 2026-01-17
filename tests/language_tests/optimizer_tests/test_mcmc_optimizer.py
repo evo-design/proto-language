@@ -821,7 +821,6 @@ class TestMCMCOptimizer:
 
         # First run
         optimizer.run()
-        first_run_final_seq = segment.selected_sequences[0].sequence
 
         # Verify state was captured with correct content
         assert optimizer._initial_state is not None

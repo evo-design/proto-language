@@ -735,7 +735,6 @@ class TestBeamSearchOptimizerRestart:
 
         # Capture original state before run
         original_selected = [copy.deepcopy(s) for s in segment.selected_sequences]
-        original_candidates = [copy.deepcopy(s) for s in segment.candidate_sequences]
 
         # First run
         optimizer.run()
@@ -747,7 +746,6 @@ class TestBeamSearchOptimizerRestart:
         # Verify captured state contains original sequences (using index 0)
         assert len(optimizer._initial_state['segments']) == 1
         captured_selected = optimizer._initial_state['segments'][0]['selected']
-        captured_candidates = optimizer._initial_state['segments'][0]['candidates']
         
         # Verify captured sequences match originals
         assert len(captured_selected) == len(original_selected)

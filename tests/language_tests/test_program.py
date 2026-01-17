@@ -11,8 +11,6 @@ from proto_language.language.generator import (
     UniformMutationGeneratorConfig,
 )
 from proto_language.language.optimizer import (
-    MCMCOptimizer,
-    MCMCOptimizerConfig,
     TopKOptimizer,
     TopKOptimizerConfig,
 )
@@ -171,7 +169,6 @@ class TestRunStageRestart:
 
         # Run first stage
         program.run_stage(0)
-        opt1_state = program.optimizers[0]._initial_state
 
         # Run second stage - it should force recapture
         program.run_stage(1)
