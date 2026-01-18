@@ -119,10 +119,18 @@ class Optimizer(ABC):
 
         Args:
             time_step: Current step/round/segment index
+
+        Raises:
+            RuntimeError: If energy_scores length doesn't match num_selected.
         """
+        if len(self.energy_scores) != self.num_selected:
+            raise RuntimeError(
+                f"energy_scores has length {len(self.energy_scores)}, expected {self.num_selected}. "
+                f"Ensure energy_scores is truncated to num_selected after selection."
+            )
         self.history.append({
             "time_step": time_step,
-            "energy_scores": self.energy_scores[:self.num_selected].copy(),
+            "energy_scores": self.energy_scores.copy(),
             "constructs": copy.deepcopy(self.constructs)
         })
 

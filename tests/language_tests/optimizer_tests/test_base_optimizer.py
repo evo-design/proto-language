@@ -380,18 +380,29 @@ class TestProgressSnapshot:
         construct, generator, constraint, _ = _setup_optimizer_components(num_candidates=2)
         optimizer = ConcreteOptimizer([construct], [generator], [constraint], 2, 1)
 
-        optimizer.energy_scores = [0.1, 0.9]
+        # energy_scores must have length num_selected before snapshot
+        optimizer.energy_scores = [0.1]
         optimizer._save_progress_snapshot(time_step=5)
 
         assert len(optimizer.history) == 1
         snapshot = optimizer.history[0]
 
         assert snapshot["time_step"] == 5
-        # Only saves top 'num_selected' scores
         assert snapshot["energy_scores"] == [0.1]
         assert "constructs" in snapshot
         # Should be deep copy
         assert snapshot["constructs"] is not optimizer.constructs
+
+    def test_snapshot_validates_energy_scores_length(self):
+        """Tests that snapshot raises error if energy_scores length != num_selected."""
+        construct, generator, constraint, _ = _setup_optimizer_components(num_candidates=2)
+        optimizer = ConcreteOptimizer([construct], [generator], [constraint], 2, 1)
+
+        # energy_scores has wrong length (num_candidates instead of num_selected)
+        optimizer.energy_scores = [0.1, 0.9]
+
+        with pytest.raises(RuntimeError, match="energy_scores has length 2, expected 1"):
+            optimizer._save_progress_snapshot(time_step=5)
 
 
 class TestStateRestartBehavior:

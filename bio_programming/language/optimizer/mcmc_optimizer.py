@@ -247,6 +247,9 @@ class MCMCOptimizer(Optimizer):
         else:
             self.energy_scores = [float('inf')] * self.num_candidates
 
+        # Truncate to num_selected for initial snapshot (score_energy sets to num_candidates)
+        self.energy_scores = self.energy_scores[:self.num_selected]
+
         if self.verbose:
             print("MCMC initialization:")
             print(f"  num_selected={self.num_selected}, mcmc_width={self.mcmc_width}")
@@ -347,8 +350,8 @@ class MCMCOptimizer(Optimizer):
 
                 alpha = self._compute_mcmc_acceptance(old_selected_energy, proposal_energy, step)
                 if random.random() < alpha:
-                    # mcmc_width=1: True MCMC - accept means move to proposal
-                    # mcmc_width>1: Pick best among accepted proposals
+                    # mcmc_width=1: Standard single-proposal MCMC per trajectory
+                    # mcmc_width>1: Multiple proposals per trajectory, select best among accepted
                     if self.mcmc_width == 1 or proposal_energy < best_energy:
                         best_energy = proposal_energy
                         best_candidate_idx = candidate_idx
@@ -397,12 +400,10 @@ class MCMCOptimizer(Optimizer):
 
     def _log_mcmc_progress(self, step: int) -> None:
         """Log optimization progress"""
-        # Use first num_selected energies (after sorting, these are the selected sequences)
-        selected_energies = self.energy_scores[:self.num_selected]
-        best_energy = min(selected_energies)
-        mean_energy = np.mean(selected_energies)
-        worst_energy = max(selected_energies)
-        std_energy = np.std(selected_energies) if len(selected_energies) > 1 else 0.0
+        best_energy = min(self.energy_scores)
+        mean_energy = np.mean(self.energy_scores)
+        worst_energy = max(self.energy_scores)
+        std_energy = np.std(self.energy_scores) if len(self.energy_scores) > 1 else 0.0
         current_temp = self._compute_temperature(step)
 
         # Format output based on num_selected
