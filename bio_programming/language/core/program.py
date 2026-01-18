@@ -300,7 +300,6 @@ class Program:
                 - best_batch_idx: Index of the batch with lowest energy
         """
         import math
-        from .sequence import Sequence
         from proto_language.utils import propagate_metadata
 
         def filter_inf_energy(score: float) -> float | None:
