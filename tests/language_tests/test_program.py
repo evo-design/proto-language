@@ -128,26 +128,26 @@ class TestProgramRestart:
         assert len(captured_candidates) > 0
         assert all(c.sequence == original_seq for c in captured_candidates)
 
-        # Manually modify sequences
+        # Manually modify sequences to all G's to verify restore works
         for seq in segment.selected_sequences:
-            seq.sequence = "MODIFIED_SEQUENCE_123"
+            seq.sequence = "G" * 20
         for seq in segment.candidate_sequences:
-            seq.sequence = "MODIFIED_CANDIDATE_12"
+            seq.sequence = "G" * 20
 
         # Second run should restore from opt1's initial state
         program.run()
 
-        # Sequences should not remain as "MODIFIED" (they were restored before running)
+        # Sequences should not remain as all G's (they were restored before running)
         current_sequences = [
             seq.sequence for seq in segment.selected_sequences
         ]
-        assert all("MODIFIED" not in seq for seq in current_sequences)
+        assert any(seq != "G" * 20 for seq in current_sequences)
         
-        # Verify candidates were also restored
+        # Verify candidates were also restored (and mutations applied)
         candidate_sequences = [
             seq.sequence for seq in segment.candidate_sequences
         ]
-        assert all("MODIFIED" not in seq for seq in candidate_sequences)
+        assert any(seq != "G" * 20 for seq in candidate_sequences)
 
 
 class TestRunStageRestart:

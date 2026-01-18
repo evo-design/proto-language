@@ -462,6 +462,7 @@ class TestCyclingOptimizerGPU:
         length_filter._constraint_batched = False
         length_filter._constraint_concatenate = True
         length_filter._constraint_config_class = EmptyConfig
+        length_filter._constraint_supported_sequence_types = ["protein"]
 
         constraint = Constraint(
             inputs=[target_segment],
@@ -513,10 +514,13 @@ class TestCyclingOptimizerRestart:
 
         # Mock the generator.sample to track calls and modify sequences
         call_count = [0]
+        # Valid 20-char protein sequences for each call
+        protein_seqs = ["MKTAYIAKQRQISFVKSHFS", "GPLAFVTNLTGLRSQNEEIR", 
+                        "YWDEIKNPLGRAVTYDKWFP", "HCLQMNSGVEATRIDFWYKP"]
         def mock_sample(structure_inputs=None):
             call_count[0] += 1
             for c in components["target_segment"].candidate_sequences:
-                c.sequence = f"SAMPLE{call_count[0]:014d}"  # 20 chars total
+                c.sequence = protein_seqs[call_count[0] % len(protein_seqs)]
 
         components["generator"].sample = mock_sample
 
@@ -540,9 +544,10 @@ class TestCyclingOptimizerRestart:
         assert call_count[0] > first_run_calls
         second_run_seqs = [s.sequence for s in components["target_segment"].selected_sequences]
         
-        # Verify sequences were modified (mock changes them)
-        assert all("SAMPLE" in seq for seq in first_run_seqs)
-        assert all("SAMPLE" in seq for seq in second_run_seqs)
+        # Verify sequences were modified from original (mock changes them to valid protein seqs)
+        original_seq = "ACDEFGHIKLMNPQRSTVWY"
+        assert all(seq != original_seq for seq in first_run_seqs)
+        assert all(seq != original_seq for seq in second_run_seqs)
         # History should be from second run only (cleared on restart)
         assert len(optimizer.history) == 3  # step 0, 1, 2
 

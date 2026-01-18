@@ -1,5 +1,9 @@
 # Registry and base infrastructure
-from .optimizer_registry import OptimizerRegistry, OptimizerSpec
+from .optimizer_registry import (
+    OptimizerRegistry,
+    OptimizerSpec,
+    OPTIMIZERS_WITH_TARGET_SEGMENT,
+)
 
 # Optimizers
 from .mcmc_optimizer import (
@@ -24,6 +28,7 @@ __all__ = [
     # Registry
     "OptimizerRegistry",
     "OptimizerSpec",
+    "OPTIMIZERS_WITH_TARGET_SEGMENT",
     # MCMC Optimizer
     "MCMCOptimizer",
     "MCMCOptimizerConfig",
