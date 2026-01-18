@@ -181,37 +181,6 @@ optimizer_2_inc = MCMCOptimizer(
 
 program_incremental = Program(
     optimizers=[optimizer_1_inc, optimizer_2_inc],
+    verbose=True,
 )
 
-# Run stage 1 - run_stage now returns results directly
-print("\n>>> Running Stage 1 (TopK optimizer)...")
-stage_1_results = program_incremental.run_stage(0)
-
-print("\n" + "-" * 70)
-print("STAGE 1 RESULTS")
-print("-" * 70)
-print(f"Best sequence: {stage_1_results['best_sequence'][:80]}...")
-print(f"Best energy: {stage_1_results['best_energy']:.4f}")
-
-# Decision point: check if results meet threshold
-ENERGY_THRESHOLD = 100  # Arbitrary threshold for demonstration
-if stage_1_results["best_energy"] < ENERGY_THRESHOLD:
-    print(f"\n✓ Stage 1 energy ({stage_1_results['best_energy']:.4f}) < threshold ({ENERGY_THRESHOLD})")
-    print("  Continuing to Stage 2...\n")
-
-    if program_incremental.current_stage < len(program_incremental.optimizers):
-        print(">>> Running Stage 2 (MCMC optimizer)...")
-        stage_2_results = program_incremental.run_stage(1)
-
-        print("\n" + "-" * 70)
-        print("STAGE 2 RESULTS (FINAL)")
-        print("-" * 70)
-        print(f"Best sequence: {stage_2_results['best_sequence'][:80]}...")
-        print(f"Best energy: {stage_2_results['best_energy']:.4f}")
-else:
-    print(f"\n✗ Stage 1 energy ({stage_1_results['best_energy']:.4f}) >= threshold ({ENERGY_THRESHOLD})")
-    print("  Would rerun Stage 1 with different config or stop here...")
-
-print("\n" + "=" * 70)
-print("COMPARISON: Both modes completed")
-print("=" * 70)

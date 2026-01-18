@@ -163,6 +163,37 @@ class TestRunStageRestart:
         # Optimizer should have its initial state captured
         assert program.optimizers[0]._initial_state is not None
 
+    def test_run_stage_rerun_previous_stage(self):
+        """Test that re-running a previous stage resets the pipeline."""
+        original_seq = "ATGCATGCATGCATGCATGC"
+        program = _create_simple_program(num_stages=2, sequence=original_seq)
+
+        # Run both stages
+        program.run_stage(0)
+        program.run_stage(1)
+        assert program.current_stage == 2
+        assert len(program._stage_results) == 2
+
+        # Re-run stage 0 - should reset pipeline
+        program.run_stage(0)
+        assert program.current_stage == 1  # Back to after stage 0
+        assert len(program._stage_results) == 1  # Stage 1 results wiped
+        # Stage 1's initial state should be wiped
+        assert program.optimizers[1]._initial_state is None
+
+        # Can now run stage 1 again
+        program.run_stage(1)
+        assert program.current_stage == 2
+        assert len(program._stage_results) == 2
+
+    def test_run_stage_cannot_skip_forward(self):
+        """Test that skipping stages forward raises an error."""
+        program = _create_simple_program(num_stages=2)
+
+        # Can't skip to stage 1 without running stage 0
+        with pytest.raises(RuntimeError, match="Cannot skip"):
+            program.run_stage(1)
+
     def test_run_stage_forces_recapture(self):
         """Test that run_stage forces _initial_state recapture."""
         program = _create_simple_program(num_stages=2)
@@ -176,6 +207,70 @@ class TestRunStageRestart:
         # Second optimizer should have captured its own initial state
         # (which includes the results from stage 1)
         assert program.optimizers[1]._initial_state is not None
+
+    def test_run_stage_returns_none(self):
+        """Test that run_stage returns None (results accessed via stage_results)."""
+        program = _create_simple_program(num_stages=1)
+
+        result = program.run_stage(0)
+
+        assert result is None
+
+    def test_run_stage_stores_results_in_stage_results(self):
+        """Test that run_stage stores results accessible via get_stage_results."""
+        program = _create_simple_program(num_stages=2)
+
+        program.run_stage(0)
+
+        # Results accessible via getter
+        result = program.get_stage_results(0)
+
+        # Validate result structure
+        assert "batch_results" in result
+        assert "best_batch_idx" in result
+        assert isinstance(result["batch_results"], list)
+        assert isinstance(result["best_batch_idx"], int)
+
+        # Validate batch_results structure
+        batch = result["batch_results"][0]
+        assert "batch_idx" in batch
+        assert "constructs" in batch
+        assert "energy_score" in batch
+        assert "metadata" in batch
+
+    def test_get_stage_results_raises_for_unrun_stage(self):
+        """Test that get_stage_results raises IndexError for unrun stages."""
+        program = _create_simple_program(num_stages=2)
+
+        with pytest.raises(IndexError, match="Stage 0 not available"):
+            program.get_stage_results(0)
+
+        program.run_stage(0)
+
+        # Stage 0 now available, stage 1 not yet
+        program.get_stage_results(0)  # Should not raise
+        with pytest.raises(IndexError, match="Stage 1 not available"):
+            program.get_stage_results(1)
+
+    def test_run_returns_none(self):
+        """Test that run() returns None."""
+        program = _create_simple_program(num_stages=1)
+
+        result = program.run()
+
+        assert result is None
+
+    def test_run_populates_stage_results(self):
+        """Test that run() populates stage_results for all stages."""
+        program = _create_simple_program(num_stages=2)
+
+        program.run()
+
+        # Both stages accessible via getter
+        for i in range(2):
+            result = program.get_stage_results(i)
+            assert "batch_results" in result
+            assert "best_batch_idx" in result
 
 
 class TestProgramValidation:

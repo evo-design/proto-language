@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from .optimizer import Optimizer
 
@@ -82,7 +82,7 @@ class Program:
         # Extract constructs from first optimizer
         self.constructs = optimizers[0].constructs
         self.current_stage = 0
-        self.stage_results: List[Dict] = []
+        self._stage_results: List[Dict] = []
         self._validate_program()
 
     @property
@@ -194,133 +194,134 @@ class Program:
                     )
                 seen_constraints[con_id] = opt_idx
 
+    def _print_stage_results(self, stage_index: int, batch_results: list) -> None:
+        """Print results for a completed optimization stage."""
+        print(f"\nFinal state for optimizer {stage_index + 1}:")
+        for result in batch_results:
+            print(f"  [{result['batch_idx']}] energy={result['energy_score']:.4f}")
+            for i, segments in enumerate(result["constructs"]):
+                print(f"    Construct {i}: {' | '.join(segments)}")
+
     def run(self) -> None:
         """
         Execute the sequence optimization process for all optimizers sequentially.
 
         Each optimizer builds on the results of the previous one. State automatically
         persists between optimizers through the shared construct objects.
-
-        Also prints final state after all optimizers complete.
         """
-        # On re-run, restore segments from opt1's initial state (the original state)
+        # Reset stage tracking for fresh run
+        self.current_stage = 0
+        self._stage_results = []
+
+        # Restore initial state on re-run (first optimizer captures pre-pipeline state)
         if self.optimizers[0]._initial_state is not None:
             self.optimizers[0]._restore_initial_state()
 
-        for optimizer_idx, optimizer in enumerate(self.optimizers):
-            optimizer._initialize_sequence_pools()
-            optimizer._initial_state = None  # Force re-capture for this pipeline run
+        # Run all stages sequentially
+        for stage_idx in range(len(self.optimizers)):
+            self.run_stage(stage_idx)
 
-            # Run this optimizer
-            optimizer.run()
-
-            # TODO: fix base program and optimizer classes for optimizers that don't compute energy scores
-            # Print final state for this optimizer
-            print(f"\nFinal state for optimizer {optimizer_idx + 1}:")
-            num_seqs = len(self.constructs[0].joined_sequences)
-            for seq_idx in range(num_seqs):
-                # Only print energy if scores were computed (e.g., when constraints exist)
-                if optimizer.energy_scores and seq_idx < len(optimizer.energy_scores):
-                    energy = optimizer.energy_scores[seq_idx]
-                    print(f"  [{seq_idx}] Energy: {energy:.4f}")
-                else:
-                    print(f"  [{seq_idx}]")
-                for construct_idx, construct in enumerate(self.constructs):
-                    seq = construct.joined_sequences[seq_idx]
-                    print(f"    Construct {construct_idx}: {seq}")
-
-        # Clean up model caches
         self.cleanup()
 
-    def run_stage(self, stage_index: int) -> Dict:
+    def run_stage(self, stage_index: int) -> None:
         """
         Execute a specific optimization stage.
 
         Allows running optimizers one at a time with inspection of results between
         stages. Each stage builds on results from previous stages through shared
-        construct objects.
+        construct objects. Results are accessible via `get_stage_results()`.
+
+        You can re-run any previously completed stage, which resets the pipeline
+        to that point and invalidates all subsequent stages.
 
         Args:
             stage_index: Zero-based index of the optimizer stage to run.
 
-        Returns:
-            Dictionary containing:
-                - best_sequence: The best sequence from this stage
-                - best_energy: The lowest energy score from this stage
-                - all_sequences: All selected sequences from this stage
-                - all_energies: All energy scores from this stage
-
         Raises:
             IndexError: If stage_index is out of range.
-            RuntimeError: If attempting to skip stages (must run sequentially).
+            RuntimeError: If attempting to skip forward (can only run current or previous stages).
 
         Example:
             >>> program = Program(optimizers=[opt1, opt2])
-            >>> results = program.run_stage(0)  # Run first optimizer
-            >>> if results["best_energy"] < threshold:
-            ...     program.run_stage(1)  # Run second optimizer
+            >>> program.run_stage(0)  # Run first optimizer
+            >>> results = program.get_stage_results(0)  # Access results
+            >>> program.run_stage(1)  # Run second optimizer
         """
         if stage_index < 0 or stage_index >= len(self.optimizers):
-            raise IndexError(
-                f"Stage index {stage_index} out of range. "
-                f"Program has {len(self.optimizers)} stages (0-{len(self.optimizers)-1})."
-            )
+            raise IndexError(f"Stage index {stage_index} out of range (0-{len(self.optimizers)-1}).")
+        if stage_index > self.current_stage:
+            raise RuntimeError(f"Cannot skip to stage {stage_index}. Current stage is {self.current_stage}.")
 
-        if stage_index != self.current_stage:
-            raise RuntimeError(
-                f"Cannot run stage {stage_index}. Must run stages sequentially. "
-                f"Current stage is {self.current_stage}."
-            )
+        # Re-running a previous stage: restore state from that stage's optimizer
+        if stage_index < self.current_stage:
+            # Use the target stage's initial state (captured before it ran)
+            self.optimizers[stage_index]._restore_initial_state()
+            self._stage_results = self._stage_results[:stage_index]
+            # Clear stale initial states from subsequent optimizers
+            for opt in self.optimizers[stage_index + 1:]:
+                opt._initial_state = None
 
         optimizer = self.optimizers[stage_index]
-
-        # On re-run of first stage, restore segments from opt1's initial state
-        if stage_index == 0 and optimizer._initial_state is not None:
-            optimizer._restore_initial_state()
-
         optimizer._initialize_sequence_pools()
-        optimizer._initial_state = None  # Force re-capture for this pipeline run
-
         optimizer.run()
 
-        print(f"\nFinal state for optimizer {stage_index + 1}:")
-        num_seqs = len(self.constructs[0].joined_sequences)
-        for seq_idx in range(num_seqs):
-            # Only print energy if scores were computed (e.g., when constraints exist)
-            if optimizer.energy_scores and seq_idx < len(optimizer.energy_scores):
-                energy = optimizer.energy_scores[seq_idx]
-                print(f"  [{seq_idx}] Energy: {energy:.4f}")
-            else:
-                print(f"  [{seq_idx}]")
-            for construct_idx, construct in enumerate(self.constructs):
-                seq = construct.joined_sequences[seq_idx]
-                print(f"    Construct {construct_idx}: {seq}")
+        stage_result = self.extract_batch_results(optimizer.energy_scores)
+        if self.verbose:
+            self._print_stage_results(stage_index, stage_result["batch_results"])
 
-        # Capture results for this stage
-        all_sequences = [seq.sequence for seq in self.constructs[0].joined_sequences]
-        all_energies = (
-            list(optimizer.energy_scores)
-            if optimizer.energy_scores
-            else [0.0] * len(all_sequences)
-        )
-        best_idx = (
-            min(range(len(all_energies)), key=lambda i: all_energies[i])
-            if all_energies
-            else 0
-        )
-
-        results = {
-            "best_sequence": all_sequences[best_idx],
-            "best_energy": all_energies[best_idx],
-            "all_sequences": all_sequences,
-            "all_energies": all_energies,
-        }
-
-        self.stage_results.append(results)
-
+        self._stage_results.append(stage_result)
         self.current_stage = stage_index + 1
 
-        return results
+    def get_stage_results(self, stage_index: int) -> Dict[str, Any]:
+        """Get results from a specific optimization stage."""
+        if stage_index < 0 or stage_index >= len(self._stage_results):
+            raise IndexError(f"Stage {stage_index} not available. Only {len(self._stage_results)} stage(s) run.")
+        return self._stage_results[stage_index]
+
+    def extract_batch_results(self, energy_scores: List[float]) -> Dict[str, Any]:
+        """
+        Extract batch results from constructs after optimization.
+
+        Returns segment-level sequences (not joined) with metadata. This is the
+        canonical format used by both the core layer and API.
+
+        Args:
+            energy_scores: List of energy scores (one per batch)
+
+        Returns:
+            Dictionary containing:
+                - batch_results: List of batch result dicts with segment-level sequences
+                - best_batch_idx: Index of the batch with lowest energy
+        """
+        from .sequence import Sequence
+        from proto_language.utils import propagate_metadata
+
+        if not self.constructs or not self.constructs[0].segments:
+            return {"batch_results": [], "best_batch_idx": 0}
+
+        num_selected = len(self.constructs[0].segments[0].selected_sequences)
+        batch_results = []
+
+        for batch_idx in range(num_selected):
+            construct_sequences = []
+            batch_metadata: Dict[str, Any] = {}
+
+            for construct_idx, construct in enumerate(self.constructs):
+                selected_seqs = [seg.selected_sequences[batch_idx] for seg in construct.segments]
+                construct_sequences.append([s.sequence for s in selected_seqs])
+
+                joined = Sequence.from_sequences(selected_seqs, merge_metadata=True)
+                propagate_metadata(joined._metadata, batch_metadata, f"construct_{construct_idx}")
+
+            batch_results.append({
+                "batch_idx": batch_idx,
+                "constructs": construct_sequences,
+                "energy_score": energy_scores[batch_idx] if batch_idx < len(energy_scores) else 0.0,
+                "metadata": batch_metadata
+            })
+
+        best_idx = min(range(len(batch_results)), key=lambda i: batch_results[i]["energy_score"]) if batch_results else 0
+        return {"batch_results": batch_results, "best_batch_idx": best_idx}
 
     def serialize_state(self) -> Dict:
         """
