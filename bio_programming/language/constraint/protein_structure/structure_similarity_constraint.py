@@ -579,14 +579,14 @@ def _prepare_target_structure(config: StructureConstraintBaseConfig) -> Optional
     config=StructureRMSDConfig,
     description="Compare structure RMSD against a target (PDB or Sequence) using generic predictors.",
     batched=True,
-    concatenate=False,  # Input is List[Tuple[Sequence, ...]]
+    multi_input=True,
     gpu_required=True,
     tools_called=["esmfold", "alphafold3", "boltz", "chai", "pymol"],
     category="protein_structure",
     supported_sequence_types=["protein"],
 )
 def structure_rmsd_constraint(
-    candidates: List[Tuple[Sequence, ...]], config: StructureRMSDConfig
+    complexes: List[Tuple[Sequence, ...]], config: StructureRMSDConfig
 ) -> List[float]:
     """
     Predicts structure of input candidates and compares RMSD against a target.
@@ -597,29 +597,29 @@ def structure_rmsd_constraint(
     target_pdb = _prepare_target_structure(config)
     if not target_pdb:
         logger.warning("Target preparation failed, returning worst score.")
-        return [1.0] * len(candidates)
+        return [1.0] * len(complexes)
 
     # Prepare candidates.
-    complexes = []
-    for candidate_tuple in candidates:
+    structure_complexes = []
+    for candidate_tuple in complexes:
         # Extract sequences and types
         chain_seqs = [s.sequence for s in candidate_tuple]
         chain_types = [s.sequence_type for s in candidate_tuple]
 
-        complexes.append(
+        structure_complexes.append(
             StructurePredictionComplex(chains=chain_seqs, entity_types=chain_types)
         )
 
     # Run prediction on candidates.
     try:
-        results = predict_structures(complexes, config.structure_tool, config.tool_config)
+        results = predict_structures(structure_complexes, config.structure_tool, config.tool_config)
     except Exception as e:
         logger.error(f"Structure prediction failed: {e}")
-        return [MAX_ENERGY] * len(candidates)
+        return [MAX_ENERGY] * len(complexes)
 
     # Compute RMSD scores.
     scores = []
-    for candidate_structure, candidate_tuple in zip(results.structures, candidates):
+    for candidate_structure, candidate_tuple in zip(results.structures, complexes):
         rmsd_data = _compute_ce_aligned_rmsd(target_pdb, candidate_structure.structure_pdb)
         rmsd_val = rmsd_data['rmsd']
 
@@ -659,14 +659,14 @@ def _count_pdb_chains(pdb_text: str) -> int:
     config=StructureTMScoreConfig,
     description="Compare structure TM-score against a target. Returns 1 - TMscore.",
     batched=True,
-    concatenate=False,  # Input is List[Tuple[Sequence, ...]]
+    multi_input=True,
     gpu_required=True,
     tools_called=["esmfold", "alphafold3", "boltz", "chai", "tmalign", "usalign"],
     category="protein_structure",
     supported_sequence_types=["protein"],
 )
 def structure_tmscore_constraint(
-    candidates: List[Tuple[Sequence, ...]], config: StructureTMScoreConfig
+    complexes: List[Tuple[Sequence, ...]], config: StructureTMScoreConfig
 ) -> List[float]:
     """
     Predicts structure and compares TM-score. Returns (1.0 - TMscore).
@@ -686,30 +686,30 @@ def structure_tmscore_constraint(
     target_pdb = _prepare_target_structure(config)
     if not target_pdb:
         logger.warning("Target preparation failed, returning worst score.")
-        return [1.0] * len(candidates)
+        return [1.0] * len(complexes)
 
     n_target_chains = _count_pdb_chains(target_pdb)
 
     # Prepare candidates.
-    complexes = []
-    for candidate_tuple in candidates:
+    structure_complexes = []
+    for candidate_tuple in complexes:
         chain_seqs = [s.sequence for s in candidate_tuple]
         chain_types = [s.sequence_type for s in candidate_tuple]
 
-        complexes.append(
+        structure_complexes.append(
             StructurePredictionComplex(chains=chain_seqs, entity_types=chain_types)
         )
 
     # Run prediction on candidates.
     try:
-        results = predict_structures(complexes, config.structure_tool, config.tool_config)
+        results = predict_structures(structure_complexes, config.structure_tool, config.tool_config)
     except Exception as e:
         logger.error(f"Structure prediction failed: {e}")
-        return [MAX_ENERGY] * len(candidates)
+        return [MAX_ENERGY] * len(complexes)
 
     # Compute TMscores.
     scores = []
-    for candidate_structure, candidate_tuple in zip(results.structures, candidates):
+    for candidate_structure, candidate_tuple in zip(results.structures, complexes):
         n_cand_chains = len(candidate_tuple)
 
         if n_target_chains == 1 and n_cand_chains == 1:

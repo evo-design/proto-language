@@ -69,13 +69,13 @@ class TestRegistration:
         assert spec.description == "Temporary test constraint"
         assert spec.function == test_constraint
         assert spec.batched is False
-        assert spec.concatenate is True
+        assert spec.multi_input is False
 
         # Cleanup
         del ConstraintRegistry._registry["test-temp-constraint"]
 
     def test_register_with_custom_flags(self):
-        """Test registration with custom batched/concatenate flags."""
+        """Test registration with custom batched/multi_input flags."""
         class TestConfig(BaseModel):
             value: int = 1
 
@@ -85,15 +85,15 @@ class TestRegistration:
             config=TestConfig,
             description="batched constraint",
             batched=True,
-            concatenate=False,
+            multi_input=True,
             supported_sequence_types=["dna"],
         )
-        def test_constraint(sequences, config):
-            return [0.0] * len(sequences)
+        def test_constraint(complexes, config):
+            return [0.0] * len(complexes)
 
         spec = ConstraintRegistry.get("test-batched")
         assert spec.batched is True
-        assert spec.concatenate is False
+        assert spec.multi_input is True
 
         # Cleanup
         del ConstraintRegistry._registry["test-batched"]
@@ -177,7 +177,7 @@ class TestDiscovery:
             assert spec.label is not None
             assert spec.description is not None
             assert hasattr(spec, "batched")
-            assert hasattr(spec, "concatenate")
+            assert hasattr(spec, "multi_input")
             assert hasattr(spec, "gpu_required")
             # Verify config_model is present and can generate JSON schema
             assert spec.config_model is not None
@@ -202,7 +202,7 @@ class TestDiscovery:
         assert spec.config_model is not None
         assert spec.function is not None
         assert isinstance(spec.batched, bool)
-        assert isinstance(spec.concatenate, bool)
+        assert isinstance(spec.multi_input, bool)
 
     def test_get_raises_on_unknown_key(self):
         """Test that get raises ValueError for unknown constraint."""

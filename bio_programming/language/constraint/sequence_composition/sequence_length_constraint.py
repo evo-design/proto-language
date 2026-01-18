@@ -90,7 +90,7 @@ class SequenceLengthConfig(BaseConfig):
     config=SequenceLengthConfig,
     description="Evaluate sequence length against target value or acceptable range",
     batched=True,
-    concatenate=True,
+    multi_input=False,
     tools_called=[],
     category="sequence_composition",
     supported_sequence_types=["dna", "rna", "protein"],

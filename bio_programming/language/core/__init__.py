@@ -11,6 +11,7 @@ from .sequence import (
     return_invalid_protein_chars,
     validate_smiles,
     detect_sequence_type,
+    create_concatenated_sequence,
 )
 from .segment import Segment
 from .construct import Construct
@@ -33,6 +34,7 @@ __all__ = [
     "return_invalid_protein_chars",
     "validate_smiles",
     "detect_sequence_type",
+    "create_concatenated_sequence",
     "Segment",
     "Construct",
     "Constraint",

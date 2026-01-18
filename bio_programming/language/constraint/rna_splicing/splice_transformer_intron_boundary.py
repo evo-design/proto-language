@@ -110,14 +110,14 @@ class SpliceTransformerIntronBoundaryConfig(BaseConfig):
     config=SpliceTransformerIntronBoundaryConfig,
     description="Evaluate intron boundary prediction with SpliceTransformer",
     batched=False,
-    concatenate=True,
+    multi_input=False,
     gpu_required=True,
     tools_called=["splice_transformer"],
     category="rna splicing",
     supported_sequence_types=["dna"],
 )
 def splice_transformer_intron_boundary(
-    input_sequence: Sequence,
+    sequence: Sequence,
     config: SpliceTransformerIntronBoundaryConfig,
 ) -> float:
     """Evaluate intron boundary prediction with SpliceTransformer
@@ -139,7 +139,7 @@ def splice_transformer_intron_boundary(
     for a total analyzed region of 9000 bp.
 
     Args:
-        input_sequence (Sequence): DNA sequence to evaluate. Must be exactly
+        sequence (Sequence): DNA sequence to evaluate. Must be exactly
             1000 bp in length. This is the central region containing the splice
             sites to be evaluated.
             
@@ -209,7 +209,7 @@ def splice_transformer_intron_boundary(
 
 
     splice_transformer_input = SpliceTransformerInput(
-        target_seqs=[input_sequence.sequence],
+        target_seqs=[sequence.sequence],
         left_contexts=[config.left_context],
         right_contexts=[config.right_context],
     )
@@ -223,13 +223,13 @@ def splice_transformer_intron_boundary(
         splice_transformer_config,
     ).prediction
 
-    assert output.shape[1] == len(input_sequence.sequence)
+    assert output.shape[1] == len(sequence.sequence)
 
     donor_score = float(output[:, config.donor_pos, SpliceTransformerType.DONOR.value].mean())
     acceptor_score = float(output[:, config.acceptor_pos, SpliceTransformerType.ACCEPTOR.value].mean())
     score = 1. - ((donor_score + acceptor_score) / 2)
 
-    input_sequence._metadata.update({
+    sequence._metadata.update({
         "donor_pos": config.donor_pos,
         "acceptor_pos": config.acceptor_pos,
         "donor_score": 1. - donor_score,

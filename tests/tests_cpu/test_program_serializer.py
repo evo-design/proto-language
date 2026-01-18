@@ -365,10 +365,15 @@ class TestProgramSerializer:
         gen2 = UniformMutationGenerator(gen2_config)
         gen2.assign(seg2)
 
-        # Constraint targeting both segments (concatenate=True by default)
-        constraint = ConstraintRegistry.create(
+        # Separate constraints for each segment (single-input constraints)
+        constraint1 = ConstraintRegistry.create(
             key="gc-content",
-            segments=[seg1, seg2],
+            segments=[seg1],
+            config_dict={"min_gc": 40, "max_gc": 60},
+        )
+        constraint2 = ConstraintRegistry.create(
+            key="gc-content",
+            segments=[seg2],
             config_dict={"min_gc": 40, "max_gc": 60},
         )
 
@@ -376,17 +381,19 @@ class TestProgramSerializer:
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen1, gen2],
-            constraints=[constraint],
+            constraints=[constraint1, constraint2],
             config=opt_config,
         )
 
         program = Program(optimizers=[optimizer])
         result = serialize_program(program)
 
-        con = result["optimization_stages"][0]["constraints"][0]
-        assert len(con["targets"]) == 2
-        assert "construct0-segment0" in con["targets"]
-        assert "construct0-segment1" in con["targets"]
+        # Should have two separate constraints now
+        assert len(result["optimization_stages"][0]["constraints"]) == 2
+        con1 = result["optimization_stages"][0]["constraints"][0]
+        con2 = result["optimization_stages"][0]["constraints"][1]
+        assert len(con1["targets"]) == 1
+        assert len(con2["targets"]) == 1
 
     def test_constraint_with_custom_label(self):
         """Test that custom constraint labels are preserved."""

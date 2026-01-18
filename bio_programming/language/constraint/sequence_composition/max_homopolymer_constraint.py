@@ -52,7 +52,7 @@ class MaxHomopolymerConfig(BaseConfig):
     config=MaxHomopolymerConfig,
     description="Penalize sequences containing homopolymers longer than specified maximum",
     batched=True,
-    concatenate=True,
+    multi_input=False,
     tools_called=[],
     category="sequence_composition",
     supported_sequence_types=["dna", "rna", "protein"],

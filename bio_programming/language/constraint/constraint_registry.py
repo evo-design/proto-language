@@ -5,7 +5,7 @@ Provides a decorator-based API for registering constraint functions and
 a factory method for creating Constraint instances.
 """
 from __future__ import annotations
-from typing import Any, Callable, Dict, List, Optional, Type, get_type_hints, get_origin, get_args
+from typing import Any, Callable, Dict, List, Optional, Type, Tuple, get_type_hints, get_origin, get_args
 import inspect
 
 from pydantic import BaseModel, Field
@@ -19,7 +19,7 @@ class ConstraintSpec(BaseSpec):
     """Specification for a registered constraint."""
 
     batched: bool = Field(description="True if the constraint processes an iterable of sequences rather than a single sequence")
-    concatenate: bool = Field(description="Whether to concatenate segments")
+    multi_input: bool = Field(description="True if constraint accepts multiple segments (receives Tuple[Sequence, ...]). False (default) for single-segment constraints (receives Sequence).")
     gpu_required: bool = Field(description="Whether constraint requires GPU")
     tools_called: List[str] = Field(description="List of tool keys this constraint calls (e.g., ['esmfold', 'prodigal']). Helps agent find relevant tool documentation.")
     category: Optional[str] = Field(default=None, description="Optional category for organization (e.g., 'protein_structure', 'sequence_composition'). Not required for custom constraints.")
@@ -34,11 +34,11 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
     Registry for constraint discovery and API/client integration.
 
     Inherits common registry functionality from BaseRegistry and adds
-    constraint-specific features like batched/concatenate flags.
+    constraint-specific features like batched flag and GPU requirements.
 
     Public Methods:
     - register(): Decorator to register constraint functions
-    - list_all(): List constraints with metadata (batched, concatenate, gpu_required)
+    - list_all(): List constraints with metadata (batched, gpu_required)
     - create(): Factory to create Constraint instances from config dicts
     - get(): Get constraint spec by key (inherited)
     - get_schema(): Get JSON schema for constraint configuration (inherited)
@@ -50,11 +50,10 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         ...     key="gc-content",
         ...     config=GCContentConfig,
         ...     description="Enforce GC content within range",
-        ...     batched=False,
-        ...     concatenate=True
+        ...     batched=True,
         ... )
-        ... def gc_content_constraint(sequence: Sequence, config: GCContentConfig) -> float:
-        ...     return calculate_penalty(sequence, config)
+        ... def gc_content_constraint(sequences: List[Sequence], config: GCContentConfig) -> List[float]:
+        ...     return [calculate_penalty(seq, config) for seq in sequences]
 
         API/Client Usage:
         >>> # List all available constraints
@@ -72,7 +71,6 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
 
         Direct Library Usage (no registry needed):
         >>> # Users can bypass registry entirely
-        >>> # batched and concatenate are automatically read from function attributes
         >>> constraint = Constraint(
         ...     inputs=[segment],
         ...     function=gc_content_constraint,
@@ -91,7 +89,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         config: Type[BaseModel],
         description: str,
         batched: bool = False,
-        concatenate: bool = True,
+        multi_input: bool = False,
         gpu_required: bool = False,
         tools_called: List[str] = [],
         category: Optional[str] = None,
@@ -101,17 +99,17 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         Decorator to register a constraint function.
 
         This is the constraint-specific implementation of the abstract register()
-        method from BaseRegistry. It adds batched and concatenate flags.
+        method from BaseRegistry. It adds the batched flag and GPU requirements.
 
         Args:
             key: Unique identifier (e.g., "gc-content", "protein-length")
             label: Readable external name (e.g., "GC Content Range", "Protein Length")
             config: Pydantic model class for configuration validation
             description: Readable description
-            batched: If True, function processes List[Sequence] → List[float].
-                       If False, function processes Sequence → float.
-            concatenate: If True, concatenate multiple segments before evaluation.
-                        If False, pass segments as tuple (for disjoint evaluation).
+            batched: If True, function processes a list of inputs → List[float].
+                     If False, function processes single input → float.
+            multi_input: If True, constraint accepts multiple segments (receives Tuple[Sequence, ...]).
+                        If False (default), constraint accepts single segment (receives Sequence).
             gpu_required: If True, constraint requires GPU for computation (e.g., ESMFold, Boltz).
             tools_called: List of tool keys this constraint calls (helps agent find relevant documentation).
             category: Optional category for organization (e.g., 'protein_structure', 'sequence_composition').
@@ -126,13 +124,12 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             ...     label="GC Content Range",
             ...     config=GCContentConfig,
             ...     description="GC content within range",
-            ...     batched=False,
-            ...     concatenate=True,
+            ...     batched=True,
             ...     gpu_required=False,
             ...     supported_sequence_types=["dna", "rna"],
             ... )
-            ... def gc_content_constraint(sequence: Sequence, config: GCContentConfig) -> float:
-            ...     return calculate_penalty(sequence, config.min_gc, config.max_gc)
+            ... def gc_content_constraint(sequences: List[Sequence], config: GCContentConfig) -> List[float]:
+            ...     return [calculate_penalty(s, config.min_gc, config.max_gc) for s in sequences]
         """
         def decorator(func: Callable):
             # Prevent duplicate registration using base class helper
@@ -140,6 +137,9 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
 
             # Validate return type annotation
             cls._validate_return_type(func, batched)
+            
+            # Validate parameter names and type signatures
+            cls._validate_parameter_names(func, multi_input, batched)
 
             # Validate supported_sequence_types is non-empty
             if not supported_sequence_types:
@@ -147,7 +147,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
 
             # Store metadata as function attributes
             func._constraint_batched = batched
-            func._constraint_concatenate = concatenate
+            func._constraint_multi_input = multi_input
             func._constraint_gpu_required = gpu_required
             func._constraint_config_class = config
             func._constraint_supported_sequence_types = supported_sequence_types
@@ -159,7 +159,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
                 description=description,
                 function=func,
                 batched=batched,
-                concatenate=concatenate,
+                multi_input=multi_input,
                 gpu_required=gpu_required,
                 tools_called=tools_called,
                 category=category,
@@ -251,6 +251,98 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         return list(cls._registry.values())
 
     @staticmethod
+    def _validate_parameter_names(func: Callable, multi_input: bool, batched: bool) -> None:
+        """Validate constraint function uses correct parameter names and type signatures.
+        
+        Enforces naming convention and type signatures:
+        - multi_input=True, batched=True: complexes: List[Tuple[Sequence, ...]]
+        - multi_input=True, batched=False: complex_sequences: Tuple[Sequence, ...]
+        - multi_input=False, batched=True: sequences: List[Sequence]
+        - multi_input=False, batched=False: sequence: Sequence
+        
+        Args:
+            func: The constraint function to validate
+            multi_input: Whether the constraint expects multiple input segments
+            batched: Whether the constraint processes multiple candidates at once
+            
+        Raises:
+            TypeError: If parameter names or type signatures don't match the convention
+        """
+        sig = inspect.signature(func)
+        params = list(sig.parameters.keys())
+        
+        if len(params) != 2:
+            raise TypeError(
+                f"Function '{func.__name__}' must have exactly 2 parameters, found {len(params)}"
+            )
+        
+        first_param = params[0]
+        
+        # Determine expected parameter name based on multi_input and batched flags
+        if multi_input and batched:
+            expected_name = "complexes"
+        elif multi_input and not batched:
+            expected_name = "complex_sequences"
+        elif not multi_input and batched:
+            expected_name = "sequences"
+        else:  # not multi_input and not batched
+            expected_name = "sequence"
+        
+        if first_param != expected_name:
+            raise TypeError(
+                f"Function '{func.__name__}' with multi_input={multi_input}, batched={batched} "
+                f"must use '{expected_name}' as first parameter name, found '{first_param}'"
+            )
+        
+        # Validate type signature if annotated
+        try:
+            hints = get_type_hints(func)
+            if first_param in hints:
+                param_type = hints[first_param]
+                origin = get_origin(param_type)
+                args = get_args(param_type)
+                
+                if multi_input and batched:
+                    # Expected: List[Tuple[Sequence, ...]]
+                    if origin not in (list, List):
+                        raise TypeError(
+                            f"Function '{func.__name__}' with multi_input=True, batched=True "
+                            f"must have type List[Tuple[Sequence, ...]], found {param_type}"
+                        )
+                    if args:
+                        inner_origin = get_origin(args[0])
+                        if inner_origin not in (tuple, Tuple):
+                            raise TypeError(
+                                f"Function '{func.__name__}' with multi_input=True, batched=True "
+                                f"must have type List[Tuple[Sequence, ...]], found {param_type}"
+                            )
+                elif multi_input and not batched:
+                    # Expected: Tuple[Sequence, ...]
+                    if origin not in (tuple, Tuple):
+                        raise TypeError(
+                            f"Function '{func.__name__}' with multi_input=True, batched=False "
+                            f"must have type Tuple[Sequence, ...], found {param_type}"
+                        )
+                elif not multi_input and batched:
+                    # Expected: List[Sequence]
+                    if origin not in (list, List):
+                        raise TypeError(
+                            f"Function '{func.__name__}' with multi_input=False, batched=True "
+                            f"must have type List[Sequence], found {param_type}"
+                        )
+                elif not multi_input and not batched:
+                    # Expected: Sequence
+                    if param_type.__name__ != 'Sequence':
+                        raise TypeError(
+                            f"Function '{func.__name__}' with multi_input=False, batched=False "
+                            f"must have type Sequence, found {param_type}"
+                        )
+        except Exception as e:
+            # If type hint validation fails for any reason other than TypeError, skip it
+            if isinstance(e, TypeError):
+                raise
+    
+    @staticmethod
     def _validate_return_type(func: Callable, batched: bool) -> None:
         """Validate constraint function signature matches expected types.
         
@@ -261,7 +353,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         params = list(inspect.signature(func).parameters.keys())
         
         if len(params) != 2:
-            raise TypeError(f"Function '{func.__name__}' must have exactly 2 parameters (sequences, config), found {len(params)}")
+            raise TypeError(f"Function '{func.__name__}' must have exactly 2 parameters, found {len(params)}")
         
         # Validate input parameter if annotated
         if batched and params[0] in hints and get_origin(hints[params[0]]) not in (list, List):

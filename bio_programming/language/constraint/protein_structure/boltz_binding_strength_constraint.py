@@ -4,7 +4,7 @@ Boltz binding strength constraint for protein-protein and protein-ligand interac
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Literal
+from typing import Dict, List, Optional, Any, Literal, Tuple
 
 from pydantic import field_validator
 
@@ -256,14 +256,14 @@ class BoltzBindingStrengthConfig(BaseConfig):
     config=BoltzBindingStrengthConfig,
     description="Evaluate protein-protein/protein-ligand binding using Boltz2 structure prediction",
     batched=True,
-    concatenate=False,  # Boltz handles multi-chain complexes
+    multi_input=True,
     gpu_required=True,
     tools_called=["boltz"],
     category="protein_structure",
     supported_sequence_types=["dna", "rna", "protein", "ligand"],
 )
 def boltz_binding_strength_constraint(
-    complex_sequences: List[List[Sequence]], config: BoltzBindingStrengthConfig
+    complexes: List[Tuple[Sequence, ...]], config: BoltzBindingStrengthConfig
 ) -> float | List[float]:
     """Evaluate binding strength and quality using Boltz structure prediction.
     
@@ -283,12 +283,12 @@ def boltz_binding_strength_constraint(
     depending on size and hardware.
 
     Args:
-        complex_sequences (List[List[Sequence]]): List of complexes to evaluate,
-            where each complex is a list of Sequence objects representing the
+        complexes (List[Tuple[Sequence, ...]]): List of complexes to evaluate,
+            where each complex is a tuple of Sequence objects representing the
             chains/molecules. Examples:
-            - [[protein_seq]]: Single monomer
-            - [[protein_A, protein_B]]: Protein-protein complex
-            - [[protein, dna_seq, protein]]: Multi-component complex
+            - (protein_seq,): Single monomer
+            - (protein_A, protein_B): Protein-protein complex
+            - (protein, dna_seq, protein): Multi-component complex
             Each Sequence must have appropriate sequence_type (PROTEIN, DNA, or RNA).
         config (BoltzBindingStrengthConfig): Configuration object containing target
             values, tolerances, weights, and Boltz parameters. Uses complex-type-specific
@@ -336,11 +336,11 @@ def boltz_binding_strength_constraint(
     if config.ligands is not None:
         ligands = Ligands(config.ligands)
 
-    complexes = []
-    for sequence_list in complex_sequences:
+    boltz_complexes = []
+    for sequence_tuple in complexes:
         # Pull chains and entity types from complex sequences
-        chains = [s.sequence for s in sequence_list]
-        entity_types = [s.sequence_type for s in sequence_list]
+        chains = [s.sequence for s in sequence_tuple]
+        entity_types = [s.sequence_type for s in sequence_tuple]
 
         # Add ligands if they are provided
         if ligands is not None:
@@ -348,7 +348,7 @@ def boltz_binding_strength_constraint(
             entity_types.extend(["ligand"] * len(ligands.fragments))
 
         # Add this complex
-        complexes.append(
+        boltz_complexes.append(
             StructurePredictionComplex(
                 chains=chains,
                 entity_types=entity_types,
@@ -357,7 +357,7 @@ def boltz_binding_strength_constraint(
 
     # Prepare inputs for Boltz2
     inputs = BoltzInput(
-        complexes=complexes
+        complexes=boltz_complexes
     )
 
     # Run Boltz2
@@ -365,7 +365,7 @@ def boltz_binding_strength_constraint(
 
     # Scoring each complex
     penalties = []
-    for seq_obj_tuple, comp, structure in zip(complex_sequences, inputs, outputs):
+    for seq_obj_tuple, comp, structure in zip(complexes, inputs, outputs):
 
         # Determine complex type
         n_chains = comp.num_chains()

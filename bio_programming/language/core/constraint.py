@@ -7,7 +7,7 @@ act as filters by providing a threshold parameter.
 
 Key Features:
     - Batch evaluation (sequential or batched processing)
-    - Segment coordination (contiguous concatenation or disjoint evaluation)
+    - Multi-segment support (pass tuple of sequences per candidate)
     - Automatic metadata propagation back to original sequences
     - Threshold-based filtering (converts scores to boolean accept/reject)
 """
@@ -86,8 +86,11 @@ class Constraint:
         Args:
             inputs: List of Segment objects to evaluate
             function: The constraint scoring function that returns scores between 0.0-1.0.
-                For sequential mode: (Sequence, config=ConfigModel) -> float or (Tuple[Sequence, ...], config=ConfigModel) -> float
-                For batched mode: (List[Sequence], config=ConfigModel) -> List[float] or (List[Tuple[Sequence, ...]], config=ConfigModel) -> List[float]
+                Signature depends on batched and multi_input flags:
+                - batched=False, multi_input=False: (Sequence, config) -> float
+                - batched=True,  multi_input=False: (List[Sequence], config) -> List[float]
+                - batched=False, multi_input=True:  (Tuple[Sequence, ...], config) -> float
+                - batched=True,  multi_input=True:  (List[Tuple[Sequence, ...]], config) -> List[float]
             function_config: Configuration as Pydantic BaseModel or dict (auto-converted to BaseModel)
             label: Optional label for metadata tracking. Defaults to function.__name__
             threshold: Optional threshold for filtering mode. If provided, scores <= threshold are accepted (True),
@@ -109,7 +112,7 @@ class Constraint:
 
         # Read metadata from function attributes (set by registry decorator)
         self.batched = function._constraint_batched
-        self.concatenate = function._constraint_concatenate
+        self.multi_input = getattr(function, '_constraint_multi_input', False)
 
         # Convert dict configs to Pydantic models for validation
         if isinstance(function_config, dict):
@@ -119,8 +122,7 @@ class Constraint:
             self.function_config = function_config
 
         # Validate inputs
-        self._validate_inputs()
-        self._validate_sequence_types()
+        self._validate_constraint()
 
     def evaluate(
         self,
@@ -164,21 +166,37 @@ class Constraint:
         # Evaluate candidates at specified indices only for performance
         if self.batched:
             # Batched mode: evaluate all sequences in one batch
-            indexed_sequences = [(idx, self._preprocess_sequence_at_index(idx)) for idx in indices_to_evaluate] # (original_idx, sequence) pairs
-            sequences_to_evaluate = [seq for _, seq in indexed_sequences]                           # list of raw sequences to evaluate
-            raw_scores = self.function(sequences_to_evaluate, config=self.function_config)          # list of raw scores
+            # indexed_sequences stores (original_idx, tuple_for_metadata) pairs
+            indexed_sequences = [(idx, self._preprocess_sequence_at_index(idx)) for idx in indices_to_evaluate]
+            
+            # Transform based on multi_input flag
+            if self.multi_input:
+                # Multi-input: pass List[Tuple[Sequence, ...]]
+                sequences_to_evaluate = [seq_tuple for _, seq_tuple in indexed_sequences]
+            else:
+                # Single-input: unpack tuples -> List[Sequence]
+                sequences_to_evaluate = [seq_tuple[0] for _, seq_tuple in indexed_sequences]
+            
+            raw_scores = self.function(sequences_to_evaluate, config=self.function_config)
 
-
-            for (original_idx, scored_seq) in indexed_sequences:
-                self._propagate_metadata_to_sequence(original_idx, scored_seq)
+            for (original_idx, scored_tuple) in indexed_sequences:
+                self._propagate_metadata_to_sequence(original_idx, scored_tuple)
         else:
             # Sequential mode: evaluate one at a time
             raw_scores = []
             for idx in indices_to_evaluate:
-                sequence = self._preprocess_sequence_at_index(idx)
-                score = self.function(sequence, config=self.function_config)
+                seq_tuple = self._preprocess_sequence_at_index(idx)
+                
+                # Transform based on multi_input flag
+                if self.multi_input:
+                    # Multi-input: pass Tuple[Sequence, ...]
+                    score = self.function(seq_tuple, config=self.function_config)
+                else:
+                    # Single-input: unpack tuple -> Sequence
+                    score = self.function(seq_tuple[0], config=self.function_config)
+                
                 raw_scores.append(score)
-                self._propagate_metadata_to_sequence(idx, sequence)
+                self._propagate_metadata_to_sequence(idx, seq_tuple)
 
         # Rebuild dense result array. Skipped candidates get NaN (scoring) or False (filter)
         if self.threshold is None:
@@ -206,115 +224,81 @@ class Constraint:
 
         return final_scores
 
-    def _preprocess_sequence_at_index(self, sequence_idx: int) -> Sequence | Tuple[Sequence, ...]:
+    def _preprocess_sequence_at_index(self, sequence_idx: int) -> Tuple[Sequence, ...]:
         """
-        Preprocess sequence(s) at a specific batch position for scoring by creating dummy Sequence
-        objects with clean metadata to pass to the scoring function.
+        Preprocess sequence(s) at a specific batch position for scoring by creating clean Sequence
+        objects with fresh metadata to pass to the scoring function.
 
         Args:
             sequence_idx: Index position in the sequence pool (0-based)
 
         Returns:
-            If concatenate=True: Sequence - merged Sequence object from all segments (contiguous)
-            If concatenate=False: Tuple[Sequence, ...] - tuple of clean Sequence objects (disjoint)
+            Tuple[Sequence, ...] - tuple of clean Sequence objects, one per input segment
         """
-        if self.concatenate:
-            # CONTIGUOUS: Merge all segments into single Sequence object
-            # Example: sequence_idx=0, segments with sequences=[Seq("AAA"), ...], [Seq("CCC"), ...] → Sequence("AAACCC")
-            return Sequence.from_sequences(
-                subsequences=[seg.candidate_sequences[sequence_idx] for seg in self.inputs],
-                merge_metadata=False  # Clean metadata - only basic system keys
+        # Return tuple of clean Sequence objects
+        # Example: sequence_idx=0, segments with sequences=[Seq("AAA"), ...], [Seq("CCC"), ...] → (Seq("AAA"), Seq("CCC"))
+        dummy_sequences = []
+        for seg in self.inputs:
+            original = seg.candidate_sequences[sequence_idx]
+            # Create clean Sequence with only essential properties
+            dummy_seq = Sequence(
+                sequence=original.sequence,
+                sequence_type=original.sequence_type,
+                valid_chars=original._valid_chars
             )
-        else:
-            # DISJOINT: Return tuple of clean Sequence objects
-            # Example: sequence_idx=0, segments with sequences=[Seq("AAA"), ...], [Seq("CCC"), ...] → (Seq("AAA"), Seq("CCC"))
-            dummy_sequences = []
-            for seg in self.inputs:
-                original = seg.candidate_sequences[sequence_idx]
-                # Create clean Sequence with only essential properties
-                dummy_seq = Sequence(
-                    sequence=original.sequence,
-                    sequence_type=original.sequence_type,
-                    valid_chars=original._valid_chars
-                )
-                dummy_sequences.append(dummy_seq)
-            return tuple(dummy_sequences)
+            dummy_sequences.append(dummy_seq)
+        return tuple(dummy_sequences)
 
-    def _propagate_metadata_to_sequence(self, sequence_idx: int, scored_sequence: Sequence | Tuple[Sequence, ...]) -> None:
+    def _propagate_metadata_to_sequence(self, sequence_idx: int, scored_sequence: Tuple[Sequence, ...]) -> None:
         """
         Write constraint results back to original sequence metadata.
 
-        Extracts metadata from the scored Sequence object(s) and propagates it back to
+        Extracts metadata from the scored Sequence objects and propagates it back to
         the original sequences in the input segments. Metadata keys are prefixed
         with segment labels and constraint name to prevent collisions.
 
         Args:
             sequence_idx: Index position in the sequence pool (0-based)
-            scored_sequence: The Sequence (or tuple of Sequences) that was scored,
-                           containing metadata written by the scoring function
+            scored_sequence: Tuple of Sequences that were scored, containing metadata
+                           written by the scoring function (one per segment)
         """
-        if self.concatenate:
-            # For contiguous: propagate from single scored Sequence to all original segments
-            # Create combined label from all segments
-            segment_labels = [seg.label or f"segment_{i}" for i, seg in enumerate(self.inputs)]
-            combined_label = "-".join(segment_labels)
-            prefix = f"{combined_label}.{self.label}"
+        # Propagate from each scored Sequence to its corresponding original segment
+        for seg_idx, (segment, scored_seq) in enumerate(zip(self.inputs, scored_sequence)):
+            original_seq = segment.candidate_sequences[sequence_idx]
+            segment_label = segment.label or f"segment_{seg_idx}"
+            prefix = f"{segment_label}.{self.label}"
 
-            for segment in self.inputs:
-                original_seq = segment.candidate_sequences[sequence_idx]
-                propagate_metadata(
-                    source_metadata=scored_sequence._metadata,
-                    target_metadata=original_seq._metadata,
-                    prefix=prefix
-                )
-        else:
-            # For disjoint: propagate from each scored Sequence to its corresponding original
-            # scored_sequence is a tuple of Sequences, one per segment
-            for seg_idx, (segment, scored_seq) in enumerate(zip(self.inputs, scored_sequence)):
-                original_seq = segment.candidate_sequences[sequence_idx]
-                segment_label = segment.label or f"segment_{seg_idx}"
-                prefix = f"{segment_label}.{self.label}"
+            propagate_metadata(
+                source_metadata=scored_seq._metadata,
+                target_metadata=original_seq._metadata,
+                prefix=prefix
+            )
 
-                propagate_metadata(
-                    source_metadata=scored_seq._metadata,
-                    target_metadata=original_seq._metadata,
-                    prefix=prefix
-                )
-
-    def _validate_inputs(self) -> None:
-        """Validate that all input segments have consistent candidate pool sizes and sequence types."""
+    def _validate_constraint(self) -> None:
+        """Validate constraint inputs: segments, sequence types, and segment count."""
         if not self.inputs:
             raise ValueError("At least one segment must be provided")
 
-        # Check that all segments have the same number of candidates
+        # Single-input constraints only accept 1 segment
+        if not self.multi_input and len(self.inputs) > 1:
+            raise ValueError(
+                f"Constraint '{self.label}' is single-input (multi_input=False) but received "
+                f"{len(self.inputs)} segments. Single-input constraints only accept 1 segment."
+            )
+
+        # All segments must have same number of candidates
         candidate_sizes = [seg.num_candidates for seg in self.inputs]
         if not all(size == candidate_sizes[0] for size in candidate_sizes):
             raise ValueError(f"All segments must have the same number of candidate sequences. Found: {candidate_sizes}")
 
-        # If concatenate is True, all segments must have the same sequence type and valid_chars
-        if self.concatenate:
-            ex = self.inputs[0]
-            sequence_type = ex.sequence_type
-            valid_chars = ex._valid_chars
-
-            # Check the sequences in all other segments
-            for ind, seg in enumerate(self.inputs[1:]):
-                if seg.sequence_type != sequence_type:
-                    raise ValueError(f"All segments must have the same sequence type. Expected: {sequence_type}, Found: {seg.sequence_type} at index {ind}")
-                if seg._valid_chars != valid_chars:
-                    raise ValueError(f"All segments must have the same valid_chars. Expected: {valid_chars}, Found: {seg._valid_chars} at index {ind}")
-
-    def _validate_sequence_types(self) -> None:
-        """Validate that input segment sequence types are supported by this constraint."""
+        # Check sequence types are supported
         supported_types = getattr(self.function, '_constraint_supported_sequence_types', None)
-        
         if supported_types is None:
             raise ValueError(f"Constraint function '{self.function.__name__}' missing supported_sequence_types attribute")
         
         for seg in self.inputs:
             if seg.sequence_type not in supported_types:
-                supported_str = ", ".join(supported_types)
                 raise ValueError(
                     f"Constraint '{self.label}' does not support sequence type '{seg.sequence_type}'. "
-                    f"Supported types: [{supported_str}]"
+                    f"Supported types: [{', '.join(supported_types)}]"
                 )

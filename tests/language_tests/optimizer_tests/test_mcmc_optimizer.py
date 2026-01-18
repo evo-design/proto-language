@@ -94,7 +94,7 @@ class TestMCMCOptimizer:
         def dummy_scoring_func(seq, config=None):
             return 0.0
         dummy_scoring_func._constraint_batched = False
-        dummy_scoring_func._constraint_concatenate = True
+        dummy_scoring_func._constraint_multi_input = False
         dummy_scoring_func._constraint_config_class = EmptyConfig
         dummy_scoring_func._constraint_supported_sequence_types = ["dna"]
 
@@ -283,16 +283,22 @@ class TestMCMCOptimizer:
         inv_gen.assign(segment2)
 
         construct = Construct([segment1, segment2])
-        constraint = Constraint(
-            inputs=[segment1, segment2],
+        # Use separate constraints for each segment (single-input constraints)
+        constraint1 = Constraint(
+            inputs=[segment1],
             function=sequence_length_constraint,
-            function_config=SequenceLengthConfig(target_length=seq_len * 2),
+            function_config=SequenceLengthConfig(target_length=seq_len),
+        )
+        constraint2 = Constraint(
+            inputs=[segment2],
+            function=sequence_length_constraint,
+            function_config=SequenceLengthConfig(target_length=seq_len),
         )
 
         optimizer = MCMCOptimizer(
             constructs=[construct],
             generators=[mut_gen, inv_gen],
-            constraints=[constraint],
+            constraints=[constraint1, constraint2],
             config=MCMCOptimizerConfig(num_selected=1, mcmc_width=1, num_steps=20, verbose=False),
         )
 
@@ -557,7 +563,7 @@ class TestMCMCOptimizer:
 
         # Add required attributes for the scoring function
         perfect_g_energy._constraint_batched = False
-        perfect_g_energy._constraint_concatenate = True
+        perfect_g_energy._constraint_multi_input = False
         perfect_g_energy._constraint_config_class = EmptyConfig
         perfect_g_energy._constraint_supported_sequence_types = ["dna"]
 
@@ -732,7 +738,7 @@ class TestMCMCOptimizer:
         def dummy_scoring_func(seq, config=None):
             return 0.0
         dummy_scoring_func._constraint_batched = False
-        dummy_scoring_func._constraint_concatenate = True
+        dummy_scoring_func._constraint_multi_input = False
         dummy_scoring_func._constraint_config_class = EmptyConfig
         dummy_scoring_func._constraint_supported_sequence_types = ["dna"]
 
@@ -784,8 +790,14 @@ class TestMCMCOptimizer:
 
         construct = Construct([segment1, segment2])
 
-        gc_constraint = Constraint(
-            inputs=[segment1, segment2],
+        # Separate constraints for each segment (single-input constraints)
+        gc_constraint1 = Constraint(
+            inputs=[segment1],
+            function=gc_content_constraint,
+            function_config=GCContentConfig(min_gc=45.0, max_gc=55.0),
+        )
+        gc_constraint2 = Constraint(
+            inputs=[segment2],
             function=gc_content_constraint,
             function_config=GCContentConfig(min_gc=45.0, max_gc=55.0),
         )
@@ -793,7 +805,7 @@ class TestMCMCOptimizer:
         optimizer = MCMCOptimizer(
             constructs=[construct],
             generators=[gen1, gen2],
-            constraints=[gc_constraint],
+            constraints=[gc_constraint1, gc_constraint2],
             config=MCMCOptimizerConfig(
                 num_selected=num_selected,
                 mcmc_width=num_candidates,

@@ -64,7 +64,7 @@ class BalancedAaConfig(BaseConfig):
     config=BalancedAaConfig,
     description="Evaluate the presence of underrepresented amino acids in a protein sequence",
     batched=True,
-    concatenate=True,
+    multi_input=False,
     tools_called=[],
     category="protein quality",
     supported_sequence_types=["protein"],

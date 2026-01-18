@@ -43,7 +43,7 @@ def mock_single_input_scoring_function(sequence: Sequence, config=None) -> float
 
 # Set attributes that would normally be set by registry decorator
 mock_single_input_scoring_function._constraint_batched = False
-mock_single_input_scoring_function._constraint_concatenate = True
+mock_single_input_scoring_function._constraint_multi_input = False
 mock_single_input_scoring_function._constraint_config_class = None
 mock_single_input_scoring_function._constraint_supported_sequence_types = ["dna", "rna", "protein"]
 
@@ -74,7 +74,7 @@ def mock_multi_input_scoring_function(sequences: List[Sequence], config=None) ->
 
 # Set attributes that would normally be set by registry decorator
 mock_multi_input_scoring_function._constraint_batched = True
-mock_multi_input_scoring_function._constraint_concatenate = True
+mock_multi_input_scoring_function._constraint_multi_input = False
 mock_multi_input_scoring_function._constraint_config_class = None
 mock_multi_input_scoring_function._constraint_supported_sequence_types = ["dna", "rna", "protein"]
 
@@ -110,7 +110,7 @@ def mock_single_input_scoring_function_disjoint(
 
 # Set attributes that would normally be set by registry decorator
 mock_single_input_scoring_function_disjoint._constraint_batched = False
-mock_single_input_scoring_function_disjoint._constraint_concatenate = False
+mock_single_input_scoring_function_disjoint._constraint_multi_input = True
 mock_single_input_scoring_function_disjoint._constraint_config_class = None
 mock_single_input_scoring_function_disjoint._constraint_supported_sequence_types = ["dna", "rna", "protein"]
 
@@ -148,7 +148,7 @@ def mock_multi_input_scoring_function_disjoint(
 
 # Set attributes that would normally be set by registry decorator
 mock_multi_input_scoring_function_disjoint._constraint_batched = True
-mock_multi_input_scoring_function_disjoint._constraint_concatenate = False
+mock_multi_input_scoring_function_disjoint._constraint_multi_input = True
 mock_multi_input_scoring_function_disjoint._constraint_config_class = None
 mock_multi_input_scoring_function_disjoint._constraint_supported_sequence_types = ["dna", "rna", "protein"]
 
@@ -162,7 +162,7 @@ def mock_dna_only_scoring_function(sequences: List[Sequence], config=None) -> Li
 
 # Set attributes that would normally be set by registry decorator
 mock_dna_only_scoring_function._constraint_batched = True
-mock_dna_only_scoring_function._constraint_concatenate = True
+mock_dna_only_scoring_function._constraint_multi_input = False
 mock_dna_only_scoring_function._constraint_config_class = None
 mock_dna_only_scoring_function._constraint_supported_sequence_types = ["dna"]  # DNA only
 
@@ -176,7 +176,7 @@ def mock_protein_only_scoring_function(sequences: List[Sequence], config=None) -
 
 # Set attributes that would normally be set by registry decorator
 mock_protein_only_scoring_function._constraint_batched = True
-mock_protein_only_scoring_function._constraint_concatenate = True
+mock_protein_only_scoring_function._constraint_multi_input = False
 mock_protein_only_scoring_function._constraint_config_class = None
 mock_protein_only_scoring_function._constraint_supported_sequence_types = ["protein"]  # Protein only
 

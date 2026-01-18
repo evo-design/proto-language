@@ -112,7 +112,7 @@ class ProteinDomainConfig(BaseConfig):
     config=ProteinDomainConfig,
     description="Evaluate whether sequences contains protein domains matching specified keywords",
     batched=True,
-    concatenate=True,
+    multi_input=False,
     tools_called=["pyhmmer", "prodigal"],
     category="protein quality",
     supported_sequence_types=["dna", "protein"],
