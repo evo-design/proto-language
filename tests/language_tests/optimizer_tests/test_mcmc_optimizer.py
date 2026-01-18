@@ -1,5 +1,4 @@
 from __future__ import annotations
-import math
 import pytest
 import copy
 from typing import Tuple
