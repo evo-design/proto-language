@@ -315,3 +315,161 @@ class TestProgramValidation:
 
         with pytest.raises(ValueError, match="not the same object"):
             Program(optimizers=[opt1, opt2])
+
+
+class TestSerializeRestoreState:
+    """Tests for Program.serialize_state and restore_state (cross-task persistence)."""
+
+    def test_serialize_state_structure(self):
+        """Test that serialize_state returns correct structure."""
+        program = _create_simple_program(num_stages=1)
+        program.run_stage(0)
+
+        state = program.serialize_state()
+
+        assert "current_stage" in state
+        assert "segments" in state
+        assert "energy_scores" in state
+        assert state["current_stage"] == 1
+        assert len(state["segments"]) == 1  # One segment
+
+    def test_serialize_state_captures_sequences(self):
+        """Test that serialize_state captures selected_sequences correctly."""
+        original_seq = "ATGCATGCATGCATGCATGC"
+        program = _create_simple_program(num_stages=1, sequence=original_seq)
+        program.run_stage(0)
+
+        state = program.serialize_state()
+
+        # Check segment state structure
+        seg_state = state["segments"][0]
+        assert "selected_sequences" in seg_state
+        assert len(seg_state["selected_sequences"]) == 2  # k=2 from config
+
+        # Check sequence data structure
+        for seq_data in seg_state["selected_sequences"]:
+            assert "sequence" in seq_data
+            assert "metadata" in seq_data
+            assert isinstance(seq_data["sequence"], str)
+            assert isinstance(seq_data["metadata"], dict)
+
+    def test_serialize_state_captures_energy_scores(self):
+        """Test that serialize_state captures energy_scores from last optimizer."""
+        program = _create_simple_program(num_stages=1)
+        program.run_stage(0)
+
+        state = program.serialize_state()
+
+        assert len(state["energy_scores"]) == 2  # k=2
+        assert all(isinstance(s, float) for s in state["energy_scores"])
+
+    def test_restore_state_restores_sequences(self):
+        """Test that restore_state correctly restores selected_sequences."""
+        original_seq = "ATGCATGCATGCATGCATGC"
+        program = _create_simple_program(num_stages=2, sequence=original_seq)
+
+        # Run stage 0 and serialize
+        program.run_stage(0)
+        state = program.serialize_state()
+        stage0_sequences = [
+            seq.sequence for seq in program.constructs[0].segments[0].selected_sequences
+        ]
+
+        # Create fresh program and restore
+        fresh_program = _create_simple_program(num_stages=2, sequence=original_seq)
+        fresh_program.restore_state(state)
+
+        # Verify sequences were restored
+        restored_sequences = [
+            seq.sequence for seq in fresh_program.constructs[0].segments[0].selected_sequences
+        ]
+        assert restored_sequences == stage0_sequences
+
+    def test_restore_state_restores_current_stage(self):
+        """Test that restore_state correctly restores current_stage."""
+        program = _create_simple_program(num_stages=2)
+        program.run_stage(0)
+        state = program.serialize_state()
+
+        fresh_program = _create_simple_program(num_stages=2)
+        assert fresh_program.current_stage == 0
+
+        fresh_program.restore_state(state)
+        assert fresh_program.current_stage == 1
+
+    def test_restore_state_restores_metadata(self):
+        """Test that restore_state correctly restores sequence metadata."""
+        program = _create_simple_program(num_stages=1)
+        program.run_stage(0)
+
+        # Add custom metadata
+        segment = program.constructs[0].segments[0]
+        segment.selected_sequences[0]._metadata["custom_key"] = "custom_value"
+
+        state = program.serialize_state()
+
+        # Restore to fresh program
+        fresh_program = _create_simple_program(num_stages=1)
+        fresh_program.restore_state(state)
+
+        # Verify metadata was restored
+        restored_segment = fresh_program.constructs[0].segments[0]
+        assert restored_segment.selected_sequences[0]._metadata.get("custom_key") == "custom_value"
+
+    def test_restore_state_validates_segment_count(self):
+        """Test that restore_state raises error on segment count mismatch."""
+        program = _create_simple_program(num_stages=1)
+        program.run_stage(0)
+        state = program.serialize_state()
+
+        # Add extra segment to state
+        state["segments"].append(state["segments"][0].copy())
+
+        fresh_program = _create_simple_program(num_stages=1)
+        with pytest.raises(ValueError, match="State mismatch"):
+            fresh_program.restore_state(state)
+
+    def test_serialize_restore_roundtrip(self):
+        """Test full serialize -> restore -> continue optimization flow."""
+        original_seq = "ATGCATGCATGCATGCATGC"
+
+        # Run stage 0
+        program1 = _create_simple_program(num_stages=2, sequence=original_seq)
+        program1.run_stage(0)
+        state = program1.serialize_state()
+        stage0_sequences = [
+            seq.sequence for seq in program1.constructs[0].segments[0].selected_sequences
+        ]
+
+        # Restore and run stage 1
+        program2 = _create_simple_program(num_stages=2, sequence=original_seq)
+        program2.restore_state(state)
+
+        # Verify state was restored before running stage 1
+        pre_stage1_sequences = [
+            seq.sequence for seq in program2.constructs[0].segments[0].selected_sequences
+        ]
+        assert pre_stage1_sequences == stage0_sequences
+
+        # Run stage 1
+        program2.run_stage(1)
+
+        # Verify stage 1 completed
+        assert program2.current_stage == 2
+
+    def test_serialize_state_is_json_compatible(self):
+        """Test that serialize_state output can be JSON serialized."""
+        import json
+
+        program = _create_simple_program(num_stages=1)
+        program.run_stage(0)
+        state = program.serialize_state()
+
+        # Should not raise
+        json_str = json.dumps(state)
+        assert len(json_str) > 0
+
+        # Should round-trip
+        restored = json.loads(json_str)
+        assert restored["current_stage"] == state["current_stage"]
+        assert len(restored["segments"]) == len(state["segments"])

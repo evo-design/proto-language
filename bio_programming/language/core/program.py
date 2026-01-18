@@ -285,6 +285,11 @@ class Program:
         Returns segment-level sequences (not joined) with metadata. This is the
         canonical format used by both the core layer and API.
 
+        Note:
+            Infinite/NaN energy scores (from filter rejection) are converted to None
+            for JSON serialization compatibility. Use optimizer.energy_scores directly
+            if you need the raw values.
+
         Args:
             energy_scores: List of energy scores (one per batch)
 
@@ -293,8 +298,15 @@ class Program:
                 - batch_results: List of batch result dicts with segment-level sequences
                 - best_batch_idx: Index of the batch with lowest energy
         """
+        import math
         from .sequence import Sequence
         from proto_language.utils import propagate_metadata
+
+        def sanitize_energy(score: float) -> float | None:
+            """Convert inf/nan to None for JSON compatibility."""
+            if math.isinf(score) or math.isnan(score):
+                return None
+            return score
 
         if not self.constructs or not self.constructs[0].segments:
             return {"batch_results": [], "best_batch_idx": 0}
@@ -316,11 +328,16 @@ class Program:
             batch_results.append({
                 "batch_idx": batch_idx,
                 "constructs": construct_sequences,
-                "energy_score": energy_scores[batch_idx] if batch_idx < len(energy_scores) else 0.0,
+                "energy_score": sanitize_energy(energy_scores[batch_idx]),
                 "metadata": batch_metadata
             })
 
-        best_idx = min(range(len(batch_results)), key=lambda i: batch_results[i]["energy_score"]) if batch_results else 0
+        # For best_idx calculation, treat None (was inf/nan) as infinity
+        def get_score(i: int) -> float:
+            score = batch_results[i]["energy_score"]
+            return float('inf') if score is None else score
+
+        best_idx = min(range(len(batch_results)), key=get_score) if batch_results else 0
         return {"batch_results": batch_results, "best_batch_idx": best_idx}
 
     def serialize_state(self) -> Dict:
@@ -335,7 +352,6 @@ class Program:
         for construct in self.constructs:
             for segment in construct.segments:
                 segment_state = {
-                    "segment_id": id(segment),
                     "selected_sequences": [
                         {
                             "sequence": seq.sequence,
@@ -343,10 +359,6 @@ class Program:
                         }
                         for seq in segment.selected_sequences
                     ],
-                    "original_sequence": {
-                        "sequence": segment.original_sequence.sequence,
-                        "metadata": segment.original_sequence._metadata,
-                    },
                 }
                 segment_states.append(segment_state)
 
