@@ -361,8 +361,8 @@ class TestMCMCOptimizer:
         optimizer.run()
 
         # Should maintain num_selected sequences
-        # energy_scores is kept at constant length num_candidates (total pool size)
-        assert len(optimizer.energy_scores) == optimizer.num_candidates
+        # energy_scores is truncated to num_selected after each selection step
+        assert len(optimizer.energy_scores) == num_selected
         assert len(segment.selected_sequences) == num_selected
 
     def test_history_tracking(self):
@@ -811,8 +811,8 @@ class TestMCMCOptimizer:
 
         optimizer.run()
 
-        # energy_scores is kept at constant length num_candidates (total pool size)
-        assert len(optimizer.energy_scores) == optimizer.num_candidates
+        # energy_scores is truncated to num_selected after each selection step
+        assert len(optimizer.energy_scores) == num_selected
         assert len(segment1.selected_sequences) == num_selected
         assert len(segment2.selected_sequences) == num_selected
 
@@ -838,7 +838,7 @@ class TestMCMCOptimizer:
         assert len(captured_selected) == 1
         assert captured_selected[0].sequence == original_seq
         
-        # Verify energy scores were captured
+        # Verify energy scores were captured (initial state captures full num_candidates before first run)
         assert 'energy_scores' in optimizer._initial_state
         assert len(optimizer._initial_state['energy_scores']) == optimizer.num_candidates
 

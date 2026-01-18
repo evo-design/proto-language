@@ -290,15 +290,15 @@ class MCMCOptimizer(Optimizer):
         Returns:
             List of tuples, one per selected sequence, each containing:
                 - segments dict: {segment_id -> deepcopied Sequence object}
-                - energy: float (from first num_selected entries of energy_scores after sorting)
+                - energy: float (energy_scores[selected_batch_idx])
         """
         sequence_state = []
-        for selected_idx in range(self.num_selected):
+        for selected_batch_idx in range(self.num_selected):
             segments_dict = {}
             for segment in self.segments:
                 seg_id = id(segment)
-                segments_dict[seg_id] = copy.deepcopy(segment.selected_sequences[selected_idx])
-            sequence_state.append((segments_dict, self.energy_scores[selected_idx]))
+                segments_dict[seg_id] = copy.deepcopy(segment.selected_sequences[selected_batch_idx])
+            sequence_state.append((segments_dict, self.energy_scores[selected_batch_idx]))
         return sequence_state
 
     def _populate_candidate_sequences(self) -> None:
@@ -308,10 +308,10 @@ class MCMCOptimizer(Optimizer):
         Layout: [sequence_0] * mcmc_width + [sequence_1] * mcmc_width + ...
         """
         for segment in self.segments:
-            for selected_idx in range(self.num_selected):
-                start_idx = selected_idx * self.mcmc_width
+            for selected_batch_idx in range(self.num_selected):
+                start_idx = selected_batch_idx * self.mcmc_width
                 for offset in range(self.mcmc_width):
-                    segment.candidate_sequences[start_idx + offset] = copy.deepcopy(segment.selected_sequences[selected_idx])
+                    segment.candidate_sequences[start_idx + offset] = copy.deepcopy(segment.selected_sequences[selected_batch_idx])
 
     def _select_topk_with_mcmc_acceptance(
         self,
@@ -364,6 +364,10 @@ class MCMCOptimizer(Optimizer):
                     segment.selected_sequences[selected_batch_idx] = copy.deepcopy(old_segments_dict[seg_id])
 
             self.energy_scores[selected_batch_idx] = best_energy
+
+        # Truncate to only keep selected energies (indices [num_selected:] are stale proposal energies)
+        # score_energy() will resize back to num_candidates at the start of each step
+        self.energy_scores = self.energy_scores[:self.num_selected]
 
     def _compute_temperature(self, step: int) -> float:
         """Calculate annealed temperature: T(step) = T_max * (T_min/T_max)^((step-1)/(num_steps-1))
