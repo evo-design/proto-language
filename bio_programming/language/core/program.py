@@ -302,7 +302,7 @@ class Program:
         from .sequence import Sequence
         from proto_language.utils import propagate_metadata
 
-        def sanitize_energy(score: float) -> float | None:
+        def filter_inf_energy(score: float) -> float | None:
             """Convert inf/nan to None for JSON compatibility."""
             if math.isinf(score) or math.isnan(score):
                 return None
@@ -328,7 +328,7 @@ class Program:
             batch_results.append({
                 "batch_idx": batch_idx,
                 "constructs": construct_sequences,
-                "energy_score": sanitize_energy(energy_scores[batch_idx]),
+                "energy_score": filter_inf_energy(energy_scores[batch_idx]),
                 "metadata": batch_metadata
             })
 
