@@ -62,7 +62,7 @@ class MCMCOptimizerConfig(BaseConfig):
     Note:
         - When ``num_selected=1`` (default), behaves like standard single-chain MCMC.
         - When ``num_selected > 1``, maintains ``num_selected`` sequence trajectories and 
-        generates ``mcmc_width`` (default: 1) proposals per trajectory each step.
+          generates ``mcmc_width`` (default: 1) proposals per trajectory each step.
         - Temperature annealing follows exponential decay:
           T(step) = T_max x (T_min / T_max)^(step / num_steps)
     """
@@ -171,10 +171,12 @@ class MCMCOptimizer(Optimizer):
     Note:
         - Only supports mutation generators (``category="mutation"``)
         - Uses Metropolis-Hastings acceptance: always accepts improvements,
-            accepts worse proposals with probability exp(-ΔE/T)
+          accepts worse proposals with probability exp(-ΔE/T)
         - Simulated annealing: temperature decreases exponentially from
-            ``max_temperature`` to ``min_temperature``
+          ``max_temperature`` to ``min_temperature``
         - Lower energy scores are better (minimization objective)
+        - When ``mcmc_width > 1``, trades theoretical MCMC purity for faster optimization
+          by greedily selecting the best among accepted proposals per trajectory
     """
     # Class attribute required by OptimizerRegistry
     config_class = MCMCOptimizerConfig
