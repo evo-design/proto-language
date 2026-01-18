@@ -836,15 +836,16 @@ class TestMCMCOptimizer:
         assert len(optimizer._initial_state['energy_scores']) == optimizer.num_candidates
 
         # Manually modify the sequence to verify restore works
-        segment.selected_sequences[0].sequence = "MODIFIED_SEQUENCE_123"
-        segment.candidate_sequences[0].sequence = "MODIFIED_CANDIDATE_12"
+        segment.selected_sequences[0].sequence = "G" * 20
+        segment.candidate_sequences[0].sequence = "G" * 20
 
         # Second run should restore from initial state (original "AAAA...")
         optimizer.run()
         second_run_final_seq = segment.selected_sequences[0].sequence
 
-        # Verify sequences were restored (not "MODIFIED")
-        assert "MODIFIED" not in second_run_final_seq
+        # Verify sequences were restored (not all G's, optimization ran from restored state)
+        # The restored state was "A" * 20, then mutations were applied
+        assert second_run_final_seq != "G" * 20
         
         # Both runs should have started from original state
         # History should be fresh (cleared on restart)

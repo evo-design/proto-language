@@ -614,3 +614,113 @@ class TestProgramSerializer:
         result = serialize_program(program)
 
         assert result["constructs"][0]["type"] == "PROTEIN"
+
+
+class TestCyclingOptimizerSerialization:
+    """Tests for CyclingOptimizer serialization round-trip."""
+
+    def test_cycling_optimizer_round_trip(self):
+        """Test that CyclingOptimizer with pipeline serializes and parses correctly."""
+        original_json = {
+            "constructs": [{"type": "protein", "segments": [{"id": "prot0", "sequence": "ACDEFGHIKLMNPQRSTVWY" * 5}]}],
+            "optimization_stages": [{
+                "optimizer": {
+                    "method": "cycling",
+                    "target_segment": "prot0",
+                    "config": {
+                        "num_steps": 3,
+                        "num_candidates": 2,
+                        "conditioning_param_name": "structure_inputs",
+                        "pipeline": "protein-hunter",
+                        "protein_hunter": {"structure_tool": "chai"}
+                    }
+                },
+                "generators": [{"key": "proteinmpnn", "target": "prot0", "config": {"temperature": 0.1}}],
+                "constraints": []
+            }]
+        }
+
+        # Parse
+        program = DarwinParser(original_json).parse()
+
+        # Serialize
+        result = serialize_program(program)
+
+        # Verify optimizer config
+        opt = result["optimization_stages"][0]["optimizer"]
+        assert opt["method"] == "cycling"
+        # Serializer generates construct0-segment0 ID
+        assert opt["target_segment"] == "construct0-segment0"
+        assert opt["config"]["pipeline"] == "protein-hunter"
+        assert opt["config"]["protein_hunter"]["structure_tool"] == "chai"
+
+        # Re-parse and verify
+        program2 = DarwinParser(result).parse()
+        assert program2.optimizers[0].pipeline == "protein-hunter"
+        assert program2.optimizers[0].protein_hunter.structure_tool == "chai"
+
+    def test_cycling_optimizer_serializes_target_segment(self):
+        """Test that target_segment is serialized correctly."""
+        json_data = {
+            "constructs": [{"type": "protein", "segments": [
+                {"id": "seg1", "sequence": "A" * 50},
+                {"id": "seg2", "sequence": "C" * 50}
+            ]}],
+            "optimization_stages": [{
+                "optimizer": {
+                    "method": "cycling",
+                    "target_segment": "seg2",  # Targeting second segment
+                    "config": {"num_steps": 2, "num_candidates": 2, "conditioning_param_name": "structure_inputs", "pipeline": "protein-hunter"}
+                },
+                "generators": [{"key": "proteinmpnn", "target": "seg2", "config": {"temperature": 0.1}}],
+                "constraints": []
+            }]
+        }
+
+        program = DarwinParser(json_data).parse()
+        result = serialize_program(program)
+
+        # Serializer generates IDs like construct0-segment1 (second segment)
+        assert result["optimization_stages"][0]["optimizer"]["target_segment"] == "construct0-segment1"
+
+
+class TestBeamSearchOptimizerSerialization:
+    """Tests for BeamSearchOptimizer serialization round-trip."""
+
+    def test_beam_search_optimizer_round_trip(self):
+        """Test that BeamSearchOptimizer with target_segment serializes and parses correctly."""
+        original_json = {
+            "constructs": [{"type": "dna", "segments": [{"id": "seg0", "sequence": "ATGC" * 25}]}],
+            "optimization_stages": [{
+                "optimizer": {
+                    "method": "beam-search",
+                    "target_segment": "seg0",
+                    "config": {
+                        "prompt": "ATGC",
+                        "beam_length": 10,
+                        "beam_width": 4,
+                        "candidates_per_beam": 8,
+                    }
+                },
+                "generators": [{"key": "evo2", "target": "seg0", "config": {"prompts": ["ATGC"]}}],
+                "constraints": [{"key": "gc-content", "targets": ["seg0"], "config": {"min_gc": 40, "max_gc": 60}}]
+            }]
+        }
+
+        # Parse
+        program = DarwinParser(original_json).parse()
+
+        # Serialize
+        result = serialize_program(program)
+
+        # Verify optimizer config
+        opt = result["optimization_stages"][0]["optimizer"]
+        assert opt["method"] == "beam-search"
+        assert opt["target_segment"] == "construct0-segment0"
+        assert opt["config"]["beam_width"] == 4
+        assert opt["config"]["beam_length"] == 10
+
+        # Re-parse and verify
+        program2 = DarwinParser(result).parse()
+        assert program2.optimizers[0].__class__.__name__ == "BeamSearchOptimizer"
+        assert program2.optimizers[0].target_segment is not None

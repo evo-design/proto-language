@@ -462,6 +462,7 @@ class TestCyclingOptimizerGPU:
         length_filter._constraint_batched = False
         length_filter._constraint_concatenate = True
         length_filter._constraint_config_class = EmptyConfig
+        length_filter._constraint_supported_sequence_types = ["protein"]
 
         constraint = Constraint(
             inputs=[target_segment],
@@ -513,10 +514,13 @@ class TestCyclingOptimizerRestart:
 
         # Mock the generator.sample to track calls and modify sequences
         call_count = [0]
+        # Valid 20-char protein sequences for each call
+        protein_seqs = ["MKTAYIAKQRQISFVKSHFS", "GPLAFVTNLTGLRSQNEEIR", 
+                        "YWDEIKNPLGRAVTYDKWFP", "HCLQMNSGVEATRIDFWYKP"]
         def mock_sample(structure_inputs=None):
             call_count[0] += 1
             for c in components["target_segment"].candidate_sequences:
-                c.sequence = f"SAMPLE{call_count[0]:014d}"  # 20 chars total
+                c.sequence = protein_seqs[call_count[0] % len(protein_seqs)]
 
         components["generator"].sample = mock_sample
 
@@ -540,9 +544,10 @@ class TestCyclingOptimizerRestart:
         assert call_count[0] > first_run_calls
         second_run_seqs = [s.sequence for s in components["target_segment"].selected_sequences]
         
-        # Verify sequences were modified (mock changes them)
-        assert all("SAMPLE" in seq for seq in first_run_seqs)
-        assert all("SAMPLE" in seq for seq in second_run_seqs)
+        # Verify sequences were modified from original (mock changes them to valid protein seqs)
+        original_seq = "ACDEFGHIKLMNPQRSTVWY"
+        assert all(seq != original_seq for seq in first_run_seqs)
+        assert all(seq != original_seq for seq in second_run_seqs)
         # History should be from second run only (cleared on restart)
         assert len(optimizer.history) == 3  # step 0, 1, 2
 
@@ -589,3 +594,151 @@ class TestCyclingOptimizerRestart:
         for orig, captured in zip(original_candidates, captured_candidates):
             assert orig.sequence == captured.sequence
             assert orig.sequence_type == captured.sequence_type
+
+
+# =============================================================================
+# Pipeline Resolution Tests
+# =============================================================================
+
+
+class TestCyclingOptimizerPipelineResolution:
+    """Tests for _resolve_conditioning_fn helper and pipeline validation."""
+
+    def test_cannot_specify_both_pipeline_and_conditioning_fn(self):
+        """Test that specifying both pipeline and conditioning_fn raises error."""
+        target_segment = Segment(sequence="A" * 100, sequence_type="protein")
+        construct = Construct([target_segment])
+        generator = ProteinMPNNGenerator(ProteinMPNNGeneratorConfig(temperature=0.1))
+        
+        config = CyclingOptimizerConfig(
+            num_steps=2,
+            num_candidates=2,
+            conditioning_param_name="structure_inputs",
+            pipeline="protein-hunter",
+        )
+        
+        with pytest.raises(ValueError, match="Cannot specify both"):
+            CyclingOptimizer(
+                target_segment=target_segment,
+                constructs=[construct],
+                generators=[generator],
+                constraints=[],
+                config=config,
+                conditioning_fn=lambda x: x,  # Both pipeline and conditioning_fn
+            )
+
+    def test_must_specify_pipeline_or_conditioning_fn(self):
+        """Test that neither pipeline nor conditioning_fn raises error."""
+        target_segment = Segment(sequence="A" * 100, sequence_type="protein")
+        construct = Construct([target_segment])
+        generator = ProteinMPNNGenerator(ProteinMPNNGeneratorConfig(temperature=0.1))
+        
+        config = CyclingOptimizerConfig(
+            num_steps=2,
+            num_candidates=2,
+            conditioning_param_name="structure_inputs",
+            # No pipeline specified
+        )
+        
+        with pytest.raises(ValueError, match="Must specify either"):
+            CyclingOptimizer(
+                target_segment=target_segment,
+                constructs=[construct],
+                generators=[generator],
+                constraints=[],
+                config=config,
+                # No conditioning_fn either
+            )
+
+    def test_unknown_pipeline_raises_error(self):
+        """Test that unknown pipeline name raises error."""
+        target_segment = Segment(sequence="A" * 100, sequence_type="protein")
+        construct = Construct([target_segment])
+        generator = ProteinMPNNGenerator(ProteinMPNNGeneratorConfig(temperature=0.1))
+        
+        # Manually set invalid pipeline (bypassing Literal validation)
+        config = CyclingOptimizerConfig(
+            num_steps=2,
+            num_candidates=2,
+            conditioning_param_name="structure_inputs",
+        )
+        object.__setattr__(config, 'pipeline', 'nonexistent-pipeline')
+        
+        with pytest.raises(ValueError, match="Unknown pipeline"):
+            CyclingOptimizer(
+                target_segment=target_segment,
+                constructs=[construct],
+                generators=[generator],
+                constraints=[],
+                config=config,
+            )
+
+    def test_protein_hunter_requires_inverse_folding_generator(self):
+        """Test that protein-hunter pipeline requires inverse_folding generator."""
+        from proto_language.language.generator import ESM2Generator, ESM2GeneratorConfig
+        
+        target_segment = Segment(sequence="A" * 20, sequence_type="protein")
+        construct = Construct([target_segment])
+        generator = ESM2Generator(ESM2GeneratorConfig(mask_positions=[[0]]))
+        
+        config = CyclingOptimizerConfig(
+            num_steps=2,
+            num_candidates=2,
+            conditioning_param_name="prompts",
+            pipeline="protein-hunter",
+        )
+        
+        with pytest.raises(ValueError, match="requires inverse_folding generator"):
+            CyclingOptimizer(
+                target_segment=target_segment,
+                constructs=[construct],
+                generators=[generator],
+                constraints=[],
+                config=config,
+            )
+
+    def test_protein_hunter_accepts_proteinmpnn(self):
+        """Test that protein-hunter pipeline accepts ProteinMPNN generator."""
+        target_segment = Segment(sequence="A" * 100, sequence_type="protein")
+        construct = Construct([target_segment])
+        generator = ProteinMPNNGenerator(ProteinMPNNGeneratorConfig(temperature=0.1))
+        
+        config = CyclingOptimizerConfig(
+            num_steps=2,
+            num_candidates=2,
+            conditioning_param_name="structure_inputs",
+            pipeline="protein-hunter",
+        )
+        
+        # Should not raise
+        optimizer = CyclingOptimizer(
+            target_segment=target_segment,
+            constructs=[construct],
+            generators=[generator],
+            constraints=[],
+            config=config,
+        )
+        assert optimizer.pipeline == "protein-hunter"
+
+    def test_protein_hunter_accepts_ligandmpnn(self):
+        """Test that protein-hunter pipeline accepts LigandMPNN generator."""
+        target_segment = Segment(sequence="A" * 100, sequence_type="protein")
+        construct = Construct([target_segment])
+        generator = LigandMPNNGenerator(LigandMPNNGeneratorConfig(temperature=0.1))
+        
+        config = CyclingOptimizerConfig(
+            num_steps=2,
+            num_candidates=2,
+            conditioning_param_name="structure_inputs",
+            pipeline="protein-hunter",
+        )
+        
+        # Should not raise
+        optimizer = CyclingOptimizer(
+            target_segment=target_segment,
+            constructs=[construct],
+            generators=[generator],
+            constraints=[],
+            config=config,
+        )
+        assert optimizer.pipeline == "protein-hunter"

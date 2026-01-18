@@ -11,7 +11,9 @@ from __future__ import annotations
 import copy
 import inspect
 import math
-from typing import Any, Callable, List, Optional, final
+from typing import Any, Callable, Dict, List, Literal, Optional, final
+
+from pydantic import model_validator
 
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.core import (
@@ -25,12 +27,136 @@ from proto_language.language.core import (
 from proto_language.language.optimizer.optimizer_registry import OptimizerRegistry
 
 
+# =============================================================================
+# Predefined Pipelines
+# =============================================================================
+
+class ProteinHunterPipelineConfig(BaseConfig):
+    """Configuration for the protein-hunter pipeline.
+    
+    The protein-hunter pipeline implements iterative structure prediction -> inverse folding
+    cycles for de novo protein design (hallucination).
+    
+    Attributes:
+        structure_tool: Structure prediction tool to use. Options: "boltz", "chai", "alphafold3".
+    """
+    structure_tool: Literal["boltz", "chai", "alphafold3"] = ConfigField(
+        default="boltz",
+        title="Structure Tool",
+        description="Structure prediction tool: 'boltz', 'chai', or 'alphafold3'.",
+    )
+
+def _create_protein_hunter_conditioning_fn(config: "CyclingOptimizerConfig") -> Callable:
+    """
+    Create protein hunter conditioning function (structure prediction -> inverse folding).
+    
+    The Protein Hunter algorithm predicts 3D structures from current sequences,
+    then uses those structures to condition inverse folding for the next iteration.
+    """
+    from proto_language.tools.structure_prediction.schemas import StructurePredictionComplex
+    from proto_language.utils.helpers import predict_structures
+    
+    structure_tool = config.protein_hunter.structure_tool if config.protein_hunter else "boltz"
+    
+    def conditioning_fn(sequences: List[Sequence]) -> List:
+        complexes = [
+            StructurePredictionComplex(chains=[seq.sequence])
+            for seq in sequences
+        ]
+        return predict_structures(complexes, structure_tool, {}).structures
+    
+    return conditioning_fn
+
+
+# Registry mapping pipeline names to factory functions and required generator categories
+CYCLING_PIPELINES: Dict[str, Dict[str, Any]] = {
+    "protein-hunter": {
+        "factory": _create_protein_hunter_conditioning_fn,
+        "required_generator_category": "inverse_folding",
+    },
+}
+
+
+# =============================================================================
+# Predefined Pipeline Helpers
+# =============================================================================
+
+def _resolve_conditioning_fn(
+    config: "CyclingOptimizerConfig",
+    generator: "Generator",
+    conditioning_fn: Optional[Callable] = None,
+) -> Callable:
+    """
+    Resolve the conditioning function from either direct parameter or pipeline config.
+    
+    Args:
+        config: Optimizer config containing optional pipeline specification
+        generator: The generator to validate against pipeline requirements
+        conditioning_fn: Optional directly-provided conditioning function
+        
+    Returns:
+        The resolved conditioning function
+        
+    Raises:
+        ValueError: If both or neither of conditioning_fn/pipeline are provided,
+            or if generator doesn't match pipeline requirements
+    """
+    # Mutual exclusivity check
+    if config.pipeline is not None and conditioning_fn is not None:
+        raise ValueError(
+            "Cannot specify both 'conditioning_fn' and 'pipeline'. "
+            "Use 'pipeline' for API/JSON or 'conditioning_fn' for programmatic use."
+        )
+    
+    # Must have one or the other
+    if config.pipeline is None and conditioning_fn is None:
+        raise ValueError(
+            f"Must specify either 'conditioning_fn' or 'pipeline'. "
+            f"Available pipelines: {list(CYCLING_PIPELINES.keys())}"
+        )
+    
+    # If conditioning_fn provided directly, use it
+    if conditioning_fn is not None:
+        return conditioning_fn
+    
+    # Validate pipeline exists
+    if config.pipeline not in CYCLING_PIPELINES:
+        raise ValueError(
+            f"Unknown pipeline '{config.pipeline}'. "
+            f"Available: {list(CYCLING_PIPELINES.keys())}"
+        )
+    
+    # Validate generator category matches pipeline requirements
+    pipeline_spec = CYCLING_PIPELINES[config.pipeline]
+    required_category = pipeline_spec.get("required_generator_category")
+    if required_category:
+        from proto_language.language.generator import GeneratorRegistry
+        generator_key = GeneratorRegistry.get_key(generator)
+        actual_category = GeneratorRegistry.get(generator_key).category
+        if actual_category != required_category:
+            raise ValueError(
+                f"Pipeline '{config.pipeline}' requires {required_category} generator, "
+                f"but '{generator_key}' is {actual_category}. "
+                f"Use 'proteinmpnn' or 'ligandmpnn'."
+            )
+    
+    return pipeline_spec["factory"](config)
+
+
+# =============================================================================
+# Config
+# =============================================================================
+
 class CyclingOptimizerConfig(BaseConfig):
     """Configuration for CyclingOptimizer.
 
-    This optimizer cycles between a user-defined conditioning function and a generator.
+    This optimizer cycles between a conditioning function and a generator.
     On each cycle, the conditioning function receives the current candidate sequences,
     produces conditioning data, which is then passed to the generator's sample() method.
+
+    The conditioning function can be provided either:
+    1. Directly via the ``conditioning_fn`` parameter (programmatic use)
+    2. Via the ``pipeline`` field using a predefined pipeline (API/JSON use)
 
     Attributes:
         num_steps (int): Number of conditioning -> generation cycles to run.
@@ -46,10 +172,18 @@ class CyclingOptimizerConfig(BaseConfig):
             - ``"structure_inputs"`` for inverse folding generators (ProteinMPNN, LigandMPNN)
             - ``"prompts"`` for autoregressive generators (Evo2)
 
+        pipeline (Literal["protein-hunter"]): Predefined conditioning pipeline.
+            - ``"protein-hunter"``: Structure prediction -> inverse folding cycle.
+              Requires an inverse_folding generator (ProteinMPNN or LigandMPNN).
+
+        protein_hunter (ProteinHunterPipelineConfig): Configuration for protein-hunter pipeline.
+            Only used when ``pipeline="protein-hunter"``.
+
         verbose (bool): Whether to print progress information. Default: ``False``.
 
     Note:
-        - Works with any generator that accepts the specified conditioning_param_name
+        - Pipeline-specific constraints:
+          - ``protein-hunter`` requires an inverse_folding generator (ProteinMPNN, LigandMPNN)
         - Constraints are optional but if provided must be filter constraints
           (must have ``threshold`` set)
 
@@ -58,6 +192,8 @@ class CyclingOptimizerConfig(BaseConfig):
         ...     num_steps=5,
         ...     num_candidates=4,
         ...     conditioning_param_name="structure_inputs",
+        ...     pipeline="protein-hunter",
+        ...     protein_hunter=ProteinHunterPipelineConfig(structure_tool="boltz"),
         ... )
     """
 
@@ -75,6 +211,18 @@ class CyclingOptimizerConfig(BaseConfig):
         title="Conditioning Param Name",
         description="Generator sample() parameter name to pass conditioning data into.",
     )
+    # TODO: @bviggiano we need to add the conditional client field for the config.
+    pipeline: Optional[Literal["protein-hunter"]] = ConfigField(
+        default=None,
+        title="Pipeline",
+        description="Predefined conditioning pipeline. 'protein-hunter' uses structure prediction -> inverse folding.",
+    )
+    # TODO: generalize to other pipelines as well.
+    protein_hunter: Optional[ProteinHunterPipelineConfig] = ConfigField(
+        default=None,
+        title="Protein Hunter Config",
+        description="Configuration for protein-hunter pipeline. Only used when pipeline='protein-hunter'.",
+    )
     verbose: bool = ConfigField(
         default=False,
         title="Verbose",
@@ -82,8 +230,13 @@ class CyclingOptimizerConfig(BaseConfig):
         hidden=True,
     )
 
-# TODO: Cycling optimizer conditioning_fn is not supported in client at all, since we can't serialize or define callables
-# In the future, we can optionally include constraints scores into the conditioning_fn for more granular control over the optimization process.
+    @model_validator(mode="after")
+    def validate_pipeline_config(self):
+        """Validate that pipeline-specific config is provided when pipeline is set."""
+        if self.pipeline == "protein-hunter" and self.protein_hunter is None:
+            # Auto-create default config if not provided
+            self.protein_hunter = ProteinHunterPipelineConfig()
+        return self
 
 @OptimizerRegistry.register(
     key="cycling",
@@ -148,7 +301,7 @@ class CyclingOptimizer(Optimizer):
         generators: List[Generator],
         constraints: List[Constraint],
         config: CyclingOptimizerConfig,
-        conditioning_fn: Callable[[List[Sequence]], List[Any]],
+        conditioning_fn: Optional[Callable[[List[Sequence]], List[Any]]] = None,
         custom_logging: Optional[Callable[[int, tuple], None]] = None,
         clear_tool_cache: int | bool | List[str] = 100 * 1024 * 1024,
     ) -> None:
@@ -166,6 +319,7 @@ class CyclingOptimizer(Optimizer):
             conditioning_fn: User-defined function that produces conditioning data.
                 Signature: ``(sequences: List[Sequence]) -> List[Any]``
                 Returns one conditioning item per candidate.
+                Mutually exclusive with ``config.pipeline`` - use one or the other.
             custom_logging: Optional callback called after each cycle with
                 signature ``(cycle: int, segments: tuple) -> None``.
             clear_tool_cache: Cache management setting. (int) byte threshold,
@@ -173,19 +327,24 @@ class CyclingOptimizer(Optimizer):
 
         Raises:
             ValueError: If generators list doesn't contain exactly one generator,
-                target_segment is not in constructs, or constraints don't have
-                thresholds set.
+                target_segment is not in constructs, constraints don't have thresholds set, 
+                both conditioning_fn and pipeline are provided, or neither is provided.
         """
         if len(generators) != 1:
             raise ValueError(f"CyclingOptimizer requires exactly one generator, got {len(generators)}.")
         generator = generators[0]
         generator.assign(target_segment)
 
+        # Resolve conditioning_fn from pipeline or direct parameter
+        conditioning_fn = _resolve_conditioning_fn(config, generator, conditioning_fn)
+
         # Store for validation before super().__init__
         self.target_segment: Segment = target_segment
         self.generator: Generator = generator
         self.conditioning_fn = conditioning_fn
         self.conditioning_param_name: str = config.conditioning_param_name
+        self.pipeline: Optional[str] = config.pipeline
+        self.protein_hunter: Optional[ProteinHunterPipelineConfig] = config.protein_hunter
 
         super().__init__(
             constructs=constructs,

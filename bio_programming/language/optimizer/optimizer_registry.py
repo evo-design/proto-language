@@ -5,7 +5,10 @@ Provides a decorator-based API for registering optimizer classes with metadata a
 automatic schema generation for API/client integration.
 """
 from __future__ import annotations
-from typing import Dict, List, Type
+from typing import Dict, FrozenSet, List, Type
+
+# Optimizers that operate on a single target segment (require target_segment parameter)
+OPTIMIZERS_WITH_TARGET_SEGMENT: FrozenSet[str] = frozenset({"beam-search", "cycling"})
 
 from pydantic import BaseModel, Field
 

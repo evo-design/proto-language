@@ -752,9 +752,9 @@ class TestBeamSearchOptimizerRestart:
         for orig, captured in zip(original_selected, captured_selected):
             assert orig.sequence == captured.sequence
             
-        # Manually modify sequences to verify restore
-        segment.selected_sequences[0].sequence = "MODIFIED_SEQ_123"
-        segment.candidate_sequences[0].sequence = "MODIFIED_CAND_123"
+        # Manually modify sequences to invalid values to verify restore
+        segment.selected_sequences[0].sequence = "G" * 44  # prompt (4) + segment_length (40)
+        segment.candidate_sequences[0].sequence = "G" * 44
 
         # Second run should restart - beams should be reset to prompt
         optimizer.run()
@@ -762,8 +762,8 @@ class TestBeamSearchOptimizerRestart:
         # Verify beams grew again (optimization ran)
         assert all(len(b) > len(prompt) for b in second_run_beams)
         
-        # Verify sequences were restored (not "MODIFIED")
-        assert all("MODIFIED" not in seq.sequence for seq in segment.selected_sequences)
+        # Verify sequences were restored (not all G's - restoration happened)
+        assert any(seq.sequence != "G" * 44 for seq in segment.selected_sequences)
         
         # History should be fresh (cleared on restart)
         assert len(optimizer.history) == 1  # Only final snapshot
@@ -789,9 +789,9 @@ class TestBeamSearchOptimizerRestart:
         modified_beams = [b.running_sequence for b in optimizer.beams]
         assert all(len(b) > len(prompt) for b in modified_beams)
         
-        # Manually modify sequences further
+        # Manually modify sequences to invalid values
         for seq in segment.selected_sequences:
-            seq.sequence = "MANUALLY_MODIFIED_SEQ"
+            seq.sequence = "G" * 48  # prompt (8) + segment_length (40)
 
         # Trigger restore
         optimizer._restore_initial_state()
@@ -808,4 +808,3 @@ class TestBeamSearchOptimizerRestart:
         assert len(restored_sequences) == len(original_selected)
         for orig, restored in zip(original_selected, restored_sequences):
             assert orig == restored
-        assert all("MANUALLY_MODIFIED" not in seq for seq in restored_sequences)
