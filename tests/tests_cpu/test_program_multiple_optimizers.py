@@ -68,7 +68,7 @@ class TestMultipleOptimizers:
             constructs=[construct],
             generators=[gen2],
             constraints=[constraint2],
-            config=MCMCOptimizerConfig(num_selected=1, mcmc_width=20, num_steps=5, track_step_size=1),
+            config=MCMCOptimizerConfig(num_selected=1, num_steps=5, track_step_size=1),
         )
 
         # Create program with both optimizers
@@ -147,7 +147,7 @@ class TestMultipleOptimizers:
                 constructs=[construct],
                 generators=[gen],
                 constraints=[constraint],
-                config=MCMCOptimizerConfig(num_selected=1, mcmc_width=20, num_steps=num_steps, track_step_size=1),
+                config=MCMCOptimizerConfig(num_selected=1, num_steps=num_steps, track_step_size=1),
             )
             optimizers.append(optimizer)
 
@@ -314,7 +314,7 @@ class TestMultipleOptimizers:
                 constructs=[construct],
                 generators=[gen],
                 constraints=[constraint],
-                config=MCMCOptimizerConfig(num_selected=1, mcmc_width=20, num_steps=3, track_step_size=1),
+                config=MCMCOptimizerConfig(num_selected=1, num_steps=3, track_step_size=1),
             )
             optimizers.append(optimizer)
 
@@ -366,7 +366,7 @@ class TestMultipleOptimizers:
             constructs=[construct],
             generators=[gen2],
             constraints=[constraint2],
-            config=MCMCOptimizerConfig(num_selected=1, mcmc_width=20, num_steps=3, track_step_size=1),
+            config=MCMCOptimizerConfig(num_selected=1, num_steps=3, track_step_size=1),
         )
 
         # Verify optimizer2 starts from opt1's ending state
@@ -394,7 +394,7 @@ class TestMultipleOptimizers:
             constructs=[construct],
             generators=[gen1],
             constraints=[constraint1],
-            config=MCMCOptimizerConfig(num_selected=1, mcmc_width=20, num_steps=5, track_step_size=1),
+            config=MCMCOptimizerConfig(num_selected=1, num_steps=5, track_step_size=1),
         )
 
         # TopK second

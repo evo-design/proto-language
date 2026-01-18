@@ -68,7 +68,6 @@
         "method": "mcmc",
         "config": {
           "num_selected": 1,
-          "mcmc_width": 2,
           "num_steps": 100,
           "track_step_size": 5,
           "max_temperature": 1.0

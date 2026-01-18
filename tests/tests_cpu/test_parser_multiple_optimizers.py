@@ -125,7 +125,6 @@ def test_parse_multiple_optimizers():
                     "method": "mcmc",
                     "config": {
                         "num_selected": 1,
-                        "mcmc_width": 20,
                         "num_steps": 10,
                         "track_step_size": 1
                     }
@@ -173,7 +172,6 @@ def test_parse_multiple_optimizers():
     # Verify second optimizer
     opt2 = program.optimizers[1]
     assert opt2.num_selected == 1
-    assert opt2.mcmc_width == 20
     assert opt2.num_steps == 10
     assert len(opt2.generators) == 1
     assert opt2.generators[0].num_mutations == 1
@@ -470,7 +468,6 @@ def test_parse_different_generators_per_stage():
                     "method": "mcmc",
                     "config": {
                         "num_selected": 1,
-                        "mcmc_width": 20,
                         "num_steps": 10
                     }
                 },
@@ -549,7 +546,6 @@ def test_parse_different_constraints_per_stage():
                     "method": "mcmc",
                     "config": {
                         "num_selected": 1,
-                        "mcmc_width": 20,
                         "num_steps": 10
                     }
                 },
@@ -630,7 +626,6 @@ def test_parse_reusable_constraints():
                     "method": "mcmc",
                     "config": {
                         "num_selected": 1,
-                        "mcmc_width": 20,
                         "num_steps": 10
                     }
                 },

@@ -135,7 +135,7 @@ class TestProgramSerializer:
             config_dict={"min_gc": 80, "max_gc": 90},
         )
 
-        opt2_config = MCMCOptimizerConfig(num_selected=1, mcmc_width=20, num_steps=10)
+        opt2_config = MCMCOptimizerConfig(num_selected=1, num_steps=10)
         opt2 = MCMCOptimizer(
             constructs=[construct],
             generators=[gen2],
@@ -493,7 +493,6 @@ class TestProgramSerializer:
                         "method": "mcmc",
                         "config": {
                             "num_selected": 1,
-                            "mcmc_width": 20,
                             "num_steps": 10,
                         },
                     },
@@ -537,7 +536,6 @@ class TestProgramSerializer:
         stage2 = result_json["optimization_stages"][1]
         assert stage2["optimizer"]["method"] == "mcmc"
         assert stage2["optimizer"]["config"]["num_selected"] == 1
-        assert stage2["optimizer"]["config"]["mcmc_width"] == 20
         assert stage2["generators"][0]["config"]["num_mutations"] == 1
         assert stage2["constraints"][0]["config"]["min_gc"] == 80
 

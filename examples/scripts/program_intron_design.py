@@ -394,7 +394,6 @@ if __name__ == '__main__':
     else:
         optimizer_config = MCMCOptimizerConfig(
             num_selected=1,
-            mcmc_width=1,
             num_steps=args.n_steps,
             max_temperature=args.temperature,
             min_temperature=args.temperature_min,
