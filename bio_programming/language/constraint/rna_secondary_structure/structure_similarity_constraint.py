@@ -359,14 +359,14 @@ class RNABasePairSimilarityConfig(RNAStructureConstraintBaseConfig):
     config=RNAPropertySimilarityConfig,
     description="Compare RNA structural properties (length, pairing ratio) against a reference.",
     batched=True,
-    concatenate=True,
+    multi_input=False,
     gpu_required=False,
     tools_called=["viennarna"],
     category="rna_secondary_structure",
     supported_sequence_types=["dna", "rna"],
 )
 def rna_property_similarity_constraint(
-    candidates: List[Sequence],
+    sequences: List[Sequence],
     config: RNAPropertySimilarityConfig,
 ) -> List[float]:
     """
@@ -380,18 +380,18 @@ def rna_property_similarity_constraint(
     ref_structure, _ = ref_results[0]
     if not ref_structure:
         logger.warning("Reference folding failed, returning worst scores")
-        return [1.0] * len(candidates)
+        return [1.0] * len(sequences)
 
     ref_len = len(ref_structure)
     ref_pairs = ref_structure.count('(')
     ref_ratio = ref_pairs / ref_len if ref_len > 0 else 0
 
     # Fold all candidates
-    candidate_seqs = [s.sequence for s in candidates]
+    candidate_seqs = [s.sequence for s in sequences]
     cand_results = _fold_sequences(candidate_seqs, config.temperature)
 
     scores = []
-    for (cand_structure, _), seq in zip(cand_results, candidates):
+    for (cand_structure, _), seq in zip(cand_results, sequences):
         if not cand_structure:
             scores.append(1.0)
             continue
@@ -433,14 +433,14 @@ def rna_property_similarity_constraint(
     config=RNAMotifSimilarityConfig,
     description="Compare RNA structural motifs (stems, hairpins, bulges) using Jaccard similarity.",
     batched=True,
-    concatenate=True,
+    multi_input=False,
     gpu_required=False,
     tools_called=["viennarna"],
     category="rna_secondary_structure",
     supported_sequence_types=["dna", "rna"],
 )
 def rna_motif_similarity_constraint(
-    candidates: List[Sequence],
+    sequences: List[Sequence],
     config: RNAMotifSimilarityConfig,
 ) -> List[float]:
     """
@@ -454,15 +454,15 @@ def rna_motif_similarity_constraint(
     ref_structure, _ = ref_results[0]
     if not ref_structure:
         logger.warning("Reference folding failed, returning worst scores")
-        return [1.0] * len(candidates)
+        return [1.0] * len(sequences)
     ref_motifs = set(_extract_structural_motifs(ref_structure))
 
     # Fold all candidates
-    candidate_seqs = [s.sequence for s in candidates]
+    candidate_seqs = [s.sequence for s in sequences]
     cand_results = _fold_sequences(candidate_seqs, config.temperature)
 
     scores = []
-    for (cand_structure, _), seq in zip(cand_results, candidates):
+    for (cand_structure, _), seq in zip(cand_results, sequences):
         if not cand_structure:
             scores.append(1.0)
             continue
@@ -501,14 +501,13 @@ def rna_motif_similarity_constraint(
     config=RNAFeatureSimilarityConfig,
     description="Compare RNA structures using cosine similarity of 10-dim feature vectors.",
     batched=True,
-    concatenate=True,
     gpu_required=False,
     tools_called=["viennarna"],
     category="rna_secondary_structure",
     supported_sequence_types=["dna", "rna"],
 )
 def rna_feature_similarity_constraint(
-    candidates: List[Sequence],
+    sequences: List[Sequence],
     config: RNAFeatureSimilarityConfig,
 ) -> List[float]:
     """
@@ -521,16 +520,16 @@ def rna_feature_similarity_constraint(
     ref_structure, ref_mfe = ref_results[0]
     if not ref_structure:
         logger.warning("Reference folding failed, returning worst scores")
-        return [1.0] * len(candidates)
+        return [1.0] * len(sequences)
     ref_features = _extract_structure_features(ref_structure, ref_mfe)
     ref_norm = np.linalg.norm(ref_features)
 
     # Fold all candidates
-    candidate_seqs = [s.sequence for s in candidates]
+    candidate_seqs = [s.sequence for s in sequences]
     cand_results = _fold_sequences(candidate_seqs, config.temperature)
 
     scores = []
-    for (cand_structure, cand_mfe), seq in zip(cand_results, candidates):
+    for (cand_structure, cand_mfe), seq in zip(cand_results, sequences):
         if not cand_structure:
             scores.append(1.0)
             continue
@@ -568,14 +567,13 @@ def rna_feature_similarity_constraint(
     config=RNABasePairSimilarityConfig,
     description="Compare RNA base pair sets using Jaccard similarity.",
     batched=True,
-    concatenate=True,
     gpu_required=False,
     tools_called=["viennarna"],
     category="rna_secondary_structure",
     supported_sequence_types=["dna", "rna"],
 )
 def rna_basepair_similarity_constraint(
-    candidates: List[Sequence],
+    sequences: List[Sequence],
     config: RNABasePairSimilarityConfig,
 ) -> List[float]:
     """
@@ -588,16 +586,16 @@ def rna_basepair_similarity_constraint(
     ref_structure, _ = ref_results[0]
     if not ref_structure:
         logger.warning("Reference folding failed, returning worst scores")
-        return [1.0] * len(candidates)
+        return [1.0] * len(sequences)
     ref_pairs = _get_base_pairs(ref_structure)
     ref_len = len(ref_structure)
 
     # Fold all candidates
-    candidate_seqs = [s.sequence for s in candidates]
+    candidate_seqs = [s.sequence for s in sequences]
     cand_results = _fold_sequences(candidate_seqs, config.temperature)
 
     scores = []
-    for (cand_structure, _), seq in zip(cand_results, candidates):
+    for (cand_structure, _), seq in zip(cand_results, sequences):
         if not cand_structure:
             scores.append(1.0)
             continue

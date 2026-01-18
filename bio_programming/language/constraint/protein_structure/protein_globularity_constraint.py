@@ -98,7 +98,7 @@ class ProteinGlobularityConfig(BaseConfig):
     config=ProteinGlobularityConfig,
     description="Encourage compact, globular protein structures",
     batched=True,
-    concatenate=True,
+    multi_input=False,
     gpu_required=True,
     tools_called=["esmfold", "prodigal"],
     category="protein_structure",

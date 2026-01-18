@@ -53,7 +53,7 @@ class ProteinLengthConfig(BaseConfig):
     config=ProteinLengthConfig,
     description="Evaluate whether protein length falls within acceptable range",
     batched=True,
-    concatenate=True,
+    multi_input=False,
     tools_called=[],
     category="protein quality",
     supported_sequence_types=["protein"],

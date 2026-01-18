@@ -59,7 +59,7 @@ class GCContentConfig(BaseConfig):
     config=GCContentConfig,
     description="Enforce GC content within specified range",
     batched=True,
-    concatenate=True,
+    multi_input=False,
     tools_called=[],
     category="sequence_composition",
     supported_sequence_types=["dna", "rna"],

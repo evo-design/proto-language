@@ -195,7 +195,7 @@ class Sigma70PromoterConfig(BaseConfig):
     config=Sigma70PromoterConfig,
     description="Evaluate sigma-70 promoter similarity for DNA sequences",
     batched=True,
-    concatenate=True,
+    multi_input=False,
     tools_called=[],
     category="sequence annotation",
     supported_sequence_types=["dna"],

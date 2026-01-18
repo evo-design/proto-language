@@ -116,7 +116,7 @@ class ProteinSymmetryRingConfig(BaseConfig):
     config=ProteinSymmetryRingConfig,
     description="Constrain protein to form symmetric ring-like multimeric structure",
     batched=True,
-    concatenate=True,
+    multi_input=False,
     gpu_required=True,
     tools_called=["esmfold", "prodigal"],
     category="protein_structure",

@@ -46,33 +46,20 @@ class TestSequenceLengthConstraint:
             == target_len // 2
         )
 
-    def test_contiguous_concatenation(self):
-        """Tests length constraint on concatenated segments."""
-        target_len = 20
+    def test_single_input_constraint_rejects_multiple_segments(self):
+        """Tests that single-input constraints reject multiple segments."""
         seg1 = Segment(sequence="A" * 10)
         seg2 = Segment(sequence="T" * 10)
 
-        config = SequenceLengthConfig(target_length=target_len)
-        constraint = Constraint(
-            inputs=[seg1, seg2],
-            function=sequence_length_constraint,
-            function_config=config,
-        )
-
-        assert constraint.evaluate()[0] == 0.0
-        # Check metadata propagation to original segments
-        assert (
-            seg1.candidate_sequences[0]._metadata[
-                "segment_0-segment_1.sequence_length_constraint.length"
-            ]
-            == target_len
-        )
-        assert (
-            seg2.candidate_sequences[0]._metadata[
-                "segment_0-segment_1.sequence_length_constraint.length"
-            ]
-            == target_len
-        )
+        config = SequenceLengthConfig(target_length=20)
+        
+        # Single-input constraint should reject multiple segments
+        with pytest.raises(ValueError, match="single-input.*but received.*segments"):
+            Constraint(
+                inputs=[seg1, seg2],
+                function=sequence_length_constraint,
+                function_config=config,
+            )
 
     @pytest.mark.parametrize(
         "seq_str, target_len, expected_score",

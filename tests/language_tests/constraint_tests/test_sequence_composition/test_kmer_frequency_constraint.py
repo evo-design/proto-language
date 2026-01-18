@@ -161,4 +161,4 @@ class TestKmerFrequencyConstraint:
         assert spec.key == "kmer-frequency"
         assert spec.label == "K-mer Frequency"
         assert spec.batched == True
-        assert spec.concatenate == True
+        assert spec.multi_input == False

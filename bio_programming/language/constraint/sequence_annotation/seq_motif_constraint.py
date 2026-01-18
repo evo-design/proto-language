@@ -162,7 +162,7 @@ class SeqMotifConfig(BaseConfig):
     config=SeqMotifConfig,
     description="Score DNA sequences against motifs using MEME",
     batched=True,
-    concatenate=True,
+    multi_input=False,
     tools_called=["meme"],
     category="sequence annotation",
     supported_sequence_types=["dna"],

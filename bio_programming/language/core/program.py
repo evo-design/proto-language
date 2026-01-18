@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 from .optimizer import Optimizer
+from .sequence import create_concatenated_sequence
 
 
 class Program:
@@ -322,7 +323,7 @@ class Program:
                 selected_seqs = [seg.selected_sequences[batch_idx] for seg in construct.segments]
                 construct_sequences.append([s.sequence for s in selected_seqs])
 
-                joined = Sequence.from_sequences(selected_seqs, merge_metadata=True)
+                joined = create_concatenated_sequence(selected_seqs, merge_metadata=True)
                 propagate_metadata(joined._metadata, batch_metadata, f"construct_{construct_idx}")
 
             batch_results.append({

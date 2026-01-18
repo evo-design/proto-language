@@ -114,14 +114,14 @@ class SpliceTransformerSpecificityConfig(BaseConfig):
     config=SpliceTransformerSpecificityConfig,
     description="Evaluate tissue-specific splicing with SpliceTransformer",
     batched=False,
-    concatenate=True,
+    multi_input=False,
     gpu_required=True,
     tools_called=["splice_transformer"],
     category="rna splicing",
     supported_sequence_types=["dna"],
 )
 def splice_transformer_specificity(
-    input_sequence: Sequence,
+    sequence: Sequence,
     config: SpliceTransformerSpecificityConfig,
 ) -> float:
     """Evaluate tissue-specific splicing with SpliceTransformer.
@@ -143,7 +143,7 @@ def splice_transformer_specificity(
     for a total analyzed region of 9000 bp.
 
     Args:
-        input_sequence (Sequence): DNA sequence to evaluate. Must be exactly
+        sequence (Sequence): DNA sequence to evaluate. Must be exactly
             1000 bp in length. This is the central region containing the positions
             to be evaluated for tissue-specific splicing.
             
@@ -213,7 +213,7 @@ def splice_transformer_specificity(
     tissue = SpliceTransformerTissue[config.tissue]
 
     splice_transformer_input = SpliceTransformerInput(
-        target_seqs=[input_sequence.sequence],
+        target_seqs=[sequence.sequence],
         left_contexts=[config.left_context],
         right_contexts=[config.right_context],
     )
@@ -227,7 +227,7 @@ def splice_transformer_specificity(
         splice_transformer_config,
     ).prediction
 
-    assert output.shape[1] == len(input_sequence.sequence)
+    assert output.shape[1] == len(sequence.sequence)
 
     if tissue == SpliceTransformerTissue.AVERAGE:
         score = float(output[:, config.splice_pos, TISSUE_INDEX_OFFSET:].mean())
@@ -244,7 +244,7 @@ def splice_transformer_specificity(
             "must be either 'max' or 'min'."
         )
 
-    input_sequence._metadata.update({
+    sequence._metadata.update({
         f"specificity_direction_{config.tissue}": config.direction,
         f"specificity_score_{config.tissue}": score,
     })

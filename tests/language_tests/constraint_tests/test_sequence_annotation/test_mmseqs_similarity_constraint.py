@@ -130,7 +130,7 @@ class TestMMseqsSimilarityConstraint:
         assert spec.key == "mmseqs-gene-similarity"
         assert spec.label == "Gene/Protein Similarity"  # Actual label in registry
         assert spec.batched == True
-        assert spec.concatenate == True
+        assert spec.multi_input == False
 
     def test_dna_sequence_with_orf_prediction(self, dummy_db_path):
         """Test that DNA sequences work via ORF prediction."""

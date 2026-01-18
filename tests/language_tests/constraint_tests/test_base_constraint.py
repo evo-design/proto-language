@@ -90,8 +90,8 @@ class TestConstraintEvaluation:
             assert f"{prefix}.total_length" in seq._metadata
             assert f"{prefix}.t_fraction" in seq._metadata
 
-    def test_multi_segment_contiguous(self):
-        """Tests constraint with multiple segments in contiguous mode."""
+    def test_single_input_constraint_rejects_multiple_segments(self):
+        """Tests that single-input constraints reject multiple segments."""
         sequences_a = ["ACTG", "TCTG", "TTTG", "TTTT"]
         sequences_b = ["ACTG", "TCTG", "TTTG", "TTTT"]
 
@@ -99,22 +99,13 @@ class TestConstraintEvaluation:
         seg_b = _make_segment_with_candidates(sequences_b, "dna")
         config = MockConstraintConfig()
 
-        constraint = Constraint(
-            inputs=[seg_a, seg_b],
-            function=mock_multi_input_scoring_function,
-            function_config=config,
-        )
-        scores = constraint.evaluate()
-
-        # Concatenated: "ACTGACTG", "TCTGTCTG", etc.
-        expected_scores = [0.25, 0.5, 0.75, 1.0]
-        assert scores == expected_scores
-
-        # Verify metadata propagated to both segments with combined prefix
-        expected_prefix = "segment_0-segment_1.mock_multi_input_scoring_function"
-        for seg in [seg_a, seg_b]:
-            for seq in seg.candidate_sequences:
-                assert any(expected_prefix in key for key in seq._metadata.keys())
+        # Single-input constraint should reject multiple segments
+        with pytest.raises(ValueError, match="single-input.*but received.*segments"):
+            Constraint(
+                inputs=[seg_a, seg_b],
+                function=mock_multi_input_scoring_function,  # multi_input=False
+                function_config=config,
+            )
 
     def test_disjoint_mode(self):
         """Tests constraint evaluation in disjoint mode (separate sequences)."""
@@ -166,36 +157,27 @@ class TestConstraintValidation:
         seg1 = _make_segment_with_candidates(["ATCG", "GGGG"])  # 2 candidates
         seg2 = _make_segment_with_candidates(["TTTT"])  # 1 candidate
 
+        # Use multi-input constraint to test batch size validation
         with pytest.raises(ValueError, match="All segments must have the same number of candidate sequences"):
             Constraint(
                 inputs=[seg1, seg2],
-                function=mock_single_input_scoring_function,
+                function=mock_multi_input_scoring_function_disjoint,
                 function_config=MockConstraintConfig(),
             )
 
-    def test_mixed_sequence_types_raises_error(self):
-        """Test that inconsistent sequence types raise ValueError."""
+    def test_multi_input_constraint_allows_mixed_sequence_types(self):
+        """Test that multi-input constraints can have different sequence types (e.g., protein + ligand)."""
         seg1 = Segment(sequence="ATCG", sequence_type="dna")
         seg2 = Segment(sequence="MVLS", sequence_type="protein")
 
-        with pytest.raises(ValueError, match="same sequence type"):
-            Constraint(
-                inputs=[seg1, seg2],
-                function=mock_single_input_scoring_function,
-                function_config=MockConstraintConfig(),
-            )
-
-    def test_mixed_valid_chars_raises_error(self):
-        """Test that inconsistent alphabets raise ValueError."""
-        seg1 = Segment(sequence="ATCG", sequence_type="dna")
-        seg2 = Segment(sequence="ATCG", sequence_type="dna", valid_chars=set("ATCGN"))
-
-        with pytest.raises(ValueError, match="same valid_chars"):
-            Constraint(
-                inputs=[seg1, seg2],
-                function=mock_single_input_scoring_function,
-                function_config=MockConstraintConfig(),
-            )
+        # Multi-input constraints can legitimately have different sequence types
+        # (e.g., protein-ligand binding constraints)
+        constraint = Constraint(
+            inputs=[seg1, seg2],
+            function=mock_multi_input_scoring_function_disjoint,
+            function_config=MockConstraintConfig(),
+        )
+        assert len(constraint.inputs) == 2
 
     def test_unsupported_sequence_type_raises_error(self):
         """Test that unsupported sequence type raises ValueError."""
@@ -223,7 +205,7 @@ class TestConstraintValidation:
 
     def test_sequence_type_validation_checks_all_segments(self):
         """Test that validation checks sequence types for all input segments."""
-        # Even with concatenate=False, all segments should be validated
+        # All segments should be validated regardless of multi_input flag
         dna_seg = Segment(sequence="ATCGATCG", sequence_type="dna")
 
         # protein_only constraint with DNA segment should fail
@@ -337,7 +319,7 @@ class TestConstraintThreshold:
         def mock_scoring(sequences, config=None):
             return [len(seq.sequence) / 10.0 for seq in sequences]
         mock_scoring._constraint_batched = True
-        mock_scoring._constraint_concatenate = True
+        mock_scoring._constraint_multi_input = False
         mock_scoring._constraint_config_class = MockConstraintConfig
         mock_scoring._constraint_supported_sequence_types = ["dna"]
 
@@ -361,7 +343,7 @@ class TestConstraintThreshold:
         def mock_scoring(sequences, config=None):
             return [0.4, 0.8]
         mock_scoring._constraint_batched = True
-        mock_scoring._constraint_concatenate = True
+        mock_scoring._constraint_multi_input = False
         mock_scoring._constraint_config_class = MockConstraintConfig
         mock_scoring._constraint_supported_sequence_types = ["dna"]
 
@@ -402,7 +384,7 @@ class TestConstraintWeight:
         def mock_scoring(sequences, config=None):
             return [0.2, 0.5]
         mock_scoring._constraint_batched = True
-        mock_scoring._constraint_concatenate = True
+        mock_scoring._constraint_multi_input = False
         mock_scoring._constraint_config_class = MockConstraintConfig
         mock_scoring._constraint_supported_sequence_types = ["dna"]
 
@@ -455,24 +437,19 @@ class TestConstraintEdgeCases:
         assert len(scores) == 100
         assert all(0.0 <= s <= 1.0 for s in scores)
 
-    def test_three_or_more_segments(self):
-        """Test constraint with 3+ segments."""
+    def test_single_input_constraint_rejects_three_plus_segments(self):
+        """Test that single-input constraints reject 3+ segments."""
         seg1 = Segment(sequence="ATCG", sequence_type="dna")
         seg2 = Segment(sequence="GGGG", sequence_type="dna")
         seg3 = Segment(sequence="TTTT", sequence_type="dna")
 
-        constraint = Constraint(
-            inputs=[seg1, seg2, seg3],
-            function=mock_single_input_scoring_function,
-            function_config=MockConstraintConfig(),
-        )
-        scores = constraint.evaluate()
-
-        assert len(scores) == 1
-        # Metadata should use combined prefix
-        expected_prefix = "segment_0-segment_1-segment_2.mock_single_input_scoring_function"
-        for seg in [seg1, seg2, seg3]:
-            assert any(expected_prefix in key for key in seg.candidate_sequences[0]._metadata.keys())
+        # Single-input constraint should reject multiple segments
+        with pytest.raises(ValueError, match="single-input.*but received.*3 segments"):
+            Constraint(
+                inputs=[seg1, seg2, seg3],
+                function=mock_single_input_scoring_function,
+                function_config=MockConstraintConfig(),
+            )
 
     def test_empty_sequence_raises_error(self):
         """Test that empty sequence causes expected error (division by zero)."""

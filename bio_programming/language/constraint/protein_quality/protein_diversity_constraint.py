@@ -50,7 +50,7 @@ class ProteinDiversityConfig(BaseConfig):
     config=ProteinDiversityConfig,
     description="Evaluate amino acid diversity in a protein sequence",
     batched=True,
-    concatenate=True,
+    multi_input=False,
     tools_called=[],
     category="protein quality",
     supported_sequence_types=["protein"],

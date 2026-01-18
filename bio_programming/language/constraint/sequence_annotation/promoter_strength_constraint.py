@@ -127,7 +127,7 @@ class PromoterStrengthConfig(BaseConfig):
     config=PromoterStrengthConfig,
     description="Evaluate promoter strength using Salis Lab Promoter Calculator",
     batched=True,
-    concatenate=True,
+    multi_input=False,
     tools_called=["promoter_calculator"],
     category="sequence annotation",
     supported_sequence_types=["dna"],

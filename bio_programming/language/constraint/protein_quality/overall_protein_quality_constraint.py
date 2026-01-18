@@ -385,7 +385,7 @@ class OverallProteinQualityConfig(BaseConfig):
     config=OverallProteinQualityConfig,
     description="Evaluate overall protein quality using multiple sub-constraints",
     batched=True,
-    concatenate=True,
+    multi_input=False,
     tools_called=["prodigal", "segmasker"],
     category="protein quality",
     supported_sequence_types=["dna", "protein"],

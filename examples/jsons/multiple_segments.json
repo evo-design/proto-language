@@ -134,21 +134,45 @@
         {
           "key": "sequence-length",
           "config": {
-            "target_length": 30
+            "target_length": 10
           },
           "targets": [
-            "promoter",
-            "gene",
+            "promoter"
+          ]
+        },
+        {
+          "key": "sequence-length",
+          "config": {
+            "target_length": 12
+          },
+          "targets": [
+            "gene"
+          ]
+        },
+        {
+          "key": "sequence-length",
+          "config": {
+            "target_length": 8
+          },
+          "targets": [
             "terminator"
           ]
         },
         {
           "key": "sequence-length",
           "config": {
-            "target_length": 20
+            "target_length": 10
           },
           "targets": [
-            "enhancer",
+            "enhancer"
+          ]
+        },
+        {
+          "key": "sequence-length",
+          "config": {
+            "target_length": 10
+          },
+          "targets": [
             "coding_region"
           ]
         }

@@ -6,7 +6,7 @@ Sequence class for the proto-language.
 Represents a single DNA, RNA, protein, or ligand sequence with validation and metadata.
 """
 from __future__ import annotations
-from typing import Any, Dict, List, Literal, Optional, Set
+from typing import Any, Dict, Iterable, List, Literal, Optional, Set, Tuple
 import warnings
 
 from proto_language.utils.helpers import propagate_metadata
@@ -201,44 +201,34 @@ class Sequence:
             metadata=data.get("metadata", {}),
         )
 
-    @staticmethod
-    def from_sequences(
-        subsequences: List["Sequence"],
-        merge_metadata: bool = False,
-    ) -> "Sequence":
-        """
-        Create a sequence by joining subsequences with optional metadata propagation.
+def create_concatenated_sequence(
+    subsequences: Iterable[Sequence],
+    merge_metadata: bool = False,
+) -> Sequence:
+    """
+    Concatenate subsequences into a single Sequence object.
 
-        This alternative constructor joins subsequences and optionally merges
-        their metadata with sequence label prefixing to avoid key collisions.
+    Args:
+        sequences: Iterable of Sequence objects to concatenate
+        merge_metadata: If True, merge non-system metadata; if False, start clean
 
-        Args:
-            subsequences: List of Sequence objects to join
-            merge_metadata: If True, merge non-system metadata; if False, start clean
+    Returns:
+        Single Sequence with concatenated content
+    """
+    seq_list = list(subsequences)
+    combined_sequence_string = "".join(seq.sequence for seq in seq_list)
+    combined_metadata = {}
 
-        Returns:
-            Single joined Sequence object with only system metadata (if merge_metadata=False)
-            or with merged non-system metadata (if merge_metadata=True)
+    if merge_metadata:
+        for seq in seq_list:
+            propagate_metadata(seq._metadata, combined_metadata)
 
-        Example:
-            >>> sequences = [Seq("ATG"), Seq("CCC")]
-            >>> clean_seq = Sequence.from_sequences(sequences, merge_metadata=False)
-            >>> # Returns Seq("ATGCCC") with only system metadata
-        """
-        combined_sequence_string = "".join(sequence.sequence for sequence in subsequences)
-        combined_metadata = {}
-
-        if merge_metadata:
-            for sequence in subsequences:
-                # Only propagate non-system metadata (no prefix needed)
-                propagate_metadata(sequence._metadata, combined_metadata)
-
-        return Sequence(
-            sequence=combined_sequence_string,
-            sequence_type=subsequences[0].sequence_type, # assumed to be the same for all subsequences
-            valid_chars=subsequences[0]._valid_chars,  # assumed to be the same for all subsequences
-            metadata=combined_metadata,
-        )
+    return Sequence(
+        sequence=combined_sequence_string,
+        sequence_type=seq_list[0].sequence_type,
+        valid_chars=seq_list[0]._valid_chars,
+        metadata=combined_metadata,
+    )
 
 
 # =============================================================================

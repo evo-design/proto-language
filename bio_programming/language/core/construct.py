@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import List, Iterable
 
 from . import Sequence, Segment
+from .sequence import create_concatenated_sequence
 
 
 class Construct:
@@ -55,10 +56,7 @@ class Construct:
         joined_sequences = []
 
         for sequences_to_combine in zip(*[segment.selected_sequences for segment in self.segments]):
-            joined_seq = Sequence.from_sequences(
-                subsequences=sequences_to_combine,
-                merge_metadata=True
-            )
+            joined_seq = create_concatenated_sequence(sequences_to_combine, merge_metadata=True)
             joined_sequences.append(joined_seq)
 
         return joined_sequences

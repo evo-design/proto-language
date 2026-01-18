@@ -78,7 +78,7 @@ def _setup_cycling_components(
             return 0.0 if constraint_passes else 1.0
 
         filter_func._constraint_batched = False
-        filter_func._constraint_concatenate = True
+        filter_func._constraint_multi_input = False
         filter_func._constraint_config_class = EmptyConfig
         filter_func._constraint_supported_sequence_types = ["protein"]
         constraints.append(
@@ -192,7 +192,7 @@ class TestCyclingOptimizerValidation:
             return 0.5
 
         scoring_func._constraint_batched = False
-        scoring_func._constraint_concatenate = True
+        scoring_func._constraint_multi_input = False
         scoring_func._constraint_config_class = EmptyConfig
         scoring_func._constraint_supported_sequence_types = ["protein"]
 
@@ -312,7 +312,7 @@ class TestCyclingOptimizerRun:
             return 1.0 if "FAIL" in seq.sequence else 0.0
 
         partial_filter._constraint_batched = False
-        partial_filter._constraint_concatenate = True
+        partial_filter._constraint_multi_input = False
         partial_filter._constraint_config_class = EmptyConfig
         partial_filter._constraint_supported_sequence_types = ["protein"]
 
@@ -460,7 +460,7 @@ class TestCyclingOptimizerGPU:
             return 0.0 if len(seq.sequence) > 10 else 1.0
 
         length_filter._constraint_batched = False
-        length_filter._constraint_concatenate = True
+        length_filter._constraint_multi_input = False
         length_filter._constraint_config_class = EmptyConfig
         length_filter._constraint_supported_sequence_types = ["protein"]
 
