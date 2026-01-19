@@ -260,7 +260,7 @@ def create_concatenated_sequence(
     return Sequence(
         sequence=combined_sequence_string,
         sequence_type=seq_list[0].sequence_type,
-        valid_chars=seq_list[0]._valid_chars,
+        valid_chars=seq_list[0].valid_chars,
         metadata=combined_metadata,
     )
 

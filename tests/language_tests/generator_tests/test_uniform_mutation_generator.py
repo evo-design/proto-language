@@ -70,7 +70,7 @@ class TestUniformMutationGenerator:
         ]
         mutated_char = mutated_sequence[diff_indices[0]]
 
-        assert mutated_char in segment._valid_chars
+        assert mutated_char in segment.valid_chars
         assert mutated_char != initial_sequence[diff_indices[0]]
 
     def test_sample_batch(self):

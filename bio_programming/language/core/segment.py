@@ -87,9 +87,18 @@ class Segment:
         self.candidate_sequences: List[Sequence] = [copy.deepcopy(self._original_sequence)]
         self.selected_sequences: List[Sequence] = [copy.deepcopy(self._original_sequence)]
 
-        self.sequence_type: SequenceType = self._original_sequence.sequence_type
-        self._valid_chars: Optional[Set[str]] = self._original_sequence._valid_chars
         self.label: Optional[str] = label
+        self.construct_label: Optional[str] = None  # Set by Program for metadata tracking
+
+    @property
+    def sequence_type(self) -> SequenceType:
+        """Sequence type derived from original sequence (read-only)."""
+        return self._original_sequence.sequence_type
+
+    @property
+    def valid_chars(self) -> Optional[Set[str]]:
+        """Valid characters derived from original sequence (read-only)."""
+        return self._original_sequence.valid_chars
 
     @property
     def num_selected(self) -> int:
@@ -149,7 +158,7 @@ class Segment:
             "candidate_sequences": [seq.to_dict() for seq in self.candidate_sequences],
             "selected_sequences": [seq.to_dict() for seq in self.selected_sequences],
             "sequence_type": self.sequence_type,
-            "valid_chars": list(self._valid_chars) if self._valid_chars else None,
+            "valid_chars": list(self.valid_chars) if self.valid_chars else None,
             "label": self.label,
         }
 

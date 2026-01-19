@@ -76,7 +76,7 @@ class TestLigandSequence:
         seq = Sequence(smiles, "ligand")
         assert seq.sequence == smiles
         assert seq.sequence_type == "ligand"
-        assert seq._valid_chars is None
+        assert seq.valid_chars is None
 
     @pytest.mark.parametrize(
         "invalid_smiles",
@@ -155,7 +155,7 @@ class TestSequenceDeepCopy:
         seq2 = copy.deepcopy(seq1)
 
         # Immutable data should be shared (same object)
-        assert seq1._valid_chars is seq2._valid_chars
+        assert seq1.valid_chars is seq2.valid_chars
         assert seq1._sequence_type is seq2._sequence_type
 
 

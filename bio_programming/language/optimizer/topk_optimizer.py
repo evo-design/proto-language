@@ -239,7 +239,7 @@ class TopKOptimizer(Optimizer):
                 Sequence(
                     sequence=initial_seq,
                     sequence_type=segment.sequence_type,
-                    valid_chars=segment._valid_chars
+                    valid_chars=segment.valid_chars
                 )
                 for _ in range(self.num_candidates)
             ]

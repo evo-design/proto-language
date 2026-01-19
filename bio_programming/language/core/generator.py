@@ -83,7 +83,7 @@ class Generator(ABC):
         if self._spec.category == "mutation":
             if not self._assigned_segment.candidates_populated:
                 warnings.warn(f"Generator {self.__class__.__name__} is a mutation generator, but candidates have no sequences. Initializing random starting sequences.")
-                valid_chars = list(self._assigned_segment._valid_chars - set(" "))
+                valid_chars = list(self._assigned_segment.valid_chars - set(" "))
                 random_sequence = "".join(random.choice(valid_chars) for _ in range(self._assigned_segment.sequence_length))
                 for sequence in self._assigned_segment.candidate_sequences:
                     sequence.sequence = random_sequence

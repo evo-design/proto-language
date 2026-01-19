@@ -230,7 +230,7 @@ class UniformMutationGenerator(Generator):
 
                 # Make sure the mutated character is different from the current one
                 possible_mutations = [
-                    c for c in self._assigned_segment._valid_chars if c != current_char
+                    c for c in self._assigned_segment.valid_chars if c != current_char
                 ]
                 mutated_char = random.choice(possible_mutations)
                 current_sequence = (
