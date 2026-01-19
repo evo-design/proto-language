@@ -105,6 +105,10 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "uses_gpu: mark test as requiring GPU")
     config.addinivalue_line("markers", "uses_cpu: mark test as CPU-only")
 
+    # Hide CUDA devices when --skip-ci is specified to simulate CI environment
+    if config.getoption("--skip-ci"):
+        os.environ["CUDA_VISIBLE_DEVICES"] = ""
+
 
 def pytest_collection_modifyitems(config, items):
     """Modify test collection based on command line options and auto-mark tests."""
