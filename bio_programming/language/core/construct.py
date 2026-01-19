@@ -33,14 +33,13 @@ class Construct:
         """
         # Convert to tuple for validation and storage
         self.segments = tuple(segments)
-        self._validate_construct()
-
         self.label = label
 
         # Any unlabeled segments will be labeled as segment_i
         for i, segment in enumerate(self.segments):
             if segment.label is None:
                 segment.label = f"segment_{i}"
+        self._validate_construct()
 
     @property
     def sequence_type(self):
@@ -73,22 +72,35 @@ class Construct:
 
     def _validate_construct(self) -> None:
         """
-        Validate that all segments in the construct are compatible.
+        Validate construct configuration.
+
+        Checks:
+            1. Non-empty: Construct must contain at least one segment.
+            2. Homogeneous types: All segments must share the same sequence_type.
+            3. Homogeneous chars: All segments must share the same valid_chars.
+            4. Unique labels: Segment labels must be unique within this construct.
 
         Raises:
-            ValueError: If construct contains no segments, segments have different
-                sequence types, segments have different valid characters, or segments
-                have inconsistent selected pool sizes.
+            ValueError: If any validation check fails.
         """
+        # 1. Non-empty
         if not self.segments:
             raise ValueError("Construct must contain at least one segment")
-        
-        if not all(segment.sequence_type == self.segments[0].sequence_type for segment in self.segments):
-            all_types = set(segment.sequence_type for segment in self.segments)
-            raise ValueError(f"All segments in a construct must have the same sequence_type. Found: {all_types}")
-        
-        if not all(segment.valid_chars == self.segments[0].valid_chars for segment in self.segments):
-            raise ValueError("All segments in a construct must have the same valid_chars.")
+
+        # 2. Homogeneous sequence types
+        types = {seg.sequence_type for seg in self.segments}
+        if len(types) > 1:
+            raise ValueError(f"All segments must have the same sequence_type. Found: {types}")
+
+        # 3. Homogeneous valid chars
+        if not all(seg.valid_chars == self.segments[0].valid_chars for seg in self.segments):
+            raise ValueError("All segments must have the same valid_chars")
+
+        # Validate segment labels are unique within this construct
+        segment_labels = [s.label for s in self.segments]
+        if len(segment_labels) != len(set(segment_labels)):
+            duplicates = [l for l in segment_labels if segment_labels.count(l) > 1]
+            raise ValueError(f"Segment labels must be unique within a construct. Duplicates: {set(duplicates)}")
 
     def to_dict(self) -> dict:
         """Serialize Construct to dictionary for cloud/API communication."""

@@ -274,15 +274,49 @@ class TestRunStageRestart:
 
 
 class TestProgramValidation:
-    """Tests for Program validation."""
+    """Tests for Program._validate_program checks."""
 
     def test_empty_optimizers_raises(self):
         """Test that empty optimizer list raises ValueError."""
         with pytest.raises(ValueError, match="optimizers list cannot be empty"):
             Program(optimizers=[])
 
-    def test_mismatched_constructs_raises(self):
-        """Test that optimizers with different constructs raise error."""
+    def test_mismatched_construct_count_raises(self):
+        """Test that optimizers with different construct counts raise error."""
+        segment1 = Segment(sequence="ATGCATGCATGCATGCATGC", sequence_type="dna")
+        segment2 = Segment(sequence="ATGCATGCATGCATGCATGC", sequence_type="dna")
+        construct1 = Construct([segment1], label="c1")
+        construct2 = Construct([segment2], label="c2")
+
+        gen1 = UniformMutationGenerator(UniformMutationGeneratorConfig(num_mutations=1))
+        gen1.assign(segment1)
+        constraint1 = ConstraintRegistry.create(
+            key="gc-content", segments=[segment1], config_dict={"min_gc": 0, "max_gc": 100}
+        )
+        opt1 = TopKOptimizer(
+            constructs=[construct1, construct2],
+            generators=[gen1],
+            constraints=[constraint1],
+            config=TopKOptimizerConfig(num_samples=3, k=2, batch_size=2),
+        )
+
+        gen2 = UniformMutationGenerator(UniformMutationGeneratorConfig(num_mutations=1))
+        gen2.assign(segment1)
+        constraint2 = ConstraintRegistry.create(
+            key="gc-content", segments=[segment1], config_dict={"min_gc": 0, "max_gc": 100}
+        )
+        opt2 = TopKOptimizer(
+            constructs=[construct1],  # Different count!
+            generators=[gen2],
+            constraints=[constraint2],
+            config=TopKOptimizerConfig(num_samples=3, k=2, batch_size=2),
+        )
+
+        with pytest.raises(ValueError, match="has 1 constructs.*has 2"):
+            Program(optimizers=[opt1, opt2])
+
+    def test_mismatched_construct_identity_raises(self):
+        """Test that optimizers with different construct objects raise error."""
         segment1 = Segment(sequence="ATGCATGCATGCATGCATGC", sequence_type="dna")
         construct1 = Construct([segment1])
 
@@ -314,6 +348,134 @@ class TestProgramValidation:
         )
 
         with pytest.raises(ValueError, match="not the same object"):
+            Program(optimizers=[opt1, opt2])
+
+    def test_duplicate_construct_labels_raises(self):
+        """Test that duplicate construct labels raise error."""
+        segment1 = Segment(sequence="ATGCATGCATGCATGCATGC", sequence_type="dna")
+        segment2 = Segment(sequence="GGGGGGGGGGGGGGGGGGGG", sequence_type="dna")
+        construct1 = Construct([segment1], label="same_label")
+        construct2 = Construct([segment2], label="same_label")
+
+        gen1 = UniformMutationGenerator(UniformMutationGeneratorConfig(num_mutations=1))
+        gen1.assign(segment1)
+        gen2 = UniformMutationGenerator(UniformMutationGeneratorConfig(num_mutations=1))
+        gen2.assign(segment2)
+        constraint1 = ConstraintRegistry.create(
+            key="gc-content", segments=[segment1], config_dict={"min_gc": 0, "max_gc": 100}
+        )
+        constraint2 = ConstraintRegistry.create(
+            key="gc-content", segments=[segment2], config_dict={"min_gc": 0, "max_gc": 100}, label="gc_content_2"
+        )
+        opt = TopKOptimizer(
+            constructs=[construct1, construct2],
+            generators=[gen1, gen2],
+            constraints=[constraint1, constraint2],
+            config=TopKOptimizerConfig(num_samples=3, k=2, batch_size=2),
+        )
+
+        with pytest.raises(ValueError, match="Construct labels must be unique.*same_label"):
+            Program(optimizers=[opt])
+
+    def test_segment_reuse_across_constructs_raises(self):
+        """Test that reusing segment instance across constructs raises error."""
+        shared_segment = Segment(sequence="ATGCATGCATGCATGCATGC", sequence_type="dna")
+        construct1 = Construct([shared_segment], label="c1")
+        construct2 = Construct([shared_segment], label="c2")  # Same segment instance!
+
+        gen1 = UniformMutationGenerator(UniformMutationGeneratorConfig(num_mutations=1))
+        gen1.assign(shared_segment)
+        constraint = ConstraintRegistry.create(
+            key="gc-content", segments=[shared_segment], config_dict={"min_gc": 0, "max_gc": 100}
+        )
+        opt = TopKOptimizer(
+            constructs=[construct1, construct2],
+            generators=[gen1],
+            constraints=[constraint],
+            config=TopKOptimizerConfig(num_samples=3, k=2, batch_size=2),
+        )
+
+        with pytest.raises(ValueError, match="Segment.*used in multiple constructs"):
+            Program(optimizers=[opt])
+
+    def test_dangling_segment_raises(self):
+        """Test that segment with no input and no generator raises error."""
+        segment1 = Segment(sequence="ATGCATGCATGCATGCATGC", sequence_type="dna")
+        segment2 = Segment(sequence_type="dna", length=20)  # No input sequence
+        construct = Construct([segment1, segment2])
+
+        gen = UniformMutationGenerator(UniformMutationGeneratorConfig(num_mutations=1))
+        gen.assign(segment1)  # Only segment1 has generator
+        constraint = ConstraintRegistry.create(
+            key="gc-content", segments=[segment1], config_dict={"min_gc": 0, "max_gc": 100}
+        )
+        opt = TopKOptimizer(
+            constructs=[construct],
+            generators=[gen],
+            constraints=[constraint],
+            config=TopKOptimizerConfig(num_samples=3, k=2, batch_size=2),
+        )
+
+        with pytest.raises(ValueError, match="never populated.*no input sequence and no generator"):
+            Program(optimizers=[opt])
+
+    def test_generator_reuse_across_optimizers_raises(self):
+        """Test that reusing generator instance across optimizers raises error."""
+        segment = Segment(sequence="ATGCATGCATGCATGCATGC", sequence_type="dna")
+        construct = Construct([segment])
+
+        shared_gen = UniformMutationGenerator(UniformMutationGeneratorConfig(num_mutations=1))
+        shared_gen.assign(segment)
+
+        constraint1 = ConstraintRegistry.create(
+            key="gc-content", segments=[segment], config_dict={"min_gc": 0, "max_gc": 100}
+        )
+        constraint2 = ConstraintRegistry.create(
+            key="gc-content", segments=[segment], config_dict={"min_gc": 0, "max_gc": 100}
+        )
+        opt1 = TopKOptimizer(
+            constructs=[construct],
+            generators=[shared_gen],  # Same generator instance
+            constraints=[constraint1],
+            config=TopKOptimizerConfig(num_samples=3, k=2, batch_size=2),
+        )
+        opt2 = TopKOptimizer(
+            constructs=[construct],
+            generators=[shared_gen],  # Same generator instance!
+            constraints=[constraint2],
+            config=TopKOptimizerConfig(num_samples=3, k=2, batch_size=2),
+        )
+
+        with pytest.raises(ValueError, match="Generator.*reused across optimizer"):
+            Program(optimizers=[opt1, opt2])
+
+    def test_constraint_reuse_across_optimizers_raises(self):
+        """Test that reusing constraint instance across optimizers raises error."""
+        segment = Segment(sequence="ATGCATGCATGCATGCATGC", sequence_type="dna")
+        construct = Construct([segment])
+
+        gen1 = UniformMutationGenerator(UniformMutationGeneratorConfig(num_mutations=1))
+        gen1.assign(segment)
+        gen2 = UniformMutationGenerator(UniformMutationGeneratorConfig(num_mutations=1))
+        gen2.assign(segment)
+
+        shared_constraint = ConstraintRegistry.create(
+            key="gc-content", segments=[segment], config_dict={"min_gc": 0, "max_gc": 100}
+        )
+        opt1 = TopKOptimizer(
+            constructs=[construct],
+            generators=[gen1],
+            constraints=[shared_constraint],  # Same constraint instance
+            config=TopKOptimizerConfig(num_samples=3, k=2, batch_size=2),
+        )
+        opt2 = TopKOptimizer(
+            constructs=[construct],
+            generators=[gen2],
+            constraints=[shared_constraint],  # Same constraint instance!
+            config=TopKOptimizerConfig(num_samples=3, k=2, batch_size=2),
+        )
+
+        with pytest.raises(ValueError, match="Constraint.*reused across optimizer"):
             Program(optimizers=[opt1, opt2])
 
 

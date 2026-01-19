@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import math
 from abc import ABC, abstractmethod
+from itertools import combinations
 from typing import Any, Callable, Dict, List, Literal, Optional
 
 from proto_language.tools.tool_cache import ToolCache, _program_tool_cache
@@ -256,16 +257,22 @@ class Optimizer(ABC):
 
     def _validate_optimizer(self) -> None:
         """
-        Validate that constructs, generators, constraints are properly configured.
-        Must be called in final subclass __init__ to ensure all attributes are set.
+        Validate optimizer configuration before execution.
+
+        Checks:
+            1. Non-empty lists: Constructs, generators, and constraints must be provided.
+            2. Type validation: All objects must have correct types.
+            3. Structure validation: Constructs have segments, generators/constraints are assigned.
+            4. No duplicate instances: Each generator/constraint instance can only appear once.
+            5. Unique constraint labels: Required for metadata namespacing.
+            6. Valid constraint inputs: Constraints can only reference populated segments.
 
         Raises:
-            ValueError: If user inputs are invalid (empty lists, invalid weights, etc.).
+            ValueError: If user inputs are invalid (empty lists, duplicates, etc.).
             TypeError: If objects have incorrect types.
-            RuntimeError: If optimizer state is invalid (unassigned segments, etc.).
+            RuntimeError: If state is invalid (unassigned segments, invalid references).
         """
-
-        # Ensure constructs, generators, and constraints are non-empty lists
+        # 1. Non-empty lists
         if not self.constructs:
             raise ValueError("Constructs list cannot be empty")
         if not self.generators:
@@ -273,66 +280,61 @@ class Optimizer(ABC):
         if not self.constraints:
             raise ValueError("Constraints list cannot be empty")
 
-        # Ensure all constructs have correct type and have segments
+        # 2. Type validation
         for i, construct in enumerate(self.constructs):
             if not isinstance(construct, Construct):
                 raise TypeError(f"Construct {i} has type {type(construct)}, expected Construct")
-            if not construct.segments:
-                raise ValueError(f"Construct {i} has no segments")
-
-        # Ensure all generators have correct type and have assigned segments
         for i, generator in enumerate(self.generators):
             if not isinstance(generator, Generator):
                 raise TypeError(f"Generator {i} has type {type(generator)}, expected Generator")
-            if not generator._assigned_segment:
-                raise RuntimeError(f"Generator {i} ({generator.__class__.__name__}) has no segment assigned")
-
-        # Ensure all constraints have correct type and have input segments
         for i, constraint in enumerate(self.constraints):
             if not isinstance(constraint, Constraint):
                 raise TypeError(f"Constraint {i} has type {type(constraint)}, expected Constraint")
-            if not constraint.inputs:
-                raise RuntimeError(f"Constraint {i} has no input segment(s) assigned")
 
-        # Check for duplicate generator instances
-        seen_gen_ids: set[int] = set()
-        for generator in self.generators:
-            gen_id = id(generator)
-            if gen_id in seen_gen_ids:
-                raise ValueError(
-                    f"Generator '{generator.__class__.__name__}' instance appears multiple times "
-                    "in the generators list. Each generator instance can only be used once."
-                )
-            seen_gen_ids.add(gen_id)
+        # 3. Structure validation
+        for i, construct in enumerate(self.constructs):
+            if not construct.segments:
+                raise ValueError(f"Construct {i} has no segments")
 
-        # Check for duplicate constraint instances
-        seen_con_ids: set[int] = set()
-        for constraint in self.constraints:
-            con_id = id(constraint)
-            if con_id in seen_con_ids:
-                raise ValueError(
-                    f"Constraint '{constraint.label}' instance appears multiple times "
-                    "in the constraints list. Each constraint instance can only be used once."
-                )
-            seen_con_ids.add(con_id)
-
-        # Build set of segments that have an active generator in THIS optimizer
-        # Validate generators: all generators must have assigned segments
-        assigned_segments = set()
-        for gen in self.generators:
-            if gen._assigned_segment is None:
-                raise RuntimeError(f"Generator '{gen.__class__.__name__}' has no segment assigned. All generators in an optimizer must have an assigned segment.")
+        assigned_segments: set = set()
+        for i, gen in enumerate(self.generators):
+            if not gen._assigned_segment:
+                raise RuntimeError(f"Generator {i} ({gen.__class__.__name__}) has no segment assigned")
             assigned_segments.add(gen._assigned_segment)
 
-        # Validate constraints don't reference empty segments without generators
+        for i, con in enumerate(self.constraints):
+            if not con.inputs:
+                raise RuntimeError(f"Constraint {i} has no input segment(s) assigned")
+
+        # 4. No duplicate instances
+        seen_gen_ids: set[int] = set()
+        for gen in self.generators:
+            if id(gen) in seen_gen_ids:
+                raise ValueError(f"Generator '{gen.__class__.__name__}' appears multiple times. Each instance can only be used once.")
+            seen_gen_ids.add(id(gen))
+
+        seen_con_ids: set[int] = set()
+        for con in self.constraints:
+            if id(con) in seen_con_ids:
+                raise ValueError(f"Constraint '{con.label}' appears multiple times. Each instance can only be used once.")
+            seen_con_ids.add(id(con))
+
+        # 5. Unique constraint labels per segment (required for metadata namespacing)
+        for c1, c2 in combinations(self.constraints, 2):
+            if c1.label == c2.label and set(c1.inputs) & set(c2.inputs):
+                overlapping = [s.label for s in set(c1.inputs) & set(c2.inputs)]
+                raise ValueError(
+                    f"Constraints with label '{c1.label}' share segments {overlapping}. Constraints applied to the same segments must have unique labels."
+                )
+
+        # 6. Valid constraint inputs
+        # Constraints can only reference segments that have sequences or a generator assigned.
         for constraint in self.constraints:
             for segment in constraint.inputs:
-                has_generator = segment in assigned_segments
-                if not segment.populated_sequences and not has_generator:
+                if not segment.populated_sequences and segment not in assigned_segments:
                     raise RuntimeError(
                         f"Constraint '{constraint.label}' references segment '{segment.label or 'unlabeled'}' "
-                        "which has no populated sequence and no generator assigned. "
-                        "Segments must have sequences or generators before constraints can be evaluated."
+                        "which has no populated sequence and no generator assigned."
                     )
 
     def _initialize_sequence_pools(self) -> None:

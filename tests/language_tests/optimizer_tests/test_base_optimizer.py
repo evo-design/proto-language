@@ -72,8 +72,148 @@ def _setup_optimizer_components(num_candidates: int = 4):
     return construct, generator, constraint, segment
 
 
+class TestOptimizerValidation:
+    """Tests for Optimizer._validate_optimizer checks."""
+
+    # 1. Non-empty lists
+    def test_empty_constructs_raises(self):
+        """Tests that empty constructs list raises ValueError."""
+        _, generator, constraint, _ = _setup_optimizer_components()
+        with pytest.raises(ValueError, match="Constructs list cannot be empty"):
+            ConcreteOptimizer([], [generator], [constraint], 4, 2)
+
+    def test_empty_generators_raises(self):
+        """Tests that empty generators list raises ValueError."""
+        construct, _, constraint, _ = _setup_optimizer_components()
+        with pytest.raises(ValueError, match="Generators list cannot be empty"):
+            ConcreteOptimizer([construct], [], [constraint], 4, 2)
+
+    def test_empty_constraints_raises(self):
+        """Tests that empty constraints list raises ValueError."""
+        construct, generator, _, _ = _setup_optimizer_components()
+        with pytest.raises(ValueError, match="Constraints list cannot be empty"):
+            ConcreteOptimizer([construct], [generator], [], 4, 2)
+
+    # 2. Type validation
+    def test_invalid_generator_type_raises(self):
+        """Tests that non-Generator type raises TypeError."""
+        construct, _, constraint, _ = _setup_optimizer_components()
+        with pytest.raises(TypeError, match="expected Generator"):
+            ConcreteOptimizer([construct], ["not_a_generator"], [constraint], 4, 2)
+
+    def test_invalid_constraint_type_raises(self):
+        """Tests that non-Constraint type raises TypeError."""
+        construct, generator, _, _ = _setup_optimizer_components()
+        with pytest.raises(TypeError, match="expected Constraint"):
+            ConcreteOptimizer([construct], [generator], ["not_a_constraint"], 4, 2)
+
+    # 3. Structure validation
+    def test_construct_with_no_segments_raises(self):
+        """Tests that construct with no segments raises ValueError."""
+        _, generator, constraint, _ = _setup_optimizer_components()
+        empty_construct = MagicMock(spec=Construct)
+        empty_construct.segments = []
+        with pytest.raises(ValueError, match="has no segments"):
+            ConcreteOptimizer([empty_construct], [generator], [constraint], 4, 2)
+
+    def test_unassigned_generator_raises(self):
+        """Tests that unassigned generator raises RuntimeError."""
+        construct, _, constraint, _ = _setup_optimizer_components()
+        unassigned_gen = MockGenerator()
+        with pytest.raises(RuntimeError, match="has no segment assigned"):
+            ConcreteOptimizer([construct], [unassigned_gen], [constraint], 4, 2)
+
+    def test_constraint_with_no_inputs_raises(self):
+        """Tests that constraint with no inputs raises RuntimeError."""
+        construct, generator, _, _ = _setup_optimizer_components()
+        empty_constraint = MagicMock(spec=Constraint)
+        empty_constraint.inputs = []
+        with pytest.raises(RuntimeError, match="has no input segment"):
+            ConcreteOptimizer([construct], [generator], [empty_constraint], 4, 2)
+
+    # 4. No duplicate instances
+    def test_duplicate_generator_instance_raises(self):
+        """Tests that same generator instance appearing twice raises ValueError."""
+        construct, generator, constraint, segment = _setup_optimizer_components()
+        # Use same generator instance twice
+        with pytest.raises(ValueError, match="appears multiple times.*can only be used once"):
+            ConcreteOptimizer([construct], [generator, generator], [constraint], 4, 2)
+
+    def test_duplicate_constraint_instance_raises(self):
+        """Tests that same constraint instance appearing twice raises ValueError."""
+        construct, generator, constraint, _ = _setup_optimizer_components()
+        # Use same constraint instance twice
+        with pytest.raises(ValueError, match="appears multiple times.*can only be used once"):
+            ConcreteOptimizer([construct], [generator], [constraint, constraint], 4, 2)
+    
+    # 5. Unique constraint labels per segment
+    def test_duplicate_constraint_labels_same_segment_raises(self):
+        """Tests that duplicate constraint labels on same segment raise ValueError."""
+        construct, generator, _, segment = _setup_optimizer_components()
+
+        constraint1 = MagicMock(spec=Constraint)
+        constraint1.inputs = [segment]
+        constraint1.label = "same_label"
+        constraint1.threshold = None
+        constraint1.weight = 1.0
+
+        constraint2 = MagicMock(spec=Constraint)
+        constraint2.inputs = [segment]
+        constraint2.label = "same_label"  # Duplicate label on same segment!
+        constraint2.threshold = None
+        constraint2.weight = 1.0
+
+        with pytest.raises(ValueError, match="Constraints with label 'same_label' share segments"):
+            ConcreteOptimizer([construct], [generator], [constraint1, constraint2], 4, 2)
+
+    def test_duplicate_constraint_labels_different_segments_allowed(self):
+        """Tests that same constraint labels on different segments are allowed."""
+        segment1 = Segment(sequence="ATCG", sequence_type="dna")
+        segment2 = Segment(sequence="GCTA", sequence_type="dna")
+        construct = Construct([segment1, segment2])
+
+        generator1 = MockGenerator()
+        generator1.assign(segment1)
+        generator2 = MockGenerator()
+        generator2.assign(segment2)
+
+        constraint1 = MagicMock(spec=Constraint)
+        constraint1.inputs = [segment1]
+        constraint1.label = "same_label"
+        constraint1.threshold = None
+        constraint1.weight = 1.0
+
+        constraint2 = MagicMock(spec=Constraint)
+        constraint2.inputs = [segment2]
+        constraint2.label = "same_label"  # Same label but different segment - OK!
+        constraint2.threshold = None
+        constraint2.weight = 1.0
+
+        # Should not raise
+        ConcreteOptimizer([construct], [generator1, generator2], [constraint1, constraint2], 4, 2)
+
+    # 6. Valid constraint inputs
+    def test_constraint_references_unpopulated_segment_raises(self):
+        """Tests that constraint referencing unpopulated segment without generator raises."""
+        segment_with_gen = Segment(sequence="ATCG", sequence_type="dna")
+        segment_no_gen = Segment(sequence_type="dna", length=4)  # No input sequence
+        construct = Construct([segment_with_gen, segment_no_gen])
+
+        generator = MockGenerator()
+        generator.assign(segment_with_gen)  # Only first segment has generator
+
+        constraint = MagicMock(spec=Constraint)
+        constraint.inputs = [segment_no_gen]  # References unpopulated segment!
+        constraint.label = "bad_constraint"
+        constraint.threshold = None
+        constraint.weight = 1.0
+
+        with pytest.raises(RuntimeError, match="no populated sequence and no generator assigned"):
+            ConcreteOptimizer([construct], [generator], [constraint], 4, 2)
+
+
 class TestOptimizerInitialization:
-    """Tests for optimizer initialization and validation."""
+    """Tests for optimizer initialization behavior."""
 
     def test_valid_initialization(self):
         """Tests that optimizer initializes correctly with valid inputs."""
@@ -88,36 +228,6 @@ class TestOptimizerInitialization:
         )
         assert optimizer.num_candidates == 4
         assert optimizer.num_selected == 2
-
-    def test_empty_lists_raise_errors(self):
-        """Tests that empty constructs/generators/constraints raise ValueError."""
-        construct, generator, constraint, _ = _setup_optimizer_components()
-
-        with pytest.raises(ValueError, match="Constructs list cannot be empty"):
-            ConcreteOptimizer([], [generator], [constraint], 4, 2)
-
-        with pytest.raises(ValueError, match="Generators list cannot be empty"):
-            ConcreteOptimizer([construct], [], [constraint], 4, 2)
-
-        with pytest.raises(ValueError, match="Constraints list cannot be empty"):
-            ConcreteOptimizer([construct], [generator], [], 4, 2)
-
-    def test_unassigned_generator_raises_error(self):
-        """Tests that unassigned generator raises RuntimeError."""
-        construct, _, constraint, _ = _setup_optimizer_components()
-        unassigned_gen = MockGenerator()
-
-        with pytest.raises(RuntimeError, match="has no segment assigned"):
-            ConcreteOptimizer([construct], [unassigned_gen], [constraint], 4, 2)
-
-    def test_constraint_with_no_inputs_raises_error(self):
-        """Tests that constraint with no inputs raises RuntimeError."""
-        construct, generator, _, _ = _setup_optimizer_components()
-        empty_constraint = MagicMock(spec=Constraint)
-        empty_constraint.inputs = []
-
-        with pytest.raises(RuntimeError, match="has no input segment"):
-            ConcreteOptimizer([construct], [generator], [empty_constraint], 4, 2)
 
 
 class TestSequencePoolInitialization:
@@ -204,6 +314,7 @@ class TestScoreEnergy:
 
         constraint2 = MagicMock(spec=Constraint)
         constraint2.inputs = [segment]
+        constraint2.label = "MockConstraint2"
         constraint2.weight = 1.0
         constraint2.threshold = None
         constraint2.evaluate.return_value = [4.0, 8.0]
@@ -230,6 +341,7 @@ class TestScoreEnergy:
 
         constraint2 = MagicMock(spec=Constraint)
         constraint2.inputs = [segment]
+        constraint2.label = "MockConstraint2"
         constraint2.weight = 1.0
         constraint2.threshold = None
         constraint2.evaluate.return_value = [4.0, 5.0]
@@ -272,6 +384,7 @@ class TestFilterConstraints:
         # Scoring constraint (returns NaN for skipped candidate 1)
         scoring_constraint = MagicMock(spec=Constraint)
         scoring_constraint.inputs = [segment]
+        scoring_constraint.label = "ScoringConstraint"
         scoring_constraint.threshold = None
         scoring_constraint.weight = 1.0
         scoring_constraint.evaluate.return_value = [10.0, float('nan'), 20.0]
@@ -303,6 +416,7 @@ class TestFilterConstraints:
         # Scoring constraint
         scoring_constraint = MagicMock(spec=Constraint)
         scoring_constraint.inputs = [segment]
+        scoring_constraint.label = "ScoringConstraint"
         scoring_constraint.threshold = None
         scoring_constraint.evaluate.return_value = [1.0, float('nan'), 1.0]
 

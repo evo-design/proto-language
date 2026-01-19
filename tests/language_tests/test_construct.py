@@ -66,3 +66,70 @@ class TestConstruct:
 
         with pytest.raises(ValueError, match="must have the same valid_chars"):
             Construct([seg1, seg2])
+
+
+class TestConstructValidation:
+    """Tests for Construct._validate_construct checks."""
+
+    # 1. Non-empty
+    def test_empty_segments_raises(self):
+        """Tests that empty segments list raises ValueError."""
+        with pytest.raises(ValueError, match="must contain at least one segment"):
+            Construct([])
+
+    # 2. Homogeneous sequence types
+    def test_mixed_sequence_types_raises(self):
+        """Tests that mixed sequence types raise ValueError."""
+        seg_dna = Segment(sequence="ATCG", sequence_type="dna")
+        seg_rna = Segment(sequence="AUCG", sequence_type="rna")
+        with pytest.raises(ValueError, match="must have the same sequence_type"):
+            Construct([seg_dna, seg_rna])
+
+    def test_mixed_sequence_types_shows_all_types(self):
+        """Tests that error message shows all found types."""
+        seg_dna = Segment(sequence="ATCG", sequence_type="dna")
+        seg_protein = Segment(sequence="MAKT", sequence_type="protein")
+        with pytest.raises(ValueError, match="dna.*protein|protein.*dna"):
+            Construct([seg_dna, seg_protein])
+
+    # 3. Homogeneous valid chars
+    def test_mixed_valid_chars_raises(self):
+        """Tests that mixed valid_chars raise ValueError."""
+        seg1 = Segment(sequence="AB", valid_chars={"A", "B"})
+        seg2 = Segment(sequence="CD", valid_chars={"C", "D"})
+        with pytest.raises(ValueError, match="must have the same valid_chars"):
+            Construct([seg1, seg2])
+
+    # 4. Unique segment labels
+    def test_duplicate_segment_labels_raises(self):
+        """Tests that duplicate segment labels raise ValueError."""
+        seg1 = Segment(sequence="ATCG", sequence_type="dna", label="promoter")
+        seg2 = Segment(sequence="GGGG", sequence_type="dna", label="promoter")
+        with pytest.raises(ValueError, match="Segment labels must be unique.*promoter"):
+            Construct([seg1, seg2])
+
+    def test_multiple_duplicate_labels_shows_all(self):
+        """Tests that error shows all duplicate labels."""
+        seg1 = Segment(sequence="ATCG", sequence_type="dna", label="dup1")
+        seg2 = Segment(sequence="GGGG", sequence_type="dna", label="dup1")
+        seg3 = Segment(sequence="CCCC", sequence_type="dna", label="dup2")
+        seg4 = Segment(sequence="TTTT", sequence_type="dna", label="dup2")
+        with pytest.raises(ValueError, match="Duplicates:.*dup"):
+            Construct([seg1, seg2, seg3, seg4])
+
+    def test_unlabeled_segments_get_auto_labels(self):
+        """Tests that unlabeled segments get auto-assigned unique labels."""
+        seg1 = Segment(sequence="ATCG", sequence_type="dna")
+        seg2 = Segment(sequence="GGGG", sequence_type="dna")
+        Construct([seg1, seg2])
+        # Auto-labeled as segment_0, segment_1
+        assert seg1.label == "segment_0"
+        assert seg2.label == "segment_1"
+
+    def test_mixed_labeled_unlabeled_segments(self):
+        """Tests that mix of labeled and unlabeled segments works."""
+        seg1 = Segment(sequence="ATCG", sequence_type="dna", label="promoter")
+        seg2 = Segment(sequence="GGGG", sequence_type="dna")  # Will be auto-labeled
+        Construct([seg1, seg2])  # Auto-labeling happens during construct creation
+        assert seg1.label == "promoter"
+        assert seg2.label == "segment_1"

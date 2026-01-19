@@ -82,6 +82,14 @@ class Program:
 
         # Extract constructs from first optimizer
         self.constructs = optimizers[0].constructs
+
+        # Auto-label constructs and tag segments with their construct label for metadata tracking
+        for i, construct in enumerate(self.constructs):
+            if construct.label is None:
+                construct.label = f"construct_{i}"
+            for segment in construct.segments:
+                segment.construct_label = construct.label
+
         self.current_stage = 0
         self._stage_results: List[Dict] = []
         self._validate_program()
@@ -103,97 +111,97 @@ class Program:
 
     def _validate_program(self) -> None:
         """
-        Validate program configuration.
+        Validate program configuration before execution.
 
-        Validates:
-        1. All optimizers share the same construct objects (by identity)
-        2. No dangling segments (segments with no input sequence and no generator assigned
-           in any optimizer)
+        Checks:
+            1. Construct identity: All optimizers must share the same construct objects
+               (by identity, not equality) to ensure state persists across stages.
+            2. Unique labels: Construct labels must be unique for unambiguous referencing.
+            3. Segment population: Every segment must have either an input sequence or
+               a generator assigned in at least one optimizer.
+            4. Instance isolation: Generators and constraints cannot be reused across
+               optimizers to prevent shared mutable state bugs.
 
         Raises:
-            ValueError: If optimizers don't share identical construct objects (by identity) or if any segment is never populated.
+            ValueError: If any validation check fails.
         """
         reference_constructs = self.optimizers[0].constructs
 
+        # 1. Validate construct identity across optimizers
+        # All optimizers must reference the exact same construct objects so results
+        # from one stage automatically propagate to subsequent stages.
         for i, optimizer in enumerate(self.optimizers[1:], start=1):
             if len(optimizer.constructs) != len(reference_constructs):
                 raise ValueError(
                     f"Optimizer {i} has {len(optimizer.constructs)} constructs, "
-                    f"but optimizer 0 has {len(reference_constructs)} constructs. "
+                    f"but optimizer 0 has {len(reference_constructs)}. "
                     "All optimizers must share the same construct objects."
                 )
-
-            for j, (construct, ref_construct) in enumerate(
-                zip(optimizer.constructs, reference_constructs)
-            ):
+            for j, (construct, ref_construct) in enumerate(zip(optimizer.constructs, reference_constructs)):
                 if construct is not ref_construct:
                     raise ValueError(
                         f"Optimizer {i} construct {j} is not the same object as "
                         f"optimizer 0 construct {j}. All optimizers must share the "
-                        "same construct objects (by identity) to ensure state "
-                        "persistence between sequential optimizations."
+                        "same construct objects (by identity) for state persistence."
                     )
 
-        # Collect all segments assigned to generators across ALL optimizers
-        all_generator_segments = set()
-        for optimizer in self.optimizers:
-            for gen in optimizer.generators:
-                if gen._assigned_segment:
-                    all_generator_segments.add(gen._assigned_segment)
+        # 2. Validate unique construct labels
+        construct_labels = [c.label for c in self.constructs]
+        if len(construct_labels) != len(set(construct_labels)):
+            duplicates = [l for l in construct_labels if construct_labels.count(l) > 1]
+            raise ValueError(f"Construct labels must be unique. Duplicates: {set(duplicates)}")
 
-        # Validate no dangling segments (no input sequence AND no generator ever assigned)
-        all_segments = [seg for construct in self.constructs for seg in construct.segments]
-        for segment in all_segments:
-            has_generator = segment in all_generator_segments
-            if not has_generator and not segment.populated_sequences:
-                raise ValueError(
-                    f"Segment '{segment.label or 'unlabeled'}' is never populated. "
-                    "It has no input sequence and no generator is assigned to it in any optimizer."
-                )
-
-        # Validate no generator/constraint reuse across optimizers
-        self._validate_no_instance_reuse()
-
-    def _validate_no_instance_reuse(self) -> None:
-        """
-        Validate that no generator or constraint instance is reused across optimizers.
-
-        Each optimizer must have its own generator and constraint instances to avoid
-        shared mutable state issues between optimization stages.
-
-        Raises:
-            ValueError: If a generator or constraint instance appears in multiple optimizers.
-        """
-        # No reuse possible with single optimizer
-        if len(self.optimizers) <= 1:
-            return
-        # Track which optimizer each generator instance belongs to
-        seen_generators: Dict[int, int] = {}  # id(generator) -> optimizer_index
-        for opt_idx, optimizer in enumerate(self.optimizers):
-            for generator in optimizer.generators:
-                gen_id = id(generator)
-                if gen_id in seen_generators:
+        # 3. Validate no segment reuse across constructs
+        seen_segments: dict[int, str] = {}
+        for construct in self.constructs:
+            for segment in construct.segments:
+                prev_construct = seen_segments.get(id(segment))
+                if prev_construct is not None:
                     raise ValueError(
-                        f"Generator '{generator.__class__.__name__}' instance is reused "
-                        f"across optimizer {seen_generators[gen_id]} and optimizer {opt_idx}. "
-                        "Each optimizer must have its own generator instances to avoid "
-                        "shared state issues. Create a new generator instance for each optimizer."
+                        f"Segment '{segment.label}' is used in multiple constructs: "
+                        f"'{prev_construct}' and '{construct.label}'. "
+                        "Each segment instance can only belong to one construct."
                     )
-                seen_generators[gen_id] = opt_idx
+                seen_segments[id(segment)] = construct.label
 
-        # Track which optimizer each constraint instance belongs to
-        seen_constraints: Dict[int, int] = {}  # id(constraint) -> optimizer_index
-        for opt_idx, optimizer in enumerate(self.optimizers):
-            for constraint in optimizer.constraints:
-                con_id = id(constraint)
-                if con_id in seen_constraints:
+        # 4. Validate all segments will be populated
+        # A segment must have either an input sequence or a generator in some optimizer.
+        generator_segments = {
+            gen._assigned_segment
+            for opt in self.optimizers
+            for gen in opt.generators
+            if gen._assigned_segment
+        }
+        for construct in self.constructs:
+            for segment in construct.segments:
+                if segment not in generator_segments and not segment.populated_sequences:
                     raise ValueError(
-                        f"Constraint '{constraint.label}' instance is reused "
-                        f"across optimizer {seen_constraints[con_id]} and optimizer {opt_idx}. "
-                        "Each optimizer must have its own constraint instances to avoid "
-                        "shared state issues. Create a new constraint instance for each optimizer."
+                        f"Segment '{segment.label or 'unlabeled'}' is never populated. "
+                        "It has no input sequence and no generator assigned in any optimizer."
                     )
-                seen_constraints[con_id] = opt_idx
+
+        # 5. Validate no generator/constraint reuse across optimizers
+        # Each optimizer needs its own instances to avoid shared mutable state issues.
+        if len(self.optimizers) > 1:
+            seen_generators: Dict[int, int] = {}
+            seen_constraints: Dict[int, int] = {}
+
+            for opt_idx, optimizer in enumerate(self.optimizers):
+                for gen in optimizer.generators:
+                    prev_idx = seen_generators.get(id(gen))
+                    if prev_idx is not None:                        
+                        raise ValueError(
+                            f"Generator '{gen.__class__.__name__}' reused across optimizer {prev_idx} and {opt_idx}. Each generator instance can only be used once."
+                        )
+                    seen_generators[id(gen)] = opt_idx
+
+                for con in optimizer.constraints:
+                    prev_idx = seen_constraints.get(id(con))
+                    if prev_idx is not None:
+                        raise ValueError(
+                            f"Constraint '{con.label}' reused across optimizer {prev_idx} and {opt_idx}. Each constraint instance can only be used once."
+                        )
+                    seen_constraints[id(con)] = opt_idx
 
     def _print_stage_results(self, stage_index: int, batch_results: list) -> None:
         """Print results for a completed optimization stage."""
@@ -248,6 +256,7 @@ class Program:
             >>> results = program.get_stage_results(0)  # Access results
             >>> program.run_stage(1)  # Run second optimizer
         """
+        self._validate_program()
         if stage_index < 0 or stage_index >= len(self.optimizers):
             raise IndexError(f"Stage index {stage_index} out of range (0-{len(self.optimizers)-1}).")
         if stage_index > self.current_stage:
