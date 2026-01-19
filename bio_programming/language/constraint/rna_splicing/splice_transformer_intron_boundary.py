@@ -212,8 +212,9 @@ def splice_transformer_intron_boundary(
         left_contexts=[config.left_context],
         right_contexts=[config.right_context],
     )
-    splice_transformer_config = config.splice_transformer_config
-    splice_transformer_config.context_length = context_length
+    splice_transformer_config = config.splice_transformer_config.model_copy(
+        update={"context_length": context_length}
+    )
 
     output = run_splice_transformer(
         splice_transformer_input,
