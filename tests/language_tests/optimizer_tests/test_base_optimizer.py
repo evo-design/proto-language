@@ -146,9 +146,9 @@ class TestOptimizerValidation:
         with pytest.raises(ValueError, match="appears multiple times.*can only be used once"):
             ConcreteOptimizer([construct], [generator], [constraint, constraint], 4, 2)
     
-    # 5. Unique constraint labels per segment
-    def test_duplicate_constraint_labels_same_segment_raises(self):
-        """Tests that duplicate constraint labels on same segment raise ValueError."""
+    # 5. Unique constraint labels per segment (auto-renamed on collision)
+    def test_duplicate_constraint_labels_same_segment_auto_renames(self):
+        """Tests that duplicate constraint labels on same segment are auto-renamed."""
         construct, generator, _, segment = _setup_optimizer_components()
 
         constraint1 = MagicMock(spec=Constraint)
@@ -159,12 +159,44 @@ class TestOptimizerValidation:
 
         constraint2 = MagicMock(spec=Constraint)
         constraint2.inputs = [segment]
-        constraint2.label = "same_label"  # Duplicate label on same segment!
+        constraint2.label = "same_label"  # Duplicate label on same segment - will be auto-renamed
         constraint2.threshold = None
         constraint2.weight = 1.0
 
-        with pytest.raises(ValueError, match="Constraints with label 'same_label' share segments"):
-            ConcreteOptimizer([construct], [generator], [constraint1, constraint2], 4, 2)
+        ConcreteOptimizer([construct], [generator], [constraint1, constraint2], 4, 2)
+
+        # First keeps original, second gets renamed
+        assert constraint1.label == "same_label"
+        assert constraint2.label == "same_label_1"
+
+    def test_multiple_duplicate_constraint_labels_auto_renames(self):
+        """Tests that multiple duplicate labels get incrementing suffixes."""
+        construct, generator, _, segment = _setup_optimizer_components()
+
+        constraint1 = MagicMock(spec=Constraint)
+        constraint1.inputs = [segment]
+        constraint1.label = "gc_content"
+        constraint1.threshold = None
+        constraint1.weight = 1.0
+
+        constraint2 = MagicMock(spec=Constraint)
+        constraint2.inputs = [segment]
+        constraint2.label = "gc_content"
+        constraint2.threshold = None
+        constraint2.weight = 1.0
+
+        constraint3 = MagicMock(spec=Constraint)
+        constraint3.inputs = [segment]
+        constraint3.label = "gc_content"
+        constraint3.threshold = None
+        constraint3.weight = 1.0
+
+        ConcreteOptimizer([construct], [generator], [constraint1, constraint2, constraint3], 4, 2)
+
+        # First keeps original, subsequent get incrementing suffixes
+        assert constraint1.label == "gc_content"
+        assert constraint2.label == "gc_content_1"
+        assert constraint3.label == "gc_content_2"
 
     def test_duplicate_constraint_labels_different_segments_allowed(self):
         """Tests that same constraint labels on different segments are allowed."""

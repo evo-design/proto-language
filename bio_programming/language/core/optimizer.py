@@ -10,7 +10,6 @@ from __future__ import annotations
 import copy
 import math
 from abc import ABC, abstractmethod
-from itertools import combinations
 from typing import Any, Callable, Dict, List, Literal, Optional
 
 from proto_language.tools.tool_cache import ToolCache, _program_tool_cache
@@ -319,13 +318,18 @@ class Optimizer(ABC):
                 raise ValueError(f"Constraint '{con.label}' appears multiple times. Each instance can only be used once.")
             seen_con_ids.add(id(con))
 
-        # 5. Unique constraint labels per segment (required for metadata namespacing)
-        for c1, c2 in combinations(self.constraints, 2):
-            if c1.label == c2.label and set(c1.inputs) & set(c2.inputs):
-                overlapping = [s.label for s in set(c1.inputs) & set(c2.inputs)]
-                raise ValueError(
-                    f"Constraints with label '{c1.label}' share segments {overlapping}. Constraints applied to the same segments must have unique labels."
-                )
+        # 5. Ensure unique constraint labels per segment (required for metadata namespacing)
+        # Instead of raising on collision, auto-rename with incrementing suffix
+        segment_label_counts: Dict[tuple, int] = {}  # (base_label, segment_id) -> count
+        for constraint in self.constraints:
+            for segment in constraint.inputs:
+                key = (constraint.label, id(segment))
+                if key in segment_label_counts:
+                    # Collision detected, append counter to this constraint label
+                    segment_label_counts[key] += 1
+                    constraint.label = f"{constraint.label}_{segment_label_counts[key]}"
+                else:
+                    segment_label_counts[key] = 0
 
         # 6. Valid constraint inputs
         # Constraints can only reference segments that have sequences or a generator assigned.
