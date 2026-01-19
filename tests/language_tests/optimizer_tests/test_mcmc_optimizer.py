@@ -474,15 +474,15 @@ class TestMCMCOptimizer:
         optimizer, _, _, _ = _setup_mcmc_components()
 
         # Better proposal (lower energy) should always be accepted
-        alpha = optimizer._compute_mcmc_acceptance(1.0, 0.5, 1)
+        alpha = optimizer._compute_mcmc_alpha(1.0, 0.5, 1)
         assert alpha == 1.0
 
         # Equal energy should be accepted
-        alpha = optimizer._compute_mcmc_acceptance(0.5, 0.5, 1)
+        alpha = optimizer._compute_mcmc_alpha(0.5, 0.5, 1)
         assert alpha == 1.0
 
         # Worse proposal should have probability < 1
-        alpha = optimizer._compute_mcmc_acceptance(0.5, 1.0, 1)
+        alpha = optimizer._compute_mcmc_alpha(0.5, 1.0, 1)
         assert 0.0 < alpha < 1.0
 
     def test_overflow_protection(self):
@@ -490,11 +490,11 @@ class TestMCMCOptimizer:
         optimizer, _, _, _ = _setup_mcmc_components()
 
         # Very large energy improvement should be clamped to 1.0
-        alpha = optimizer._compute_mcmc_acceptance(1000.0, 0.0, 1)
+        alpha = optimizer._compute_mcmc_alpha(1000.0, 0.0, 1)
         assert alpha == 1.0
 
         # Very large energy increase should give very small probability
-        alpha = optimizer._compute_mcmc_acceptance(0.0, 1000.0, 1)
+        alpha = optimizer._compute_mcmc_alpha(0.0, 1000.0, 1)
         assert 0.0 <= alpha < 1e-10
 
     def test_convergence_to_optimal(self):
