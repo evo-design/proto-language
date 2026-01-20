@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from pathlib import Path
+from typing import Any, Dict, List, Literal, Optional
 
 from .optimizer import Optimizer
 from proto_language.utils.helpers import filter_inf_nan_scores
@@ -439,3 +440,151 @@ class Program:
         clear_evo2_cache()
         clear_esm3_cache()
         clear_esm2_cache()
+
+    # =========================================================================
+    # Export Methods
+    # =========================================================================
+
+    def export_segment(
+        self,
+        construct: str,
+        segment: str,
+        batch_idx: int = 0,
+        format: Literal["csv", "tsv", "json", "xlsx"] = "csv",
+        style: Literal["wide", "long"] = "wide",
+        path: Optional[Path] = None,
+    ) -> Path:
+        """
+        Export all constraint metadata for a specific segment.
+
+        Args:
+            construct: Construct label
+            segment: Segment label
+            batch_idx: Batch index (default 0)
+            format: Output format - "csv", "tsv", "json", or "xlsx"
+            style: "wide" (single row with constraint.metric columns) or
+                   "long" (one row per constraint)
+            path: Output path. Defaults to ./{segment}_{batch_idx}.{format}
+
+        Returns:
+            Path where file was saved
+        """
+        from proto_language.utils.export import flatten_segment_metadata, write_export
+
+        batch_results = self.extract_batch_results(self.energy_scores)
+        rows = flatten_segment_metadata(batch_results, construct, segment, batch_idx, style)
+
+        if path is None:
+            path = Path(f"./{segment}_{batch_idx}.{format}")
+        else:
+            path = Path(path)
+
+        write_export(rows, format, path)
+        return path
+
+    def export_construct(
+        self,
+        construct: str,
+        batch_idx: int = 0,
+        format: Literal["csv", "tsv", "json", "xlsx"] = "csv",
+        style: Literal["wide", "long"] = "wide",
+        path: Optional[Path] = None,
+    ) -> Path:
+        """
+        Export metadata for all segments in a construct.
+
+        Args:
+            construct: Construct label
+            batch_idx: Batch index (default 0)
+            format: Output format - "csv", "tsv", "json", or "xlsx"
+            style: "wide" (one row per segment) or
+                   "long" (one row per segment × constraint)
+            path: Output path. Defaults to ./{construct}_{batch_idx}.{format}
+
+        Returns:
+            Path where file was saved
+        """
+        from proto_language.utils.export import flatten_construct_metadata, write_export
+
+        batch_results = self.extract_batch_results(self.energy_scores)
+        rows = flatten_construct_metadata(batch_results, construct, batch_idx, style)
+
+        if path is None:
+            path = Path(f"./{construct}_{batch_idx}.{format}")
+        else:
+            path = Path(path)
+
+        write_export(rows, format, path)
+        return path
+
+    def export_program(
+        self,
+        format: Literal["csv", "tsv", "json", "xlsx"] = "csv",
+        style: Literal["wide", "long"] = "wide",
+        path: Optional[Path] = None,
+    ) -> Path:
+        """
+        Export metadata for all segments across all batches.
+
+        Args:
+            format: Output format - "csv", "tsv", "json", or "xlsx"
+            style: "wide" (one row per batch) or
+                   "long" (one row per batch × construct × segment)
+            path: Output path. Defaults to ./program_results.{format}
+
+        Returns:
+            Path where file was saved
+        """
+        from proto_language.utils.export import flatten_program_metadata, write_export
+
+        batch_results = self.extract_batch_results(self.energy_scores)
+        rows = flatten_program_metadata(batch_results, style)
+
+        if path is None:
+            path = Path(f"./program_results.{format}")
+        else:
+            path = Path(path)
+
+        write_export(rows, format, path)
+        return path
+
+    def export_batch_history(
+        self,
+        batch_idx: int = 0,
+        format: Literal["csv", "tsv", "json", "xlsx"] = "csv",
+        style: Literal["wide", "long"] = "wide",
+        path: Optional[Path] = None,
+    ) -> Path:
+        """
+        Export metadata for a single batch across optimization history.
+
+        Args:
+            batch_idx: Batch index to track (default 0)
+            format: Output format - "csv", "tsv", "json", or "xlsx"
+            style: "wide" (one row per timepoint) or
+                   "long" (one row per timepoint × construct × segment)
+            path: Output path. Defaults to ./batch_{batch_idx}_history.{format}
+
+        Returns:
+            Path where file was saved
+
+        Note:
+            This uses the optimizer history, which is only available after
+            running the program and before clearing the optimizer state.
+        """
+        from proto_language.utils.export import flatten_batch_over_time, write_export
+
+        # Collect history from all optimizers
+        history = []
+        for optimizer in self.optimizers:
+            history.extend(optimizer.history)
+
+        rows = flatten_batch_over_time(history, batch_idx, style)
+
+        if path is None:
+            path = Path(f"./batch_{batch_idx}_history.{format}")
+        else:
+            path = Path(path)
+
+        write_export(rows, format, path)
+        return path

@@ -38,6 +38,7 @@ dependencies = [
     "pyyaml>=6.0",
     "requests>=2.31.0",
     "tqdm>=4.65.0",
+    "openpyxl>=3.0.0",
 ]
 
 [project.optional-dependencies]
@@ -135,7 +136,7 @@ docs = [
 ]
 
 
-# All dependenciesis
+# All dependencies
 all = [
     "proto-language[tools,gpu,api,dev,docs]",
 ]

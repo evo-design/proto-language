@@ -6,6 +6,7 @@ from .helpers import (
     LOG_BASE,
     MIN_GC_CONTENT,
     MAX_GC_CONTENT,
+    filter_inf_nan_scores,
     validate_range,
     calculate_range_deviation,
     calculate_percentage_range_deviation,
@@ -35,6 +36,19 @@ from .infra import (
     download_gcs_file,
 )
 
+# Export utilities
+from .export import (
+    flatten_segment_metadata,
+    flatten_construct_metadata,
+    flatten_program_metadata,
+    flatten_batch_over_time,
+    to_csv,
+    to_tsv,
+    to_json,
+    to_xlsx,
+    write_export,
+)
+
 __all__ = [
     # Constraint scoring
     "MIN_ENERGY",
@@ -42,6 +56,7 @@ __all__ = [
     "LOG_BASE",
     "MIN_GC_CONTENT",
     "MAX_GC_CONTENT",
+    "filter_inf_nan_scores",
     "validate_range",
     "calculate_range_deviation",
     "calculate_percentage_range_deviation",
@@ -65,4 +80,14 @@ __all__ = [
     "resolve_sequence_ids",
     # Structure prediction
     "predict_structures",
+    # Export utilities
+    "flatten_segment_metadata",
+    "flatten_construct_metadata",
+    "flatten_program_metadata",
+    "flatten_batch_over_time",
+    "to_csv",
+    "to_tsv",
+    "to_json",
+    "to_xlsx",
+    "write_export",
 ]
