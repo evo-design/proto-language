@@ -44,20 +44,20 @@ class TestConstruct:
             Construct([seg_dna, seg_rna])
 
     def test_metadata_concatenation(self):
-        """Tests how metadata is merged during concatenation."""
+        """Tests that concatenated sequence has only system metadata."""
         seg1 = Segment(sequence="A", metadata={"id": 1, "source": "seg1"})
         seg2 = Segment(sequence="C", metadata={"id": 2, "status": "new"})
 
         construct = Construct([seg1, seg2])
         final_meta = construct.joined_sequences[0]._metadata
 
-        # Metadata from later segments overwrites earlier ones on collision
-        assert final_meta["id"] == 2
-        assert final_meta["source"] == "seg1"
-        assert final_meta["status"] == "new"
-        # The sequence metadata should reflect the concatenated sequence
+        # Concatenated sequence only has system metadata (sequence, sequence_length)
+        # Segment-specific metadata stays on individual segments, not merged
         assert final_meta["sequence"] == "AC"
         assert final_meta["sequence_length"] == 2
+        assert "id" not in final_meta
+        assert "source" not in final_meta
+        assert "status" not in final_meta
 
     def test_validation_inconsistent_valid_chars(self):
         """Tests that inconsistent valid_chars sets raise a ValueError."""

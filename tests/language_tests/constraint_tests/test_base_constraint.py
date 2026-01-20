@@ -83,12 +83,13 @@ class TestConstraintEvaluation:
         )
         constraint.evaluate()
 
-        # Check metadata was propagated with proper prefixes
-        prefix = "segment_0.mock_multi_input_scoring_function"
+        # Check metadata was propagated in nested format
         for i, seq in enumerate(segment.candidate_sequences):
-            assert f"{prefix}.t_count" in seq._metadata
-            assert f"{prefix}.total_length" in seq._metadata
-            assert f"{prefix}.t_fraction" in seq._metadata
+            constraints = seq._metadata["constraints"]
+            assert "mock_multi_input_scoring_function" in constraints
+            assert "t_count" in constraints["mock_multi_input_scoring_function"]["data"]
+            assert "total_length" in constraints["mock_multi_input_scoring_function"]["data"]
+            assert "t_fraction" in constraints["mock_multi_input_scoring_function"]["data"]
 
     def test_single_input_constraint_rejects_multiple_segments(self):
         """Tests that single-input constraints reject multiple segments."""
@@ -127,13 +128,14 @@ class TestConstraintEvaluation:
         expected_scores = [0.0, 0.25, 0.5, 0.75, 1.0]
         assert scores == expected_scores
 
-        # Each segment should have its own metadata prefix
-        prefix_a = "segment_0.mock_multi_input_scoring_function_disjoint"
-        prefix_b = "segment_1.mock_multi_input_scoring_function_disjoint"
-
+        # Each segment should have its own metadata in nested format
         for i in range(len(sequences_a)):
-            assert f"{prefix_a}.t_percent" in seg_a.candidate_sequences[i]._metadata
-            assert f"{prefix_b}.c_percent" in seg_b.candidate_sequences[i]._metadata
+            constraints_a = seg_a.candidate_sequences[i]._metadata["constraints"]
+            constraints_b = seg_b.candidate_sequences[i]._metadata["constraints"]
+            assert "mock_multi_input_scoring_function_disjoint" in constraints_a
+            assert "mock_multi_input_scoring_function_disjoint" in constraints_b
+            assert "t_percent" in constraints_a["mock_multi_input_scoring_function_disjoint"]["data"]
+            assert "c_percent" in constraints_b["mock_multi_input_scoring_function_disjoint"]["data"]
 
 
 # =============================================================================
@@ -236,11 +238,12 @@ class TestConstraintLabel:
         )
         constraint.evaluate()
 
-        # Metadata should use custom label
-        assert "segment_0.my_custom_label.t_count" in segment.candidate_sequences[0]._metadata
+        # Metadata should use custom label in nested format
+        constraints = segment.candidate_sequences[0]._metadata["constraints"]
+        assert "my_custom_label" in constraints
+        assert "t_count" in constraints["my_custom_label"]["data"]
         # Should NOT use function name
-        assert not any("mock_single_input_scoring_function" in key
-                       for key in segment.candidate_sequences[0]._metadata.keys())
+        assert "mock_single_input_scoring_function" not in constraints
 
 
 # =============================================================================
@@ -272,10 +275,11 @@ class TestConstraintMask:
         assert math.isnan(scores[3])  # Skipped
         assert scores[4] == pytest.approx(0.5)    # 4/8
 
-        # Verify metadata only propagated to evaluated candidates
-        prefix = "segment_0.mock_multi_input_scoring_function"
-        assert any(prefix in key for key in segment.candidate_sequences[0]._metadata.keys())
-        assert not any(prefix in key for key in segment.candidate_sequences[1]._metadata.keys())
+        # Verify metadata only propagated to evaluated candidates (nested under "constraints")
+        constraint_label = "mock_multi_input_scoring_function"
+        assert constraint_label in segment.candidate_sequences[0]._metadata["constraints"]
+        # Skipped candidate should have no constraint metadata (constraints dict always exists but is empty)
+        assert constraint_label not in segment.candidate_sequences[1]._metadata["constraints"]
 
     def test_mask_all_false_returns_nan(self):
         """Test that all-false mask returns NaN for all candidates."""

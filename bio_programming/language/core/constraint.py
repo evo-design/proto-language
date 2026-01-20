@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 from .sequence import Sequence
 from .segment import Segment
-from proto_language.utils.helpers import propagate_metadata
+from proto_language.utils.helpers import filter_inf_nan_scores
 
 
 class Constraint:
@@ -179,8 +179,8 @@ class Constraint:
             
             raw_scores = self.function(sequences_to_evaluate, config=self.function_config)
 
-            for (original_idx, scored_tuple) in indexed_sequences:
-                self._propagate_metadata_to_sequence(original_idx, scored_tuple)
+            for j, (original_idx, scored_tuple) in enumerate(indexed_sequences):
+                self._propagate_metadata_to_sequence(original_idx, scored_tuple, raw_scores[j])
         else:
             # Sequential mode: evaluate one at a time
             raw_scores = []
@@ -196,7 +196,7 @@ class Constraint:
                     score = self.function(seq_tuple[0], config=self.function_config)
                 
                 raw_scores.append(score)
-                self._propagate_metadata_to_sequence(idx, seq_tuple)
+                self._propagate_metadata_to_sequence(idx, seq_tuple, score)
 
         # Rebuild dense result array. Skipped candidates get NaN (scoring) or False (filter)
         if self.threshold is None:
@@ -215,10 +215,17 @@ class Constraint:
             for i in range(num_candidates):
                 if i in evaluated_set:
                     j = indices_to_evaluate.index(i)
+                    # Get custom data from propagated metadata
+                    constraint_data = self.inputs[0].candidate_sequences[i]._metadata["constraints"][self.label]
+                    custom_data = constraint_data["data"]
+                    data_strs = [f"{k}={v:.4f}" if isinstance(v, float) else f"{k}={v}"
+                                 for k, v in custom_data.items()]
+                    data_str = f" [{', '.join(data_strs)}]" if data_strs else ""
+                    
                     if self.threshold is None:
-                        print(f"  Candidate {i}: {final_scores[i]:.4f} = {raw_scores[j]:.4f} * {self.weight}")
+                        print(f"  Candidate {i}: {final_scores[i]:.4f} = {raw_scores[j]:.4f} * {self.weight}. Data: {data_str}")
                     else:
-                        print(f"  Candidate {i}: {'PASS' if final_scores[i] else 'FAIL'} ({raw_scores[j]:.4f})")
+                        print(f"  Candidate {i}: {'PASS' if final_scores[i] else 'FAIL'} ({raw_scores[j]:.4f}). Data: {data_str}")
                 else:
                     print(f"  Candidate {i}: SKIPPED")
 
@@ -249,30 +256,76 @@ class Constraint:
             dummy_sequences.append(dummy_seq)
         return tuple(dummy_sequences)
 
-    def _propagate_metadata_to_sequence(self, sequence_idx: int, scored_sequence: Tuple[Sequence, ...]) -> None:
+    def _propagate_metadata_to_sequence(self, sequence_idx: int, scored_sequence: Tuple[Sequence, ...], score: float) -> None:
         """
-        Write constraint results back to original sequence metadata.
+        Write constraint results to original sequences in structured format.
 
-        Extracts metadata from the scored Sequence objects and propagates it back to
-        the original sequences in the input segments. Metadata keys are prefixed
-        with segment labels and constraint name to prevent collisions.
+        Stores constraint data under _metadata["constraints"][constraint_label] with:
+        - Standard evaluation fields at top level (score, weight, weighted_score)
+        - Custom data from scoring function nested under "data"
+        - Multi-input linking info when applicable
 
         Args:
             sequence_idx: Index position in the sequence pool (0-based)
             scored_sequence: Tuple of Sequences that were scored, containing metadata
                            written by the scoring function (one per segment)
+            score: Raw score returned by the constraint function (before weight applied)
+
+        Example:
+            Scoring constraint (weight=2.0):
+
+            >>> seq._metadata["constraints"]["gc_content_constraint"]
+            {
+                "score": 0.12,
+                "weight": 2.0,
+                "weighted_score": 0.24,
+                "multi_input": False,
+                "data": {"gc_content": 52.3}
+            }
+
+            Multi-input constraint on two segments:
+
+            >>> protein_a._metadata["constraints"]["interaction_constraint"]
+            {
+                "score": 0.05,
+                "weight": 1.0,
+                "weighted_score": 0.05,
+                "multi_input": True,
+                "input_segments": ["construct_0.protein_a", "construct_0.protein_b"],
+                "position_in_inputs": 0,
+                "data": {"binding_energy": -8.2}
+            }
+            >>> protein_b._metadata["constraints"]["interaction_constraint"]
+            {
+                "score": 0.05,  # Same score - joint evaluation
+                "weight": 1.0,
+                "weighted_score": 0.05,
+                "multi_input": True,
+                "input_segments": ["construct_0.protein_a", "construct_0.protein_b"],
+                "position_in_inputs": 1,
+                "data": {"interface_residues": 12}
+            }
         """
-        # Propagate from each scored Sequence to its corresponding original segment
         for seg_idx, (segment, scored_seq) in enumerate(zip(self.inputs, scored_sequence)):
             original_seq = segment.candidate_sequences[sequence_idx]
-            segment_label = segment.label or f"segment_{seg_idx}"
-            prefix = f"{segment_label}.{self.label}"
 
-            propagate_metadata(
-                source_metadata=scored_seq._metadata,
-                target_metadata=original_seq._metadata,
-                prefix=prefix
-            )
+            # Extract custom data from scoring function (nested under "data")
+            custom_data = {k: v for k, v in scored_seq._metadata.items()
+                          if k not in {"sequence", "sequence_length", "constraints"}}
+
+            # Build structured constraint data
+            constraint_data = {
+                "score": filter_inf_nan_scores(score),
+                "weight": self.weight,
+                "weighted_score": filter_inf_nan_scores(score * self.weight),
+                "multi_input": self.multi_input,
+                "data": custom_data if custom_data else {},
+            }
+            if self.multi_input:
+                constraint_data["input_segments"] = [f"{s.construct_label}.{s.label}" for s in self.inputs]
+                constraint_data["position_in_inputs"] = seg_idx
+
+            original_seq._metadata["constraints"][self.label] = constraint_data
 
     def _validate_constraint(self) -> None:
         """Validate constraint inputs: segments, sequence types, and segment count."""

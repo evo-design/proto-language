@@ -361,7 +361,7 @@ if __name__ == '__main__':
             len(intron_constructs) * len(intron_constructs[0].segments),
             len(intron_constructs[0].segments)
         )):
-            metadata = outputs[i].selected_sequences[0]._metadata
+            constraints = outputs[i].selected_sequences[0]._metadata["constraints"]
             output_keys = [
                 "specificity_direction",
                 "specificity_score",
@@ -369,11 +369,10 @@ if __name__ == '__main__':
                 "acceptor_score",
                 "total_splice_score",
             ]
-            metakeys = sorted(list(metadata.keys()))
-            for output_key in output_keys:
-                for key in metakeys:
-                    if output_key in key:
-                        print(f"\tConstruct {idx}: {key.split('.')[-1]}: {metadata[key]}")
+            for _, constraint_data in constraints.items():
+                for metric_name, metric_value in constraint_data["data"].items():
+                    if metric_name in output_keys:
+                        print(f"\tConstruct {idx}: {metric_name}: {metric_value}")
 
 
     if args.intron_generator == "evo2":

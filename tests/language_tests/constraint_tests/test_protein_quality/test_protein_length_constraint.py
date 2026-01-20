@@ -19,10 +19,8 @@ class TestProteinLengthConstraint:
         )
 
         assert constraint.evaluate()[0] == 0.0
-        assert (
-            segment.candidate_sequences[0]._metadata["segment_0.protein_length_constraint.protein_length"]
-            == 21
-        )
+        constraints = segment.candidate_sequences[0]._metadata["constraints"]
+        assert constraints["protein_length_constraint"]["data"]["protein_length"] == 21
 
     def test_protein_too_short(self):
         """Test protein shorter than minimum."""
@@ -37,10 +35,8 @@ class TestProteinLengthConstraint:
 
         score = constraint.evaluate()[0]
         assert score > 0.0
-        assert (
-            segment.candidate_sequences[0]._metadata["segment_0.protein_length_constraint.protein_length"]
-            == 5
-        )
+        constraints = segment.candidate_sequences[0]._metadata["constraints"]
+        assert constraints["protein_length_constraint"]["data"]["protein_length"] == 5
 
     def test_protein_too_long(self):
         """Test protein longer than maximum."""
@@ -55,10 +51,8 @@ class TestProteinLengthConstraint:
 
         score = constraint.evaluate()[0]
         assert score > 0.0
-        assert (
-            segment.candidate_sequences[0]._metadata["segment_0.protein_length_constraint.protein_length"]
-            == 100
-        )
+        constraints = segment.candidate_sequences[0]._metadata["constraints"]
+        assert constraints["protein_length_constraint"]["data"]["protein_length"] == 100
 
     def test_invalid_sequence_type(self):
         """Test that DNA sequence raises ValueError at construction (centralized validation)."""

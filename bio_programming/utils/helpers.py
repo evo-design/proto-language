@@ -8,6 +8,7 @@ from __future__ import annotations
 import numpy as np
 import random
 import subprocess
+import math
 from typing import Any, Dict, List, Optional
 
 # =============================================================================
@@ -23,6 +24,11 @@ LOG_BASE = 2
 MIN_GC_CONTENT = 0.0
 MAX_GC_CONTENT = 100.0
 
+def filter_inf_nan_scores(score: float) -> float | None:
+    """Convert inf/nan to None for JSON compatibility."""
+    if math.isinf(score) or math.isnan(score):
+        return None
+    return score
 
 def validate_range(value: float, min_val: float, max_val: float, name: str) -> None:
     """
@@ -167,32 +173,6 @@ def inverse_sigmoid_score(
     # metric = inflection + (1/slope) * ln(y / (1 - y))
 
     return inflection + (np.log(score / (1.0 - score)) / slope)
-
-
-# =============================================================================
-# METADATA UTILITIES
-# =============================================================================
-
-
-def propagate_metadata(
-    source_metadata: Dict[str, Any],
-    target_metadata: Dict[str, Any],
-    prefix: Optional[str] = None
-) -> None:
-    """
-    Utility function to propagate metadata from source to target, filtering out system keys.
-
-    Args:
-        source_metadata: Metadata from scored sequence
-        target_metadata: Target metadata dictionary to receive the metadata
-        prefix: Optional prefix for metadata keys (e.g. "promoter.esmfold_constraint")
-    """
-    # Sequence and sequence_length not be propagated since they are populated dynamically by the Sequence class
-    system_keys = {"sequence", "sequence_length"}
-    for key, value in source_metadata.items():
-        if key not in system_keys:
-            final_key = f"{prefix}.{key}" if prefix else key
-            target_metadata[final_key] = value
 
 
 # =============================================================================

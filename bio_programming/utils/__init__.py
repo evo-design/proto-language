@@ -1,4 +1,4 @@
-# Helper utilities (constraint scoring, metadata, structure, and tools)
+# Helper utilities (constraint scoring, structure, and tools)
 from .helpers import (
     # Constraint scoring
     MIN_ENERGY,
@@ -12,8 +12,6 @@ from .helpers import (
     calculate_normalized_deviation,
     sigmoid_score,
     inverse_sigmoid_score,
-    # Metadata
-    propagate_metadata,
     # Tool utilities
     mask_k,
     mask_p,
@@ -50,8 +48,6 @@ __all__ = [
     "calculate_normalized_deviation",
     "sigmoid_score",
     "inverse_sigmoid_score",
-    # Metadata
-    "propagate_metadata",
     # Compute
     "use_cloud_gpu",
     "is_gpu_available",

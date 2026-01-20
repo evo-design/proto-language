@@ -92,17 +92,17 @@ globularity = Constraint(
 
 def custom_logging(step: int, outputs: Tuple[Segment]) -> None:
     output_sequence: Sequence = outputs[0].selected_sequences[0]
-    metakeys = list(output_sequence._metadata.keys())
-    folded_sequence = output_sequence._metadata[
-        # This attribute is added by the symmetry and globularity constraints:
-        next(key for key in metakeys if key.endswith('esmfolded_sequence'))
-    ]
-    plddt = output_sequence._metadata[
-        next(key for key in metakeys if key.endswith('avg_plddt'))
-    ]
-    ptm = output_sequence._metadata[
-        next(key for key in metakeys if key.endswith('ptm'))
-    ]
+    constraints = output_sequence._metadata["constraints"]
+    
+    # Get pLDDT from structure_plddt_constraint
+    plddt = constraints["structure_plddt_constraint"]["data"].get("avg_plddt", "N/A")
+    
+    # Get pTM from structure_ptm_constraint
+    ptm = constraints["structure_ptm_constraint"]["data"].get("ptm", "N/A")
+    
+    # Get esmfolded_sequence from symmetry constraint
+    folded_sequence = constraints.get("protein_symmetry_ring_constraint", {}).get("data", {}).get("esmfolded_sequence", output_sequence._sequence)
+    
     print(
         f"Iteration {step} | \n"
         f"\tsequence (monomer): {output_sequence._sequence}, \n"
@@ -148,4 +148,9 @@ with open("design.pdb", "w") as f:
     final_construct: Construct = program.constructs[0]
     final_sequence_batch: Tuple[Sequence, ...] = final_construct.joined_sequences
     final_sequence: Sequence = final_sequence_batch[0]
-    f.write(final_sequence._metadata["pdb_output"] + "\n")
+    
+    # Get pdb_output from symmetry constraint
+    pdb_output = final_sequence._metadata["constraints"].get("protein_symmetry_ring_constraint", {}).get("data", {}).get("pdb_output")
+    
+    if pdb_output:
+        f.write(pdb_output + "\n")

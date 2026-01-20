@@ -38,22 +38,13 @@ class TestMaxHomopolymerConstraint:
         score = constraint.evaluate()[0]
         assert abs(score - expected_score) < 1e-9
         # Test metadata
+        constraints = segment.candidate_sequences[0]._metadata["constraints"]
         if len(sequence) > 0:
             import itertools
 
             expected_max_homopolymer = max(
                 len(list(g)) for _, g in itertools.groupby(sequence)
             )
-            assert (
-                segment.candidate_sequences[0]._metadata[
-                    "segment_0.max_homopolymer_constraint.max_homopolymer_length"
-                ]
-                == expected_max_homopolymer
-            )
+            assert constraints["max_homopolymer_constraint"]["data"]["max_homopolymer_length"] == expected_max_homopolymer
         else:
-            assert (
-                segment.candidate_sequences[0]._metadata[
-                    "segment_0.max_homopolymer_constraint.max_homopolymer_length"
-                ]
-                == 0
-            )
+            assert constraints["max_homopolymer_constraint"]["data"]["max_homopolymer_length"] == 0

@@ -65,14 +65,14 @@ class TestProteinDomainConstraint:
         ), f"Keyword should be found, score should be 0.0, but got {scores[0]}"
 
         # Check constraint-specific metadata
-        metadata = segment.candidate_sequences[0]._metadata
+        constraints = segment.candidate_sequences[0]._metadata["constraints"]
         assert (
-            "segment_0.protein_domain_constraint.domain_keywords_found" in metadata
-        ), f"Metadata should contain domain keywords found, but got {metadata}"
+            "domain_keywords_found" in constraints["protein_domain_constraint"]["data"]
+        ), f"Metadata should contain domain keywords found, but got {constraints}"
         assert (
             "kinase"
-            in metadata["segment_0.protein_domain_constraint.domain_keywords_found"]
-        ), f"Keyword should be found in metadata, but got {metadata['segment_0.protein_domain_constraint.domain_keywords_found']}"
+            in constraints["protein_domain_constraint"]["data"]["domain_keywords_found"]
+        ), f"Keyword should be found in metadata, but got {constraints['protein_domain_constraint']['data']['domain_keywords_found']}"
 
     def test_protein_sequence_without_matching_domain(self):
         """Test protein sequence without matching domain."""
@@ -93,12 +93,10 @@ class TestProteinDomainConstraint:
         ), f"Keyword should NOT be found, score should be 1.0, but got {scores[0]}"
 
         # Check constraint-specific metadata
-        metadata = segment.candidate_sequences[0]._metadata
-        assert "segment_0.protein_domain_constraint.domain_keywords_found" in metadata
-        assert (
-            metadata["segment_0.protein_domain_constraint.domain_keywords_found"] == []
-        )
-        assert "segment_0.protein_domain_constraint.domain_matching_hits" in metadata
+        constraints = segment.candidate_sequences[0]._metadata["constraints"]
+        assert "domain_keywords_found" in constraints["protein_domain_constraint"]["data"]
+        assert constraints["protein_domain_constraint"]["data"]["domain_keywords_found"] == []
+        assert "domain_matching_hits" in constraints["protein_domain_constraint"]["data"]
 
     def test_match_all_keywords(self):
         """Test match_all_keywords parameter (constraint-specific config behavior)."""

@@ -37,9 +37,9 @@ class TestKmerFrequencyConstraint:
         assert score >= 0.0
 
         # Check metadata
-        metadata = seq.candidate_sequences[0]._metadata
-        assert "segment_0.kmer_frequency_constraint.2mer_frequencies" in metadata
-        freqs = metadata["segment_0.kmer_frequency_constraint.2mer_frequencies"]
+        constraints = seq.candidate_sequences[0]._metadata["constraints"]
+        assert "2mer_frequencies" in constraints["kmer_frequency_constraint"]["data"]
+        freqs = constraints["kmer_frequency_constraint"]["data"]["2mer_frequencies"]
         assert "AT" in freqs
         assert "CG" in freqs
 
@@ -65,9 +65,9 @@ class TestKmerFrequencyConstraint:
         assert score >= 0.0
 
         # Check metadata
-        metadata = seq.candidate_sequences[0]._metadata
-        assert "segment_0.kmer_frequency_constraint.GATC_usage_deviation" in metadata
-        assert "segment_0.kmer_frequency_constraint.GATC_count" in metadata
+        constraints = seq.candidate_sequences[0]._metadata["constraints"]
+        assert "GATC_usage_deviation" in constraints["kmer_frequency_constraint"]["data"]
+        assert "GATC_count" in constraints["kmer_frequency_constraint"]["data"]
 
     def test_protein_kmer_frequency(self):
         """Test k-mer frequency on protein sequences."""
@@ -89,8 +89,8 @@ class TestKmerFrequencyConstraint:
         score = constraint.evaluate()[0]
         assert score >= 0.0
 
-        metadata = seq.candidate_sequences[0]._metadata
-        assert "segment_0.kmer_frequency_constraint.2mer_frequencies" in metadata
+        constraints = seq.candidate_sequences[0]._metadata["constraints"]
+        assert "2mer_frequencies" in constraints["kmer_frequency_constraint"]["data"]
 
     def test_empty_sequence(self):
         """Test handling of empty sequences."""

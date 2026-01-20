@@ -136,11 +136,11 @@ class TestPromoterStrengthConstraint:
             assert scores[0] <= 0.5  # dG < -3.0 -> low penalty
 
             # Check constraint-specific metadata fields
-            metadata = segment.candidate_sequences[0]._metadata
-            metadata_key = "segment_0.promoter_strength_constraint.promoter_strength"
-            assert metadata_key in metadata
-            assert "penalty" in metadata[metadata_key]
-            assert "dG_rate" in metadata[metadata_key]
+            constraints = segment.candidate_sequences[0]._metadata["constraints"]
+            assert "promoter_strength" in constraints["promoter_strength_constraint"]["data"]
+            promoter_data = constraints["promoter_strength_constraint"]["data"]["promoter_strength"]
+            assert "penalty" in promoter_data
+            assert "dG_rate" in promoter_data
 
     def test_add_context(self):
         """Test that add_context parameter adds flanking sequence."""

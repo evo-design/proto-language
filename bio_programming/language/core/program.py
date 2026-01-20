@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 from .optimizer import Optimizer
-from .sequence import create_concatenated_sequence
+from proto_language.utils.helpers import filter_inf_nan_scores
 
 
 class Program:
@@ -207,9 +207,12 @@ class Program:
         """Print results for a completed optimization stage."""
         print(f"\nFinal state for optimizer {stage_index + 1}:")
         for result in batch_results:
-            print(f"  [{result['batch_idx']}] energy={result['energy_score']:.4f}")
-            for i, segments in enumerate(result["constructs"]):
-                print(f"    Construct {i}: {' | '.join(segments)}")
+            energy = result['energy_score']
+            energy_str = f"{energy:.4f}" if energy is not None else "None"
+            print(f"  [{result['batch_idx']}] energy={energy_str}")
+            for construct in result["constructs"]:
+                seqs = [seg["sequence"] for seg in construct["segments"]]
+                print(f"    {construct['label']}: {' | '.join(seqs)}")
 
     def run(self) -> None:
         """
@@ -292,8 +295,9 @@ class Program:
         """
         Extract batch results from constructs after optimization.
 
-        Returns segment-level sequences (not joined) with metadata. This is the
-        canonical format used by both the core layer and API.
+        Returns a structured format with nested constructs and segments, each containing
+        their constraint metadata. This format is easy to parse and supports CSV export
+        at different granularities (program, construct, or segment level).
 
         Note:
             Infinite/NaN energy scores (from filter rejection) are converted to None
@@ -305,18 +309,37 @@ class Program:
 
         Returns:
             Dictionary containing:
-                - batch_results: List of batch result dicts with segment-level sequences
+                - batch_results: List of structured batch results with nested constructs/segments
                 - best_batch_idx: Index of the batch with lowest energy
+
+        Example output format:
+            {
+                "batch_results": [{
+                    "batch_idx": 0,
+                    "energy_score": 0.5,
+                    "constructs": [{
+                        "label": "construct_0",
+                        "type": "dna",
+                        "segments": [{
+                            "label": "promoter",
+                            "sequence": "ATCG",
+                            "constraints": {
+                                "gc_content_constraint": {
+                                    "score": 0.5,
+                                    "weight": 1.0,
+                                    "weighted_score": 0.5,
+                                    "multi_input": false,
+                                    "data": {
+                                        "gc_content": 50.0
+                                    }
+                                }
+                            }
+                        }]
+                    }]
+                }],
+                "best_batch_idx": 0
+            }
         """
-        import math
-        from proto_language.utils import propagate_metadata
-
-        def filter_inf_energy(score: float) -> float | None:
-            """Convert inf/nan to None for JSON compatibility."""
-            if math.isinf(score) or math.isnan(score):
-                return None
-            return score
-
         if not self.constructs or not self.constructs[0].segments:
             return {"batch_results": [], "best_batch_idx": 0}
 
@@ -324,21 +347,31 @@ class Program:
         batch_results = []
 
         for batch_idx in range(num_selected):
-            construct_sequences = []
-            batch_metadata: Dict[str, Any] = {}
+            structured_constructs = []
 
-            for construct_idx, construct in enumerate(self.constructs):
-                selected_seqs = [seg.selected_sequences[batch_idx] for seg in construct.segments]
-                construct_sequences.append([s.sequence for s in selected_seqs])
+            for construct in self.constructs:
+                structured_segments = []
 
-                joined = create_concatenated_sequence(selected_seqs, merge_metadata=True)
-                propagate_metadata(joined._metadata, batch_metadata, f"construct_{construct_idx}")
+                for seg_idx, segment in enumerate(construct.segments):
+                    seq = segment.selected_sequences[batch_idx]
+                    segment_label = segment.label or f"segment_{seg_idx}"
+
+                    structured_segments.append({
+                        "label": segment_label,
+                        "sequence": seq.sequence,
+                        "constraints": seq._metadata["constraints"],
+                    })
+
+                structured_constructs.append({
+                    "label": construct.label,
+                    "type": construct.sequence_type,
+                    "segments": structured_segments,
+                })
 
             batch_results.append({
                 "batch_idx": batch_idx,
-                "constructs": construct_sequences,
-                "energy_score": filter_inf_energy(energy_scores[batch_idx]),
-                "metadata": batch_metadata
+                "energy_score": filter_inf_nan_scores(energy_scores[batch_idx]),
+                "constructs": structured_constructs,
             })
 
         # For best_idx calculation, treat None (was inf/nan) as infinity

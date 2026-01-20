@@ -65,7 +65,7 @@ class Construct:
         joined_sequences = []
 
         for sequences_to_combine in zip(*[segment.selected_sequences for segment in self.segments]):
-            joined_seq = create_concatenated_sequence(sequences_to_combine, merge_metadata=True)
+            joined_seq = create_concatenated_sequence(sequences_to_combine)
             joined_sequences.append(joined_seq)
 
         return joined_sequences

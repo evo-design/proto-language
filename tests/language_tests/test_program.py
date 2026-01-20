@@ -231,12 +231,20 @@ class TestRunStageRestart:
         assert isinstance(result["batch_results"], list)
         assert isinstance(result["best_batch_idx"], int)
 
-        # Validate batch_results structure
+        # Validate batch_results structure (new structured format)
         batch = result["batch_results"][0]
         assert "batch_idx" in batch
         assert "constructs" in batch
         assert "energy_score" in batch
-        assert "metadata" in batch
+        
+        # Validate new structured constructs format
+        construct = batch["constructs"][0]
+        assert "type" in construct
+        assert "segments" in construct
+        segment = construct["segments"][0]
+        assert "label" in segment
+        assert "sequence" in segment
+        assert "constraints" in segment
 
     def test_get_stage_results_raises_for_unrun_stage(self):
         """Test that get_stage_results raises IndexError for unrun stages."""

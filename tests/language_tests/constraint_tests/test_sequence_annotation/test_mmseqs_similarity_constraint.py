@@ -83,14 +83,13 @@ class TestMMseqsSimilarityConstraint:
             assert scores[0] >= 0.0
 
             # Check metadata - verify results were stored
-            metadata = segment.candidate_sequences[0]._metadata
-            # Note: prefix is "segment_0.mmseqs_similarity_constraint"
-            assert "segment_0.mmseqs_similarity_constraint.mmseqs_results" in metadata
+            constraints = segment.candidate_sequences[0]._metadata["constraints"]
+            assert "mmseqs_results" in constraints["mmseqs_similarity_constraint"]["data"]
             # Should have 1 hit from our mock
-            results = metadata["segment_0.mmseqs_similarity_constraint.mmseqs_results"]
+            results = constraints["mmseqs_similarity_constraint"]["data"]["mmseqs_results"]
             assert len(results) == 1
             assert results[0]["pident"] == 90.0
-            assert "segment_0.mmseqs_similarity_constraint.unique_orfs_with_hits" in metadata
+            assert "unique_orfs_with_hits" in constraints["mmseqs_similarity_constraint"]["data"]
 
     def test_no_hits_scenario(self, dummy_db_path):
         """Test when no MMseqs2 hits are found."""
@@ -204,10 +203,10 @@ class TestMMseqsSimilarityConstraint:
             assert isinstance(scores[0], float)
 
             # Check metadata shows correct hit counts
-            metadata = segment.candidate_sequences[0]._metadata
-            assert metadata["segment_0.mmseqs_similarity_constraint.total_orfs_with_hits"] == 3
+            constraints = segment.candidate_sequences[0]._metadata["constraints"]
+            assert constraints["mmseqs_similarity_constraint"]["data"]["total_orfs_with_hits"] == 3
             # 2 hits are within range (85 and 95), 1 is below (75)
-            assert metadata["segment_0.mmseqs_similarity_constraint.orfs_with_acceptable_similarity"] == 2
+            assert constraints["mmseqs_similarity_constraint"]["data"]["orfs_with_acceptable_similarity"] == 2
 
     def test_multiple_candidates_in_segment(self, dummy_db_path):
         """Test constraint with multiple candidate sequences in a single segment."""

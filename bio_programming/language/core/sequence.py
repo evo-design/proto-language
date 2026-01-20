@@ -10,8 +10,6 @@ import copy
 from typing import Any, Dict, Iterable, Literal, Optional, Set, FrozenSet
 import warnings
 
-from proto_language.utils.helpers import propagate_metadata
-
 # Valid characters for different sequence types
 DNA_NUCLEOTIDES = "ACGT"
 RNA_NUCLEOTIDES = "ACGU"
@@ -82,6 +80,7 @@ class Sequence:
         protected_metadata = {
             "sequence": sequence,
             "sequence_length": len(sequence),
+            "constraints": {},  # populated by Constraint._propagate_metadata_to_sequence
         }
 
         # Add user metadata, warning if they try to override protected keys
@@ -235,33 +234,23 @@ class Sequence:
             metadata=data.get("metadata", {}),
         )
 
-def create_concatenated_sequence(
-    subsequences: Iterable[Sequence],
-    merge_metadata: bool = False,
-) -> Sequence:
+def create_concatenated_sequence(subsequences: Iterable[Sequence]) -> Sequence:
     """
     Concatenate subsequences into a single Sequence object.
 
     Args:
-        sequences: Iterable of Sequence objects to concatenate
-        merge_metadata: If True, merge non-system metadata; if False, start clean
+        subsequences: Iterable of Sequence objects to concatenate
 
     Returns:
         Single Sequence with concatenated content
     """
     seq_list = list(subsequences)
     combined_sequence_string = "".join(seq.sequence for seq in seq_list)
-    combined_metadata = {}
-
-    if merge_metadata:
-        for seq in seq_list:
-            propagate_metadata(seq._metadata, combined_metadata)
 
     return Sequence(
         sequence=combined_sequence_string,
         sequence_type=seq_list[0].sequence_type,
         valid_chars=seq_list[0].valid_chars,
-        metadata=combined_metadata,
     )
 
 
