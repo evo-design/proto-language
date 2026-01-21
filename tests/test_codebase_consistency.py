@@ -3,14 +3,18 @@ Pulls all codebase configs of registered components and checks for field definit
 consistency.
 """
 from __future__ import annotations
+
+import inspect
+from typing import List, Tuple, Type, Union, get_args, get_origin
+
 import pytest
-from typing import Type, List, get_origin, get_args, Tuple, Union
+
 from proto_language.base_config import BaseConfig
 from proto_language.language.constraint import ConstraintRegistry
 from proto_language.language.generator import GeneratorRegistry
 from proto_language.language.optimizer import OptimizerRegistry
-from proto_language.tools.tool_registry import ToolRegistry
 from proto_language.tools.tool_io import BaseToolInput, BaseToolOutput
+from proto_language.tools.tool_registry import ToolRegistry
 
 # Defines the maximum length of a field title in characters
 MAX_FIELD_TITLE_LENGTH = 31
@@ -203,6 +207,13 @@ def test_tool_input_and_output_consistency(tool_input: type, tool_output: type):
     assert len(missing_fields) == 0, (
         f"Tool output {tool_output.__name__} is missing the following fields in the docstring: {missing_fields}. "
         "Ensure: Field(..., description='Brief explanation for tooltip')"
+    )
+
+    # Ensure tool output is concrete (all abstract methods implemented)
+    assert not inspect.isabstract(tool_output), (
+        f"Tool output {tool_output.__name__} is abstract. "
+        f"Missing implementations for abstract methods: "
+        f"{sorted(tool_output.__abstractmethods__)}"
     )
 
 
