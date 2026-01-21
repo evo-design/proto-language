@@ -231,8 +231,8 @@ class Program:
             self.optimizers[0]._restore_initial_state()
 
         # Run all stages sequentially
-        for stage_idx in range(len(self.optimizers)):
-            self.run_stage(stage_idx)
+        for optimizer_stage_idx in range(len(self.optimizers)):
+            self.run_stage(optimizer_stage_idx)
 
         self.cleanup()
 
@@ -402,23 +402,28 @@ class Program:
 
     def serialize_state(self) -> Dict:
         """
-        Serialize the current program state for persistence between stages.
+        Serialize minimal program state for persistence between stages.
 
-        Returns:
-            Dictionary containing current_stage and segments with sequences/metadata.
+        Only stores what's needed to reconstruct Sequence objects:
+        sequence, sequence_type, valid_chars. Constraint metadata is
+        excluded since it will be re-evaluated in subsequent stages.
         """
         segment_states = []
         for construct in self.constructs:
             for segment in construct.segments:
                 segment_state = {
-                    "selected_sequences": [seq.to_dict() for seq in segment.selected_sequences],
+                    "selected_sequences": [
+                        {
+                            "sequence": seq.sequence,
+                            "sequence_type": seq.sequence_type,
+                            "valid_chars": list(seq.valid_chars) if seq.valid_chars else None,
+                        }
+                        for seq in segment.selected_sequences
+                    ],
                 }
                 segment_states.append(segment_state)
 
-        return {
-            "current_stage": self.current_stage,
-            "segments": segment_states,
-        }
+        return {"segments": segment_states}
 
     def restore_state(self, state: Dict) -> None:
         """
@@ -432,8 +437,6 @@ class Program:
         """
         from .sequence import Sequence
 
-        self.current_stage = state["current_stage"]
-
         all_segments = [seg for construct in self.constructs for seg in construct.segments]
 
         if len(all_segments) != len(state["segments"]):
@@ -444,7 +447,11 @@ class Program:
 
         for segment, segment_state in zip(all_segments, state["segments"]):
             segment.selected_sequences = [
-                Sequence.from_dict(seq_data)
+                Sequence(
+                    sequence=seq_data["sequence"],
+                    sequence_type=seq_data["sequence_type"],
+                    valid_chars=set(seq_data["valid_chars"]) if seq_data.get("valid_chars") else None,
+                )
                 for seq_data in segment_state["selected_sequences"]
             ]
 

@@ -223,7 +223,7 @@ def mock_celery():
         patches.extend(
             [
                 patch("api.main.celery_app", mock_celery_app),
-                patch("api.main.run_program_task", mock_task),
+                patch("api.main.execute_stage_task", mock_task),
             ]
         )
     except ImportError:
@@ -242,7 +242,7 @@ def mock_celery():
         patches.extend(
             [
                 patch("api.workers.tasks.celery_app", mock_celery_app),
-                patch("api.workers.tasks.run_program_task", mock_task),
+                patch("api.workers.tasks.execute_stage_task", mock_task),
             ]
         )
     except ImportError:
@@ -319,13 +319,15 @@ def mock_database():
     mock_run.completed_at = None
     mock_run.gpl_request = {}
     mock_run.celery_task_id = None
+    mock_run.stage_task_ids = []
     mock_run.num_steps = None
-    mock_run.track_step_size = None
     mock_run.current_stage = 0
     mock_run.total_stages = 1
-    mock_run.intermediate_state = None
+    mock_run.intermediate_states = []
+    mock_run.auto_continue = False
     mock_run.result = None
     mock_run.error_message = None
+    mock_run.stage_results = []
 
     # Mock session dependency (generator function, not async)
     def mock_get_session():

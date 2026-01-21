@@ -553,9 +553,7 @@ class TestSerializeRestoreState:
 
         state = program.serialize_state()
 
-        assert "current_stage" in state
         assert "segments" in state
-        assert state["current_stage"] == 1
         assert len(state["segments"]) == 1  # One segment
 
     def test_serialize_state_captures_sequences(self):
@@ -571,12 +569,12 @@ class TestSerializeRestoreState:
         assert "selected_sequences" in seg_state
         assert len(seg_state["selected_sequences"]) == 2  # k=2 from config
 
-        # Check sequence data structure
+        # Check sequence data structure (minimal: sequence, sequence_type, valid_chars)
         for seq_data in seg_state["selected_sequences"]:
             assert "sequence" in seq_data
-            assert "metadata" in seq_data
+            assert "sequence_type" in seq_data
+            assert "valid_chars" in seq_data
             assert isinstance(seq_data["sequence"], str)
-            assert isinstance(seq_data["metadata"], dict)
 
     def test_restore_state_restores_sequences(self):
         """Test that restore_state correctly restores selected_sequences."""
@@ -599,37 +597,6 @@ class TestSerializeRestoreState:
             seq.sequence for seq in fresh_program.constructs[0].segments[0].selected_sequences
         ]
         assert restored_sequences == stage0_sequences
-
-    def test_restore_state_restores_current_stage(self):
-        """Test that restore_state correctly restores current_stage."""
-        program = _create_simple_program(num_stages=2)
-        program.run_stage(0)
-        state = program.serialize_state()
-
-        fresh_program = _create_simple_program(num_stages=2)
-        assert fresh_program.current_stage == 0
-
-        fresh_program.restore_state(state)
-        assert fresh_program.current_stage == 1
-
-    def test_restore_state_restores_metadata(self):
-        """Test that restore_state correctly restores sequence metadata."""
-        program = _create_simple_program(num_stages=1)
-        program.run_stage(0)
-
-        # Add custom metadata
-        segment = program.constructs[0].segments[0]
-        segment.selected_sequences[0]._metadata["custom_key"] = "custom_value"
-
-        state = program.serialize_state()
-
-        # Restore to fresh program
-        fresh_program = _create_simple_program(num_stages=1)
-        fresh_program.restore_state(state)
-
-        # Verify metadata was restored
-        restored_segment = fresh_program.constructs[0].segments[0]
-        assert restored_segment.selected_sequences[0]._metadata.get("custom_key") == "custom_value"
 
     def test_restore_state_validates_segment_count(self):
         """Test that restore_state raises error on segment count mismatch."""
@@ -659,6 +626,7 @@ class TestSerializeRestoreState:
         # Restore and run stage 1
         program2 = _create_simple_program(num_stages=2, sequence=original_seq)
         program2.restore_state(state)
+        program2.current_stage = 1  # API tracks this in DB, not in serialized state
 
         # Verify state was restored before running stage 1
         pre_stage1_sequences = [
@@ -686,7 +654,6 @@ class TestSerializeRestoreState:
 
         # Should round-trip
         restored = json.loads(json_str)
-        assert restored["current_stage"] == state["current_stage"]
         assert len(restored["segments"]) == len(state["segments"])
 
     def test_serialize_restore_preserves_valid_chars(self):
