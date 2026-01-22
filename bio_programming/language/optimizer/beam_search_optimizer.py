@@ -257,6 +257,7 @@ class BeamSearchOptimizer(Optimizer):
         self.prompt: str = config.prompt
         self.beam_length: int = config.beam_length
         self.generator: Generator = generator
+        self.use_kv_caching: bool = config.use_kv_caching
 
         # Base class init (calls _validate_optimizer)
         super().__init__(
@@ -274,7 +275,6 @@ class BeamSearchOptimizer(Optimizer):
         self.beam_width: int = config.beam_width
         self.candidates_per_beam: int = config.candidates_per_beam
         self.score_by: str = config.score_by
-        self.use_kv_caching: bool = config.use_kv_caching
         self.max_resample_attempts: int = config.max_resample_attempts
         self.batch_size: Optional[int] = config.batch_size
 
@@ -285,9 +285,9 @@ class BeamSearchOptimizer(Optimizer):
         self.num_beams = math.ceil(self.target_segment.sequence_length / self.beam_length)
 
         # Set up generator for beam search
+        # Pre-allocate max_seqlen for the full optimization - vortex doesn't support
         self.generator.max_seqlen = len(self.prompt) + self.target_segment.sequence_length
         self.generator.store_kv_cache = self.use_kv_caching
-        # Always use cached generation internally
         self.generator.cached_generation = True
         self.generator.batched = True
 
@@ -300,8 +300,9 @@ class BeamSearchOptimizer(Optimizer):
         2. Constraints are valid and have input segments
         3. target_segment is in one of the constructs
         4. Generator is valid and autoregressive
-        5. Prompt is not empty
-        6. beam_length does not exceed target_segment length
+        5. Generator supports KV caching interface if use_kv_caching is enabled
+        6. Prompt is not empty
+        7. beam_length does not exceed target_segment length
         """
         # Validate constructs list is not empty and contains valid Constructs
         if not self.constructs:
@@ -329,7 +330,20 @@ class BeamSearchOptimizer(Optimizer):
         generator_spec = GeneratorRegistry.get(GeneratorRegistry.get_key(self.generator))
         if generator_spec.category != "autoregressive":
             raise ValueError(f"BeamSearchOptimizer requires autoregressive generators. The provided generator '{self.generator.__class__.__name__}' is not autoregressive.")
-        
+
+        # Validate generator supports KV caching interface if use_kv_caching is enabled
+        if self.use_kv_caching:
+            if not hasattr(self.generator, 'replicate_cache') or not callable(getattr(self.generator, 'replicate_cache', None)):
+                raise ValueError(
+                    f"Generator '{self.generator.__class__.__name__}' does not support KV caching (missing replicate_cache method). "
+                    f"Set use_kv_caching=False or use a generator that supports KV caching."
+                )
+            if not hasattr(self.generator, 'kv_caches'):
+                raise ValueError(
+                    f"Generator '{self.generator.__class__.__name__}' does not support KV caching (missing kv_caches attribute). "
+                    f"Set use_kv_caching=False or use a generator that supports KV caching."
+                )
+
         # Validate prompt is not empty
         if not self.prompt:
             raise ValueError("Prompt for BeamSearchOptimizer cannot be empty")

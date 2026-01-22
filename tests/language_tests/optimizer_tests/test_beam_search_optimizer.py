@@ -85,6 +85,34 @@ class MockMutationGenerator(Generator):
         return cache
 
 
+class MockAutoregressiveGeneratorNoKVCache(Generator):
+    """Mock autoregressive generator without KV caching support."""
+
+    def __init__(self):
+        super().__init__()
+        self.num_tokens = 100
+        # Intentionally missing kv_caches and replicate_cache
+
+    def assign(self, assigned_segment: Segment) -> None:
+        self._assigned_segment = assigned_segment
+
+    def sample(
+        self,
+        prompts: Optional[List[str]] = None,
+        prepend_prompt: Optional[bool] = None,
+        old_kv_cache: Optional[Dict] = None,
+    ) -> None:
+        if prompts is None:
+            prompts = [""]
+        sequences = []
+        for prompt in prompts:
+            new_seq = "".join(random.choice("ATCG") for _ in range(self.num_tokens))
+            sequences.append(prompt + new_seq if prepend_prompt else new_seq)
+        self._assigned_segment.candidate_sequences = [
+            Sequence(sequence=seq, sequence_type="dna") for seq in sequences
+        ]
+
+
 def _setup_beam_search(
     segment_length: int = 100,
     beam_length: int = 20,
@@ -292,6 +320,61 @@ class TestBeamSearchOptimizer:
                 constraints=[constraint],
                 config=config,
             )
+
+    def test_generator_without_kv_caching_support_fails(self):
+        """Generator missing replicate_cache/kv_caches should fail when use_kv_caching=True."""
+        segment = Segment(length=100, sequence_type="dna")
+        construct = Construct([segment])
+        generator = MockAutoregressiveGeneratorNoKVCache()
+        generator._assigned_segment = segment
+        constraint = Constraint(
+            inputs=[segment],
+            function=gc_content_constraint,
+            function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
+        )
+        config = BeamSearchOptimizerConfig(
+            prompt="ATCG",
+            beam_length=10,
+            beam_width=3,
+            candidates_per_beam=5,
+            use_kv_caching=True,
+        )
+        with pytest.raises(ValueError, match="does not support KV caching"):
+            BeamSearchOptimizer(
+                target_segment=segment,
+                constructs=[construct],
+                generators=[generator],
+                constraints=[constraint],
+                config=config,
+            )
+
+    def test_generator_without_kv_caching_support_works_when_disabled(self):
+        """Generator missing KV caching support should work when use_kv_caching=False."""
+        segment = Segment(length=100, sequence_type="dna")
+        construct = Construct([segment])
+        generator = MockAutoregressiveGeneratorNoKVCache()
+        generator._assigned_segment = segment
+        constraint = Constraint(
+            inputs=[segment],
+            function=gc_content_constraint,
+            function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
+        )
+        config = BeamSearchOptimizerConfig(
+            prompt="ATCG",
+            beam_length=10,
+            beam_width=3,
+            candidates_per_beam=5,
+            use_kv_caching=False,
+        )
+        # Should not raise - KV caching is disabled
+        optimizer = BeamSearchOptimizer(
+            target_segment=segment,
+            constructs=[construct],
+            generators=[generator],
+            constraints=[constraint],
+            config=config,
+        )
+        assert optimizer.use_kv_caching is False
 
     def test_beam_length_exceeds_segment_length_fails(self):
         segment = Segment(length=50, sequence_type="dna")
@@ -541,10 +624,7 @@ class TestBeamSearchOptimizerGPU:
 
     def test_kv_caching_speedup(self):
         """Benchmark KV caching speedup with real Evo2 generator."""
-        import gc
         import time
-
-        import torch
 
         from proto_language.language.generator import (
             Evo2Generator,
@@ -567,9 +647,9 @@ class TestBeamSearchOptimizerGPU:
             )
             config = BeamSearchOptimizerConfig(
                 prompt=prompt,
-                beam_length=50,
+                beam_length=20,
                 beam_width=3,
-                candidates_per_beam=5,
+                candidates_per_beam=3,
                 use_kv_caching=use_kv_caching,
             )
             optimizer = BeamSearchOptimizer(
@@ -581,12 +661,7 @@ class TestBeamSearchOptimizerGPU:
             )
             start = time.time()
             optimizer.run()
-            elapsed = time.time() - start
-            del optimizer, generator
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            return elapsed
+            return time.time() - start
 
         time_uncached = run_optimizer(use_kv_caching=False)
         time_cached = run_optimizer(use_kv_caching=True)
@@ -599,8 +674,8 @@ class TestBeamSearchOptimizerGPU:
 
         # KV caching should be faster
         assert (
-            time_cached * 1.3 < time_uncached
-        ), f"KV caching should be 1.3x faster: {time_cached:.2f}s vs {time_uncached:.2f}s"
+            time_cached * 1.5 < time_uncached
+        ), f"KV caching should be 1.5x faster: {time_cached:.2f}s vs {time_uncached:.2f}s: {speedup:.2f}x"
 
 
 class TestBeamSearchMultiStepOptimization:

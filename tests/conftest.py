@@ -33,6 +33,7 @@ def mock_generator_registry(monkeypatch):
         # For mock generators, return a fake key
         if generator.__class__.__name__ in (
             "MockAutoregressiveGenerator",
+            "MockAutoregressiveGeneratorNoKVCache",
             "ControlledMockGenerator",
             "SegmentAwareMockGenerator",
             "AccumulativeTrackingGenerator",
