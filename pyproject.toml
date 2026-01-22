@@ -68,8 +68,6 @@ gpu = [
 
     # Structure prediction and scoring models
     "esm @ git+https://github.com/bviggiano/esm.git@fix/178",  # See: https://github.com/evolutionaryscale/esm/issues/178
-    "borzoi-pytorch",
-    "enformer-pytorch",
     #"colabfold[alphafold]>=1.5.5", # Due to dependency conflicts, needs to be installed separately with --no-deps.
 
     # Structure dynamics models
@@ -219,8 +217,6 @@ module = [
     "esm.*",
     "boltz.*",
     "chai_lab.*",
-    "borzoi_pytorch.*",
-    "enformer_pytorch.*",
     "alphagenome.*",
     # Visualization
     "py3Dmol.*",
