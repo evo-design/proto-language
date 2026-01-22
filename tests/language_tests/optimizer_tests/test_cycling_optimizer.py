@@ -369,7 +369,7 @@ class TestCyclingOptimizerGPU:
     """Integration tests with real models (require GPU)."""
 
     @pytest.mark.slow
-    def test_full_cycle_with_ligandmpnn(self, pdb_structure):
+    def test_full_cycle_with_proteinmpnn(self, pdb_structure):
         """Test complete optimization cycle with LigandMPNN."""
         from proto_language.tools.structure_prediction import predict_structures
         from proto_language.tools.structure_prediction.schemas import (
@@ -380,11 +380,11 @@ class TestCyclingOptimizerGPU:
         seq_length = len(chain_seq)
 
         # Inverse folding generators auto-initialize to "X" when no sequence provided
-        target_segment = Segment(length=seq_length, sequence_type="protein")
+        target_segment = Segment(sequence= "X" * seq_length, sequence_type="protein")
         construct = Construct([target_segment])
 
-        generator = LigandMPNNGenerator(
-            LigandMPNNGeneratorConfig(
+        generator = ProteinMPNNGenerator(
+                ProteinMPNNGeneratorConfig(
                 structure_inputs=InverseFoldingStructureInput(
                     structure=pdb_structure, chain_ids=["A"]
                 ),
@@ -398,7 +398,7 @@ class TestCyclingOptimizerGPU:
                 StructurePredictionComplex(chains=[seq.sequence])
                 for seq in sequences
             ]
-            return predict_structures(complexes, "boltz", {}).structures
+            return predict_structures(complexes, "chai", {}).structures
 
         config = CyclingOptimizerConfig(
             num_steps=2,
@@ -434,11 +434,11 @@ class TestCyclingOptimizerGPU:
         seq_length = len(chain_seq)
 
         # Inverse folding generators auto-initialize to "X" when no sequence provided
-        target_segment = Segment(length=seq_length, sequence_type="protein")
+        target_segment = Segment(sequence= "X" * seq_length, sequence_type="protein")
         construct = Construct([target_segment])
 
-        generator = LigandMPNNGenerator(
-            LigandMPNNGeneratorConfig(
+        generator = ProteinMPNNGenerator(
+            ProteinMPNNGeneratorConfig(
                 structure_inputs=InverseFoldingStructureInput(
                     structure=pdb_structure, chain_ids=["A"]
                 ),
@@ -465,7 +465,7 @@ class TestCyclingOptimizerGPU:
                 StructurePredictionComplex(chains=[seq.sequence])
                 for seq in sequences
             ]
-            return predict_structures(complexes, "boltz", {}).structures
+            return predict_structures(complexes, "chai", {}).structures
 
         config = CyclingOptimizerConfig(
             num_steps=2,
