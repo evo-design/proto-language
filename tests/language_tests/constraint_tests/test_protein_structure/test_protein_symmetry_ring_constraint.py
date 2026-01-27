@@ -2,20 +2,16 @@
 Tests for Protein Symmetry Ring constraint.
 """
 
-from unittest.mock import patch
-from tests.helpers.mock_structure import MockProteinStructure
-from proto_language.language.core import Constraint, Segment
+from unittest.mock import Mock, patch
+
 from proto_language.language.constraint import protein_symmetry_ring_constraint
 from proto_language.language.constraint.protein_structure.protein_symmetry_ring_constraint import (
     ProteinSymmetryRingConfig,
 )
-from proto_language.tools.structure_prediction.schemas import (
-    StructurePredictionOutput,
-)
-from proto_language.tools.orf_prediction.prodigal import (
-    ProdigalOutput,
-)
-from unittest.mock import Mock
+from proto_language.language.core import Constraint, Segment
+from proto_language.tools.orf_prediction.prodigal import ProdigalOutput
+from proto_language.tools.structure_prediction.schemas import StructurePredictionOutput
+from tests.helpers.mock_structure import MockProteinStructure
 
 mock_pdb = """ATOM      1  N   MET A   1       0.000   0.000   0.000  1.00 90.00           N
 ATOM      2  CA  MET A   1       1.458   0.000   0.000  1.00 90.00           C
@@ -82,10 +78,10 @@ class TestProteinSymmetryRingConstraint:
         segment = Segment(sequence="ATGAAAAAACGT", sequence_type="dna")  # Codes for MKR
         config = ProteinSymmetryRingConfig(n_replications=3)
 
-        # Mock the Prodigal output with ProdigalOrf objects
-        from proto_language.tools.orf_prediction.prodigal.prodigal import ProdigalOrf
-        
-        mock_orf = ProdigalOrf(
+        # Mock the Prodigal output with ORF objects
+        from proto_language.tools.orf_prediction import ORF
+
+        mock_orf = ORF(
             parent_id="seq_0",
             orf_id="gene_1",
             strand="+",
@@ -94,10 +90,10 @@ class TestProteinSymmetryRingConstraint:
             nucleotide_sequence="ATGAAAAAACGT",
             amino_acid_length=3,
             nucleotide_length=12,
-            nucleotide_start=0,
+            nucleotide_start=1,
             nucleotide_end=12,
         )
-        
+
         mock_prodigal_output = Mock(spec=ProdigalOutput)
         mock_prodigal_output.predicted_orfs = [[mock_orf]]
         mock_prodigal_output.num_orfs_per_sequence = [1]
