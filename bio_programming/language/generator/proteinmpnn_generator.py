@@ -313,7 +313,7 @@ class ProteinMPNNGenerator(Generator):
         sequence_identities = []
         for designed in result.designed_sequences:
             generated_sequences.extend(designed.sequences)
-            perplexities.extend(designed.mpnn_perplexity)
+            perplexities.extend(designed.perplexity)
             sequence_identities.extend(designed.sequence_identity)
 
         if len(generated_sequences) != num_candidates:
