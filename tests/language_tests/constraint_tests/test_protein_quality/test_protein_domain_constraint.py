@@ -11,14 +11,17 @@ Tests cover:
 7. Error handling
 """
 
-import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pytest
 from Bio import SeqIO
-from proto_language.language.core import Constraint, Segment
+
 from proto_language.language.constraint import protein_domain_constraint
-from proto_language.language.constraint.protein_quality.protein_domain_constraint import ProteinDomainConfig
+from proto_language.language.constraint.protein_quality.protein_domain_constraint import (
+    ProteinDomainConfig,
+)
+from proto_language.language.core import Constraint, Segment
 
 TEST_HMM = (
     Path(__file__).parent.parent.parent.parent / "dummy_data" / "test_multiple_hmm.hmm"
@@ -145,10 +148,10 @@ class TestProteinDomainConstraint:
         segment = Segment(sequence="ATCGATCGATCG", sequence_type="dna")
         config = ProteinDomainConfig(hmm_db=str(TEST_HMM), keywords=["kinase"])
 
-        # Mock Prodigal returning proteins with ProdigalOrf objects
-        from proto_language.tools.orf_prediction.prodigal.prodigal import ProdigalOrf
-        
-        mock_orf = ProdigalOrf(
+        # Mock Prodigal returning proteins with ORF objects
+        from proto_language.tools.orf_prediction import ORF
+
+        mock_orf = ORF(
             parent_id="seq_0",
             orf_id="gene_1",
             strand="+",
@@ -160,7 +163,7 @@ class TestProteinDomainConstraint:
             nucleotide_start=0,
             nucleotide_end=12,
         )
-        
+
         mock_prodigal_output = Mock()
         mock_prodigal_output.predicted_orfs = [[mock_orf]]
         mock_prodigal_output.num_orfs_per_sequence = [1]

@@ -96,6 +96,24 @@ def calculate_percentage_range_deviation(
         return min(MAX_ENERGY, (actual - max_val) / max(100 - max_val, 1))
 
 
+def calculate_gc_content(sequence: str) -> float:
+    """
+    Calculate the GC content percentage of a DNA/RNA sequence.
+
+    Args:
+        sequence: DNA or RNA sequence string.
+
+    Returns:
+        GC content as a percentage (0-100).
+    """
+    if not sequence:
+        return 0.0
+
+    sequence_upper = sequence.upper()
+    gc_count = sequence_upper.count("G") + sequence_upper.count("C")
+    return 100.0 * gc_count / len(sequence)
+
+
 def calculate_normalized_deviation(actual: float, target: float) -> float:
     """
     Calculate normalized deviation from target value for target-based constraints.
