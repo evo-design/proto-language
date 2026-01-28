@@ -41,3 +41,4 @@ build/
 .cursorignore
 .claude/
 
+file_store/
