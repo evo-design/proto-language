@@ -169,11 +169,32 @@ class GCSFileStore(FileStore):
 
     @property
     def client(self):
-        """Lazy-load GCS client."""
+        """Lazy-load GCS client.
+
+        Supports credentials via:
+        - GOOGLE_APPLICATION_CREDENTIALS_JSON: JSON string (for containers)
+        - GOOGLE_APPLICATION_CREDENTIALS: File path (standard approach)
+        - Default credentials (GCE, Workload Identity, etc.)
+        """
         if self._client is None:
+            import json
+
             from google.cloud import storage
 
-            self._client = storage.Client()
+            # Check for JSON credentials string (avoids temp file writing)
+            creds_json = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+            if creds_json:
+                from google.oauth2 import service_account
+
+                creds_info = json.loads(creds_json)
+                credentials = service_account.Credentials.from_service_account_info(creds_info)
+                self._client = storage.Client(credentials=credentials)
+                logger.info("GCS client initialized from GOOGLE_APPLICATION_CREDENTIALS_JSON")
+            else:
+                # Fall back to default credentials
+                self._client = storage.Client()
+                logger.info("GCS client initialized with default credentials")
+
         return self._client
 
     @property
