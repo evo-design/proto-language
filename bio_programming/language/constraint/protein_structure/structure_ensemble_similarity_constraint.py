@@ -11,29 +11,27 @@ structure using PyMOL's align command.
 
 from __future__ import annotations
 
-import tempfile
-from typing import Optional, List, Dict, Any, Tuple, Literal
-from logging import getLogger
-import numpy as np
 import os
-from pydantic import model_validator, field_validator
+import tempfile
+from logging import getLogger
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
-from proto_language.language.core import Sequence
+import numpy as np
+from pydantic import field_validator, model_validator
+
 from proto_language.base_config import BaseConfig, ConfigField
-from proto_language.language.constraint.constraint_registry import (
-    ConstraintRegistry,
-)
-from proto_language.tools.structures import ProteinStructure
+from proto_language.language.constraint.constraint_registry import ConstraintRegistry
+from proto_language.language.core import Sequence
 from proto_language.tools.structure_dynamics.bioemu import (
-    run_bioemu,
-    BioEmuInput,
     BioEmuConfig,
+    BioEmuInput,
+    run_bioemu,
 )
 from proto_language.tools.structure_prediction.schemas import (
     StructurePredictionComplex,
 )
+from proto_language.tools.structures import ProteinStructure
 from proto_language.utils import MAX_ENERGY, sigmoid_score
-
 
 logger = getLogger(__name__)
 
@@ -568,8 +566,7 @@ def structure_ensemble_rmsd_constraint(
             bioemu_input = BioEmuInput(
                 complexes=[
                     StructurePredictionComplex(
-                        chains=[candidate_sequence],
-                        entity_types=["protein"],
+                        chains=[{"sequence": candidate_sequence, "entity_type": "protein"}]
                     )
                 ]
             )

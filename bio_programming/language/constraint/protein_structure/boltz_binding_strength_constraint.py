@@ -4,26 +4,21 @@ Boltz binding strength constraint for protein-protein and protein-ligand interac
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Literal, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
-from pydantic import field_validator
+from numpy import clip
 
-from proto_language.language.core import Sequence
 from proto_language.base_config import BaseConfig, ConfigField
-from proto_language.language.constraint.constraint_registry import (
-    ConstraintRegistry,
-)
+from proto_language.language.constraint.constraint_registry import ConstraintRegistry
+from proto_language.language.core import Sequence
 from proto_language.tools.structure_prediction.boltz import (
-    run_boltz,
-    BoltzInput,
     BoltzConfig,
+    BoltzInput,
+    run_boltz,
 )
 from proto_language.tools.structure_prediction.schemas import (
     StructurePredictionComplex,
 )
-from numpy import clip
-from proto_language.tools.ligands import Ligands
-
 
 # Default target values and tolerances for binding strength metrics
 DEFAULT_DESIRED_HIGHER = {
@@ -59,24 +54,20 @@ DEFAULT_TOL_LOWER = {
 
 class BoltzBindingStrengthConfig(BaseConfig):
     """Configuration for Boltz binding strength constraint.
-    
+
     This class defines configuration parameters for evaluating protein-protein,
     and protein-nucleic acid binding using Boltz, a biomolecular structure prediction
     model. Boltz predicts complex structures and provides confidence metrics for binding
     quality, interface accuracy, and overall structure reliability. The constraint evaluates
     these metrics against target values to assess binding strength and quality.
-    
+
     The constraint uses a penalty-based scoring system where each metric is evaluated
     against its target value and tolerance. Metrics are classified as "higher is better"
     (e.g., interface confidence scores) or "lower is better" (e.g., predicted distance
     errors). Penalties are combined using weighted averages, with default weights
     optimized for different complex types (monomers, protein-nucleic acid, protein-protein).
-    
+
     Attributes:
-        ligands (Optional[List[str]]): Ligands to use for binding strength evaluation.
-            Can be a SMILES string (automatically converted to list), or a path to SMI or SDF files.
-            To delimit multiple ligands, use '.'. Each individual molecular fragment will be treated
-            as a separate chain in the input complex.
         desired_higher (Dict[str, float]): Target values for "higher is better" metrics.
             Metrics in this category should ideally be close to 1.0 (high confidence).
             Available metrics:
@@ -144,7 +135,7 @@ class BoltzBindingStrengthConfig(BaseConfig):
             recycling steps, sampling parameters, device settings, and verbosity.
             The ``complexes`` field is set programmatically from input sequences.
             Default: BoltzConfig().
-    
+
     Note:
         **Metric interpretation:**
         - **iptm/ligand_iptm/protein_iptm**: Interface confidence (0-1). Higher = better
@@ -157,22 +148,6 @@ class BoltzBindingStrengthConfig(BaseConfig):
           more accurate structure. Values <3 Å indicate high accuracy.
         - **confidence_score**: Boltz's aggregate confidence combining multiple factors.
     """
-    ligands: Optional[List[str]] = ConfigField(
-        default=None,
-        title="Ligands",
-        description="Ligand to use for binding strength evaluation.",
-    )
-
-    @field_validator('ligands', mode='before')
-    @classmethod
-    def convert_ligands_to_list(cls, v):
-        """Convert single string to list of strings."""
-        if v is None:
-            return v
-        if isinstance(v, str):
-            return [v]
-        return v
-
     desired_higher: Dict[str, float] = ConfigField(
         default=DEFAULT_DESIRED_HIGHER,
         title="Desired Higher Bound Metrics",
@@ -265,19 +240,19 @@ def boltz_binding_strength_constraint(
     input_sequences: List[Tuple[Sequence, ...]], config: BoltzBindingStrengthConfig
 ) -> float | List[float]:
     """Evaluate binding strength and quality using Boltz structure prediction.
-    
+
     This constraint function uses Boltz to predict complex structures and evaluate
     binding quality. Boltz predicts structures for protein-protein, protein-ligand,
     protein-DNA, and protein-RNA complexes, providing confidence metrics that assess
     interface quality, binding strength, and overall structural accuracy.
-    
+
     The constraint evaluates multiple Boltz output metrics (iptm, iplddt, ipde,
     plddt, ptm, confidence_score) against configurable target values and tolerances.
     Each metric is scored as a penalty (0.0 = meets target, 1.0 = at tolerance limit),
     then penalties are combined using weighted averaging. Default weights are
     automatically selected based on complex type (monomer, protein-ligand, or
     protein-protein).
-    
+
     Structure prediction is GPU-intensive and may take several minutes per complex
     depending on size and hardware.
 
@@ -304,23 +279,23 @@ def boltz_binding_strength_constraint(
     Raises:
         ValueError: If return_component specifies a metric not available for the
             complex type, or if a metric appears in both desired_higher and desired_lower.
-    
+
     Note:
         This function modifies the input sequences by adding metadata to each
         ``Sequence`` object's ``_metadata`` dictionary. Since complexes contain
         multiple chains, all sequences in a complex receive the same metadata
         under the key ``boltz_binding`` (a list of dictionaries, one per evaluation):
-        
+
         - ``penalty``: Float overall constraint score (0.0-1.0)
         - ``metrics``: Dictionary of all raw Boltz metrics (iptm, iplddt, etc.)
         - ``penalties``: Dictionary of individual metric penalties before weighting
-        
+
         Multiple evaluations on the same sequence (e.g., in different complexes)
         append to the list.
-    
+
     Examples:
         Evaluating protein complex binding:
-        
+
         >>> from proto_language.language.core import Sequence, SequenceType
         >>> protein_a = Sequence("MVLSPADKTNVKAAWGKV", "protein")
         >>> protein_b = Sequence("QFSKPQRTVLMKALNE", "protein")
@@ -331,26 +306,15 @@ def boltz_binding_strength_constraint(
         >>> print(f"iptm: {metadata['metrics']['iptm']:.3f}")
         >>> print(f"complex_iplddt: {metadata['metrics']['complex_iplddt']:.3f}")
     """
-    ligands = None
-    if config.ligands is not None:
-        ligands = Ligands(config.ligands)
-
     boltz_complexes = []
     for sequence_tuple in input_sequences:
-        # Pull chains and entity types from complex sequences
-        chains = [s.sequence for s in sequence_tuple]
-        entity_types = [s.sequence_type for s in sequence_tuple]
-
-        # Add ligands if they are provided
-        if ligands is not None:
-            chains.extend([fragment.smiles for fragment in ligands.fragments])
-            entity_types.extend(["ligand"] * len(ligands.fragments))
-
-        # Add this complex
+        # Build chains with explicit entity types from input sequences
         boltz_complexes.append(
             StructurePredictionComplex(
-                chains=chains,
-                entity_types=entity_types,
+                chains=[
+                    {"sequence": s.sequence, "entity_type": s.sequence_type}
+                    for s in sequence_tuple
+                ]
             )
         )
 

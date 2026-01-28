@@ -447,7 +447,7 @@ class TestMultimerSupport:
             complexes = call_args[0][0]  # First positional arg
             assert len(complexes) == 1
             assert len(complexes[0].chains) == 1
-            assert complexes[0].chains[0] == "MKTAYIAKQRQISFVK"
+            assert complexes[0].chains[0].sequence == "MKTAYIAKQRQISFVK"
 
     def test_homodimer_two_identical_chains(self, protein_sequence):
         """Test homodimer prediction (same sequence twice)."""
@@ -467,7 +467,7 @@ class TestMultimerSupport:
             call_args = mock_predict.call_args
             complexes = call_args[0][0]
             assert len(complexes[0].chains) == 2
-            assert complexes[0].chains[0] == complexes[0].chains[1]
+            assert complexes[0].chains[0].sequence == complexes[0].chains[1].sequence
 
     def test_heterodimer_two_different_chains(self, protein_sequence, protein_sequence_b):
         """Test heterodimer prediction (two different sequences)."""
@@ -487,8 +487,8 @@ class TestMultimerSupport:
             call_args = mock_predict.call_args
             complexes = call_args[0][0]
             assert len(complexes[0].chains) == 2
-            assert complexes[0].chains[0] == "MKTAYIAKQRQISFVK"
-            assert complexes[0].chains[1] == "GVQVETISPGDGRTFPK"
+            assert complexes[0].chains[0].sequence == "MKTAYIAKQRQISFVK"
+            assert complexes[0].chains[1].sequence == "GVQVETISPGDGRTFPK"
 
     def test_homotrimer_three_chains(self, protein_sequence):
         """Test homotrimer prediction."""

@@ -6,13 +6,24 @@
 
 A framework for designing biological sequences (DNA, RNA, proteins) with constraint-based optimization.
 
-## Installation 
+## Installation
 
 To install create the `proto-language` conda environment and install the dependencies, run the following command:
+
+
+
 
 ```bash
 bash install.sh
 conda activate proto-language
+```
+>[!NOTE] The installation script is currently failing on Chimera due to dependency issues.
+> For now, use the following to clone from Brian's env:
+
+```bash
+conda create --name proto-language --clone /home/brianhie/miniconda/envs/gpro/
+pip uninstall -y numcodecs zarr
+pip install --no-cache-dir --force-reinstall numcodecs zarr
 ```
 
 
@@ -34,7 +45,7 @@ API will be available at http://localhost:8000
 
 ## Tests
 
-Tests can be run with various filtering options based on hardware utilization and execution time.  
+Tests can be run with various filtering options based on hardware utilization and execution time.
 See [tests/README.md](tests/README.md) for more details. A few commonly used commands are listed below.
 
 - By default, slow tests *are skipped*. You must specify `--all` to run them.

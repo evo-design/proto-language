@@ -183,7 +183,7 @@ class TestProteinGlobularityConstraint:
             # Verify sequence was replicated 3 times
             mock_run.assert_called_once()
             passed_input = mock_run.call_args.kwargs['inputs']  # Function called with keyword args
-            assert passed_input.complexes[0].chains == [
+            assert [chain.sequence for chain in passed_input.complexes[0].chains] == [
                 "MKTAYIAK",
                 "MKTAYIAK",
                 "MKTAYIAK",

@@ -9,15 +9,25 @@ from typing import List, Tuple
 
 import numpy as np
 
-from proto_language.language.core import Sequence
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import ConstraintRegistry
 from proto_language.storage import FileType, store_file
+from proto_language.language.core import Sequence
+from proto_language.tools.orf_prediction.prodigal import (
+    ProdigalConfig,
+    ProdigalInput,
+    run_prodigal_prediction,
+)
 from proto_language.tools.structure_prediction import (
-    run_esmfold,
-    StructurePredictionComplex,
-    ESMFoldInput,
     ESMFoldConfig,
+    ESMFoldInput,
+    StructurePredictionComplex,
+    run_esmfold,
+)
+from proto_language.tools.structure_prediction.esmfold import (
+    ESMFoldConfig,
+    ESMFoldInput,
+    run_esmfold,
 )
 from proto_language.tools.structures.utils import (
     distances_to_centroid,
@@ -25,20 +35,11 @@ from proto_language.tools.structures.utils import (
     pdb_file_to_atomarray,
 )
 from proto_language.utils import MAX_ENERGY
-from proto_language.tools.structure_prediction.esmfold import (
-    run_esmfold,
-    ESMFoldInput,
-    ESMFoldConfig,
-)
-from proto_language.tools.orf_prediction.prodigal import (
-    run_prodigal_prediction,
-    ProdigalInput,
-    ProdigalConfig,
-)
+
 
 class ProteinGlobularityConfig(BaseConfig):
     """Configuration for protein globularity constraint.
-    
+
     This class defines configuration parameters for evaluating protein structural
     compactness using ESMFold structure prediction. Globularity measures how
     compact and spherical a protein structure is, based on the spatial distribution
@@ -46,7 +47,7 @@ class ProteinGlobularityConfig(BaseConfig):
     have backbone atoms clustered tightly around the centroid, while extended
     structures show higher dispersion. Globularity is measured as the standard
     deviation of distances from backbone atoms (N, CA, C, O) to the structure's
-    centroid. Lower values indicate more compact, spherical structures. 
+    centroid. Lower values indicate more compact, spherical structures.
     The score is normalized by dividing by max_globularity (default 20.0 Ångströms) and
     capped at 1.0.
 
@@ -105,7 +106,7 @@ class ProteinGlobularityConfig(BaseConfig):
 )
 def protein_globularity_constraint(input_sequences: List[Tuple[Sequence, ...]], config: ProteinGlobularityConfig) -> List[float]:
     """Encourage compact, globular protein structures using ESMFold.
-    
+
     This constraint function uses ESMFold to predict protein 3D structures
     and evaluates their compactness by analyzing the spatial distribution of
     backbone atoms. Globularity is measured as the standard deviation of distances
@@ -113,20 +114,20 @@ def protein_globularity_constraint(input_sequences: List[Tuple[Sequence, ...]], 
     Lower values indicate more compact, spherical structures characteristic of
     well-folded globular proteins, while higher values indicate extended,
     elongated, or poorly folded structures.
-    
+
     For DNA sequences, the function first runs Prodigal to predict protein-coding
     regions (ORFs), then evaluates the globularity of each predicted protein
     structure, using the best (most compact) globularity score among all predictions.
-    
+
     Structure prediction is GPU-intensive and may take several minutes per protein
     depending on length and hardware.
 
     Args:
-        input_sequences (List[Tuple[Sequence, ...]]): List of single-sequence tuples to 
+        input_sequences (List[Tuple[Sequence, ...]]): List of single-sequence tuples to
             evaluate. Each tuple contains one protein or DNA sequence. All sequences
             must be the same type. For DNA sequences, ORF prediction is performed
             automatically.
-            
+
         config (ProteinGlobularityConfig): Configuration object containing
             ``n_replications`` (oligomeric state, default: 1) and optional
             ``esmfold_config`` for advanced ESMFold settings.
@@ -138,12 +139,12 @@ def protein_globularity_constraint(input_sequences: List[Tuple[Sequence, ...]], 
             sequences, returns normalized scores (0.0-1.0) where lower values
             indicate more compact structures. Scores are normalized by dividing
             by max_globulatrity (default 20.0 Å) and capped at 1.0.
-    
+
     Note:
         This function modifies the input sequences by adding metadata to each
         ``Sequence`` object's ``_metadata`` dictionary. Metadata varies by
         sequence type:
-        
+
         **For protein sequences:**
         - ``avg_plddt``: Float average pLDDT score for structure confidence (0.0-1.0)
         - ``ptm``: Float predicted TM-score for structure accuracy (0.0-1.0)
@@ -151,7 +152,7 @@ def protein_globularity_constraint(input_sequences: List[Tuple[Sequence, ...]], 
         - ``esmfolded_sequence``: List of sequences used for structure prediction
         - ``globularity_score``: Float standard deviation of backbone-to-centroid
           distances in Ångströms (lower = more compact)
-        
+
         **For DNA sequences:**
         - ``prodigal_proteins``: DataFrame of predicted proteins from Prodigal
         - ``prodigal_protein_count``: Integer count of predicted ORFs
@@ -161,10 +162,10 @@ def protein_globularity_constraint(input_sequences: List[Tuple[Sequence, ...]], 
           among all predicted proteins (in Ångströms)
         - ``esmfold_normalized_globularity``: Float normalized best globularity
           (0.0-1.0, capped by max_globularity)
-    
+
     Examples:
         Evaluating protein structural compactness:
-        
+
         >>> from proto_language.language.core import Sequence, SequenceType
         >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", "protein")
         >>> config = ProteinGlobularityConfig(n_replications=1)
@@ -174,7 +175,7 @@ def protein_globularity_constraint(input_sequences: List[Tuple[Sequence, ...]], 
         >>> print(seq._metadata["avg_plddt"])  # e.g., 0.85 (also available)
 
         Evaluating DNA sequence (with automatic ORF prediction):
-        
+
         >>> dna_seq = Sequence("ATGGTACTGAGCCCAGCG...", "dna")
         >>> config = ProteinGlobularityConfig(n_replications=1)
         >>> scores = protein_globularity_constraint([(dna_seq,)], config)
@@ -200,8 +201,7 @@ def _evaluate_protein_globularity(
     # Create complexes with n_replications of each protein sequence
     complexes = [
         StructurePredictionComplex(
-            chains=[seq.sequence] * config.n_replications,
-            entity_types=["protein"] * config.n_replications,
+            chains=[{"sequence": seq.sequence, "entity_type": "protein"}] * config.n_replications
         )
         for seq in protein_sequences
     ]
@@ -268,8 +268,7 @@ def _evaluate_dna_globularity(
         protein_seqs = [orf.amino_acid_sequence for orf in proteins_list]
         complexes = [
             StructurePredictionComplex(
-                chains=[seq] * config.n_replications,
-                entity_types=["protein"] * config.n_replications,
+                chains=[{"sequence": seq, "entity_type": "protein"}] * config.n_replications
             )
             for seq in protein_seqs
         ]

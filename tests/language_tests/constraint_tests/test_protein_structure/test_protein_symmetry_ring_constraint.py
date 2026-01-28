@@ -168,3 +168,5 @@ ATOM      5  CA  ALA E   1      -5.000   0.000   0.000  1.00 90.00           C""
             passed_input = mock_run.call_args.kwargs["inputs"]
             for comp in passed_input.complexes:
                 assert len(comp.chains) == 5
+                # Verify all chains have the same sequence (homodimer)
+                assert all(chain.sequence == comp.chains[0].sequence for chain in comp.chains)

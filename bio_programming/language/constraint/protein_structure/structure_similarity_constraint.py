@@ -582,14 +582,11 @@ def _prepare_target_structure(config: StructureSimilarityConfig) -> Optional[str
         # Auto-detect entity types from sequences
         from proto_language.language.core import detect_sequence_type
 
-        entity_types = [detect_sequence_type(seq) for seq in config.target_chains]
-
-        complexes = [
-            StructurePredictionComplex(
-                chains=config.target_chains,
-                entity_types=entity_types,
-            )
+        chains = [
+            {"sequence": seq, "entity_type": detect_sequence_type(seq)}
+            for seq in config.target_chains
         ]
+        complexes = [StructurePredictionComplex(chains=chains)]
 
         output = predict_structures(complexes, config.structure_tool, config.tool_config)
 
@@ -635,12 +632,11 @@ def structure_rmsd_constraint(
     structure_complexes = []
     for candidate_tuple in input_sequences:
         # Extract sequences and types
-        chain_seqs = [s.sequence for s in candidate_tuple]
-        chain_types = [s.sequence_type for s in candidate_tuple]
-
-        structure_complexes.append(
-            StructurePredictionComplex(chains=chain_seqs, entity_types=chain_types)
-        )
+        chains = [
+            {"sequence": s.sequence, "entity_type": s.sequence_type}
+            for s in candidate_tuple
+        ]
+        structure_complexes.append(StructurePredictionComplex(chains=chains))
 
     # Run prediction on candidates.
     try:
@@ -724,12 +720,11 @@ def structure_tmscore_constraint(
     # Prepare candidates.
     structure_complexes = []
     for candidate_tuple in input_sequences:
-        chain_seqs = [s.sequence for s in candidate_tuple]
-        chain_types = [s.sequence_type for s in candidate_tuple]
-
-        structure_complexes.append(
-            StructurePredictionComplex(chains=chain_seqs, entity_types=chain_types)
-        )
+        chains = [
+            {"sequence": s.sequence, "entity_type": s.sequence_type}
+            for s in candidate_tuple
+        ]
+        structure_complexes.append(StructurePredictionComplex(chains=chains))
 
     # Run prediction on candidates.
     try:

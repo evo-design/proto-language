@@ -5,27 +5,27 @@ Protein symmetry ring constraint for symmetric multimeric structures.
 from __future__ import annotations
 
 from io import StringIO
-from typing import Optional, List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 from biotite.structure import get_chains
 
-from proto_language.language.core import Sequence
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import ConstraintRegistry
+from proto_language.language.core import Sequence
 from proto_language.storage import FileType, store_file
-from proto_language.tools.structure_prediction.schemas import (
-    StructurePredictionComplex,
+from proto_language.tools.orf_prediction.prodigal import (
+    ProdigalConfig,
+    ProdigalInput,
+    run_prodigal_prediction,
 )
 from proto_language.tools.structure_prediction.esmfold import (
-    ESMFoldInput,
     ESMFoldConfig,
+    ESMFoldInput,
     run_esmfold,
 )
-from proto_language.tools.orf_prediction.prodigal import (
-    run_prodigal_prediction,
-    ProdigalInput,
-    ProdigalConfig,
+from proto_language.tools.structure_prediction.schemas import (
+    StructurePredictionComplex,
 )
 from proto_language.tools.structures.utils import (
     adjacent_distances,
@@ -39,7 +39,7 @@ from proto_language.utils import MAX_ENERGY
 
 class ProteinSymmetryRingConfig(BaseConfig):
     """Configuration for protein symmetry ring constraint.
-    
+
     This class defines configuration parameters for evaluating whether proteins
     form symmetric ring-like multimeric structures using ESMFold structure
     prediction. Ring symmetry is measured by analyzing the spatial arrangement
@@ -51,7 +51,7 @@ class ProteinSymmetryRingConfig(BaseConfig):
     measuring the standard deviation of distances between protomers. Lower standard
     deviation indicates more symmetric arrangements where all protomers are equally spaced.
     The score is normalized by dividing by ``max_symmetry_std`` and capped at 1.0.
-    
+
     Attributes:
         n_replications (int): Number of protomers in the ring structure. Must
             be a positive integer (typically 3-12). Defines the oligomeric state:
@@ -123,23 +123,23 @@ class ProteinSymmetryRingConfig(BaseConfig):
 )
 def protein_symmetry_ring_constraint(input_sequences: List[Tuple[Sequence, ...]], config: ProteinSymmetryRingConfig) -> List[float]:
     """Constrain proteins to form symmetric ring-like multimeric structures using ESMFold.
-    
+
     This constraint function uses ESMFold to predict multimeric protein
     structures and evaluates whether they form symmetric ring-like arrangements.
     Ring symmetry is quantified by calculating the centroid (center of mass) of
     each protomer's backbone and measuring how uniformly the protomers are
     distributed around the ring. Perfect symmetric rings have all inter-protomer
     distances equal, resulting in zero standard deviation.
-    
+
     Many functional protein complexes naturally form symmetric rings, including
     chaperonins, proteasomes (heptameric rings), hexameric helicases, and various
     ring-shaped enzymes. This constraint is useful for designing or selecting
     proteins that form such symmetric assemblies.
-    
+
     For DNA sequences, the function first runs Prodigal to predict protein-coding
     regions (ORFs), then evaluates the ring symmetry of each predicted protein
     structure, using the best (most symmetric) score among all predictions.
-    
+
     Structure prediction is GPU-intensive and may take several minutes per protein
     depending on length and hardware.
 
@@ -148,7 +148,7 @@ def protein_symmetry_ring_constraint(input_sequences: List[Tuple[Sequence, ...]]
             evaluate. Each tuple contains one protein or DNA sequence. All sequences
             must be the same type. For DNA sequences, ORF prediction is performed
             automatically.
-            
+
         config (ProteinSymmetryRingConfig): Configuration object containing
             ``n_replications`` (number of protomers in ring, default: 2),
             ``max_symmetry_std`` (normalization threshold in Å, default: 10.0),
@@ -162,12 +162,12 @@ def protein_symmetry_ring_constraint(input_sequences: List[Tuple[Sequence, ...]]
             (std of inter-protomer distances) / max_symmetry_std, capped at 1.0.
             For DNA sequences, the score is based on the best symmetry among all
             predicted proteins.
-    
+
     Note:
         This function modifies the input sequences by adding metadata to each
         ``Sequence`` object's ``_metadata`` dictionary. Metadata varies by
         sequence type:
-        
+
         **For protein sequences:**
         - ``avg_plddt``: Float average pLDDT score for structure confidence (0.0-1.0)
         - ``ptm``: Float predicted TM-score for structure accuracy (0.0-1.0)
@@ -176,7 +176,7 @@ def protein_symmetry_ring_constraint(input_sequences: List[Tuple[Sequence, ...]]
         - ``symmetry_std_raw``: Float raw standard deviation of inter-protomer
           distances in Ångströms (lower = more symmetric)
         - ``symmetry_score_normalized``: Float normalized symmetry score (0.0-1.0)
-        
+
         **For DNA sequences:**
         - ``prodigal_proteins``: DataFrame of predicted proteins from Prodigal
         - ``prodigal_protein_count``: Integer count of predicted ORFs
@@ -184,10 +184,10 @@ def protein_symmetry_ring_constraint(input_sequences: List[Tuple[Sequence, ...]]
           deviations for each predicted protein (in Ångströms)
         - ``esmfold_best_symmetry``: Float best (lowest) symmetry std among all
           predicted proteins (in Ångströms)
-    
+
     Examples:
         Designing a symmetric hexameric ring:
-        
+
         >>> from proto_language.language.core import Sequence, SequenceType
         >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", "protein")
         >>> config = ProteinSymmetryRingConfig(
@@ -204,17 +204,17 @@ def protein_symmetry_ring_constraint(input_sequences: List[Tuple[Sequence, ...]]
     by_type = {"dna": [], "protein": []}
     for seq in sequences:
         by_type[seq.sequence_type].append(seq)
-    
+
     scores = [None] * len(input_sequences)
-    
+
     if by_type["protein"]:
         protein_scores = _evaluate_protein_symmetry(by_type["protein"], config)
         _map_scores_to_original(sequences, by_type["protein"], protein_scores, scores)
-    
+
     if by_type["dna"]:
         dna_scores = _evaluate_dna_symmetry(by_type["dna"], config)
         _map_scores_to_original(sequences, by_type["dna"], dna_scores, scores)
-    
+
     return scores
 
 def _evaluate_protein_symmetry(
@@ -226,8 +226,8 @@ def _evaluate_protein_symmetry(
     # Create complexes with n_replications of each protein sequence
     complexes = [
         StructurePredictionComplex(
-            chains=[seq.sequence] * config.n_replications,
-            entity_types=["protein"] * config.n_replications,
+            chains=[{"sequence": seq.sequence, "entity_type": "protein"}]
+            * config.n_replications
         )
         for seq in protein_sequences
     ]
@@ -305,8 +305,7 @@ def _evaluate_dna_symmetry(
         protein_seqs = [orf.amino_acid_sequence for orf in proteins_list]
         complexes = [
             StructurePredictionComplex(
-                chains=[seq] * config.n_replications,
-                entity_types=["protein"] * config.n_replications,
+                chains=[{"sequence": seq, "entity_type": "protein"}] * config.n_replications
             )
             for seq in protein_seqs
         ]

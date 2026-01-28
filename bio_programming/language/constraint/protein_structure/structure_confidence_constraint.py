@@ -82,11 +82,11 @@ def _structure_confidence(
     # Build complexes from candidate tuples.
     complexes = []
     for candidate_tuple in candidates:
-        chain_seqs = [seq.sequence for seq in candidate_tuple]
-        chain_types = [seq.sequence_type for seq in candidate_tuple]
-        complexes.append(
-            StructurePredictionComplex(chains=chain_seqs, entity_types=chain_types)
-        )
+        chains = [
+            {"sequence": seq.sequence, "entity_type": seq.sequence_type}
+            for seq in candidate_tuple
+        ]
+        complexes.append(StructurePredictionComplex(chains=chains))
 
     # Run structure prediction.
     output = predict_structures(complexes, config.structure_tool, config.tool_config)
