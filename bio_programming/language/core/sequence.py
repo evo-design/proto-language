@@ -7,7 +7,7 @@ Represents a single DNA, RNA, protein, or ligand sequence with validation and me
 """
 from __future__ import annotations
 import copy
-from typing import Any, Dict, Iterable, Literal, Optional, Set, FrozenSet
+from typing import Any, Dict, Iterable, List, Literal, Optional, Set, FrozenSet
 import warnings
 
 # Valid characters for different sequence types
@@ -234,25 +234,33 @@ class Sequence:
             metadata=data.get("metadata", {}),
         )
 
-def create_concatenated_sequence(subsequences: Iterable[Sequence]) -> Sequence:
+def create_concatenated_sequence(subsequences: Iterable[Sequence], segment_labels: Optional[List[str]] = None) -> Sequence:
     """
     Concatenate subsequences into a single Sequence object.
 
     Args:
         subsequences: Iterable of Sequence objects to concatenate
+        segment_labels: Optional list of segment labels for metadata nesting
 
     Returns:
-        Single Sequence with concatenated content
+        Single Sequence with concatenated content. If segment_labels provided,
+        includes segment metadata nested under _metadata["segments"][label].
     """
     seq_list = list(subsequences)
     combined_sequence_string = "".join(seq.sequence for seq in seq_list)
 
-    return Sequence(
+    joined_seq = Sequence(
         sequence=combined_sequence_string,
         sequence_type=seq_list[0].sequence_type,
         valid_chars=seq_list[0].valid_chars,
     )
 
+    # Merge segment metadata if labels provided
+    if segment_labels:
+        assert len(segment_labels) == len(seq_list), f"Length mismatch: {len(segment_labels)} labels provided but {len(seq_list)} sequences to concatenate"
+        segments_metadata = {label: dict(seq._metadata) for label, seq in zip(segment_labels, seq_list)}
+        joined_seq._metadata["segments"] = segments_metadata
+    return joined_seq
 
 # =============================================================================
 # Sequence Validation Helpers

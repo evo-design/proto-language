@@ -44,20 +44,27 @@ class TestConstruct:
             Construct([seg_dna, seg_rna])
 
     def test_metadata_concatenation(self):
-        """Tests that concatenated sequence has only system metadata."""
-        seg1 = Segment(sequence="A", metadata={"id": 1, "source": "seg1"})
-        seg2 = Segment(sequence="C", metadata={"id": 2, "status": "new"})
+        """Tests that concatenated sequence includes segment metadata nested by label."""
+        seg1 = Segment(sequence="A", metadata={"id": 1, "source": "seg1"}, label="first")
+        seg2 = Segment(sequence="C", metadata={"id": 2, "status": "new"}, label="second")
 
         construct = Construct([seg1, seg2])
         final_meta = construct.joined_sequences[0]._metadata
 
-        # Concatenated sequence only has system metadata (sequence, sequence_length)
-        # Segment-specific metadata stays on individual segments, not merged
+        # Top-level has system metadata
         assert final_meta["sequence"] == "AC"
         assert final_meta["sequence_length"] == 2
-        assert "id" not in final_meta
-        assert "source" not in final_meta
-        assert "status" not in final_meta
+
+        # Segment metadata nested under "segments" key
+        assert "segments" in final_meta
+        assert "first" in final_meta["segments"]
+        assert "second" in final_meta["segments"]
+
+        # Each segment's metadata is preserved
+        assert final_meta["segments"]["first"]["id"] == 1
+        assert final_meta["segments"]["first"]["source"] == "seg1"
+        assert final_meta["segments"]["second"]["id"] == 2
+        assert final_meta["segments"]["second"]["status"] == "new"
 
     def test_validation_inconsistent_valid_chars(self):
         """Tests that inconsistent valid_chars sets raise a ValueError."""

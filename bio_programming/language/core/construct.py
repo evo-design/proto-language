@@ -62,6 +62,7 @@ class Construct:
         """
         Get the joined Sequence objects from selected pools (user-facing results).
         Joins corresponding sequences from each segment's selected_sequences.
+        Includes segment metadata nested under _metadata["segments"][segment_label].
 
         Example:
             >>> construct.segment1.selected_sequences = [Seq("AAA"), Seq("TTT")]
@@ -69,9 +70,10 @@ class Construct:
             >>> construct.joined_sequences  # [Sequence("AAACCC"), Sequence("TTTGGG")]
         """
         joined_sequences = []
+        segment_labels = [seg.label for seg in self.segments]
 
         for sequences_to_combine in zip(*[segment.selected_sequences for segment in self.segments]):
-            joined_seq = create_concatenated_sequence(sequences_to_combine)
+            joined_seq = create_concatenated_sequence(sequences_to_combine, segment_labels)
             joined_sequences.append(joined_seq)
 
         return joined_sequences
