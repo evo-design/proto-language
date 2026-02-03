@@ -4,7 +4,7 @@ ESM3 Generator for protein sequence generation
 
 from __future__ import annotations
 
-from typing import Literal, final
+from typing import Literal, Optional, final
 
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.core import Generator
@@ -54,6 +54,10 @@ class ESM3GeneratorConfig(BaseConfig):
             Higher values explore more of sequence space but may reduce biological
             plausibility. Must be at least 1. Default: 1.
 
+        batch_size (Optional[int]): Number of sequences to process per batch during inference.
+            If None, processes all sequences at once. Larger batches are faster but use more GPU memory.
+            Reduce if encountering out-of-memory errors. Default: ``None``.
+
     Note:
         ESM3 is the open-source version of EvolutionaryScale's protein language model.
     """
@@ -85,6 +89,12 @@ class ESM3GeneratorConfig(BaseConfig):
         description="Number of positions to mutate per sampling iteration",
         advanced=True,
     )
+    batch_size: Optional[int] = ConfigField(
+        default=None,
+        title="Batch Size",
+        description="Number of sequences to process per batch. If None, processes all at once.",
+        advanced=True,
+    )
 
 
 @GeneratorRegistry.register(
@@ -114,6 +124,7 @@ class ESM3Generator(Generator):
         temperature (float): Sampling temperature for diversity control.
         decoding_method (str): Position selection strategy (entropy/max_logit/random).
         num_mutations (int): Number of positions to mutate per iteration.
+        batch_size (int): Batch size for processing sequences during inference.
 
     Example:
         >>> from proto_language.language.generator import ESM3Generator, ESM3GeneratorConfig
@@ -141,6 +152,7 @@ class ESM3Generator(Generator):
         self.temperature = config.temperature
         self.decoding_method = config.decoding_method
         self.num_mutations = config.num_mutations
+        self.batch_size = config.batch_size
 
     def sample(self) -> None:
         """
@@ -165,6 +177,7 @@ class ESM3Generator(Generator):
             temperature=self.temperature,
             decoding_method=self.decoding_method,
             num_mutations=actual_mutations,
+            batch_size=self.batch_size,
             keep_on_gpu=True,  # Keep for repeated calls
             verbose=False,
         )
