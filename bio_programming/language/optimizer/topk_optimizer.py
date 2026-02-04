@@ -219,15 +219,16 @@ class TopKOptimizer(Optimizer):
             round_idx: The index of the current round (for tracking purposes).
         """
         # 1. Create fresh candidate sequences at the start of each round (clean metadata state)
+        # Each candidate uses its own initial sequence from the handoff (preserves diversity)
         for seg_idx, segment in enumerate(self.segments):
-            initial_seq = self._initial_state['segments'][seg_idx]['candidates'][0]['sequence']
+            candidates = self._initial_state['segments'][seg_idx]['candidates']
             segment.candidate_sequences = [
                 Sequence(
-                    sequence=initial_seq,
+                    sequence=candidates[i]['sequence'],
                     sequence_type=segment.sequence_type,
                     valid_chars=segment.valid_chars
                 )
-                for _ in range(self.num_candidates)
+                for i in range(self.num_candidates)
             ]
 
         # 2. Sample each generator in sequence (they see all batch_size candidates)

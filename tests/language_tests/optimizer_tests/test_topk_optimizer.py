@@ -723,3 +723,152 @@ class TestTopKOptimizerInternals:
         # Should have k results
         assert len(optimizer.energy_scores) == 10
         assert len(segment.selected_sequences) == 10
+
+
+class TestTopKOptimizerTrajectoryPreservation:
+    """Test that TopK preserves trajectory diversity from handoff."""
+
+    def test_topk_preserves_input_diversity(self):
+        """Test that TopK uses each candidate's own initial sequence, not just the first.
+
+        This verifies the fix for the single-seed bug where TopK was discarding
+        diversity by always using candidates[0] as the mutation seed.
+        """
+        # Create segment with 3 distinct initial sequences (simulating handoff from previous optimizer)
+        segment = Segment(sequence="AAAA", sequence_type="dna")
+        construct = Construct([segment])
+
+        # Pre-populate selected_sequences with diverse seeds (simulating previous optimizer output)
+        segment.selected_sequences = [
+            Sequence("AAAA", "dna"),
+            Sequence("CCCC", "dna"),
+            Sequence("GGGG", "dna"),
+        ]
+
+        gen = UniformMutationGenerator(
+            UniformMutationGeneratorConfig(num_mutations=0)  # No mutations - keeps original
+        )
+        gen.assign(segment)
+
+        constraint = Constraint(
+            inputs=[segment],
+            function=sequence_length_constraint,
+            function_config={"target_length": 4},
+        )
+
+        # k=6 with 3 source sequences → cycling produces [A, C, G, A, C, G]
+        # num_samples must be >= k, and batch_size is the pool size
+        config = TopKOptimizerConfig(
+            num_samples=6,  # Generate 6 samples total
+            k=6,            # Keep top 6
+            batch_size=6,   # All at once
+            verbose=False
+        )
+        optimizer = TopKOptimizer(
+            constructs=[construct],
+            generators=[gen],
+            constraints=[constraint],
+            config=config,
+        )
+
+        # Initialize pools (this cycles through the 3 seeds to fill 6 slots)
+        optimizer._initialize_sequence_pools()
+        optimizer._capture_initial_state()
+
+        # Run one sampling round (with 0 mutations, sequences should stay as their seeds)
+        optimizer._run_sampling_round(0)
+
+        # Verify that candidates come from different seeds (cycled pattern)
+        # With the fix: candidates should be [AAAA, CCCC, GGGG, AAAA, CCCC, GGGG]
+        # With the bug: candidates would all be [AAAA, AAAA, AAAA, AAAA, AAAA, AAAA]
+        candidates = [seq.sequence for seq in segment.candidate_sequences]
+
+        # At least 2 unique sequences should be present (proving diversity is preserved)
+        unique_candidates = set(candidates)
+        assert len(unique_candidates) >= 2, (
+            f"TopK should preserve input diversity but found only {unique_candidates}. "
+            f"This suggests all candidates are seeded from the first sequence."
+        )
+
+        # Verify the expected cycling pattern
+        assert candidates == ["AAAA", "CCCC", "GGGG", "AAAA", "CCCC", "GGGG"], (
+            f"Expected cycled pattern but got {candidates}"
+        )
+
+    def test_topk_batch_coherence_across_segments(self):
+        """Test that batch coherence is maintained across multiple segments.
+
+        Each batch index should use the same source index across all segments,
+        preserving the semantic pairing from the previous optimizer.
+        """
+        # Create two segments with matching diverse seeds
+        segment1 = Segment(sequence="AAAA", sequence_type="dna", label="seg1")
+        segment2 = Segment(sequence="TTTT", sequence_type="dna", label="seg2")
+        construct = Construct([segment1, segment2])
+
+        # Pre-populate with paired sequences (index 0 pairs: AAAA-TTTT, index 1 pairs: CCCC-GGGG)
+        segment1.selected_sequences = [
+            Sequence("AAAA", "dna"),
+            Sequence("CCCC", "dna"),
+        ]
+        segment2.selected_sequences = [
+            Sequence("TTTT", "dna"),
+            Sequence("GGGG", "dna"),
+        ]
+
+        gen1 = UniformMutationGenerator(
+            UniformMutationGeneratorConfig(num_mutations=0)
+        )
+        gen1.assign(segment1)
+
+        gen2 = UniformMutationGenerator(
+            UniformMutationGeneratorConfig(num_mutations=0)
+        )
+        gen2.assign(segment2)
+
+        # Use separate constraints for each segment
+        constraint1 = Constraint(
+            inputs=[segment1],
+            function=sequence_length_constraint,
+            function_config={"target_length": 4},
+        )
+        constraint2 = Constraint(
+            inputs=[segment2],
+            function=sequence_length_constraint,
+            function_config={"target_length": 4},
+        )
+
+        config = TopKOptimizerConfig(
+            num_samples=4,
+            k=4,
+            batch_size=4,
+            verbose=False
+        )
+        optimizer = TopKOptimizer(
+            constructs=[construct],
+            generators=[gen1, gen2],
+            constraints=[constraint1, constraint2],
+            config=config,
+        )
+
+        optimizer._initialize_sequence_pools()
+        optimizer._capture_initial_state()
+        optimizer._run_sampling_round(0)
+
+        # Verify batch coherence: index i in segment1 should pair with index i in segment2
+        candidates1 = [seq.sequence for seq in segment1.candidate_sequences]
+        candidates2 = [seq.sequence for seq in segment2.candidate_sequences]
+
+        # Expected: [AAAA, CCCC, AAAA, CCCC] and [TTTT, GGGG, TTTT, GGGG]
+        assert candidates1 == ["AAAA", "CCCC", "AAAA", "CCCC"]
+        assert candidates2 == ["TTTT", "GGGG", "TTTT", "GGGG"]
+
+        # Verify pairing is preserved (same index = same source trajectory)
+        for i in range(4):
+            # Index 0,2 should both be from source 0 (AAAA-TTTT pair)
+            # Index 1,3 should both be from source 1 (CCCC-GGGG pair)
+            expected_source = i % 2
+            if expected_source == 0:
+                assert candidates1[i] == "AAAA" and candidates2[i] == "TTTT"
+            else:
+                assert candidates1[i] == "CCCC" and candidates2[i] == "GGGG"
