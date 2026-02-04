@@ -100,8 +100,8 @@ class Optimizer(ABC):
         self.tool_cache = ToolCache()
         _program_tool_cache.set(self.tool_cache)
 
-        self._initialize_sequence_pools()
         self._validate_optimizer()
+        self._initialize_sequence_pools()
         logger.debug(f"Optimizer initialized: {self.__class__.__name__}, candidates={num_candidates}, selected={num_selected}")
 
     @property
