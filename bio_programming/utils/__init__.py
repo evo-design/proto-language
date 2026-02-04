@@ -1,4 +1,7 @@
 # Helper utilities (constraint scoring, and tools)
+# Tensor serialization utilities
+from .tensor_utils import serialize_logits
+
 # Export utilities
 from .export import (
     flatten_batch_over_time,
@@ -45,6 +48,8 @@ from .infra import (  # Compute; File resolution
 )
 
 __all__ = [
+    # Tensor serialization
+    "serialize_logits",
     # Constraint scoring
     "MIN_ENERGY",
     "MAX_ENERGY",
