@@ -24,7 +24,7 @@ from proto_language.language.optimizer import (
     TopKOptimizer,
     TopKOptimizerConfig,
 )
-from proto_language.tools.language_models.evo2.evo2 import clear_evo2_cache
+from proto_language.tools.language_models.evo2 import clear_evo2_cache
 
 from proto_language.tools.sequence_scoring.borzoi.borzoi import (
     BORZOI_CONTEXT, # 524,288 bp.
