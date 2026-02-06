@@ -51,7 +51,6 @@ tools = [
     "sinkhorn-transformer",
     "huggingface_hub>=0.16.0",
     "rdkit",
-    "ViennaRNA",
     # Structure visualization
     "py3Dmol>=2.0.0",
     "matplotlib",
