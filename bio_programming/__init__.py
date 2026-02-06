@@ -101,7 +101,6 @@ from .tools import (  # Base classes and registry; Tool cache; BLAST tools; PyHM
     InverseFoldingInput,
     InverseFoldingOutput,
     InverseFoldingStructureInput,
-    LigandMPNNConfig,
     LigandMPNNSequences,
     MmseqsClusteringConfig,
     MmseqsClusteringInput,
@@ -284,7 +283,6 @@ __all__ = [
     "run_prodigal_prediction",
     # LigandMPNN tools
     "run_ligandmpnn_sample",
-    "LigandMPNNConfig",
     "LigandMPNNSequences",
     # Inverse folding schemas
     "InverseFoldingStructureInput",

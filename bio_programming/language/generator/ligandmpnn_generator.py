@@ -16,10 +16,10 @@ from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.core import Generator
 from proto_language.language.generator.generator_registry import generator
 from proto_language.tools.inverse_folding.ligandmpnn import (
-    LigandMPNNConfig,
     run_ligandmpnn_sample,
 )
 from proto_language.tools.inverse_folding.schemas import (
+    InverseFoldingConfig,
     InverseFoldingInput,
     InverseFoldingStructureInput,
 )
@@ -300,7 +300,7 @@ class LigandMPNNGenerator(Generator):
                 )
             batch_size = 1
 
-        tool_config = LigandMPNNConfig(
+        tool_config = InverseFoldingConfig(
             batch_size=batch_size,
             temperature=self.temperature,
             excluded_amino_acids=self.excluded_amino_acids,
@@ -317,10 +317,10 @@ class LigandMPNNGenerator(Generator):
 
         # Collect sequences and metrics from all structure results
         generated_sequences = []
-        all_scores = []
+        all_metrics = []
         for design in result.designed_sequences:
             generated_sequences.extend(design.sequences)
-            all_scores.extend(design.ligandmpnn_scores)
+            all_metrics.extend(design.ligandmpnn_metrics)
 
         if len(generated_sequences) != num_candidates:
             raise RuntimeError(
@@ -331,8 +331,8 @@ class LigandMPNNGenerator(Generator):
         for candidate, sequence, score in zip(
             self._assigned_segment.candidate_sequences,
             generated_sequences,
-            all_scores,
+            all_metrics,
             strict=True,
         ):
             candidate.sequence = sequence
-            candidate._metadata.update({"ligandmpnn_scores": score})
+            candidate._metadata.update({"ligandmpnn_metrics": score})
