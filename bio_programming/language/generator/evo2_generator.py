@@ -16,7 +16,7 @@ from proto_language.tools.language_models.evo2 import (
     Evo2SampleInput,
     run_evo2_sample,
 )
-from proto_language.tools.language_models.evo2.inference import EVO2_MODEL_CHECKPOINTS
+from proto_language.tools.language_models.evo2.standalone.inference import EVO2_MODEL_CHECKPOINTS
 
 
 class Evo2GeneratorConfig(BaseConfig):
