@@ -16,11 +16,7 @@ from proto_language.tools.language_models.progen2 import (
     ProGen2SampleInput,
     run_progen2_sample,
 )
-from proto_language.tools.language_models.progen2.inference import (  # noqa: F401
-    PROGEN2_END_TOKEN,
-    PROGEN2_MODEL_CHECKPOINTS,
-    PROGEN2_START_TOKEN,
-)
+from proto_language.tools.language_models.progen2.standalone.inference import PROGEN2_MODEL_CHECKPOINTS
 
 
 class ProGen2GeneratorConfig(BaseConfig):
@@ -40,8 +36,9 @@ class ProGen2GeneratorConfig(BaseConfig):
             ProGen2 uses special tokens: '1' (start) and '2' (end/stop).
 
             **Important**: If you provide only amino acid characters (e.g., "MKTL"),
-            the generator will automatically prepend the start token '1' and emit
-            a warning. For explicit control, include the start token yourself: "1MKTL".
+            the underlying ProGen2 tool will automatically prepend the start token '1'
+            during sampling. For explicit control, include the start token yourself:
+            "1MKTL".
 
         model_checkpoint (str): ProGen2 model checkpoint to use. Options:
             - ``"progen2-small"``: 151M parameters (fastest)
@@ -79,7 +76,7 @@ class ProGen2GeneratorConfig(BaseConfig):
             sequences. Default: ``True``.
 
         strip_special_tokens (bool): Whether to remove the ProGen2 start and stop tokens
-            ('1' or '2'). If ``True``, returns the stripped seequence.
+            ('1' or '2'). If ``True``, returns the stripped sequence.
             Default: ``True``.
 
         prepend_prompt (bool): Whether to include the prompt in the returned
@@ -206,11 +203,11 @@ class ProGen2Generator(Generator):
             else len(self.prompts)
         )
 
-        self.max_length = assigned_segment.sequence_length
         if self.prepend_prompt:
-            self.max_length = assigned_segment.sequence_length - prompt_length
-        else:
+            # Prompt is included in the output, so max_length covers the full sequence.
             self.max_length = assigned_segment.sequence_length
+        else:
+            self.max_length = assigned_segment.sequence_length + prompt_length
 
     def sample(self, prompts: Optional[List[str]] = None) -> None:
         """Generate protein sequences using ProGen2 tool."""
