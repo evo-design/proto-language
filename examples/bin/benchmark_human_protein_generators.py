@@ -92,7 +92,7 @@ def sample_esm3(uniprot_data: Dict[str, Any], n_samples: int = 10) -> List[Dict[
     Mutate the existing wildtype sequence with ESM3.
     """
 
-    from proto_language.tools.language_models.esm3.inference import ESM3Model
+    from proto_language.tools.language_models.esm3.standalone.inference import ESM3Model
 
     mutation_fractions = [ 0.25, 0.5, 0.75, 1.0 ]
     temperatures = [ 0.3, 0.7 ]

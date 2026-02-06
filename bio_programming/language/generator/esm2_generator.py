@@ -14,7 +14,7 @@ from proto_language.tools.language_models.esm2 import (
     run_esm2_sample,
 )
 from proto_language.tools.language_models.schemas import LanguageModelInput
-from proto_language.tools.language_models.esm2.inference import ESM2_MODEL_CHECKPOINTS
+from proto_language.tools.language_models.esm2.standalone.inference import ESM2_MODEL_CHECKPOINTS
 
 
 class ESM2GeneratorConfig(BaseConfig):

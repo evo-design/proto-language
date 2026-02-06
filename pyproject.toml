@@ -68,7 +68,6 @@ gpu = [
     "alphagenome>=0.2.0",
 
     # Structure prediction and scoring models
-    "esm @ git+https://github.com/bviggiano/esm.git@fix/178",  # See: https://github.com/evolutionaryscale/esm/issues/178
     #"colabfold[alphafold]>=1.5.5", # Due to dependency conflicts, needs to be installed separately with --no-deps.
 
     # Structure dynamics models

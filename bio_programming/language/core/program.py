@@ -285,8 +285,6 @@ class Program:
         for optimizer_stage_idx in range(len(self.optimizers)):
             self.run_stage(optimizer_stage_idx)
 
-        self.cleanup()
-
     def run_stage(self, stage_index: int) -> None:
         """
         Execute a specific optimization stage.
@@ -513,16 +511,6 @@ class Program:
         # Update current_stage if specified (for resuming multi-stage optimization)
         if stage_index is not None:
             self.current_stage = stage_index
-
-    def cleanup(self) -> None:
-        """Clean up cached models to free GPU memory."""
-        from proto_language.tools.language_models.esm2 import clear_esm2_cache
-        from proto_language.tools.language_models.esm3 import clear_esm3_cache
-        from proto_language.tools.language_models.evo2 import clear_evo2_cache
-
-        clear_evo2_cache()
-        clear_esm3_cache()
-        clear_esm2_cache()
 
     # =========================================================================
     # Export Methods

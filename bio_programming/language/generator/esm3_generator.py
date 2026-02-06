@@ -11,7 +11,7 @@ from proto_language.language.core import Generator
 from proto_language.language.generator.generator_registry import generator
 from proto_language.tools.language_models.esm3 import ESM3SampleConfig, run_esm3_sample
 from proto_language.tools.language_models.schemas import LanguageModelInput
-from proto_language.tools.language_models.esm3.inference import ESM3_MODEL_CHECKPOINTS
+from proto_language.tools.language_models.esm3.standalone.inference import ESM3_MODEL_CHECKPOINTS
 
 
 class ESM3GeneratorConfig(BaseConfig):
