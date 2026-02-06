@@ -24,6 +24,7 @@ conda activate proto-language
 conda create --name proto-language --clone /home/brianhie/miniconda/envs/gpro/
 pip uninstall -y numcodecs zarr
 pip install --no-cache-dir --force-reinstall numcodecs zarr
+pip install -e /home/{USERNAME}}/proto-language
 ```
 
 
