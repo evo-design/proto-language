@@ -780,7 +780,7 @@ class TestErrorHandling:
             with pytest.raises(RuntimeError, match="GPU out of memory"):
                 structure_plddt_constraint(candidates, config)
 
-    def test_missing_metric_returns_worst_score(self, protein_sequence):
+    def test_missing_metric_returns_worst_score(self, protein_sequence, caplog):
         """Test that missing metric in output returns score of 1.0."""
         candidates = [(protein_sequence,)]
         config = StructureBasedConstraintConfig(structure_tool="esmfold")
@@ -793,9 +793,11 @@ class TestErrorHandling:
                 make_mock_structure(ptm=0.8)  # No avg_plddt
             ])
 
-            scores = structure_plddt_constraint(candidates, config)
+            with caplog.at_level("WARNING", logger="proto_language.language.constraint.protein_structure.structure_confidence_constraint"):
+                scores = structure_plddt_constraint(candidates, config)
 
             assert scores[0] == 1.0
+            assert "Metric 'avg_plddt' not found in structure output" in caplog.text
 
     def test_empty_candidates_returns_empty_scores(self):
         """Test that empty candidates list returns empty scores."""
@@ -811,7 +813,7 @@ class TestErrorHandling:
 
             assert scores == []
 
-    def test_batch_with_partial_failure(self, protein_sequence, protein_sequence_b):
+    def test_batch_with_partial_failure(self, protein_sequence, protein_sequence_b, caplog):
         """Test batch where some predictions have missing metrics."""
         candidates = [
             (protein_sequence,),
@@ -827,11 +829,13 @@ class TestErrorHandling:
                 make_mock_structure(ptm=0.7),  # Missing avg_plddt
             ])
 
-            scores = structure_plddt_constraint(candidates, config)
+            with caplog.at_level("WARNING", logger="proto_language.language.constraint.protein_structure.structure_confidence_constraint"):
+                scores = structure_plddt_constraint(candidates, config)
 
             assert len(scores) == 2
             assert scores[0] == pytest.approx(0.1)  # Good result
             assert scores[1] == 1.0  # Missing metric
+            assert "Metric 'avg_plddt' not found in structure output" in caplog.text
 
 
 # ============================================================================
