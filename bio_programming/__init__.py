@@ -177,7 +177,7 @@ from .tools import (
     AlphaFold3Config,
     AlphaFold3Input,
     AlphaFold3Output,
-    run_af3,
+    run_alphafold3,
     BoltzConfig,
     BoltzInput,
     BoltzOutput,
@@ -456,7 +456,7 @@ __all__ = [
     "InverseFoldingStructureInput",
     "SequenceScores",
     # Structure prediction - AF3
-    "run_af3",
+    "run_alphafold3",
     "AlphaFold3Input",
     "AlphaFold3Config",
     "AlphaFold3Output",
