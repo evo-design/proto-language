@@ -432,7 +432,7 @@ class TestCyclingOptimizerGPU:
     def test_full_cycle_with_proteinmpnn(self, pdb_structure):
         """Test complete optimization cycle with LigandMPNN."""
         from proto_language.tools.structure_prediction import predict_structures
-        from proto_language.tools.structure_prediction.schemas import (
+        from proto_language.tools.structure_prediction.shared_data_models import (
             StructurePredictionComplex,
         )
 
@@ -486,7 +486,7 @@ class TestCyclingOptimizerGPU:
     def test_with_filter_constraint(self, pdb_structure):
         """Test with filter constraint using real models."""
         from proto_language.tools.structure_prediction import predict_structures
-        from proto_language.tools.structure_prediction.schemas import (
+        from proto_language.tools.structure_prediction.shared_data_models import (
             StructurePredictionComplex,
         )
 

@@ -24,7 +24,7 @@ from proto_language.tools.structure_prediction.esmfold import (
     ESMFoldInput,
     run_esmfold,
 )
-from proto_language.tools.structure_prediction.schemas import (
+from proto_language.tools.structure_prediction.shared_data_models import (
     StructurePredictionComplex,
 )
 from proto_language.tools.structures.utils import (

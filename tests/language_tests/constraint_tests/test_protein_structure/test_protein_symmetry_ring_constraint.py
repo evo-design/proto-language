@@ -10,7 +10,7 @@ from proto_language.language.constraint.protein_structure.protein_symmetry_ring_
 )
 from proto_language.language.core import Constraint, Segment
 from proto_language.tools.orf_prediction.prodigal import ProdigalOutput
-from proto_language.tools.structure_prediction.schemas import StructurePredictionOutput
+from proto_language.tools.structure_prediction.shared_data_models import StructurePredictionOutput
 from tests.helpers.mock_structure import MockProteinStructure
 
 mock_pdb = """ATOM      1  N   MET A   1       0.000   0.000   0.000  1.00 90.00           N

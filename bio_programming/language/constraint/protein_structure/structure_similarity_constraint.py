@@ -25,7 +25,7 @@ from proto_language.language.constraint.protein_structure.structure_constraint_c
 from proto_language.language.core import Sequence
 from proto_language.storage import FileType, store_file
 from proto_language.tools.structure_prediction import predict_structures
-from proto_language.tools.structure_prediction.schemas import (
+from proto_language.tools.structure_prediction.shared_data_models import (
     StructurePredictionComplex,
 )
 from proto_language.utils import MAX_ENERGY, sigmoid_score

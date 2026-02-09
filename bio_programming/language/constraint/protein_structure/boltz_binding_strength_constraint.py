@@ -16,7 +16,7 @@ from proto_language.tools.structure_prediction.boltz import (
     BoltzInput,
     run_boltz,
 )
-from proto_language.tools.structure_prediction.schemas import (
+from proto_language.tools.structure_prediction.shared_data_models import (
     StructurePredictionComplex,
 )
 
