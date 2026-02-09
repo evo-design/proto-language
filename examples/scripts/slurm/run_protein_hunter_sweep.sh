@@ -11,7 +11,7 @@
 #SBATCH --requeue
 
 # Define Arrays.
-TOOLS=("boltz" "chai")
+TOOLS=("boltz" "chai1")
 LENGTHS=(200 300 400 500 600 700)
 
 # Map Array ID to Parameters

@@ -637,7 +637,7 @@ class TestCyclingOptimizerSerialization:
                         "num_candidates": 2,
                         "conditioning_param_name": "structure_inputs",
                         "pipeline": "protein-hunter",
-                        "protein_hunter": {"structure_tool": "chai"}
+                        "protein_hunter": {"structure_tool": "chai1"}
                     }
                 },
                 "generators": [{"key": "proteinmpnn", "target": "prot0", "config": {"temperature": 0.1}}],
@@ -657,12 +657,12 @@ class TestCyclingOptimizerSerialization:
         # Serializer generates construct0-segment0 ID
         assert opt["target_segment"] == "construct0-segment0"
         assert opt["config"]["pipeline"] == "protein-hunter"
-        assert opt["config"]["protein_hunter"]["structure_tool"] == "chai"
+        assert opt["config"]["protein_hunter"]["structure_tool"] == "chai1"
 
         # Re-parse and verify
         program2 = DarwinParser(result).parse()
         assert program2.optimizers[0].pipeline == "protein-hunter"
-        assert program2.optimizers[0].protein_hunter.structure_tool == "chai"
+        assert program2.optimizers[0].protein_hunter.structure_tool == "chai1"
 
     def test_cycling_optimizer_serializes_target_segment(self):
         """Test that target_segment is serialized correctly."""

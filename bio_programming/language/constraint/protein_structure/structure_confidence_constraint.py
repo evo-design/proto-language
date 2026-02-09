@@ -2,7 +2,7 @@
 structure_confidence_constraints.py
 
 Generic structure prediction confidence constraints supporting multiple tools:
-ESMFold, AlphaFold3, Boltz, and Chai.
+ESMFold, AlphaFold3, Boltz, and Chai1.
 
 Normalizes confidence metrics to be between 0 and 1, inclusive, where lower is
 better (more confident).
@@ -41,7 +41,7 @@ TOOL_AVAILABLE_METRICS: Dict[str, set] = {
     "esmfold": {"avg_plddt", "ptm", "avg_pae"},
     "alphafold3": {"avg_plddt", "ptm", "iptm", "avg_pae"},
     "boltz": {"avg_plddt", "ptm", "iptm", "avg_pae"},
-    "chai": {"avg_plddt", "ptm", "iptm", "avg_pae"},
+    "chai1": {"avg_plddt", "ptm", "iptm", "avg_pae"},
 }
 PAE_MAXIMUM: float = 31.75 # Angstroms.
 
@@ -123,7 +123,7 @@ def _structure_confidence(
     config=StructureBasedConstraintConfig,
     description="Evaluate structure quality using predicted LDDT score",
     gpu_required=True,
-    tools_called=["esmfold", "alphafold3", "boltz", "chai"],
+    tools_called=["esmfold", "alphafold3", "boltz", "chai1"],
     category="protein_structure",
     supported_sequence_types=["protein", "rna", "dna", "ligand"],
     num_input_sequences_per_tuple=None,
@@ -144,7 +144,7 @@ def structure_plddt_constraint(
     Note that for Boltz, this is based on the ``"complex_plddt"`` score
     returned natively by the package.
 
-    **Supported tools**: ESMFold, AlphaFold3, Boltz, Chai
+    **Supported tools**: ESMFold, AlphaFold3, Boltz, Chai1
 
     Example:
         Programming a homo-trimer with ESMFold:
@@ -176,7 +176,7 @@ def structure_plddt_constraint(
     config=StructureBasedConstraintConfig,
     description="Evaluate structure quality using predicted TM score",
     gpu_required=True,
-    tools_called=["esmfold", "alphafold3", "boltz", "chai"],
+    tools_called=["esmfold", "alphafold3", "boltz", "chai1"],
     category="protein_structure",
     supported_sequence_types=["protein", "rna", "dna", "ligand"],
     num_input_sequences_per_tuple=None,
@@ -193,7 +193,7 @@ def structure_ptm_constraint(
     This constraint returns ``1.0 - ptm``, so lower scores indicate
     better predicted structure quality.
 
-    **Supported tools**: ESMFold, AlphaFold3, Boltz, Chai
+    **Supported tools**: ESMFold, AlphaFold3, Boltz, Chai1
 
     Example:
         Programming a homo-dimer with ESMFold:
@@ -217,7 +217,7 @@ def structure_ptm_constraint(
     config=StructureBasedConstraintConfig,
     description="Evaluate interface quality using predicted interface TM score",
     gpu_required=True,
-    tools_called=["alphafold3", "boltz", "chai"],
+    tools_called=["alphafold3", "boltz", "chai1"],
     category="protein_structure",
     supported_sequence_types=["protein", "rna", "dna", "ligand"],
     num_input_sequences_per_tuple=None,
@@ -235,7 +235,7 @@ def structure_iptm_constraint(
     This constraint returns ``1.0 - iptm``, so lower scores indicate
     better predicted interface quality.
 
-    **Supported tools**: AlphaFold3, Boltz, Chai (NOT ESMFold)
+    **Supported tools**: AlphaFold3, Boltz, Chai1 (NOT ESMFold)
 
     Examples:
         Programming a protein-protein binder with AF3:
@@ -277,7 +277,7 @@ def structure_iptm_constraint(
     config=StructureBasedConstraintConfig,
     description="Evaluate structure quality using predicted aligned error",
     gpu_required=True,
-    tools_called=["esmfold", "alphafold3", "boltz", "chai"],
+    tools_called=["esmfold", "alphafold3", "boltz", "chai1"],
     category="protein_structure",
     supported_sequence_types=["protein", "rna", "dna", "ligand"],
     num_input_sequences_per_tuple=None,
@@ -298,7 +298,7 @@ def structure_pae_constraint(
            by all major structure predictors).
         3. Returns that value without flipping the sign, as lower is better.
 
-    **Supported tools**: ESMFold, AlphaFold3, Boltz, Chai
+    **Supported tools**: ESMFold, AlphaFold3, Boltz, Chai1
 
     Examples:
         Programming a protein-protein binder with AF3:

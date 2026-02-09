@@ -2,7 +2,7 @@
 structure_similarity_constraint.py
 
 Contains implementation of generic structure similarity constraints (RMSD, TM-score)
-supporting multiple structure prediction tools (ESMFold, AlphaFold3, Boltz, Chai).
+supporting multiple structure prediction tools (ESMFold, AlphaFold3, Boltz, Chai1).
 """
 
 from __future__ import annotations
@@ -316,16 +316,16 @@ class StructureSimilarityConfig(StructureBasedConstraintConfig):
 
     Inherits tool selection and configuration from StructureBasedConstraintConfig:
 
-        structure_tool (Literal["esmfold", "alphafold3", "boltz", "chai"]):
+        structure_tool (Literal["esmfold", "alphafold3", "boltz", "chai1"]):
             The structure prediction tool to use for folding both the target (if provided
             as a sequence) and the candidate sequences. Supported options:
             - "esmfold": ESMFold (Meta AI)
             - "alphafold3": AlphaFold 3 (Google DeepMind)
             - "boltz": Boltz-1 (MIT)
-            - "chai": Chai-1 (Chai Discovery)
+            - "chai1": Chai-1 (Chai Discovery)
             Default is "esmfold".
 
-        tool_config (Union[ESMFoldConfig, AlphaFold3Config, BoltzConfig, ChaiConfig, Dict]):
+        tool_config (Union[ESMFoldConfig, AlphaFold3Config, BoltzConfig, Chai1Config, Dict]):
             A dictionary of configuration parameters to pass directly to the underlying
             structure prediction tool runner. Can be a typed config object or a dictionary.
             Automatically validated and converted to the appropriate config type based on
@@ -431,16 +431,16 @@ class StructureRMSDConfig(StructureSimilarityConfig):
             Useful when the PDB data is loaded in memory or passed via API.
             This is mutually exclusive with `target_chains` and `target_pdb_file`.
 
-        structure_tool (Literal["esmfold", "alphafold3", "boltz", "chai"]):
+        structure_tool (Literal["esmfold", "alphafold3", "boltz", "chai1"]):
             The structure prediction tool to use for folding both the target (if provided
             as a sequence) and the candidate sequences. Supported options:
             - "esmfold": ESMFold (Meta AI)
             - "alphafold3": AlphaFold 3 (Google DeepMind)
             - "boltz": Boltz-1 (MIT)
-            - "chai": Chai-1 (Chai Discovery)
+            - "chai1": Chai-1 (Chai Discovery)
             Default is "esmfold".
 
-        tool_config (Union[ESMFoldConfig, AlphaFold3Config, BoltzConfig, ChaiConfig, Dict]):
+        tool_config (Union[ESMFoldConfig, AlphaFold3Config, BoltzConfig, Chai1Config, Dict]):
             A dictionary of configuration parameters to pass directly to the underlying
             structure prediction tool runner. Can be a typed config object or a dictionary.
             Automatically validated and converted to the appropriate config type based on
@@ -510,16 +510,16 @@ class StructureTMScoreConfig(StructureSimilarityConfig):
             Useful when the PDB data is loaded in memory or passed via API.
             This is mutually exclusive with `target_chains` and `target_pdb_file`.
 
-        structure_tool (Literal["esmfold", "alphafold3", "boltz", "chai"]):
+        structure_tool (Literal["esmfold", "alphafold3", "boltz", "chai1"]):
             The structure prediction tool to use for folding both the target (if provided
             as a sequence) and the candidate sequences. Supported options:
             - "esmfold": ESMFold (Meta AI)
             - "alphafold3": AlphaFold 3 (Google DeepMind)
             - "boltz": Boltz-1 (MIT)
-            - "chai": Chai-1 (Chai Discovery)
+            - "chai1": Chai-1 (Chai Discovery)
             Default is "esmfold".
 
-        tool_config (Union[ESMFoldConfig, AlphaFold3Config, BoltzConfig, ChaiConfig, Dict]):
+        tool_config (Union[ESMFoldConfig, AlphaFold3Config, BoltzConfig, Chai1Config, Dict]):
             A dictionary of configuration parameters to pass directly to the underlying
             structure prediction tool runner. Can be a typed config object or a dictionary.
             Automatically validated and converted to the appropriate config type based on
@@ -609,7 +609,7 @@ def _prepare_target_structure(config: StructureSimilarityConfig) -> Optional[str
     config=StructureRMSDConfig,
     description="Compare structure RMSD against a target (PDB or Sequence) using generic predictors.",
     gpu_required=True,
-    tools_called=["esmfold", "alphafold3", "boltz", "chai", "pymol"],
+    tools_called=["esmfold", "alphafold3", "boltz", "chai1", "pymol"],
     category="protein_structure",
     supported_sequence_types=["protein", "rna", "dna", "ligand"],
     num_input_sequences_per_tuple=None,
@@ -687,7 +687,7 @@ def _count_pdb_chains(pdb_text: str) -> int:
     config=StructureTMScoreConfig,
     description="Compare structure TM-score against a target. Returns 1 - TMscore.",
     gpu_required=True,
-    tools_called=["esmfold", "alphafold3", "boltz", "chai", "tmalign", "usalign"],
+    tools_called=["esmfold", "alphafold3", "boltz", "chai1", "tmalign", "usalign"],
     category="protein_structure",
     supported_sequence_types=["protein", "rna", "dna", "ligand"],
     num_input_sequences_per_tuple=None,

@@ -4,7 +4,7 @@ structure_constraint_config.py
 Base configuration classes for structure-based constraints.
 
 This module provides standardized configuration classes for constraints that
-use structure prediction tools (ESMFold, AlphaFold3, Boltz, Chai).
+use structure prediction tools (ESMFold, AlphaFold3, Boltz, Chai1).
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.tools.structure_prediction import (
     AlphaFold3Config,
     BoltzConfig,
-    ChaiConfig,
+    Chai1Config,
     ESMFoldConfig,
 )
 from proto_language.tools.structure_prediction.dispatch import SP_TOOL_MAP
@@ -37,7 +37,7 @@ class StructureBasedConstraintConfig(BaseConfig):
             - "esmfold": ESMFold (Meta AI)
             - "alphafold3": AlphaFold 3 (Google DeepMind)
             - "boltz": Boltz-1 (MIT)
-            - "chai": Chai-1 (Chai Discovery)
+            - "chai1": Chai-1 (Chai Discovery)
             Default is "esmfold".
 
         tool_config: Tool-specific configuration parameters. Can be provided as:
@@ -64,7 +64,7 @@ class StructureBasedConstraintConfig(BaseConfig):
         to the appropriate typed config class (with full Pydantic validation).
     """
 
-    structure_tool: Literal["esmfold", "alphafold3", "boltz", "chai"] = ConfigField(
+    structure_tool: Literal["esmfold", "alphafold3", "boltz", "chai1"] = ConfigField(
         title="Structure Prediction Tool",
         default="esmfold",
         description="Tool to use for structure prediction.",
@@ -75,7 +75,7 @@ class StructureBasedConstraintConfig(BaseConfig):
         ESMFoldConfig,
         AlphaFold3Config,
         BoltzConfig,
-        ChaiConfig,
+        Chai1Config,
     ]] = ConfigField(
         title="Tool Configuration",
         default=None,

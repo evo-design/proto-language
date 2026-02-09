@@ -458,7 +458,7 @@ class TestCyclingOptimizerGPU:
                 StructurePredictionComplex(chains=[seq.sequence])
                 for seq in sequences
             ]
-            return predict_structures(complexes, "chai", {}).structures
+            return predict_structures(complexes, "chai1", {}).structures
 
         config = CyclingOptimizerConfig(
             num_steps=2,
@@ -525,7 +525,7 @@ class TestCyclingOptimizerGPU:
                 StructurePredictionComplex(chains=[seq.sequence])
                 for seq in sequences
             ]
-            return predict_structures(complexes, "chai", {}).structures
+            return predict_structures(complexes, "chai1", {}).structures
 
         config = CyclingOptimizerConfig(
             num_steps=2,

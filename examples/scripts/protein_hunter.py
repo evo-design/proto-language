@@ -98,7 +98,7 @@ def parse_args():
         "--structure-tool",
         type=str,
         default="boltz",
-        choices=["boltz", "chai"],
+        choices=["boltz", "chai1"],
         help="Structure prediction tool to use (default: boltz)",
     )
     parser.add_argument(

@@ -292,13 +292,13 @@ class TestESMFoldTMscoreConstraint:
 @pytest.mark.slow
 @pytest.mark.uses_gpu
 class TestSlowStructurePredictorSimilarityConstraint:
-    """Tests for AlphaFold3/Chai/Boltz RMSD and TMScore constraints."""
+    """Tests for AlphaFold3/Chai1/Boltz RMSD and TMScore constraints."""
 
     def test_perfect_match_af3(self):
         assert _perfect_match("rmsd", "alphafold3") < EPSILON
 
     def test_perfect_match_chai(self):
-        assert _perfect_match("rmsd", "chai") < EPSILON
+        assert _perfect_match("rmsd", "chai1") < EPSILON
 
     def test_perfect_match_boltz(self):
         assert _perfect_match("tmscore", "boltz") < EPSILON
