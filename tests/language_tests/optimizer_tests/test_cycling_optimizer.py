@@ -17,7 +17,7 @@ from proto_language.language.generator import (
     ProteinMPNNGeneratorConfig,
 )
 from proto_language.language.optimizer import CyclingOptimizer, CyclingOptimizerConfig
-from proto_language.tools.inverse_folding.schemas import InverseFoldingStructureInput
+from proto_language.tools.inverse_folding.shared_data_models import InverseFoldingStructureInput
 from proto_language.tools.structures import ProteinStructure
 
 # =============================================================================

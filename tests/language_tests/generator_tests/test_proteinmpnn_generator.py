@@ -9,7 +9,7 @@ from proto_language.language.generator import (
     ProteinMPNNGenerator,
     ProteinMPNNGeneratorConfig,
 )
-from proto_language.tools.inverse_folding.schemas import InverseFoldingStructureInput
+from proto_language.tools.inverse_folding.shared_data_models import InverseFoldingStructureInput
 
 # Sample PDB content for testing (minimal valid structure)
 SAMPLE_PDB_CONTENT = """ATOM      1  N   ALA A   1       0.000   0.000   0.000  1.00  0.00           N

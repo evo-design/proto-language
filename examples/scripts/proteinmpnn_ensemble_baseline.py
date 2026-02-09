@@ -21,7 +21,7 @@ from proto_language.language.optimizer import (
     TopKOptimizer,
     TopKOptimizerConfig,
 )
-from proto_language.tools.inverse_folding.schemas import InverseFoldingStructureInput
+from proto_language.tools.inverse_folding.shared_data_models import InverseFoldingStructureInput
 from proto_language.tools.structure_dynamics.bioemu import (
     BioEmuInput,
     BioEmuConfig,

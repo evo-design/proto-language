@@ -18,7 +18,7 @@ from proto_language.language.generator.generator_registry import generator
 from proto_language.tools.inverse_folding.ligandmpnn import (
     run_ligandmpnn_sample,
 )
-from proto_language.tools.inverse_folding.schemas import (
+from proto_language.tools.inverse_folding.shared_data_models import (
     InverseFoldingConfig,
     InverseFoldingInput,
     InverseFoldingStructureInput,
@@ -109,7 +109,7 @@ class LigandMPNNGeneratorConfig(BaseConfig):
 
         With per-structure chain selection and fixed positions (e.g., preserve catalytic residues):
 
-        >>> from proto_language.tools.inverse_folding.schemas import InverseFoldingStructureInput
+        >>> from proto_language.tools.inverse_folding.shared_data_models import InverseFoldingStructureInput
         >>> config = LigandMPNNGeneratorConfig(
         ...     structure_inputs=InverseFoldingStructureInput(
         ...         structure="/path/to/enzyme.pdb",

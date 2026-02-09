@@ -12,7 +12,7 @@ from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.core import Generator
 from proto_language.language.generator.generator_registry import generator
 from proto_language.tools.inverse_folding.proteinmpnn import run_proteinmpnn_sample
-from proto_language.tools.inverse_folding.schemas import (
+from proto_language.tools.inverse_folding.shared_data_models import (
     InverseFoldingConfig,
     InverseFoldingInput,
     InverseFoldingStructureInput,
@@ -100,7 +100,7 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
 
         With per-structure chain selection and fixed positions:
 
-        >>> from proto_language.tools.inverse_folding.schemas import InverseFoldingStructureInput
+        >>> from proto_language.tools.inverse_folding.shared_data_models import InverseFoldingStructureInput
         >>> config = ProteinMPNNGeneratorConfig(
         ...     structure_inputs=InverseFoldingStructureInput(
         ...         structure="/path/to/backbone.pdb",
