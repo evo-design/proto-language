@@ -6,6 +6,14 @@
 
 A framework for designing biological sequences (DNA, RNA, proteins) with constraint-based optimization.
 
+Related repos:
+- [`bio-tools` (standalone tool layer)](https://github.com/evo-design/bio-tools/tree/main)
+- [`proto-language-lang` (front end)](https://github.com/evo-design/proto-language-lang)
+
+> [!NOTE]
+> We currently in the process of transferring all of the tool implementations from the `proto-language` to the [`bio-tools`](https://github.com/evo-design/bio-tools/tree/main) repo. Installation instructions will change in the near future.
+
+
 ## Installation
 
 To install create the `proto-language` conda environment and install the dependencies, run the following command:
