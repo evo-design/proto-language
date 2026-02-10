@@ -1,4 +1,4 @@
-from proto_language.tools.structure_prediction import run_esmfold, ESMFoldConfig
+from proto_language.bio_tools.tools.structure_prediction import run_esmfold, ESMFoldConfig
 
 
 if __name__ == "__main__":

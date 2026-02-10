@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import List, Optional
 from Bio import SeqIO
 
-from proto_language.tools.sequence_scoring.borzoi import (
+from proto_language.bio_tools.tools.sequence_scoring.borzoi import (
     BORZOI_CONTEXT,  # 524,288 bp
     BORZOI_OUTPUT,   # 6,144 output bins
     BorzoiConfig,

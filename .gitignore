@@ -20,7 +20,7 @@ docs/_generated_navigation.json
 *.db
 
 # ColabFold databases (large downloads, should not be committed)
-proto_language/tools/sequence_alignment/colabfold_search/databases/
+proto_language/bio_tools/tools/sequence_alignment/colabfold_search/databases/
 
 # Log files and directory
 *.log

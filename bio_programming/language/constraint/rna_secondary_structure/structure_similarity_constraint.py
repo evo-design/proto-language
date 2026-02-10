@@ -16,7 +16,7 @@ import numpy as np
 from proto_language.language.core import Sequence
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
-from proto_language.tools.structure_prediction import (
+from proto_language.bio_tools.tools.structure_prediction import (
     run_viennarna,
     ViennaRNAInput,
     ViennaRNAConfig,

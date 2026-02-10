@@ -10,7 +10,7 @@ from proto_language.language.core import Sequence
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.utils import MIN_ENERGY, MAX_ENERGY
-from proto_language.tools.sequence_scoring.segmasker import (
+from proto_language.bio_tools.tools.sequence_scoring.segmasker import (
     run_segmasker,
     SegmaskerInput,
     SegmaskerConfig,

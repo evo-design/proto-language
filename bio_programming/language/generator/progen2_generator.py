@@ -11,12 +11,12 @@ from pydantic import field_validator
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.core import Generator, Segment
 from proto_language.language.generator.generator_registry import generator
-from proto_language.tools.causal_models.progen2 import (
+from proto_language.bio_tools.tools.causal_models.progen2 import (
     ProGen2SampleConfig,
     ProGen2SampleInput,
     run_progen2_sample,
 )
-from proto_language.tools.causal_models.progen2.standalone.inference import PROGEN2_MODEL_CHECKPOINTS
+from proto_language.bio_tools.tools.causal_models.progen2.standalone.inference import PROGEN2_MODEL_CHECKPOINTS
 
 
 class ProGen2GeneratorConfig(BaseConfig):

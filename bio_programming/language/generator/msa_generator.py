@@ -12,7 +12,7 @@ from pydantic import ConfigDict, field_validator
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.core import Generator, Segment
 from proto_language.language.generator.generator_registry import generator
-from proto_language.tools.sequence_alignment.msas import MSA
+from proto_language.bio_tools.tools.sequence_alignment.msas import MSA
 
 
 class MSAGeneratorConfig(BaseConfig):
@@ -103,7 +103,7 @@ class MSAGenerator(Generator):
     Example:
         >>> from proto_language.language.generator import MSAGenerator, MSAGeneratorConfig
         >>> from proto_language.language.core import Segment
-        >>> from proto_language.tools.sequence_alignment.msas import MSA
+        >>> from proto_language.bio_tools.tools.sequence_alignment.msas import MSA
         >>> config = MSAGeneratorConfig(
         ...     msa=MSA(["MVLS", "AVLS", "MVLS"]),
         ...     num_mutations=1,

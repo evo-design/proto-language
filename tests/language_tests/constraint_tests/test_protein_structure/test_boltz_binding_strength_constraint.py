@@ -8,15 +8,15 @@ from proto_language.language.constraint.protein_structure.boltz_binding_strength
     BoltzBindingStrengthConfig,
     DEFAULT_DESIRED_HIGHER,
 )
-from proto_language.tools.structure_prediction import (
+from proto_language.bio_tools.tools.structure_prediction import (
     StructurePredictionOutput,
 )
-from proto_language.tools.structures import BFactorType
+from proto_language.bio_tools.entities.structures import BFactorType
 from unittest.mock import patch
 
-from tests.helpers.mock_structure import MockProteinStructure
+from tests.helpers.mock_structure import MockStructure
 
-mock_protein_protein_ligand_structure = MockProteinStructure(
+mock_protein_protein_ligand_structure = MockStructure(
     structure_format="cif",
     b_factor_type=BFactorType.PLDDT,
     source="boltz2-prediction",
@@ -48,7 +48,7 @@ mock_protein_protein_ligand_output = StructurePredictionOutput(
 )
 
 
-mock_protein_protein_structure = MockProteinStructure(
+mock_protein_protein_structure = MockStructure(
     structure_format="cif",
     b_factor_type=BFactorType.PLDDT,
     source="boltz2-prediction",
@@ -77,7 +77,7 @@ mock_protein_protein_output = StructurePredictionOutput(
     metadata={},
 )
 
-mock_monomer_structure = MockProteinStructure(
+mock_monomer_structure = MockStructure(
     structure_format="cif",
     b_factor_type=BFactorType.PLDDT,
     source="boltz2-prediction",
@@ -112,7 +112,7 @@ class TestBoltzBindingStrengthConstraint:
         Test config merge overrides default values for dicts and ensures
         nested configs are set correctly.
         """
-        from proto_language.tools.structure_prediction.boltz2 import (
+        from proto_language.bio_tools.tools.structure_prediction.boltz2 import (
             Boltz2Config,
         )
 

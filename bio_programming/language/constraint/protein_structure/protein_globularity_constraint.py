@@ -13,23 +13,23 @@ from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.storage import FileType, store_file
 from proto_language.language.core import Sequence
-from proto_language.tools.orf_prediction.prodigal import (
+from proto_language.bio_tools.tools.orf_prediction.prodigal import (
     ProdigalConfig,
     ProdigalInput,
     run_prodigal_prediction,
 )
-from proto_language.tools.structure_prediction import (
+from proto_language.bio_tools.tools.structure_prediction import (
     ESMFoldConfig,
     ESMFoldInput,
     StructurePredictionComplex,
     run_esmfold,
 )
-from proto_language.tools.structure_prediction.esmfold import (
+from proto_language.bio_tools.tools.structure_prediction.esmfold import (
     ESMFoldConfig,
     ESMFoldInput,
     run_esmfold,
 )
-from proto_language.tools.structures.utils import (
+from proto_language.bio_tools.entities.structures.utils import (
     distances_to_centroid,
     get_backbone_atoms,
     pdb_file_to_atomarray,

@@ -11,12 +11,12 @@ from numpy import clip
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.language.core import Sequence
-from proto_language.tools.structure_prediction.boltz2 import (
+from proto_language.bio_tools.tools.structure_prediction.boltz2 import (
     Boltz2Config,
     Boltz2Input,
     run_boltz2,
 )
-from proto_language.tools.structure_prediction.shared_data_models import (
+from proto_language.bio_tools.tools.structure_prediction.shared_data_models import (
     StructurePredictionComplex,
 )
 

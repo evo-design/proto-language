@@ -13,7 +13,7 @@ import math
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List, Literal, Optional
 
-from proto_language.tools.tool_cache import ToolCache, _program_tool_cache
+from proto_language.bio_tools.tools.infra.tool_cache import ToolCache, _program_tool_cache
 
 logger = logging.getLogger(__name__)
 

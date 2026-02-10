@@ -22,15 +22,15 @@ from pydantic import field_validator, model_validator
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.language.core import Sequence
-from proto_language.tools.structure_dynamics.bioemu import (
+from proto_language.bio_tools.tools.structure_dynamics.bioemu import (
     BioEmuConfig,
     BioEmuInput,
     run_bioemu,
 )
-from proto_language.tools.structure_prediction.shared_data_models import (
+from proto_language.bio_tools.tools.structure_prediction.shared_data_models import (
     StructurePredictionComplex,
 )
-from proto_language.tools.structures import ProteinStructure
+from proto_language.bio_tools.entities.structures import Structure
 from proto_language.utils import MAX_ENERGY, sigmoid_score
 
 logger = getLogger(__name__)
@@ -192,7 +192,7 @@ def _summarize_rmsds(
 # ============================================================================
 
 def _prepare_target_structure(
-    target_structure: Optional[ProteinStructure] = None,
+    target_structure: Optional[Structure] = None,
     target_pdb_file: Optional[str] = None,
     target_pdb_content: Optional[str] = None,
     residue_range: Optional[Tuple[int, int]] = None,
@@ -203,7 +203,7 @@ def _prepare_target_structure(
     specific chain and residue range.
 
     Args:
-        target_structure: ProteinStructure object.
+        target_structure: Structure object.
         target_pdb_file: Path to a PDB file.
         target_pdb_content: Raw PDB string content.
         residue_range: Optional (start, end) 1-indexed residue range to extract.
@@ -316,13 +316,13 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
     target structure using PyMOL's align command.
 
     The target structure must be an experimental structure provided as one of:
-    - `target_structure`: A ProteinStructure object.
+    - `target_structure`: A Structure object.
     - `target_pdb_file`: A path to a PDB file.
     - `target_pdb_content`: The raw string content of a PDB file.
 
     Attributes:
-        target_structure (Optional[ProteinStructure]):
-            A ProteinStructure object representing the target structure.
+        target_structure (Optional[Structure]):
+            A Structure object representing the target structure.
             Mutually exclusive with `target_pdb_file` and `target_pdb_content`.
 
         target_pdb_file (Optional[str]):
@@ -376,10 +376,10 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
     """
 
     # Target specification (mutually exclusive)
-    target_structure: Optional[ProteinStructure] = ConfigField(
+    target_structure: Optional[Structure] = ConfigField(
         title="Target Structure",
         default=None,
-        description="ProteinStructure object for the target.",
+        description="Structure object for the target.",
     )
     target_pdb_file: Optional[str] = ConfigField(
         title="Target PDB File",

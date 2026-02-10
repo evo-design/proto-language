@@ -9,12 +9,13 @@ from typing import List, Tuple, Type, Union, get_args, get_origin
 
 import pytest
 
-from proto_language.base_config import BaseConfig
+from proto_language.base_config import BaseConfig as LanguageBaseConfig
 from proto_language.language.constraint import ConstraintRegistry
 from proto_language.language.generator import GeneratorRegistry
 from proto_language.language.optimizer import OptimizerRegistry
-from proto_language.tools.tool_io import BaseToolInput, BaseToolOutput
-from proto_language.tools.tool_registry import ToolRegistry
+from proto_language.bio_tools.tools.infra.tool_io import BaseToolInput, BaseToolOutput
+from proto_language.bio_tools.tools.tool_registry import ToolRegistry
+from proto_language.bio_tools.tools.utils import BaseConfig as ToolsBaseConfig
 
 # Defines the maximum length of a field title in characters
 MAX_FIELD_TITLE_LENGTH = 31
@@ -22,7 +23,7 @@ MAX_FIELD_TITLE_LENGTH = 31
 # Defines the maximum length of a field description in characters
 MAX_FIELD_DESCRIPTION_LENGTH = 100
 
-def list_of_all_config_models() -> List[Type[BaseConfig]]:
+def list_of_all_config_models() -> List[Type]:
     """
     List of all config models of registered components.
     """
@@ -39,13 +40,15 @@ def list_of_all_config_models() -> List[Type[BaseConfig]]:
 @pytest.mark.parametrize("config_model", [
     config_model for config_model in list_of_all_config_models()
 ])
-def test_config_consistency(config_model: Type[BaseConfig]):
+def test_config_consistency(config_model: Type):
     """
     Determines if config models are defined consistently throughout the codebase
     for consistency of the API and client.
     """
-    # Check if config_model is subclass of BaseModel
-    assert issubclass(config_model, BaseConfig), f"Config model {config_model} is not a subclass of BaseConfig"
+    # Check if config_model is subclass of BaseConfig (language or tools)
+    assert issubclass(config_model, (LanguageBaseConfig, ToolsBaseConfig)), (
+        f"Config model {config_model} is not a subclass of BaseConfig"
+    )
 
     # Pull the model schema and ensure fields are defined consistently
     schema = config_model.model_json_schema()

@@ -55,8 +55,8 @@ def _create_protein_hunter_conditioning_fn(config: CyclingOptimizerConfig) -> Ca
     The Protein Hunter algorithm predicts 3D structures from current sequences,
     then uses those structures to condition inverse folding for the next iteration.
     """
-    from proto_language.tools.structure_prediction import predict_structures
-    from proto_language.tools.structure_prediction.shared_data_models import (
+    from proto_language.bio_tools.tools.structure_prediction import predict_structures
+    from proto_language.bio_tools.tools.structure_prediction.shared_data_models import (
         StructurePredictionComplex,
     )
 

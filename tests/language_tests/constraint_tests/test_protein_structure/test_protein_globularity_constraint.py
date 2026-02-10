@@ -9,10 +9,10 @@ from proto_language.language.constraint.protein_structure.protein_globularity_co
     ProteinGlobularityConfig,
 )
 from proto_language.language.core import Constraint, Segment
-from proto_language.tools.orf_prediction.prodigal import ProdigalOutput
-from proto_language.tools.structure_prediction import StructurePredictionOutput
-from proto_language.tools.structures import BFactorType
-from tests.helpers.mock_structure import MockProteinStructure
+from proto_language.bio_tools.tools.orf_prediction.prodigal import ProdigalOutput
+from proto_language.bio_tools.tools.structure_prediction import StructurePredictionOutput
+from proto_language.bio_tools.entities.structures import BFactorType
+from tests.helpers.mock_structure import MockStructure
 
 mock_pdb = """ATOM      1  N   MET A   1       0.000   0.000   0.000  1.00 90.00           N
 ATOM      2  CA  MET A   1       1.458   0.000   0.000  1.00 90.00           C
@@ -53,7 +53,7 @@ class TestProteinGlobularityConstraint:
         # Mock a compact globular structure (low std of distances)
         with patch('proto_language.language.constraint.protein_structure.protein_globularity_constraint.run_esmfold') as mock_run:
             # Create mock structure with PDB output
-            mock_structure = MockProteinStructure(
+            mock_structure = MockStructure(
                 structure_content=mock_pdb,
                 structure_format="pdb",
                 b_factor_type=BFactorType.NORMALIZED_PLDDT,
@@ -91,7 +91,7 @@ class TestProteinGlobularityConstraint:
         config = ProteinGlobularityConfig()
 
         # Mock the Prodigal output with ORF objects
-        from proto_language.tools.orf_prediction import ORF
+        from proto_language.bio_tools.tools.orf_prediction import ORF
 
         mock_orf = ORF(
             parent_id="seq_0",
@@ -111,7 +111,7 @@ class TestProteinGlobularityConstraint:
         mock_prodigal_output.num_orfs_per_sequence = [1]
 
         # Mock the ESMFold output
-        mock_structure = MockProteinStructure(
+        mock_structure = MockStructure(
             structure_content=mock_pdb,
             structure_format="pdb",
             b_factor_type=BFactorType.NORMALIZED_PLDDT,
@@ -155,7 +155,7 @@ class TestProteinGlobularityConstraint:
         config = ProteinGlobularityConfig(n_replications=3)
         with patch('proto_language.language.constraint.protein_structure.protein_globularity_constraint.run_esmfold') as mock_run:
             # Create mock structure
-            mock_structure = MockProteinStructure(
+            mock_structure = MockStructure(
                 structure_content=mock_pdb,
                 structure_format="pdb",
                 b_factor_type=BFactorType.NORMALIZED_PLDDT,

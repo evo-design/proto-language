@@ -15,7 +15,7 @@ from unittest.mock import patch
 from proto_language.language.core import Constraint, Segment
 from proto_language.language.constraint import protein_complexity_constraint
 from proto_language.language.constraint.protein_quality.protein_complexity_constraint import ProteinComplexityConfig
-from proto_language.tools.sequence_scoring.segmasker import SegmaskerOutput
+from proto_language.bio_tools.tools.sequence_scoring.segmasker import SegmaskerOutput
 
 
 class TestProteinComplexityConstraint:

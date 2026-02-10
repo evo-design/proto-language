@@ -6,7 +6,7 @@ from proto_language.language.generator import (
     ProGen2Generator,
     ProGen2GeneratorConfig,
 )
-from proto_language.tools.causal_models.progen2.standalone.inference import PROGEN2_START_TOKEN
+from proto_language.bio_tools.tools.causal_models.progen2.standalone.inference import PROGEN2_START_TOKEN
 
 @pytest.mark.uses_gpu
 class TestProGen2Generator:

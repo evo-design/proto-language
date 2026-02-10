@@ -7,15 +7,15 @@ mock_structure.py
 
 from typing import Optional, Dict
 from pathlib import Path
-from proto_language.tools.structures import ProteinStructure, BFactorType, load_structure_file
+from proto_language.bio_tools.entities.structures import Structure, BFactorType, load_structure_file
 
 
 MOCK_PDB = load_structure_file(Path(__file__).parent.parent / "dummy_data" / "renin_af3.pdb")
 MOCK_CIF = load_structure_file(Path(__file__).parent.parent / "dummy_data" / "renin.cif")
 
 
-class MockProteinStructure(ProteinStructure):
-    """Mock version of ProteinStructure that bypasses file loading for testing."""
+class MockStructure(Structure):
+    """Mock version of Structure that bypasses file loading for testing."""
 
     def __init__(
         self,
@@ -26,7 +26,7 @@ class MockProteinStructure(ProteinStructure):
         source: str = "mock",
     ) -> None:
         """
-        Mocked ProteinStructure class for testing. Bypasses __init__ validation
+        Mocked Structure class for testing. Bypasses __init__ validation
         and detection of structure format.
         """
         # Save the structure content and format directly

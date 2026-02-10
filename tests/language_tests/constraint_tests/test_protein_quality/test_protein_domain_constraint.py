@@ -149,7 +149,7 @@ class TestProteinDomainConstraint:
         config = ProteinDomainConfig(hmm_db=str(TEST_HMM), keywords=["kinase"])
 
         # Mock Prodigal returning proteins with ORF objects
-        from proto_language.tools.orf_prediction import ORF
+        from proto_language.bio_tools.tools.orf_prediction import ORF
 
         mock_orf = ORF(
             parent_id="seq_0",

@@ -76,7 +76,7 @@ from .language.optimizer import (  # Registry; Optimizers
 
 # Logging
 from .logging_config import get_logger, setup_logging
-from .tools import (
+from .bio_tools import (
     # Base classes and registry
     BaseToolOutput,
     ToolRegistry,

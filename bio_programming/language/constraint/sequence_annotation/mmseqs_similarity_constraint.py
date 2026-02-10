@@ -13,9 +13,9 @@ from pydantic import model_validator
 from proto_language.language.core import Sequence, DNA_NUCLEOTIDES
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
-from proto_language.tools.orf_prediction.orfipy import OrfipyConfig, OrfipyInput, run_orfipy_prediction
-from proto_language.tools.orf_prediction.prodigal import ProdigalConfig, ProdigalInput, run_prodigal_prediction
-from proto_language.tools.gene_annotation.mmseqs import (
+from proto_language.bio_tools.tools.orf_prediction.orfipy import OrfipyConfig, OrfipyInput, run_orfipy_prediction
+from proto_language.bio_tools.tools.orf_prediction.prodigal import ProdigalConfig, ProdigalInput, run_prodigal_prediction
+from proto_language.bio_tools.tools.gene_annotation.mmseqs import (
     MmseqsSearchProteinsConfig,
     MmseqsSearchProteinsInput,
     run_mmseqs_search_proteins,
@@ -230,7 +230,7 @@ def mmseqs_similarity_constraint(input_sequences: List[Tuple[Sequence, ...]], co
         
         Custom MMseqs2 configuration for sensitive search:
         
-        >>> from proto_language.tools.gene_annotation.mmseqs import MmseqsSearchProteinsConfig
+        >>> from proto_language.bio_tools.tools.gene_annotation.mmseqs import MmseqsSearchProteinsConfig
         >>> mmseqs_cfg = MmseqsSearchProteinsConfig(
         ...     threads=32,         # Use 32 CPU cores
         ...     sensitivity=7.5     # Most sensitive

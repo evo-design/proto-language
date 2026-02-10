@@ -11,13 +11,13 @@ from pydantic import field_validator
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.core import Generator
 from proto_language.language.generator.generator_registry import generator
-from proto_language.tools.inverse_folding.proteinmpnn import run_proteinmpnn_sample
-from proto_language.tools.inverse_folding.shared_data_models import (
+from proto_language.bio_tools.tools.inverse_folding.proteinmpnn import run_proteinmpnn_sample
+from proto_language.bio_tools.tools.inverse_folding.shared_data_models import (
     InverseFoldingConfig,
     InverseFoldingInput,
     InverseFoldingStructureInput,
 )
-from proto_language.tools.structures import ProteinStructure
+from proto_language.bio_tools.entities.structures import Structure
 
 
 class ProteinMPNNGeneratorConfig(BaseConfig):
@@ -42,7 +42,7 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
 
             **InverseFoldingStructureInput fields:**
 
-            - ``structure``: File path, PDB content string, or ``ProteinStructure`` object
+            - ``structure``: File path, PDB content string, or ``Structure`` object
             - ``chain_ids``: Optional list of chain IDs to design (e.g., ``["A", "B"]``).
               If None, all chains in the structure are designed.
             - ``fixed_positions``: Optional dict mapping chain IDs to residue positions
@@ -100,7 +100,7 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
 
         With per-structure chain selection and fixed positions:
 
-        >>> from proto_language.tools.inverse_folding.shared_data_models import InverseFoldingStructureInput
+        >>> from proto_language.bio_tools.tools.inverse_folding.shared_data_models import InverseFoldingStructureInput
         >>> config = ProteinMPNNGeneratorConfig(
         ...     structure_inputs=InverseFoldingStructureInput(
         ...         structure="/path/to/backbone.pdb",
@@ -183,7 +183,7 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
         for item in v:
             if isinstance(item, InverseFoldingStructureInput):
                 result.append(item)
-            elif isinstance(item, (str, ProteinStructure)):
+            elif isinstance(item, (str, Structure)):
                 # Simple path/content/object -> InverseFoldingStructureInput with no constraints
                 result.append(InverseFoldingStructureInput(structure=item))
             elif isinstance(item, dict):
@@ -258,7 +258,7 @@ class ProteinMPNNGenerator(Generator):
         Args:
             structure_inputs: Optional structure inputs to use instead of config.
                 Accepts flexible formats (same as config): single structure, list of structures,
-                ``ProteinStructure`` objects, file paths, or ``InverseFoldingStructureInput`` objects.
+                ``Structure`` objects, file paths, or ``InverseFoldingStructureInput`` objects.
                 If provided, generates one sequence per structure. If None, uses
                 config structure_inputs (single structure generates batch_size sequences,
                 multiple structures generate one sequence each).

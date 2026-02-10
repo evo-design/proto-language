@@ -10,7 +10,7 @@ from unittest.mock import patch
 from proto_language.language.core import Constraint, Segment
 from proto_language.language.constraint import mmseqs_similarity_constraint, ConstraintRegistry
 from proto_language.language.constraint.sequence_annotation.mmseqs_similarity_constraint import MMseqsSimilarityConfig
-from proto_language.tools.gene_annotation.mmseqs import (
+from proto_language.bio_tools.tools.gene_annotation.mmseqs import (
     MmseqsSearchProteinsConfig,
     MmseqsSearchProteinsOutput,
     MmseqsSequenceSearchResult,

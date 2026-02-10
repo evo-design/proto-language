@@ -10,7 +10,7 @@ from proto_language.language.generator import (
     LigandMPNNGenerator,
     LigandMPNNGeneratorConfig,
 )
-from proto_language.tools.inverse_folding.shared_data_models import InverseFoldingStructureInput
+from proto_language.bio_tools.tools.inverse_folding.shared_data_models import InverseFoldingStructureInput
 
 DEFAULT_CHECKPOINT = (
     Path.home() / ".foundry" / "checkpoints" / "ligandmpnn_v_32_010_25.pt"

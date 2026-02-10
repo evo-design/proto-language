@@ -30,7 +30,7 @@ from proto_language.language.generator import (
     ProteinMPNNGeneratorConfig,
 )
 from proto_language.language.optimizer import CyclingOptimizer, CyclingOptimizerConfig
-from proto_language.tools.structure_prediction import (
+from proto_language.bio_tools.tools.structure_prediction import (
     StructurePredictionComplex,
     predict_structures,
 )

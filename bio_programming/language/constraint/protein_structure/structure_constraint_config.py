@@ -14,13 +14,13 @@ from typing import Any, Dict, Literal, Optional, Union
 from pydantic import model_validator
 
 from proto_language.base_config import BaseConfig, ConfigField
-from proto_language.tools.structure_prediction import (
+from proto_language.bio_tools.tools.structure_prediction import (
     AlphaFold3Config,
     Boltz2Config,
     Chai1Config,
     ESMFoldConfig,
 )
-from proto_language.tools.structure_prediction.dispatch import SP_TOOL_MAP
+from proto_language.bio_tools.tools.structure_prediction.dispatch import SP_TOOL_MAP
 
 
 class StructureBasedConstraintConfig(BaseConfig):

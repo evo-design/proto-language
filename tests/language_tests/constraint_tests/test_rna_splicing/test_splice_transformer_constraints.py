@@ -13,7 +13,7 @@ from proto_language.language.constraint.rna_splicing.splice_transformer_intron_b
     splice_transformer_intron_boundary,
     SpliceTransformerIntronBoundaryConfig,
 )
-from proto_language.tools.rna_splicing.splice_transformer import (
+from proto_language.bio_tools.tools.rna_splicing.splice_transformer import (
     SpliceTransformerConfig,
     CONTEXT_LENGTH as SPLICE_TRANSFORMER_CONTEXT_LENGTH,
     TARGET_LENGTH as SPLICE_TRANSFORMER_TARGET_LENGTH,

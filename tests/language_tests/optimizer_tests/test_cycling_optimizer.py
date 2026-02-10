@@ -17,8 +17,8 @@ from proto_language.language.generator import (
     ProteinMPNNGeneratorConfig,
 )
 from proto_language.language.optimizer import CyclingOptimizer, CyclingOptimizerConfig
-from proto_language.tools.inverse_folding.shared_data_models import InverseFoldingStructureInput
-from proto_language.tools.structures import ProteinStructure
+from proto_language.bio_tools.tools.inverse_folding.shared_data_models import InverseFoldingStructureInput
+from proto_language.bio_tools.entities.structures import Structure
 
 # =============================================================================
 # Helpers
@@ -29,22 +29,22 @@ class EmptyConfig(BaseModel):
     pass
 
 
-def make_mock_structure() -> ProteinStructure:
-    """Create a minimal mock ProteinStructure."""
+def make_mock_structure() -> Structure:
+    """Create a minimal mock Structure."""
     pdb_content = """ATOM      1  N   ALA A   1       0.000   0.000   0.000  1.00  0.00           N
 ATOM      2  CA  ALA A   1       1.458   0.000   0.000  1.00  0.00           C
 ATOM      3  C   ALA A   1       2.009   1.420   0.000  1.00  0.00           C
 ATOM      4  O   ALA A   1       1.246   2.390   0.000  1.00  0.00           O
 END
 """
-    return ProteinStructure(structure_filepath_or_content=pdb_content)
+    return Structure(structure_filepath_or_content=pdb_content)
 
 
 def make_mock_conditioning_fn(num_candidates: int):
     """Create a mock conditioning function that returns structures."""
     structures = [make_mock_structure() for _ in range(num_candidates)]
 
-    def conditioning_fn(sequences: List[Sequence]) -> List[ProteinStructure]:
+    def conditioning_fn(sequences: List[Sequence]) -> List[Structure]:
         return structures
 
     return conditioning_fn, structures
@@ -421,7 +421,7 @@ TEST_PDB_FILE = Path(__file__).parent.parent.parent / "dummy_data" / "renin_af3.
 @pytest.fixture(scope="module")
 def pdb_structure():
     """Load test PDB structure."""
-    return ProteinStructure(structure_filepath_or_content=TEST_PDB_FILE)
+    return Structure(structure_filepath_or_content=TEST_PDB_FILE)
 
 
 @pytest.mark.uses_gpu
@@ -431,8 +431,8 @@ class TestCyclingOptimizerGPU:
     @pytest.mark.slow
     def test_full_cycle_with_proteinmpnn(self, pdb_structure):
         """Test complete optimization cycle with LigandMPNN."""
-        from proto_language.tools.structure_prediction import predict_structures
-        from proto_language.tools.structure_prediction.shared_data_models import (
+        from proto_language.bio_tools.tools.structure_prediction import predict_structures
+        from proto_language.bio_tools.tools.structure_prediction.shared_data_models import (
             StructurePredictionComplex,
         )
 
@@ -485,8 +485,8 @@ class TestCyclingOptimizerGPU:
     @pytest.mark.slow
     def test_with_filter_constraint(self, pdb_structure):
         """Test with filter constraint using real models."""
-        from proto_language.tools.structure_prediction import predict_structures
-        from proto_language.tools.structure_prediction.shared_data_models import (
+        from proto_language.bio_tools.tools.structure_prediction import predict_structures
+        from proto_language.bio_tools.tools.structure_prediction.shared_data_models import (
             StructurePredictionComplex,
         )
 

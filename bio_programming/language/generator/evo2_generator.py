@@ -11,12 +11,12 @@ from pydantic import field_validator, model_validator
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.core import Generator, Segment
 from proto_language.language.generator.generator_registry import generator
-from proto_language.tools.causal_models.evo2 import (
+from proto_language.bio_tools.tools.causal_models.evo2 import (
     Evo2SampleConfig,
     Evo2SampleInput,
     run_evo2_sample,
 )
-from proto_language.tools.causal_models.evo2.standalone.inference import EVO2_MODEL_CHECKPOINTS
+from proto_language.bio_tools.tools.causal_models.evo2.standalone.inference import EVO2_MODEL_CHECKPOINTS
 
 
 class Evo2GeneratorConfig(BaseConfig):

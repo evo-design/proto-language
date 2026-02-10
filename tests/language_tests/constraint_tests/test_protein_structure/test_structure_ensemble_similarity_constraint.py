@@ -11,7 +11,7 @@ from proto_language.language.constraint.protein_structure.structure_ensemble_sim
     structure_ensemble_rmsd_constraint,
 )
 from proto_language.language.core import Sequence
-from proto_language.tools.structure_dynamics.bioemu import BioEmuConfig
+from proto_language.bio_tools.tools.structure_dynamics.bioemu import BioEmuConfig
 
 # Short test sequence
 TEST_SEQ = "MGDIQVQVNIDDNGKNFDYTYTVTTE"
