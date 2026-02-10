@@ -77,6 +77,7 @@ def setup_logging(
     console_level: Optional[Union[int, str]] = None,
     file_level: Optional[Union[int, str]] = None,
     console_output_formatted: bool = False,
+    log_file_header: Optional[str] = None,
 ) -> None:
     """
     Configure logging for proto_language.
@@ -95,6 +96,7 @@ def setup_logging(
         console_output_formatted: If True, console output includes timestamp and metadata like file logs.
             If False (default), console output is print-like: DEBUG/INFO show only the message,
             while WARNING/ERROR/CRITICAL include the level prefix (e.g., "WARNING: message").
+        log_file_header: Optional header text to write at the top of the log file before logging starts.
     """
     # Parse levels (supports case-insensitive strings)
     level = _parse_log_level(level)
@@ -163,7 +165,17 @@ def setup_logging(
             log_file = log_path / f"proto_language_{timestamp}.log"
         else:
             log_file = log_path / log_filename
-        file_handler = logging.FileHandler(log_file, mode='w')
+
+        # Write header to log file if provided
+        if log_file_header:
+            with open(log_file, 'w') as f:
+                f.write(log_file_header)
+            # Use append mode for FileHandler so we don't overwrite the header
+            file_handler = logging.FileHandler(log_file, mode='a')
+        else:
+            # Use write mode as before
+            file_handler = logging.FileHandler(log_file, mode='w')
+
         file_handler.setLevel(file_level or logging.DEBUG)
         file_handler.setFormatter(file_formatter)
         # Add filter to only log proto_language messages to file

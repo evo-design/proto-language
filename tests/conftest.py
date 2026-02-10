@@ -4,6 +4,9 @@ Test configuration and fixtures for the proto-language test suite.
 
 import logging
 import os
+import re
+import sys
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import Mock, patch
 from uuid import uuid4
@@ -144,10 +147,63 @@ def pytest_runtest_logreport(report):
         if report.passed:
             logger.debug(f"TEST PASSED: {report.nodeid}")
         elif report.failed:
-            # Use DEBUG level to keep it file-only, but prefix with ERROR for visibility in logs
-            logger.debug(f"ERROR - TEST FAILED: {report.nodeid}")
+
+            logger.error(f"TEST FAILED: {report.nodeid}")
             if report.longrepr:
-                logger.debug(f"ERROR - Traceback:\n{report.longreprtext}")
+                # Use DEBUG level to keep it file-only, but prefix with ERROR for visibility in logs
+                logger.debug(f"Error Traceback:\n{report.longreprtext}")
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Log test session summary at the end."""
+    logger = logging.getLogger("proto_language.tests")
+
+    # Get test statistics from the session
+    test_reports = session.items
+    num_collected = len(test_reports)
+
+    # Count passed and failed tests from the terminal reporter
+    if hasattr(session.config, 'pluginmanager'):
+        terminalreporter = session.config.pluginmanager.get_plugin('terminalreporter')
+        if terminalreporter:
+            stats = terminalreporter.stats
+
+            passed = len(stats.get('passed', []))
+            failed = len(stats.get('failed', []))
+            skipped = len(stats.get('skipped', []))
+            errors = len(stats.get('error', []))
+
+            # Build summary message
+            summary_lines = [
+                "\n" + "=" * 80,
+                "TEST SESSION SUMMARY",
+                "=" * 80,
+                f"Tests collected: {num_collected}",
+                f"Tests passed:    {passed}",
+                f"Tests failed:    {failed}",
+                f"Tests skipped:   {skipped}",
+                f"Tests errors:    {errors}",
+            ]
+
+            # Add list of failed tests if any
+            if failed > 0:
+                summary_lines.append("\nFailed tests:")
+                failed_reports = stats.get('failed', [])
+                for report in failed_reports:
+                    summary_lines.append(f"  - {report.nodeid}")
+
+            # Add list of error tests if any
+            if errors > 0:
+                summary_lines.append("\nTests with errors:")
+                error_reports = stats.get('error', [])
+                for report in error_reports:
+                    summary_lines.append(f"  - {report.nodeid}")
+
+            summary_lines.append("=" * 80)
+
+            # Log the summary at INFO level so it appears in both console and file
+            summary_message = "\n".join(summary_lines)
+            logger.info(summary_message)
 
 
 def pytest_collection_modifyitems(config, items):
@@ -215,18 +271,40 @@ def setup_test_logging(request):
 
     # Get options from command line
     no_log_console = request.config.getoption("--no-log-console")
+    k_expression = request.config.getoption("-k", default=None)
 
     # Clear any existing handlers first to prevent duplicate log files
     bio_prog_logger = logging.getLogger("proto_language")
     bio_prog_logger.handlers.clear()
 
+    # Create header with pytest command and timestamp
+    pytest_command = " ".join(sys.argv)
+    now = datetime.now()
+    timestamp = now.strftime("%H:%M:%S")
+    datestamp = now.strftime("%m/%d/%Y")
+    header = f"Pytest Run Command: `{pytest_command}`\nRun Started: {timestamp} on {datestamp}\n{'=' * 80}\n\n"
+
+    # Create log filename based on -k parameter or timestamp
+    if k_expression:
+        # Sanitize the -k expression to make it filename-safe
+        # Replace spaces with underscores, remove special characters
+        sanitized = re.sub(r'[^\w\s-]', '', k_expression)  # Remove special chars except spaces, hyphens, underscores
+        sanitized = re.sub(r'\s+', '_', sanitized)  # Replace spaces with underscores
+        sanitized = sanitized.strip('_')  # Remove leading/trailing underscores
+        log_filename = f"pytest_{sanitized}.log"
+    else:
+        # Use timestamp for the log file
+        file_timestamp = now.strftime("%Y%m%d_%H%M%S")
+        log_filename = f"pytest_{file_timestamp}.log"
+
     # Configure logging (use pytest's --log-cli-level for level control)
     setup_logging(
         level=logging.INFO,
         log_dir=log_dir,
-        log_filename="pytest.log",
+        log_filename=log_filename,
         log_to_file=True,
         log_to_console=not no_log_console,
+        log_file_header=header,
     )
 
     # Suppress noisy third-party loggers that aren't suppressed by setup_logging
