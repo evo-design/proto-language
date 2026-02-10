@@ -30,7 +30,7 @@
       ],
       "constraints": [
         {
-          "key": "boltz-binding-strength",
+          "key": "boltz2-binding-strength",
           "config": {
             "binding_target_protein": "MKTAYIAKQRQISFVKSHFSRQLE"
           },

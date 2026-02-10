@@ -97,9 +97,9 @@ def parse_args():
     parser.add_argument(
         "--structure-tool",
         type=str,
-        default="boltz",
-        choices=["boltz", "chai1"],
-        help="Structure prediction tool to use (default: boltz)",
+        default="boltz2",
+        choices=["boltz2", "chai1"],
+        help="Structure prediction tool to use (default: boltz2)",
     )
     parser.add_argument(
         "--output-dir",

@@ -11,10 +11,10 @@ from numpy import clip
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.language.core import Sequence
-from proto_language.tools.structure_prediction.boltz import (
-    BoltzConfig,
-    BoltzInput,
-    run_boltz,
+from proto_language.tools.structure_prediction.boltz2 import (
+    Boltz2Config,
+    Boltz2Input,
+    run_boltz2,
 )
 from proto_language.tools.structure_prediction.shared_data_models import (
     StructurePredictionComplex,
@@ -131,10 +131,10 @@ class BoltzBindingStrengthConfig(BaseConfig):
             Use specific metrics to focus on particular aspects like interface
             quality (iptm) or distance accuracy (complex_ipde). Default: "total_penalty".
 
-        boltz_config (BoltzConfig): Advanced Boltz configuration including MSA usage,
+        boltz2_config (Boltz2Config): Advanced Boltz2 configuration including MSA usage,
             recycling steps, sampling parameters, device settings, and verbosity.
             The ``complexes`` field is set programmatically from input sequences.
-            Default: BoltzConfig().
+            Default: Boltz2Config().
 
     Note:
         **Metric interpretation:**
@@ -206,9 +206,9 @@ class BoltzBindingStrengthConfig(BaseConfig):
     )
 
     # Nested Boltz2 configuration
-    boltz_config: BoltzConfig = ConfigField(
-        default_factory=BoltzConfig,
-        title="Boltz Config",
+    boltz2_config: Boltz2Config = ConfigField(
+        default_factory=Boltz2Config,
+        title="Boltz2 Config",
         description="Boltz2 configuration for structure prediction.",
         advanced=True,
     )
@@ -226,12 +226,12 @@ class BoltzBindingStrengthConfig(BaseConfig):
 
 
 @constraint(
-    key="boltz-binding-strength",
-    label="Boltz Binding Strength",
+    key="boltz2-binding-strength",
+    label="Boltz2 Binding Strength",
     config=BoltzBindingStrengthConfig,
     description="Evaluate protein-protein/protein-ligand binding using Boltz2 structure prediction",
     gpu_required=True,
-    tools_called=["boltz"],
+    tools_called=["boltz2"],
     category="protein_structure",
     supported_sequence_types=["dna", "rna", "protein", "ligand"],
     num_input_sequences_per_tuple=None,
@@ -284,7 +284,7 @@ def boltz_binding_strength_constraint(
         This function modifies the input sequences by adding metadata to each
         ``Sequence`` object's ``_metadata`` dictionary. Since complexes contain
         multiple chains, all sequences in a complex receive the same metadata
-        under the key ``boltz_binding`` (a list of dictionaries, one per evaluation):
+        under the key ``boltz2_binding`` (a list of dictionaries, one per evaluation):
 
         - ``penalty``: Float overall constraint score (0.0-1.0)
         - ``metrics``: Dictionary of all raw Boltz metrics (iptm, iplddt, etc.)
@@ -302,7 +302,7 @@ def boltz_binding_strength_constraint(
         >>> config = BoltzBindingStrengthConfig()  # Use defaults
         >>> scores = boltz_binding_strength_constraint([[protein_a, protein_b]], config)
         >>> print(scores[0])  # e.g., 0.15 (good binding)
-        >>> metadata = protein_a._metadata["boltz_binding"][0]
+        >>> metadata = protein_a._metadata["boltz2_binding"][0]
         >>> print(f"iptm: {metadata['metrics']['iptm']:.3f}")
         >>> print(f"complex_iplddt: {metadata['metrics']['complex_iplddt']:.3f}")
     """
@@ -319,16 +319,16 @@ def boltz_binding_strength_constraint(
         )
 
     # Prepare inputs for Boltz2
-    inputs = BoltzInput(
+    inputs = Boltz2Input(
         complexes=boltz_complexes
     )
 
     # Run Boltz2
-    outputs = run_boltz(inputs=inputs, config=config.boltz_config)
+    outputs = run_boltz2(inputs=inputs, config=config.boltz2_config)
 
     # Scoring each complex
     penalties = []
-    for seq_obj_tuple, comp, structure in zip(input_sequences, inputs, outputs):
+    for seq_obj_tuple, comp, structure in zip(input_sequences, inputs.complexes, outputs.structures):
 
         # Determine complex type
         n_chains = comp.num_chains()
@@ -473,7 +473,7 @@ def boltz_binding_strength_constraint(
 
         # Store metadata for all Sequences in complex
         for seq_obj in seq_obj_tuple:
-            seq_obj._metadata.setdefault("boltz_binding", []).append(
+            seq_obj._metadata.setdefault("boltz2_binding", []).append(
                 {
                     "penalty": penalty,
                     "metrics": structure.metrics,

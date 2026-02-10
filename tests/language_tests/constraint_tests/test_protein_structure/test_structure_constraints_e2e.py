@@ -40,7 +40,7 @@ RUVB_PROTEIN = "VERTLRPQYFKEYIGQDKVKDQLKIFIEAAKLRDEALDHTLLFGPPGLGKTTMAFVIANEMGVN
 ADP_LIGAND = "Nc1ncnc2c1ncn2[C@@H]1O[C@H](CO[P@](=O)([O-])OP(=O)([O-])[O-])[C@@H](O)[C@H]1O"
 
 # Boltz configuration without MSAs
-BOLTZ_CONFIG = {"use_msa_server": False}
+BOLTZ2_CONFIG = {"use_msa": False}
 
 
 # ============================================================================
@@ -128,20 +128,20 @@ class TestStructureConstraintsProteinLigandComplex:
         # Create appropriate config based on constraint type
         if config_class == StructureBasedConstraintConfig:
             config = StructureBasedConstraintConfig(
-                structure_tool="boltz",
-                tool_config=BOLTZ_CONFIG,
+                structure_tool="boltz2",
+                tool_config=BOLTZ2_CONFIG,
             )
         elif config_class == StructureRMSDConfig:
             config = StructureRMSDConfig(
                 target_chains=(RUVB_PROTEIN, ADP_LIGAND),
-                structure_tool="boltz",
-                tool_config=BOLTZ_CONFIG,
+                structure_tool="boltz2",
+                tool_config=BOLTZ2_CONFIG,
             )
         elif config_class == StructureTMScoreConfig:
             config = StructureTMScoreConfig(
                 target_chains=(RUVB_PROTEIN, ADP_LIGAND),
-                structure_tool="boltz",
-                tool_config=BOLTZ_CONFIG,
+                structure_tool="boltz2",
+                tool_config=BOLTZ2_CONFIG,
             )
 
         # Run constraint
@@ -170,8 +170,8 @@ class TestStructureConstraintsProteinLigandComplex:
             )
 
         if "structure_tool" in metadata:
-            assert metadata["structure_tool"] == "boltz", (
-                f"{constraint_name}: Structure tool should be 'boltz'"
+            assert metadata["structure_tool"] == "boltz2", (
+                f"{constraint_name}: Structure tool should be 'boltz2'"
             )
 
 

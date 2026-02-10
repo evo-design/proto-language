@@ -450,7 +450,7 @@ class TestBuiltinConstraints:
             "structure-tmscore",
             "protein-symmetry-ring",
             "protein-globularity",
-            "boltz-binding-strength"
+            "boltz2-binding-strength"
         ]
         
         registered = sorted(ConstraintRegistry._registry.keys())
@@ -480,7 +480,7 @@ class TestBuiltinConstraints:
             "structure-iptm",
             "protein-symmetry-ring",
             "protein-globularity",
-            "boltz-binding-strength"
+            "boltz2-binding-strength"
         ]
 
         # Constraints that should NOT require GPU
@@ -581,14 +581,14 @@ class TestBuiltinConstraints:
                 f"Constraint {key} should support protein, got {constraints_dict[key].supported_sequence_types}"
 
     def test_boltz_binding_supports_multiple_types(self):
-        """Test that boltz-binding-strength supports multiple sequence types."""
+        """Test that boltz2-binding-strength supports multiple sequence types."""
         all_constraints = ConstraintRegistry.list_all()
         constraints_dict = {spec.key: spec for spec in all_constraints}
 
-        spec = constraints_dict["boltz-binding-strength"]
+        spec = constraints_dict["boltz2-binding-strength"]
         expected_types = {"dna", "rna", "protein", "ligand"}
         assert set(spec.supported_sequence_types) == expected_types, \
-            f"boltz-binding-strength should support {expected_types}, got {spec.supported_sequence_types}"
+            f"boltz2-binding-strength should support {expected_types}, got {spec.supported_sequence_types}"
     
     def test_config_validation_patterns(self):
         """

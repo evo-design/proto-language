@@ -259,7 +259,7 @@ class TestScoreCalculations:
 class TestToolDispatching:
     """Test that constraints correctly dispatch to different tools."""
 
-    @pytest.mark.parametrize("tool_name", ["esmfold", "alphafold3", "boltz", "chai1"])
+    @pytest.mark.parametrize("tool_name", ["esmfold", "alphafold3", "boltz2", "chai1"])
     def test_plddt_dispatches_to_correct_tool(self, protein_sequence, tool_name):
         """Test that pLDDT constraint dispatches to the specified tool."""
         candidates = [(protein_sequence,)]
@@ -283,7 +283,7 @@ class TestToolDispatching:
             call_args = mock_predict.call_args[0]
             assert call_args[1] == tool_name
 
-    @pytest.mark.parametrize("tool_name", ["alphafold3", "boltz", "chai1"])
+    @pytest.mark.parametrize("tool_name", ["alphafold3", "boltz2", "chai1"])
     def test_iptm_dispatches_to_correct_tool(self, protein_sequence, protein_sequence_b, tool_name):
         """Test that ipTM constraint dispatches to supported tools."""
         candidates = [(protein_sequence, protein_sequence_b)]
@@ -395,7 +395,7 @@ class TestMetricAvailability:
     def test_boltz_supports_all_metrics(self, protein_sequence):
         """Test that Boltz supports all metrics."""
         candidates = [(protein_sequence,)]
-        config = StructureBasedConstraintConfig(structure_tool="boltz")
+        config = StructureBasedConstraintConfig(structure_tool="boltz2")
 
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
@@ -414,7 +414,7 @@ class TestMetricAvailability:
         """Test that TOOL_AVAILABLE_METRICS has expected structure."""
         assert "esmfold" in TOOL_AVAILABLE_METRICS
         assert "alphafold3" in TOOL_AVAILABLE_METRICS
-        assert "boltz" in TOOL_AVAILABLE_METRICS
+        assert "boltz2" in TOOL_AVAILABLE_METRICS
         assert "chai1" in TOOL_AVAILABLE_METRICS
 
         # ESMFold has limited metrics
@@ -493,7 +493,7 @@ class TestMultimerSupport:
     def test_homotrimer_three_chains(self, protein_sequence):
         """Test homotrimer prediction."""
         candidates = [(protein_sequence, protein_sequence, protein_sequence)]
-        config = StructureBasedConstraintConfig(structure_tool="boltz")
+        config = StructureBasedConstraintConfig(structure_tool="boltz2")
 
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
@@ -907,14 +907,14 @@ class TestIntegrationScenarios:
         candidates = [(protein_sequence,)]
 
         results = {}
-        for tool in ["esmfold", "alphafold3", "boltz", "chai1"]:
+        for tool in ["esmfold", "alphafold3", "boltz2", "chai1"]:
             config = StructureBasedConstraintConfig(structure_tool=tool)
 
             with patch(
                 "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
             ) as mock_predict:
                 # Simulate slightly different results per tool
-                plddt = {"esmfold": 0.85, "alphafold3": 92., "boltz": 0.88, "chai1": 0.90}[tool]
+                plddt = {"esmfold": 0.85, "alphafold3": 92., "boltz2": 0.88, "chai1": 0.90}[tool]
                 mock_predict.return_value = make_mock_output([
                     make_mock_structure(avg_plddt=plddt, ptm=0.8, iptm=0.7, avg_pae=8.2)
                 ])
@@ -925,7 +925,7 @@ class TestIntegrationScenarios:
         # Verify different tools give different scores
         assert results["esmfold"] == pytest.approx(0.15)
         assert results["alphafold3"] == pytest.approx(0.08)
-        assert results["boltz"] == pytest.approx(0.12)
+        assert results["boltz2"] == pytest.approx(0.12)
         assert results["chai1"] == pytest.approx(0.10)
 
     def test_screening_multiple_candidates(self, protein_sequence, protein_sequence_b):

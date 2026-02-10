@@ -40,12 +40,12 @@ class ProteinHunterPipelineConfig(BaseConfig):
     cycles for de novo protein design (hallucination).
 
     Attributes:
-        structure_tool: Structure prediction tool to use. Options: "boltz", "chai1", "alphafold3".
+        structure_tool: Structure prediction tool to use. Options: "boltz2", "chai1", "alphafold3".
     """
-    structure_tool: Literal["boltz", "chai1", "alphafold3"] = ConfigField(
-        default="boltz",
+    structure_tool: Literal["boltz2", "chai1", "alphafold3"] = ConfigField(
+        default="boltz2",
         title="Structure Tool",
-        description="Structure prediction tool: 'boltz', 'chai1', or 'alphafold3'.",
+        description="Structure prediction tool: 'boltz2', 'chai1', or 'alphafold3'.",
     )
 
 def _create_protein_hunter_conditioning_fn(config: CyclingOptimizerConfig) -> Callable:
@@ -60,7 +60,7 @@ def _create_protein_hunter_conditioning_fn(config: CyclingOptimizerConfig) -> Ca
         StructurePredictionComplex,
     )
 
-    structure_tool = config.protein_hunter.structure_tool if config.protein_hunter else "boltz"
+    structure_tool = config.protein_hunter.structure_tool if config.protein_hunter else "boltz2"
 
     def conditioning_fn(sequences: List[Sequence]) -> List:
         complexes = [
@@ -197,7 +197,7 @@ class CyclingOptimizerConfig(BaseConfig):
         ...     num_candidates=4,
         ...     conditioning_param_name="structure_inputs",
         ...     pipeline="protein-hunter",
-        ...     protein_hunter=ProteinHunterPipelineConfig(structure_tool="boltz"),
+        ...     protein_hunter=ProteinHunterPipelineConfig(structure_tool="boltz2"),
         ... )
     """
 

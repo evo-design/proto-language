@@ -19,7 +19,7 @@ from tests.helpers.mock_structure import MockProteinStructure
 mock_protein_protein_ligand_structure = MockProteinStructure(
     structure_format="cif",
     b_factor_type=BFactorType.PLDDT,
-    source="boltz-prediction",
+    source="boltz2-prediction",
     metrics={
         "confidence_score": 0.7753927111625671,
         "ptm": 0.8913218975067139,
@@ -39,7 +39,7 @@ mock_protein_protein_ligand_structure = MockProteinStructure(
     },
 )
 mock_protein_protein_ligand_output = StructurePredictionOutput(
-    tool_id="boltz-prediction",
+    tool_id="boltz2-prediction",
     execution_time=0.0,
     success=True,
     structures=[mock_protein_protein_ligand_structure],
@@ -51,7 +51,7 @@ mock_protein_protein_ligand_output = StructurePredictionOutput(
 mock_protein_protein_structure = MockProteinStructure(
     structure_format="cif",
     b_factor_type=BFactorType.PLDDT,
-    source="boltz-prediction",
+    source="boltz2-prediction",
     metrics={
         "confidence_score": 0.7753927111625671,
         "ptm": 0.8913218975067139,
@@ -69,7 +69,7 @@ mock_protein_protein_structure = MockProteinStructure(
     },
 )
 mock_protein_protein_output = StructurePredictionOutput(
-    tool_id="boltz-prediction",
+    tool_id="boltz2-prediction",
     execution_time=0.0,
     success=True,
     structures=[mock_protein_protein_structure],
@@ -80,7 +80,7 @@ mock_protein_protein_output = StructurePredictionOutput(
 mock_monomer_structure = MockProteinStructure(
     structure_format="cif",
     b_factor_type=BFactorType.PLDDT,
-    source="boltz-prediction",
+    source="boltz2-prediction",
     metrics={
         "confidence_score": 0.7753927111625671,
         "ptm": 0.8913218975067139,
@@ -95,7 +95,7 @@ mock_monomer_structure = MockProteinStructure(
     },
 )
 mock_monomer_output = StructurePredictionOutput(
-    tool_id="boltz-prediction",
+    tool_id="boltz2-prediction",
     execution_time=0.0,
     success=True,
     structures=[mock_monomer_structure],
@@ -112,8 +112,8 @@ class TestBoltzBindingStrengthConstraint:
         Test config merge overrides default values for dicts and ensures
         nested configs are set correctly.
         """
-        from proto_language.tools.structure_prediction.boltz import (
-            BoltzConfig,
+        from proto_language.tools.structure_prediction.boltz2 import (
+            Boltz2Config,
         )
 
         # Ensures config merge overrides default values
@@ -121,12 +121,12 @@ class TestBoltzBindingStrengthConstraint:
             "iptm": 0.95,
         }
 
-        boltz_cfg = BoltzConfig(
+        boltz2_cfg = Boltz2Config(
             recycling_steps=3,
             diffusion_samples=1,
         )
         config = BoltzBindingStrengthConfig(
-            desired_higher=desired_higher, boltz_config=boltz_cfg
+            desired_higher=desired_higher, boltz2_config=boltz2_cfg
         )
         assert config.desired_higher["iptm"] == 0.95
         for key, value in DEFAULT_DESIRED_HIGHER.items():
@@ -136,8 +136,8 @@ class TestBoltzBindingStrengthConstraint:
                 assert config.desired_higher[key] == 0.95
 
         # Ensures nested config is set correctly
-        assert config.boltz_config.recycling_steps == 3  # pylint: disable=no-member
-        assert config.boltz_config.diffusion_samples == 1  # pylint: disable=no-member
+        assert config.boltz2_config.recycling_steps == 3  # pylint: disable=no-member
+        assert config.boltz2_config.diffusion_samples == 1  # pylint: disable=no-member
 
     def test_with_protein_protein_ligand_complex(self):
         """Test constraint with protein-protein-ligand complex."""
@@ -147,11 +147,11 @@ class TestBoltzBindingStrengthConstraint:
         complex_list = [protein1, protein2]
 
         constraint = ConstraintRegistry.create(
-            key="boltz-binding-strength", segments=complex_list, config_dict={"ligands": ligand_target}
+            key="boltz2-binding-strength", segments=complex_list, config_dict={"ligands": ligand_target}
         )
 
         with patch(
-            "proto_language.language.constraint.protein_structure.boltz_binding_strength_constraint.run_boltz",
+            "proto_language.language.constraint.protein_structure.boltz_binding_strength_constraint.run_boltz2",
             return_value=mock_protein_protein_ligand_output,
         ):
 
@@ -164,11 +164,11 @@ class TestBoltzBindingStrengthConstraint:
         complex_list = [protein1, protein2]
 
         constraint = ConstraintRegistry.create(
-            key="boltz-binding-strength", segments=complex_list, config_dict={}
+            key="boltz2-binding-strength", segments=complex_list, config_dict={}
         )
 
         with patch(
-            "proto_language.language.constraint.protein_structure.boltz_binding_strength_constraint.run_boltz",
+            "proto_language.language.constraint.protein_structure.boltz_binding_strength_constraint.run_boltz2",
             return_value=mock_protein_protein_output,
         ):
 
@@ -180,11 +180,11 @@ class TestBoltzBindingStrengthConstraint:
         complex_list = [protein]
 
         constraint = ConstraintRegistry.create(
-            key="boltz-binding-strength", segments=complex_list, config_dict={}
+            key="boltz2-binding-strength", segments=complex_list, config_dict={}
         )
 
         with patch(
-            "proto_language.language.constraint.protein_structure.boltz_binding_strength_constraint.run_boltz",
+            "proto_language.language.constraint.protein_structure.boltz_binding_strength_constraint.run_boltz2",
             return_value=mock_monomer_output,
         ):
 

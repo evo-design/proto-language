@@ -301,7 +301,7 @@ class TestSlowStructurePredictorSimilarityConstraint:
         assert _perfect_match("rmsd", "chai1") < EPSILON
 
     def test_perfect_match_boltz(self):
-        assert _perfect_match("tmscore", "boltz") < EPSILON
+        assert _perfect_match("tmscore", "boltz2") < EPSILON
 
     def test_imperfect_match(self):
         assert _imperfect_match("tmscore", "alphafold3") > 0.
