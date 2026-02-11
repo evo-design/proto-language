@@ -16,12 +16,37 @@ Related repos:
 
 ## Installation
 
-Run the install script (it initializes git submodules and creates the conda environment):
+### Quick Start
 
+Run the install script (it initializes git submodules and creates the conda environment):
 
 ```bash
 bash install.sh
 conda activate proto-language
+```
+
+### Manual Setup
+
+If you prefer to set up manually, or if the install script fails:
+
+```bash
+# 1. Initialize submodules
+git submodule update --init --recursive
+
+# 2. Create and activate conda environment
+conda create --name proto-language python=3.12 -y
+conda activate proto-language
+
+# 3. Install dependencies (choose one)
+pip install uv
+uv pip install -e .[tools,api,dev]          # CPU-only
+# uv pip install -e .[tools,api,gpu,dev]    # GPU
+
+# 4. Install proto-tools submodule
+uv pip install -e ./proto-tools
+
+# 5. Install pre-commit hooks
+pre-commit install
 ```
 >[!NOTE] The installation script is currently failing on Chimera due to dependency issues.
 > For now, use the following to clone from Brian's env:
