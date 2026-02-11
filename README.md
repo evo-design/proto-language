@@ -11,7 +11,7 @@ Related repos:
 - [`proto-language-lang` (front end)](https://github.com/evo-design/proto-language-lang)
 
 > [!NOTE]
-> We currently in the process of transferring all of the tool implementations from the `proto-language` to the [`bio-tools`](https://github.com/evo-design/bio-tools/tree/main) repo. Installation instructions will change in the near future.
+> CI's are currently failing on main. We are working on fixing them now
 
 
 ## Installation
