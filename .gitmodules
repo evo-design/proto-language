@@ -2,3 +2,4 @@
 	path = proto_tools
 	url = git@github.com:evo-design/proto-tools.git
 	branch = main
+	ignore = all
