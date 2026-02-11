@@ -128,11 +128,11 @@ Documentation = "https://github.com/evo-design/proto-language#readme"
 
 [tool.setuptools.packages.find]
 include = ["proto_language*", "api*", "deployment*"]
-exclude = ["tests*", "examples*", "*.tests*", "*.tests", "proto_tools*"]
+exclude = ["tests*", "examples*", "*.tests*", "*.tests", "proto-tools*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-norecursedirs = ["proto_tools", "*.egg", ".*", "_darcs", "build", "CVS", "dist", "node_modules", "{arch}"]
+norecursedirs = ["proto-tools", "*.egg", ".*", "_darcs", "build", "CVS", "dist", "node_modules", "{arch}"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 pythonpath = ["."]
