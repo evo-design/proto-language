@@ -19,7 +19,7 @@ repos:
         pass_filenames: false
         files: |
           (?x)^(
-              proto_language/bio_tools/tools/.*/README\.md|
+              proto-tools/proto_tools/tools/.*/README\.md|
               proto_language/language/constraint/.*\.py|
               proto_language/language/generator/.*\.py|
               proto_language/language/optimizer/.*\.py|
