@@ -37,13 +37,9 @@ tests/logs/
 .pytest_cache/
 .coverage
 
-# Documentation
-CLAUDE.md
-
 # AI / editor
 .cursor/
 .cursorignore
-.claude/
 
 # Project
 data/

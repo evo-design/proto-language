@@ -1,0 +1,160 @@
+---
+name: general-dev
+description: >
+  Use this skill for general development tasks in proto-language: understanding
+  architecture, coding conventions, config patterns, data models, and the registry
+  system. Invoke when modifying existing code, adding utilities, or needing
+  project-wide conventions.
+allowed-tools:
+  - Read
+  - Write
+  - Bash
+  - Glob
+  - Grep
+---
+
+# general-dev skill
+
+## File Header (every new file)
+
+```python
+from __future__ import annotations
+
+import logging
+
+logger = logging.getLogger(__name__)
+```
+
+Never use `print()`. Always use `logger.info()` / `logger.debug()` / `logger.warning()` / `logger.error()`.
+
+## Import Ordering (enforced by isort)
+
+1. `from __future__ import annotations`
+2. Standard library (`os`, `logging`, `typing`, etc.)
+3. Third-party (`pydantic`, `numpy`, etc.)
+4. Local (`proto_language.*`, `api.*`, `agent.*`)
+
+## Data Model (`proto_language/language/core/`)
+
+```
+Sequence          A string + type (dna/rna/protein/ligand). Has ._metadata dict.
+    ↓
+Segment           Groups candidate sequences for one design region.
+                  Has: .sequence_type, .sequence_length, .valid_chars,
+                       .candidate_sequences (List[Sequence]), .selected_sequences (List[Sequence]),
+                       .original_sequence (Sequence), .num_candidates, .num_selected
+    ↓
+Construct         Joins multiple Segments into a complete design. List[Segment].
+```
+
+Key: `Segment(sequence="ATCG", sequence_type="dna")` or `Segment(length=100, sequence_type="protein")`.
+
+## Config Pattern (`proto_language/base_config.py`)
+
+All configs inherit `BaseConfig` and use `ConfigField` (not Pydantic's `Field`):
+
+```python
+from proto_language.base_config import BaseConfig, ConfigField
+
+class MyConfig(BaseConfig):
+    required_param: float = ConfigField(
+        title="Display Name",        # UI label
+        description="What it does",  # UI tooltip
+        ge=0.0, le=100.0,           # Pydantic validators
+    )
+    optional_param: str = ConfigField(
+        default="value",
+        title="Optional Param",
+        description="...",
+        advanced=True,   # Shows in "Advanced" UI section
+        hidden=False,    # True = completely hidden from UI
+    )
+```
+
+**BaseConfig behavior** (from `ConfigDict`):
+- `extra='ignore'` — unknown fields silently ignored
+- `validate_assignment=True` — validates on field updates
+- `use_enum_values=True` — enums serialize as values
+- `validate_default=True` — default values are validated
+
+**Validators**:
+```python
+from pydantic import field_validator, model_validator
+
+class MyConfig(BaseConfig):
+    @field_validator('param', mode='before')
+    @classmethod
+    def normalize(cls, v):
+        if isinstance(v, str): return [v]  # str → list
+        return v
+
+    @model_validator(mode='after')
+    def cross_validate(self):
+        if self.a > self.b: raise ValueError("a must be <= b")
+        return self
+```
+
+## Registry Pattern (universal across constraints, generators, optimizers)
+
+All three components follow the same pattern:
+
+```python
+# Registration — decorator on function (constraint) or class (generator/optimizer)
+@constraint(key="my-key", label="My Label", config=MyConfig, ...)
+def my_constraint(input_sequences, config): ...
+
+@generator(key="my-key", label="My Label", config=MyConfig, ...)
+class MyGenerator(Generator): ...
+
+@optimizer(key="my-key", label="My Label", config=MyConfig, ...)
+class MyOptimizer(Optimizer): ...
+
+# Discovery
+Registry.list_all()          # → List[Spec] with all metadata
+Registry.get(key)            # → Spec for one component
+Registry.get_schema(key)     # → JSON schema for client
+
+# Factory (constraints only — generators/optimizers instantiated directly)
+ConstraintRegistry.create(key, segments, config_dict, label=None, threshold=None, weight=None)
+```
+
+## Export Chain
+
+Every new component must be exported through the `__init__.py` chain:
+
+```
+proto_language/language/constraint/{category}/{name}_constraint.py
+    → proto_language/language/constraint/{category}/__init__.py
+    → proto_language/language/constraint/__init__.py
+
+proto_language/language/generator/{name}_generator.py
+    → proto_language/language/generator/__init__.py
+
+proto_language/language/optimizer/{name}_optimizer.py
+    → proto_language/language/optimizer/__init__.py
+```
+
+For generators, export **both** the class and its config: `from .my_generator import MyGenerator, MyGeneratorConfig`.
+
+## Naming Conventions
+
+| Thing | Convention | Example |
+|-------|-----------|---------|
+| Registry key | kebab-case | `"gc-content"`, `"uniform-mutation"`, `"mcmc"` |
+| Config class | `{Name}Config` | `GCContentConfig`, `MCMCOptimizerConfig` |
+| Constraint file | `{name}_constraint.py` | `gc_content_constraint.py` |
+| Generator file | `{name}_generator.py` | `uniform_mutation_generator.py` |
+| Optimizer file | `{name}_optimizer.py` | `mcmc_optimizer.py` |
+| Test file | `test_{name}.py` | `test_gc_content_constraint.py` |
+| Constraint function | `{name}_constraint` | `gc_content_constraint` |
+| Generator class | `{Name}Generator` | `UniformMutationGenerator` |
+| Optimizer class | `{Name}Optimizer` | `MCMCOptimizer` |
+
+## Linting & Formatting
+
+```bash
+black proto_language api agent tests         # Format (line length 88)
+isort proto_language api agent tests         # Sort imports (black-compatible)
+flake8 proto_language api agent tests        # Lint: F401 (unused imports) + F841 (unused vars) ONLY
+pre-commit run --all-files                    # All checks
+```
