@@ -190,6 +190,8 @@ pytest --cpu --skip-ci
 
 **Note:** Tests marked with `@pytest.mark.skip_ci` are automatically skipped in CI (e.g., remote API tests that may hit rate limits). Use `--skip-ci` locally to test exactly what CI will run.
 
+**Chimera-only tests:** Tests marked with `@pytest.mark.only_chimera` only run on the Chimera cluster (where `SLURM_CLUSTER_NAME=arc-slurm`). These tests are automatically skipped on other machines.
+
 #### Integration Tests
 **File:** `.github/workflows/integration_tests.yml`
 **Triggers:** On non-draft PRs

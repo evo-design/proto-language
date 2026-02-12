@@ -2,17 +2,20 @@
 Tests for structure prediction similarity constraints.
 """
 
-import pytest
-from unittest.mock import patch
 from typing import NamedTuple
+from unittest.mock import patch
 
-from proto_language.language.core import Sequence
-from proto_language.language.constraint import structure_rmsd_constraint, structure_tmscore_constraint
+import pytest
+
+from proto_language.language.constraint import (
+    structure_rmsd_constraint,
+    structure_tmscore_constraint,
+)
 from proto_language.language.constraint.protein_structure.structure_similarity_constraint import (
     StructureRMSDConfig,
     StructureTMScoreConfig,
 )
-
+from proto_language.language.core import Sequence
 
 CRO_SEQ = "MRKKLDLKKFVEDKNQEYAARALGLSQKLIEEVLKRGLPVYVETNKDGNIKVYITQDGITQPFPP"
 TOP7_SEQ = "MGDIQVQVNIDDNGKNFDYTYTVTTESELQKVLNELMDYIKKQGAKRVRISITARTKKEAEKFAAILIKVFAELGYNDINVTFDGDTVTVEGQLEGGSLEHHHHHH"
@@ -294,6 +297,7 @@ class TestESMFoldTMscoreConstraint:
 class TestSlowStructurePredictorSimilarityConstraint:
     """Tests for AlphaFold3/Chai1/Boltz RMSD and TMScore constraints."""
 
+    @pytest.mark.only_chimera
     def test_perfect_match_af3(self):
         assert _perfect_match("rmsd", "alphafold3") < EPSILON
 
@@ -303,9 +307,11 @@ class TestSlowStructurePredictorSimilarityConstraint:
     def test_perfect_match_boltz(self):
         assert _perfect_match("tmscore", "boltz2") < EPSILON
 
+    @pytest.mark.only_chimera
     def test_imperfect_match(self):
         assert _imperfect_match("tmscore", "alphafold3") > 0.
 
+    @pytest.mark.only_chimera
     def test_multichain(self):
         """Test multichain comparison."""
         config = StructureRMSDConfig(
