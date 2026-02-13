@@ -12,6 +12,10 @@ from .msa_generator import (
 )
 
 # Language model generators
+from .evo1_generator import (
+    Evo1Generator,
+    Evo1GeneratorConfig,
+)
 from .evo2_generator import (
     Evo2Generator,
     Evo2GeneratorConfig,
@@ -50,6 +54,8 @@ __all__ = [
     "MSAGenerator",
     "MSAGeneratorConfig",
     # Language model generators
+    "Evo1Generator",
+    "Evo1GeneratorConfig",
     "Evo2Generator",
     "Evo2GeneratorConfig",
     "ESM2Generator",

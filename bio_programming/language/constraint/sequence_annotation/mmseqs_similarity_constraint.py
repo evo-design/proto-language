@@ -245,7 +245,7 @@ def mmseqs_similarity_constraint(input_sequences: List[Tuple[Sequence, ...]], co
 
         Custom MMseqs2 configuration for sensitive search:
 
-        >>> from proto_language.bio_tools.tools.gene_annotation.mmseqs import MmseqsSearchProteinsConfig
+        >>> from proto_tools.tools.gene_annotation.mmseqs import MmseqsSearchProteinsConfig
         >>> mmseqs_cfg = MmseqsSearchProteinsConfig(
         ...     threads=32,         # Use 32 CPU cores
         ...     sensitivity=7.5     # Most sensitive

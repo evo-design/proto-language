@@ -43,7 +43,7 @@ def sample_progen2(uniprot_data: Dict[str, Any], n_samples: int = 10) -> List[Di
     """
     Run and store the outputs of a basic sweep over ProGen2 configurations.
     """
-    from proto_language.bio_tools.tools.causal_models.progen2 import ProGen2Model
+    from proto_tools.tools.causal_models.progen2 import ProGen2Model
 
     model_checkpoints = [ 'progen2-medium', 'progen2-large', 'progen2-xlarge', ]
     prompt_lengths = [ 16, 32, 64 ]
@@ -92,7 +92,7 @@ def sample_esm3(uniprot_data: Dict[str, Any], n_samples: int = 10) -> List[Dict[
     Mutate the existing wildtype sequence with ESM3.
     """
 
-    from proto_language.bio_tools.tools.masked_models.esm3.standalone.inference import ESM3Model
+    from proto_tools.tools.masked_models.esm3.standalone.inference import ESM3Model
 
     mutation_fractions = [ 0.25, 0.5, 0.75, 1.0 ]
     temperatures = [ 0.3, 0.7 ]
@@ -211,7 +211,7 @@ def sample_evo2(uniprot_data: Dict[str, Any], n_samples: int = 10) -> List[Dict[
     """
     Sample variation with in-context Evo 2 diversification.
     """
-    from proto_language.bio_tools.tools.causal_models.evo2 import Evo2Model
+    from proto_tools.tools.causal_models.evo2 import Evo2Model
 
     sep_sequence = "GGGGGGGG"  # Synthetic sequence that delimits generated CDSs.
     model_checkpoint = 'evo2_7b'
@@ -285,7 +285,7 @@ def cached_esmfold(seq: str) -> Dict[str, str]:
     global esmfold_model
 
     if esmfold_model is None:
-        from proto_language.bio_tools.tools.structure_prediction.esmfold.inference import ESMFoldModel
+        from proto_tools.tools.structure_prediction.esmfold.inference import ESMFoldModel
         esmfold_model = ESMFoldModel()
 
     if seq in structure_cache:

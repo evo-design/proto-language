@@ -11,6 +11,7 @@ from .sequence_composition import (
 
 # Protein structure constraints
 from .protein_structure import (
+    gyration_radius_constraint,
     structure_rmsd_constraint,
     structure_tmscore_constraint,
     structure_ensemble_rmsd_constraint,
@@ -67,6 +68,7 @@ __all__ = [
     "max_homopolymer_constraint",
     "kmer_frequency_constraint",
     # Protein structure
+    "gyration_radius_constraint",
     "structure_rmsd_constraint",
     "structure_tmscore_constraint",
     "structure_ensemble_rmsd_constraint",

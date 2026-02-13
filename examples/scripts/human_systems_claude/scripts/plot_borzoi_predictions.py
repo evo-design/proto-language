@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import List, Optional
 from Bio import SeqIO
 
-from proto_language.bio_tools.tools.sequence_scoring.borzoi import (
+from proto_tools.tools.sequence_scoring.borzoi import (
     BORZOI_CONTEXT,  # 524,288 bp
     BORZOI_OUTPUT,   # 6,144 output bins
     BorzoiConfig,
@@ -163,6 +163,8 @@ def run_all_replicates(
     Returns:
         numpy array of shape (4, BORZOI_OUTPUT) with predictions from each replicate
     """
+    full_sequence = full_sequence.replace('N', 'A')
+
     borzoi_input = BorzoiInput(sequence=full_sequence)
 
     # Use the ensemble function for convenience
@@ -175,8 +177,8 @@ def run_all_replicates(
 
     ensemble_output = run_borzoi_ensemble(borzoi_input, ensemble_config)
 
-    # Convert to numpy - shape is (4, num_tracks, 6144) or (4, 6144) if avg_tracks
-    predictions = np.array(ensemble_output.predictions.cpu())
+    predictions = np.array(ensemble_output.predictions)  # (4, 1, BORZOI_OUTPUT).
+    predictions = np.squeeze(predictions, axis=1)  # (4, BORZOI_OUTPUT).
 
     return predictions
 

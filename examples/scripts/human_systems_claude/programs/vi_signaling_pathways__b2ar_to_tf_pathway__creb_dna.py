@@ -24,9 +24,9 @@ from proto_language.language.optimizer import (
     TopKOptimizer,
     TopKOptimizerConfig,
 )
-from proto_language.bio_tools.tools.causal_models.evo2 import clear_evo2_cache
+from proto_tools.tools.causal_models.evo2 import clear_evo2_cache
 
-from proto_language.bio_tools.tools.sequence_scoring.borzoi import (
+from proto_tools.tools.sequence_scoring.borzoi import (
     BORZOI_CONTEXT, # 524,288 bp.
     BORZOI_OUTPUT,  # 6,144 dimensions.
     BorzoiConfig,
@@ -173,7 +173,6 @@ def create_creb_dna_program() -> Program:
 
     # DNA prompts and contexts.
     creb_dna_prompt = str(SeqIO.read(PROMPT_FNAME, 'fasta').seq)
-    creb_dna_prompt = ''.join(random.sample(creb_dna_prompt, len(creb_dna_prompt)))
 
     left_flank_seq = str(SeqIO.read(LEFT_FLANK_FNAME, 'fasta').seq)
     assert len(left_flank_seq) >= BORZOI_CONTEXT // 2
