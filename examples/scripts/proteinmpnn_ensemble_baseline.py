@@ -6,6 +6,13 @@ structural ensemble of the lowest perplexity sample.
 """
 import copy
 
+from proto_tools import (
+    BioEmuConfig,
+    BioEmuInput,
+    InverseFoldingStructureInput,
+    run_bioemu,
+)
+
 from proto_language.language.core import (
     Constraint,
     Construct,
@@ -14,20 +21,13 @@ from proto_language.language.core import (
     Sequence,
 )
 from proto_language.language.generator import (
-    ProteinMPNNGeneratorConfig,
     ProteinMPNNGenerator,
+    ProteinMPNNGeneratorConfig,
 )
 from proto_language.language.optimizer import (
     TopKOptimizer,
     TopKOptimizerConfig,
 )
-from proto_tools.tools.inverse_folding.shared_data_models import InverseFoldingStructureInput
-from proto_tools.tools.structure_dynamics.bioemu import (
-    BioEmuInput,
-    BioEmuConfig,
-    run_bioemu,
-)
-
 
 if __name__ == '__main__':
     n_samples = 200

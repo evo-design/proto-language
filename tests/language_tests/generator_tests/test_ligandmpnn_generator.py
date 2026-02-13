@@ -4,14 +4,12 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from proto_tools import InverseFoldingStructureInput
 
 from proto_language.language.core import Segment
 from proto_language.language.generator import (
     LigandMPNNGenerator,
     LigandMPNNGeneratorConfig,
-)
-from proto_tools.tools.inverse_folding.shared_data_models import (
-    InverseFoldingStructureInput,
 )
 
 DEFAULT_CHECKPOINT = (

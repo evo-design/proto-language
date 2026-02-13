@@ -1,5 +1,4 @@
-from proto_tools.tools.structure_prediction import run_esmfold, ESMFoldConfig
-
+from proto_tools import ESMFoldConfig, run_esmfold
 
 if __name__ == "__main__":
     config = ESMFoldConfig(sequences=sys.argv[1])

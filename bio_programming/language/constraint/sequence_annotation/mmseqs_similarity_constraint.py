@@ -8,6 +8,17 @@ from __future__ import annotations
 from typing import List, Literal, Tuple
 
 import numpy as np
+from proto_tools import (
+    MmseqsSearchProteinsConfig,
+    MmseqsSearchProteinsInput,
+    OrfipyConfig,
+    OrfipyInput,
+    ProdigalConfig,
+    ProdigalInput,
+    run_mmseqs_search_proteins,
+    run_orfipy_prediction,
+    run_prodigal_prediction,
+)
 from pydantic import model_validator
 
 from proto_language.base_config import BaseConfig, ConfigField
@@ -18,21 +29,6 @@ from proto_language.utils import (
     MIN_ENERGY,
     calculate_percentage_range_deviation,
     resolve_paths,
-)
-from proto_tools.tools.gene_annotation.mmseqs import (
-    MmseqsSearchProteinsConfig,
-    MmseqsSearchProteinsInput,
-    run_mmseqs_search_proteins,
-)
-from proto_tools.tools.orf_prediction.orfipy import (
-    OrfipyConfig,
-    OrfipyInput,
-    run_orfipy_prediction,
-)
-from proto_tools.tools.orf_prediction.prodigal import (
-    ProdigalConfig,
-    ProdigalInput,
-    run_prodigal_prediction,
 )
 
 
@@ -86,7 +82,7 @@ class MMseqsSimilarityConfig(BaseConfig):
 
     Note:
         For examples with tool configuration, see:
-        >>> from proto_tools.tools.gene_annotation.mmseqs import MmseqsSearchProteinsConfig
+        >>> from proto_tools import MmseqsSearchProteinsConfig
         The similarity range [min_similarity, max_similarity] defines acceptable percent
         identity. Sequences with hits outside this range are penalized. For example:
         - [40, 70]: Moderate similarity, useful for inferring functional similarity while
@@ -245,7 +241,7 @@ def mmseqs_similarity_constraint(input_sequences: List[Tuple[Sequence, ...]], co
 
         Custom MMseqs2 configuration for sensitive search:
 
-        >>> from proto_tools.tools.gene_annotation.mmseqs import MmseqsSearchProteinsConfig
+        >>> from proto_tools import MmseqsSearchProteinsConfig
         >>> mmseqs_cfg = MmseqsSearchProteinsConfig(
         ...     threads=32,         # Use 32 CPU cores
         ...     sensitivity=7.5     # Most sensitive

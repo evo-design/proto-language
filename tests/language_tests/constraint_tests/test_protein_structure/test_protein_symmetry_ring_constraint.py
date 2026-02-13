@@ -4,15 +4,13 @@ Tests for Protein Symmetry Ring constraint.
 
 from unittest.mock import Mock, patch
 
+from proto_tools import ProdigalOutput, StructurePredictionOutput
+
 from proto_language.language.constraint import protein_symmetry_ring_constraint
 from proto_language.language.constraint.protein_structure.protein_symmetry_ring_constraint import (
     ProteinSymmetryRingConfig,
 )
 from proto_language.language.core import Constraint, Segment
-from proto_tools.tools.orf_prediction.prodigal import ProdigalOutput
-from proto_tools.tools.structure_prediction.shared_data_models import (
-    StructurePredictionOutput,
-)
 from tests.helpers.mock_structure import MockStructure
 
 mock_pdb = """ATOM      1  N   MET A   1       0.000   0.000   0.000  1.00 90.00           N
@@ -81,7 +79,7 @@ class TestProteinSymmetryRingConstraint:
         config = ProteinSymmetryRingConfig(n_replications=3)
 
         # Mock the Prodigal output with ORF objects
-        from proto_tools.tools.orf_prediction import ORF
+        from proto_tools import ORF
 
         mock_orf = ORF(
             parent_id="seq_0",

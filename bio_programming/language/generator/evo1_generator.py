@@ -6,17 +6,17 @@ from __future__ import annotations
 
 from typing import List, Optional, final
 
+from proto_tools import (
+    EVO1_MODEL_NAMES,
+    Evo1SampleConfig,
+    Evo1SampleInput,
+    run_evo1_sample,
+)
 from pydantic import field_validator, model_validator
 
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.core import Generator, Segment
 from proto_language.language.generator.generator_registry import generator
-from proto_tools.tools.causal_models.evo1 import (
-    Evo1SampleConfig,
-    Evo1SampleInput,
-    run_evo1_sample,
-)
-from proto_tools.tools.causal_models.evo1.standalone.inference import EVO1_MODEL_NAMES
 
 
 class Evo1GeneratorConfig(BaseConfig):

@@ -14,6 +14,7 @@ Tests cover:
 from unittest.mock import MagicMock, patch
 
 import pytest
+from proto_tools import Structure, StructurePredictionOutput
 
 from proto_language.language.constraint.protein_structure.structure_confidence_constraint import (
     TOOL_AVAILABLE_METRICS,
@@ -25,8 +26,6 @@ from proto_language.language.constraint.protein_structure.structure_confidence_c
 )
 from proto_language.language.core import Sequence
 from proto_language.storage import get_file_content, is_file_reference
-from proto_tools.entities.structures import Structure
-from proto_tools.tools.structure_prediction import StructurePredictionOutput
 
 # ============================================================================
 # Fixtures
@@ -583,7 +582,7 @@ class TestToolConfigPassthrough:
             call_args = mock_predict.call_args
             passed_tool_config = call_args[0][2]  # Third positional arg
             # Config is now a typed ESMFoldConfig object (converted from dict)
-            from proto_tools.tools.structure_prediction import ESMFoldConfig
+            from proto_tools import ESMFoldConfig
             assert isinstance(passed_tool_config, ESMFoldConfig)
             assert passed_tool_config.verbose is True
             assert passed_tool_config.residue_idx_offset == 256
@@ -613,9 +612,7 @@ class TestToolConfigPassthrough:
             call_args = mock_predict.call_args
             passed_tool_config = call_args[0][2]
             # Config is now a typed AlphaFold3Config object (converted from dict)
-            from proto_tools.tools.structure_prediction import (
-                AlphaFold3Config,
-            )
+            from proto_tools import AlphaFold3Config
             assert isinstance(passed_tool_config, AlphaFold3Config)
             assert passed_tool_config.seeds == [0, 1, 2]
             assert passed_tool_config.use_msa is False
@@ -637,7 +634,7 @@ class TestToolConfigPassthrough:
             call_args = mock_predict.call_args
             passed_tool_config = call_args[0][2]
             # Config is now a typed ESMFoldConfig object with default values
-            from proto_tools.tools.structure_prediction import ESMFoldConfig
+            from proto_tools import ESMFoldConfig
             assert isinstance(passed_tool_config, ESMFoldConfig)
             # Verify it has default values
             assert passed_tool_config.device == "cuda"
@@ -856,7 +853,7 @@ class TestConfigurationDefaults:
         """Test that default tool_config creates a default ESMFoldConfig."""
         config = StructureBasedConstraintConfig()
         # New behavior: tool_config is automatically converted to typed config
-        from proto_tools.tools.structure_prediction import ESMFoldConfig
+        from proto_tools import ESMFoldConfig
         assert isinstance(config.tool_config, ESMFoldConfig)
         # Verify it uses default values
         assert config.tool_config.device == "cuda"

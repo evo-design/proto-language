@@ -12,20 +12,20 @@ Usage:
 
 import argparse
 import math
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib as mpl
 from pathlib import Path
 from typing import List, Optional
-from Bio import SeqIO
 
-from proto_tools.tools.sequence_scoring.borzoi import (
-    BORZOI_CONTEXT,  # 524,288 bp
-    BORZOI_OUTPUT,   # 6,144 output bins
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from Bio import SeqIO
+from proto_tools import BORZOI_CONTEXT  # 524,288 bp
+from proto_tools import BORZOI_OUTPUT  # 6,144 output bins
+from proto_tools import (
     BorzoiConfig,
-    BorzoiInput,
     BorzoiEnsembleConfig,
+    BorzoiInput,
     run_borzoi,
     run_borzoi_ensemble,
 )

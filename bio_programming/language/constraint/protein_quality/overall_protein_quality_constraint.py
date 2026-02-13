@@ -5,6 +5,11 @@ from __future__ import annotations
 from typing import List, Optional, Tuple
 
 import numpy as np
+from proto_tools import (
+    ProdigalConfig,
+    ProdigalInput,
+    run_prodigal_prediction,
+)
 from pydantic import model_validator
 
 from proto_language.base_config import BaseConfig, ConfigField
@@ -30,11 +35,6 @@ from proto_language.language.constraint.sequence_composition.sequence_length_con
     sequence_length_constraint,
 )
 from proto_language.language.core import Sequence
-from proto_tools.tools.orf_prediction.prodigal import (
-    ProdigalConfig,
-    ProdigalInput,
-    run_prodigal_prediction,
-)
 
 
 class ProteinQualitySubConfig(BaseConfig):

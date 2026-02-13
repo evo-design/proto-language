@@ -6,15 +6,16 @@ from __future__ import annotations
 
 from typing import List, Tuple
 
-from proto_language.base_config import BaseConfig, ConfigField
-from proto_language.language.constraint.constraint_registry import constraint
-from proto_language.language.core import Sequence
-from proto_language.utils import MAX_ENERGY, MIN_ENERGY
-from proto_tools.tools.sequence_scoring.segmasker import (
+from proto_tools import (
     SegmaskerConfig,
     SegmaskerInput,
     run_segmasker,
 )
+
+from proto_language.base_config import BaseConfig, ConfigField
+from proto_language.language.constraint.constraint_registry import constraint
+from proto_language.language.core import Sequence
+from proto_language.utils import MAX_ENERGY, MIN_ENERGY
 
 
 class ProteinComplexityConfig(BaseConfig):

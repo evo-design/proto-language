@@ -13,15 +13,15 @@ from logging import getLogger
 from typing import List, Set, Tuple
 
 import numpy as np
-
-from proto_language.base_config import BaseConfig, ConfigField
-from proto_language.language.constraint.constraint_registry import constraint
-from proto_language.language.core import Sequence
-from proto_tools.tools.structure_prediction import (
+from proto_tools import (
     ViennaRNAConfig,
     ViennaRNAInput,
     run_viennarna,
 )
+
+from proto_language.base_config import BaseConfig, ConfigField
+from proto_language.language.constraint.constraint_registry import constraint
+from proto_language.language.core import Sequence
 
 logger = getLogger(__name__)
 

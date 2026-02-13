@@ -9,15 +9,16 @@ from __future__ import annotations
 
 from typing import List, Optional, Tuple
 
-from proto_language.base_config import BaseConfig, ConfigField
-from proto_language.language.constraint.constraint_registry import constraint
-from proto_language.language.core import Sequence
-from proto_language.utils import MAX_ENERGY
-from proto_tools.tools.structure_prediction.structure_metrics import (
+from proto_tools import (
     StructureMetricsConfig,
     StructureMetricsInput,
     run_structure_metrics,
 )
+
+from proto_language.base_config import BaseConfig, ConfigField
+from proto_language.language.constraint.constraint_registry import constraint
+from proto_language.language.core import Sequence
+from proto_language.utils import MAX_ENERGY
 
 
 class GyrationRadiusConfig(BaseConfig):

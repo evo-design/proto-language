@@ -7,20 +7,19 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from proto_tools import (
+    ProdigalConfig,
+    ProdigalInput,
+    PyHmmerConfig,
+    PyHmmscanInput,
+    run_prodigal_prediction,
+    run_pyhmmer_hmmscan,
+)
+
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.language.core import Sequence
 from proto_language.utils import MAX_ENERGY, MIN_ENERGY
-from proto_tools.tools.gene_annotation.pyhmmer import (
-    PyHmmerConfig,
-    PyHmmscanInput,
-    run_pyhmmer_hmmscan,
-)
-from proto_tools.tools.orf_prediction.prodigal import (
-    ProdigalConfig,
-    ProdigalInput,
-    run_prodigal_prediction,
-)
 
 
 class ProteinDomainConfig(BaseConfig):

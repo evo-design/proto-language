@@ -8,33 +8,24 @@ from io import StringIO
 from typing import List, Tuple
 
 import numpy as np
+from proto_tools import (
+    ESMFoldConfig,
+    ESMFoldInput,
+    ProdigalConfig,
+    ProdigalInput,
+    StructurePredictionComplex,
+    distances_to_centroid,
+    get_backbone_atoms,
+    pdb_file_to_atomarray,
+    run_esmfold,
+    run_prodigal_prediction,
+)
 
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.language.core import Sequence
 from proto_language.storage import FileType, store_file
 from proto_language.utils import MAX_ENERGY
-from proto_tools.entities.structures.utils import (
-    distances_to_centroid,
-    get_backbone_atoms,
-    pdb_file_to_atomarray,
-)
-from proto_tools.tools.orf_prediction.prodigal import (
-    ProdigalConfig,
-    ProdigalInput,
-    run_prodigal_prediction,
-)
-from proto_tools.tools.structure_prediction import (
-    ESMFoldConfig,
-    ESMFoldInput,
-    StructurePredictionComplex,
-    run_esmfold,
-)
-from proto_tools.tools.structure_prediction.esmfold import (
-    ESMFoldConfig,
-    ESMFoldInput,
-    run_esmfold,
-)
 
 
 class ProteinGlobularityConfig(BaseConfig):

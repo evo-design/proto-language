@@ -5,13 +5,13 @@ Tests for structure ensemble similarity constraint.
 from unittest.mock import MagicMock, patch
 
 import pytest
+from proto_tools import BioEmuConfig
 
 from proto_language.language.constraint.protein_structure.structure_ensemble_similarity_constraint import (
     StructureEnsembleSimilarityConfig,
     structure_ensemble_rmsd_constraint,
 )
 from proto_language.language.core import Sequence
-from proto_tools.tools.structure_dynamics.bioemu import BioEmuConfig
 
 # Short test sequence
 TEST_SEQ = "MGDIQVQVNIDDNGKNFDYTYTVTTE"

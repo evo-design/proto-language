@@ -19,16 +19,17 @@ from __future__ import annotations
 from logging import getLogger
 from typing import Dict, List, Tuple
 
+from proto_tools import (
+    StructurePredictionComplex,
+    predict_structures,
+)
+
 from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.language.constraint.protein_structure.structure_constraint_config import (
     StructureBasedConstraintConfig,
 )
 from proto_language.language.core import Sequence
 from proto_language.storage import FileType, store_file
-from proto_tools.tools.structure_prediction.dispatch import predict_structures
-from proto_tools.tools.structure_prediction.shared_data_models import (
-    StructurePredictionComplex,
-)
 
 logger = getLogger(__name__)
 

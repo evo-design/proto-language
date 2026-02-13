@@ -4,14 +4,14 @@ Tests for Boltz Binding Strength constraint.
 
 from unittest.mock import patch
 
+from proto_tools import BFactorType, StructurePredictionOutput
+
 from proto_language.language.constraint import ConstraintRegistry
 from proto_language.language.constraint.protein_structure.boltz_binding_strength_constraint import (
     DEFAULT_DESIRED_HIGHER,
     BoltzBindingStrengthConfig,
 )
 from proto_language.language.core import Segment
-from proto_tools.entities.structures import BFactorType
-from proto_tools.tools.structure_prediction import StructurePredictionOutput
 from tests.helpers.mock_structure import MockStructure
 
 mock_protein_protein_ligand_structure = MockStructure(
@@ -110,7 +110,7 @@ class TestBoltzBindingStrengthConstraint:
         Test config merge overrides default values for dicts and ensures
         nested configs are set correctly.
         """
-        from proto_tools.tools.structure_prediction.boltz2 import Boltz2Config
+        from proto_tools import Boltz2Config
 
         # Ensures config merge overrides default values
         desired_higher = {

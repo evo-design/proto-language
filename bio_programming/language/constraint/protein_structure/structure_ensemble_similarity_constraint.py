@@ -17,21 +17,19 @@ from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import numpy as np
+from proto_tools import (
+    BioEmuConfig,
+    BioEmuInput,
+    Structure,
+    StructurePredictionComplex,
+    run_bioemu,
+)
 from pydantic import field_validator, model_validator
 
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.language.core import Sequence
 from proto_language.utils import MAX_ENERGY, sigmoid_score
-from proto_tools.entities.structures import Structure
-from proto_tools.tools.structure_dynamics.bioemu import (
-    BioEmuConfig,
-    BioEmuInput,
-    run_bioemu,
-)
-from proto_tools.tools.structure_prediction.shared_data_models import (
-    StructurePredictionComplex,
-)
 
 logger = getLogger(__name__)
 

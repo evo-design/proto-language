@@ -260,14 +260,16 @@ def stage1_orf_phmm_crispr(candidates: List[Candidate]) -> List[Candidate]:
     if not candidates:
         return []
 
-    from proto_tools.tools.gene_annotation.minced import (
-        MincedConfig, MincedInput, run_minced,
-    )
-    from proto_tools.tools.gene_annotation.pyhmmer import (
-        PyHmmsearchConfig, PyHmmsearchInput, run_pyhmmer_hmmsearch,
-    )
-    from proto_tools.tools.orf_prediction.orfipy import (
-        OrfipyConfig, OrfipyInput, run_orfipy_prediction,
+    from proto_tools import (
+        MincedConfig,
+        MincedInput,
+        OrfipyConfig,
+        OrfipyInput,
+        PyHmmsearchConfig,
+        PyHmmsearchInput,
+        run_minced,
+        run_orfipy_prediction,
+        run_pyhmmer_hmmsearch,
     )
 
     sequences = [c.sequence for c in candidates]
@@ -355,15 +357,16 @@ def stage2_alignment(candidates: List[Candidate]) -> List[Candidate]:
     if not candidates:
         return []
 
-    from proto_tools.tools.gene_annotation.mmseqs import (
-        MmseqsSearchProteinsConfig, MmseqsSearchProteinsInput,
+    from proto_tools import (
+        GapGiniConfig,
+        GapGiniInput,
+        MafftConfig,
+        MafftInput,
+        MmseqsSearchProteinsConfig,
+        MmseqsSearchProteinsInput,
+        run_gap_gini,
+        run_mafft_align,
         run_mmseqs_search_proteins,
-    )
-    from proto_tools.tools.sequence_alignment.gap_gini import (
-        GapGiniConfig, GapGiniInput, run_gap_gini,
-    )
-    from proto_tools.tools.sequence_alignment.mafft import (
-        MafftConfig, MafftInput, run_mafft_align,
     )
 
     training_fasta = _get_training_fasta()
@@ -455,11 +458,13 @@ def stage3_domains_tracr(candidates: List[Candidate]) -> List[Candidate]:
     if not candidates:
         return []
 
-    from proto_tools.tools.gene_annotation.crispr_tracr import (
-        CrisprTracrConfig, CrisprTracrInput, run_crispr_tracr,
-    )
-    from proto_tools.tools.gene_annotation.pyhmmer import (
-        PyHmmsearchConfig, PyHmmsearchInput, run_pyhmmer_hmmsearch,
+    from proto_tools import (
+        CrisprTracrConfig,
+        CrisprTracrInput,
+        PyHmmsearchConfig,
+        PyHmmsearchInput,
+        run_crispr_tracr,
+        run_pyhmmer_hmmsearch,
     )
 
     # Domain HMM search
@@ -539,14 +544,12 @@ def stage4_structure(candidates: List[Candidate]) -> List[Candidate]:
     if not candidates:
         return []
 
-    from proto_tools.tools.structure_prediction.alphafold3 import (
-        AlphaFold3Config, AlphaFold3Input, run_alphafold3,
-    )
-    from proto_tools.tools.structure_prediction.shared_data_models import (
-        StructurePredictionComplex,
-    )
-    from proto_tools.tools.sequence_alignment.colabfold_search.colabfold_search import (
+    from proto_tools import (
+        AlphaFold3Config,
+        AlphaFold3Input,
         ColabfoldSearchConfig,
+        StructurePredictionComplex,
+        run_alphafold3,
     )
 
     # AF3 structure prediction — each candidate gets a unique output_dir
@@ -586,8 +589,10 @@ def stage4_structure(candidates: List[Candidate]) -> List[Candidate]:
     pdb_paths = [c.pdb_path for c in candidates if c.pdb_path]
     if pdb_paths:
         logger.info(f"Stage 4: Structure metrics for {len(pdb_paths)} structures...")
-        from proto_tools.tools.structure_prediction.structure_metrics import (
-            StructureMetricsConfig, StructureMetricsInput, run_structure_metrics,
+        from proto_tools import (
+            StructureMetricsConfig,
+            StructureMetricsInput,
+            run_structure_metrics,
         )
 
         metrics_result = run_structure_metrics(

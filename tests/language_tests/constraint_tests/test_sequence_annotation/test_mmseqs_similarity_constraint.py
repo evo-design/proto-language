@@ -7,6 +7,12 @@ Tests the MMseqs2 similarity constraint for protein sequences.
 from unittest.mock import patch
 
 import pytest
+from proto_tools import (
+    MmseqsHit,
+    MmseqsSearchProteinsConfig,
+    MmseqsSearchProteinsOutput,
+    MmseqsSequenceSearchResult,
+)
 
 from proto_language.language.constraint import (
     ConstraintRegistry,
@@ -16,12 +22,6 @@ from proto_language.language.constraint.sequence_annotation.mmseqs_similarity_co
     MMseqsSimilarityConfig,
 )
 from proto_language.language.core import Constraint, Segment
-from proto_tools.tools.gene_annotation.mmseqs import (
-    MmseqsHit,
-    MmseqsSearchProteinsConfig,
-    MmseqsSearchProteinsOutput,
-    MmseqsSequenceSearchResult,
-)
 
 
 class TestMMseqsSimilarityConstraint:

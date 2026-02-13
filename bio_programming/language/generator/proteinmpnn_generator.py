@@ -6,20 +6,18 @@ from __future__ import annotations
 
 from typing import List, Optional, final
 
+from proto_tools import (
+    InverseFoldingConfig,
+    InverseFoldingInput,
+    InverseFoldingStructureInput,
+    Structure,
+    run_proteinmpnn_sample,
+)
 from pydantic import field_validator
 
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.core import Generator
 from proto_language.language.generator.generator_registry import generator
-from proto_tools.entities.structures import Structure
-from proto_tools.tools.inverse_folding.proteinmpnn import (
-    run_proteinmpnn_sample,
-)
-from proto_tools.tools.inverse_folding.shared_data_models import (
-    InverseFoldingConfig,
-    InverseFoldingInput,
-    InverseFoldingStructureInput,
-)
 
 
 class ProteinMPNNGeneratorConfig(BaseConfig):
@@ -102,7 +100,7 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
 
         With per-structure chain selection and fixed positions:
 
-        >>> from proto_tools.tools.inverse_folding.shared_data_models import InverseFoldingStructureInput
+        >>> from proto_tools import InverseFoldingStructureInput
         >>> config = ProteinMPNNGeneratorConfig(
         ...     structure_inputs=InverseFoldingStructureInput(
         ...         structure="/path/to/backbone.pdb",

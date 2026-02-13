@@ -8,14 +8,13 @@ import inspect
 from typing import List, Tuple, Type, Union, get_args, get_origin
 
 import pytest
+from proto_tools import BaseToolInput, BaseToolOutput, ToolRegistry
+from proto_tools.utils import BaseConfig as ToolsBaseConfig
 
 from proto_language.base_config import BaseConfig as LanguageBaseConfig
 from proto_language.language.constraint import ConstraintRegistry
 from proto_language.language.generator import GeneratorRegistry
 from proto_language.language.optimizer import OptimizerRegistry
-from proto_tools.utils.tool_io import BaseToolInput, BaseToolOutput
-from proto_tools.tools.tool_registry import ToolRegistry
-from proto_tools.utils import BaseConfig as ToolsBaseConfig
 
 # Defines the maximum length of a field title in characters
 MAX_FIELD_TITLE_LENGTH = 31

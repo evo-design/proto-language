@@ -3,14 +3,12 @@ import os
 import tempfile
 
 import pytest
+from proto_tools import InverseFoldingStructureInput
 
 from proto_language.language.core import Segment
 from proto_language.language.generator import (
     ProteinMPNNGenerator,
     ProteinMPNNGeneratorConfig,
-)
-from proto_tools.tools.inverse_folding.shared_data_models import (
-    InverseFoldingStructureInput,
 )
 
 # Sample PDB content for testing (minimal valid structure)

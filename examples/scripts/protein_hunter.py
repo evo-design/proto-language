@@ -24,17 +24,17 @@ import sys
 from datetime import datetime
 from typing import List, Tuple
 
+from proto_tools import (
+    StructurePredictionComplex,
+    predict_structures,
+)
+
 from proto_language.language.core import Construct, Program, Segment, Sequence
 from proto_language.language.generator import (
     ProteinMPNNGenerator,
     ProteinMPNNGeneratorConfig,
 )
 from proto_language.language.optimizer import CyclingOptimizer, CyclingOptimizerConfig
-from proto_tools.tools.structure_prediction import (
-    StructurePredictionComplex,
-    predict_structures,
-)
-
 
 # =============================================================================
 # Logging & Setup Helpers

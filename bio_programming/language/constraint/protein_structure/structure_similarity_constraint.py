@@ -15,6 +15,10 @@ import tempfile
 from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
+from proto_tools import (
+    StructurePredictionComplex,
+    predict_structures,
+)
 from pydantic import model_validator
 
 from proto_language.base_config import ConfigField
@@ -25,10 +29,6 @@ from proto_language.language.constraint.protein_structure.structure_constraint_c
 from proto_language.language.core import Sequence
 from proto_language.storage import FileType, store_file
 from proto_language.utils import MAX_ENERGY, sigmoid_score
-from proto_tools.tools.structure_prediction import predict_structures
-from proto_tools.tools.structure_prediction.shared_data_models import (
-    StructurePredictionComplex,
-)
 
 logger = getLogger(__name__)
 

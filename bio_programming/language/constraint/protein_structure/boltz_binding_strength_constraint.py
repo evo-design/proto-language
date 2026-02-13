@@ -6,19 +6,17 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
+from proto_tools import (
+    Boltz2Config,
+    Boltz2Input,
+    StructurePredictionComplex,
+    run_boltz2,
+)
 from numpy import clip
 
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.language.core import Sequence
-from proto_tools.tools.structure_prediction.boltz2 import (
-    Boltz2Config,
-    Boltz2Input,
-    run_boltz2,
-)
-from proto_tools.tools.structure_prediction.shared_data_models import (
-    StructurePredictionComplex,
-)
 
 # Default target values and tolerances for binding strength metrics
 DEFAULT_DESIRED_HIGHER = {

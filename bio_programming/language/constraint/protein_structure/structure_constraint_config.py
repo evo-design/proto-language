@@ -11,16 +11,16 @@ from __future__ import annotations
 
 from typing import Any, Dict, Literal, Optional, Union
 
-from pydantic import model_validator
-
-from proto_language.base_config import BaseConfig, ConfigField
-from proto_tools.tools.structure_prediction import (
+from proto_tools import (
     AlphaFold3Config,
     Boltz2Config,
     Chai1Config,
     ESMFoldConfig,
 )
 from proto_tools.tools.structure_prediction.dispatch import SP_TOOL_MAP
+from pydantic import model_validator
+
+from proto_language.base_config import BaseConfig, ConfigField
 
 
 class StructureBasedConstraintConfig(BaseConfig):

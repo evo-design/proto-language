@@ -1,20 +1,29 @@
-from Bio import SeqIO
 import math
-import numpy as np
-import pandas as pd
 import random
 from typing import List, Tuple
 
+import numpy as np
+import pandas as pd
+from Bio import SeqIO
+from proto_tools import BORZOI_CONTEXT  # 524,288 bp.
+from proto_tools import BORZOI_OUTPUT  # 6,144 dimensions.
+from proto_tools import (
+    BorzoiConfig,
+    BorzoiInput,
+    run_borzoi,
+)
+from proto_tools.tools.causal_models.evo2 import clear_evo2_cache
+
 from proto_language.base_config import BaseConfig, ConfigField
+from proto_language.language.constraint.constraint_registry import (
+    ConstraintRegistry,
+)
 from proto_language.language.core import (
     Constraint,
     Construct,
     Program,
     Segment,
     Sequence,
-)
-from proto_language.language.constraint.constraint_registry import (
-    ConstraintRegistry,
 )
 from proto_language.language.generator import (
     Evo2Generator,
@@ -23,15 +32,6 @@ from proto_language.language.generator import (
 from proto_language.language.optimizer import (
     TopKOptimizer,
     TopKOptimizerConfig,
-)
-from proto_tools.tools.causal_models.evo2 import clear_evo2_cache
-
-from proto_tools.tools.sequence_scoring.borzoi import (
-    BORZOI_CONTEXT, # 524,288 bp.
-    BORZOI_OUTPUT,  # 6,144 dimensions.
-    BorzoiConfig,
-    BorzoiInput,
-    run_borzoi,
 )
 
 # Other Borzoi constants.

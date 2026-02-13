@@ -6,10 +6,7 @@ from __future__ import annotations
 
 from typing import Literal, Optional, final
 
-from proto_language.base_config import BaseConfig, ConfigField
-from proto_language.language.core import Generator
-from proto_language.language.generator.generator_registry import generator
-from proto_tools.tools.masked_models.esm2 import (
+from proto_tools import (
     ESM2SampleConfig,
     ESM2SampleInput,
     run_esm2_sample,
@@ -17,6 +14,10 @@ from proto_tools.tools.masked_models.esm2 import (
 from proto_tools.tools.masked_models.esm2.standalone.inference import (
     ESM2_MODEL_CHECKPOINTS,
 )
+
+from proto_language.base_config import BaseConfig, ConfigField
+from proto_language.language.core import Generator
+from proto_language.language.generator.generator_registry import generator
 
 
 class ESM2GeneratorConfig(BaseConfig):

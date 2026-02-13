@@ -6,10 +6,10 @@ import copy
 import random
 
 import pytest
+from proto_tools import MSA
 
 from proto_language.language.core import Segment
 from proto_language.language.generator import MSAGenerator, MSAGeneratorConfig
-from proto_tools.tools.sequence_alignment.msas import MSA
 
 
 class TestMSAGeneratorConfig:

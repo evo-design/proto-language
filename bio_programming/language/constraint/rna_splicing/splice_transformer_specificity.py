@@ -5,18 +5,18 @@ from __future__ import annotations
 
 from typing import List, Literal, Tuple
 
-from pydantic import field_validator
-
-from proto_language.base_config import BaseConfig, ConfigField
-from proto_language.language.constraint.constraint_registry import constraint
-from proto_language.language.core import Sequence
-from proto_tools.tools.rna_splicing.splice_transformer import (
+from proto_tools import (
     TISSUE_INDEX_OFFSET,
     SpliceTransformerConfig,
     SpliceTransformerInput,
     SpliceTransformerTissue,
     run_splice_transformer,
 )
+from pydantic import field_validator
+
+from proto_language.base_config import BaseConfig, ConfigField
+from proto_language.language.constraint.constraint_registry import constraint
+from proto_language.language.core import Sequence
 
 
 class SpliceTransformerSpecificityConfig(BaseConfig):

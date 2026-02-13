@@ -6,12 +6,7 @@ from __future__ import annotations
 
 from typing import List, Optional, final
 
-from pydantic import field_validator
-
-from proto_language.base_config import BaseConfig, ConfigField
-from proto_language.language.core import Generator, Segment
-from proto_language.language.generator.generator_registry import generator
-from proto_tools.tools.causal_models.progen2 import (
+from proto_tools import (
     ProGen2SampleConfig,
     ProGen2SampleInput,
     run_progen2_sample,
@@ -19,6 +14,11 @@ from proto_tools.tools.causal_models.progen2 import (
 from proto_tools.tools.causal_models.progen2.standalone.inference import (
     PROGEN2_MODEL_CHECKPOINTS,
 )
+from pydantic import field_validator
+
+from proto_language.base_config import BaseConfig, ConfigField
+from proto_language.language.core import Generator, Segment
+from proto_language.language.generator.generator_registry import generator
 
 
 class ProGen2GeneratorConfig(BaseConfig):

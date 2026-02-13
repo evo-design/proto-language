@@ -3,6 +3,11 @@ Tests for SpliceTransformer constraints.
 """
 
 import pytest
+from proto_tools import CONTEXT_LENGTH as SPLICE_TRANSFORMER_CONTEXT_LENGTH
+from proto_tools import TARGET_LENGTH as SPLICE_TRANSFORMER_TARGET_LENGTH
+from proto_tools import (
+    SpliceTransformerConfig,
+)
 
 from proto_language.language.constraint.rna_splicing.splice_transformer_intron_boundary import (
     SpliceTransformerIntronBoundaryConfig,
@@ -13,15 +18,6 @@ from proto_language.language.constraint.rna_splicing.splice_transformer_specific
     splice_transformer_specificity,
 )
 from proto_language.language.core import Sequence
-from proto_tools.tools.rna_splicing.splice_transformer import (
-    CONTEXT_LENGTH as SPLICE_TRANSFORMER_CONTEXT_LENGTH,
-)
-from proto_tools.tools.rna_splicing.splice_transformer import (
-    TARGET_LENGTH as SPLICE_TRANSFORMER_TARGET_LENGTH,
-)
-from proto_tools.tools.rna_splicing.splice_transformer import (
-    SpliceTransformerConfig,
-)
 
 
 @pytest.mark.skip_ci

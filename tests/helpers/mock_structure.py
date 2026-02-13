@@ -8,7 +8,7 @@ mock_structure.py
 from pathlib import Path
 from typing import Dict, Optional
 
-from proto_tools.entities.structures import (
+from proto_tools import (
     BFactorType,
     Structure,
     load_structure_file,
