@@ -1,7 +1,7 @@
 """
 Cas9 generation pipeline using a single TopK optimizer with filter constraints.
 
-Rewrites the multi-stage cas9_generation.py pipeline as a proto-language Program
+Expresses the multi-stage Cas9 generation pipeline as a proto-language Program
 with one TopKOptimizer. All filtering steps are expressed as constraints ordered
 cheap -> expensive. The optimizer's built-in filter short-circuiting (score_energy
 mask propagation) ensures expensive filters (AF3) only run on candidates that pass
@@ -595,6 +595,7 @@ def structure_filter(
     plddt_threshold = config.get("plddt_threshold", PLDDT_THRESHOLD)
     rg_threshold = config.get("rg_threshold", GYRATION_RADIUS_THRESHOLD)
     alpha_threshold = config.get("alpha_threshold", LONGEST_ALPHA_THRESHOLD)
+    af3_dir = config.get("af3_output_dir", "af3_pdbs")
     af3_name = "cas9"
 
     dna_seqs = [seq_tuple[0].sequence for seq_tuple in input_sequences]
@@ -608,7 +609,24 @@ def structure_filter(
         if not protein:
             continue
 
+        # Skip AF3 if we already have a PDB for this sequence
+        if "pdb_path" in CACHE[dna]:
+            pdb_file = Path(CACHE[dna]["pdb_path"])
+            if pdb_file.exists():
+                plddt = CACHE[dna].get("plddt")
+                rg = CACHE[dna].get("gyration_radius")
+                alpha = CACHE[dna].get("longest_alpha")
+                plddt_ok = plddt is not None and plddt >= plddt_threshold
+                rg_ok = rg is not None and rg < rg_threshold
+                alpha_ok = alpha is not None and alpha < alpha_threshold
+                if plddt_ok and rg_ok and alpha_ok:
+                    scores[i] = 0.0
+                continue
+
         # AF3 structure prediction
+        af3_idx = structure_filter._next_idx
+        structure_filter._next_idx += 1
+        candidate_dir = f"{af3_dir}/{af3_name}_{af3_idx}"
         try:
             af3_result = run_alphafold3(
                 AlphaFold3Input(
@@ -616,7 +634,7 @@ def structure_filter(
                 ),
                 AlphaFold3Config(
                     name=af3_name,
-                    output_dir=f"af3_pdbs/{af3_name}_{id(dna) % 100000}",
+                    output_dir=candidate_dir,
                     use_msa=True,
                     colabfold_search_config=ColabfoldSearchConfig(
                         search_mode="local"
@@ -632,9 +650,7 @@ def structure_filter(
         CACHE[dna]["plddt"] = plddt
 
         # Find PDB path
-        output_dir = Path(
-            f"af3_pdbs/{af3_name}_{id(dna) % 100000}_af3_results"
-        )
+        output_dir = Path(f"{candidate_dir}_af3_results")
         pdb_file = output_dir / f"{af3_name}_0_af3.pdb"
         if not pdb_file.exists():
             # Try to find any PDB in the output directory
@@ -698,6 +714,9 @@ def structure_filter(
     return scores
 
 
+structure_filter._next_idx = 0
+
+
 # Suppress validation warnings by setting supported sequence types
 for _fn in [
     orf_filter,
@@ -724,6 +743,7 @@ def build_program(
     top_k_val: int,
     batch_size: int,
     verbose: bool = False,
+    af3_output_dir: str = "af3_pdbs",
 ) -> Tuple[Any, Any]:
     """Build a Program with a single TopK optimizer for one (temp, top_k) combo.
 
@@ -827,6 +847,7 @@ def build_program(
                 "plddt_threshold": PLDDT_THRESHOLD,
                 "rg_threshold": GYRATION_RADIUS_THRESHOLD,
                 "alpha_threshold": LONGEST_ALPHA_THRESHOLD,
+                "af3_output_dir": af3_output_dir,
             },
             label="structure_filter",
             threshold=0.5,
@@ -1060,13 +1081,19 @@ def main():
             )
 
             CACHE.clear()
+            structure_filter._next_idx = 0
 
+            output_base = Path(args.output).stem.replace("_candidates", "")
+            af3_output_dir = (
+                f"{output_base}_af3_pdbs/temp{temp}_topk{top_k_val}"
+            )
             program, segment = build_program(
                 n_samples=args.n_samples,
                 temperature=temp,
                 top_k_val=top_k_val,
                 batch_size=batch_size,
                 verbose=args.verbose,
+                af3_output_dir=af3_output_dir,
             )
             program.run()
 
