@@ -60,6 +60,31 @@ class TestSegment:
         assert segment_without_seq.sequence_length == 50
         assert segment_without_seq.original_sequence.sequence == ""
 
+    def test_candidates_populated_checks_all(self):
+        """Regression: candidates_populated must check ALL candidates (Bug 5)."""
+        segment = Segment(sequence="ATCG", sequence_type="dna")
+
+        # One populated, one empty — should be False
+        segment.candidate_sequences = [
+            Sequence(sequence="ATCG", sequence_type="dna"),
+            Sequence(sequence="", sequence_type="dna"),
+        ]
+        assert not segment.candidates_populated
+
+        # All populated — should be True
+        segment.candidate_sequences = [
+            Sequence(sequence="ATCG", sequence_type="dna"),
+            Sequence(sequence="GCTA", sequence_type="dna"),
+        ]
+        assert segment.candidates_populated
+
+        # All empty — should be False
+        segment.candidate_sequences = [
+            Sequence(sequence="", sequence_type="dna"),
+            Sequence(sequence="", sequence_type="dna"),
+        ]
+        assert not segment.candidates_populated
+
     def test_is_ligand_property(self):
         """Tests that is_ligand correctly identifies ligand segments."""
         # DNA segment

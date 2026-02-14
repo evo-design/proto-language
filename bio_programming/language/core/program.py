@@ -279,6 +279,10 @@ class Program:
         # Restore initial state on re-run (first optimizer captures pre-pipeline state)
         if self.optimizers[0]._initial_state is not None:
             self.optimizers[0]._restore_initial_state()
+            # Clear stale initial states from subsequent optimizers so they
+            # recapture fresh state from this run (not stale first-run state).
+            for opt in self.optimizers[1:]:
+                opt._initial_state = None
 
         # Run all stages sequentially
         logger.debug(f"Program.run: starting {len(self.optimizers)} optimization stages")

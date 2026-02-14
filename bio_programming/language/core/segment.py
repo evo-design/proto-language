@@ -138,8 +138,8 @@ class Segment:
 
     @property
     def candidates_populated(self) -> bool:
-        """Whether candidate sequences have actual sequences (not empty)."""
-        return bool(self.candidate_sequences[0].sequence)
+        """Whether all candidate sequences have actual sequences (not empty)."""
+        return all(bool(seq.sequence) for seq in self.candidate_sequences)
 
     @property
     def is_ligand(self) -> bool:
@@ -177,9 +177,12 @@ class Segment:
             sequence=original_seq.sequence if original_seq.sequence else None,
             length=data["sequence_length"] if not original_seq.sequence else None,
             sequence_type=data["sequence_type"],
-            valid_chars=set(data["valid_chars"]) if "valid_chars" in data else None,
+            valid_chars=set(data["valid_chars"]) if data.get("valid_chars") else None,
             label=data.get("label"),
-            metadata=original_seq._metadata,
+            metadata={
+                k: v for k, v in original_seq._metadata.items()
+                if k not in {"sequence", "sequence_length", "constraints"}
+            } or None,
         )
 
         # Restore sequence pools

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+
 import pytest
 
 from proto_language.language.core import Segment
@@ -200,6 +201,35 @@ class TestUniformMutationGenerator:
         segment = Segment(sequence="A" * 50, sequence_type="dna")
         with pytest.raises(ValueError, match="incompatible with segment length"):
             UniformMutationGenerator(config).assign(segment)
+
+
+    def test_num_mutations_capped_by_window_size(self):
+        """Regression: num_mutations > window size must be capped, not crash (Bug 2)."""
+        config = UniformMutationGeneratorConfig(
+            num_mutations=10, mutation_window=(5, 8)
+        )
+        gen = UniformMutationGenerator(config)
+        segment = Segment(sequence="A" * 100, sequence_type="dna")
+        gen.assign(segment)
+
+        segment.candidate_sequences = [copy.deepcopy(segment.original_sequence)]
+        initial = segment.candidate_sequences[0].sequence
+
+        # Should not raise ValueError
+        gen.sample()
+
+        mutated = segment.candidate_sequences[0].sequence
+        assert len(mutated) == 100
+
+        # Outside window must be unchanged
+        assert initial[:5] == mutated[:5]
+        assert initial[8:] == mutated[8:]
+
+        # Mutations capped to window size (3 positions)
+        mutations_in_window = sum(
+            1 for i in range(5, 8) if initial[i] != mutated[i]
+        )
+        assert mutations_in_window == 3
 
 
 class TestUniformMutationGeneratorValidation:

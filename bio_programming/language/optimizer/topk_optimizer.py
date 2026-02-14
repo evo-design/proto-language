@@ -383,7 +383,6 @@ class TopKOptimizer(Optimizer):
                 logger.info(f"Round {round_idx+1}/{total_rounds} ({progress_pct:.0f}%): {num_selected}/{self.k} in top-k, best={best_energy:.4f}, worst={worst_energy:.4f}")
 
         if self.custom_logging:
-            self._sort_topk_by_energy()
             self.custom_logging(round_idx, self.segments)
 
     def _log_optimization_summary(

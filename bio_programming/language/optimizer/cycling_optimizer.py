@@ -55,10 +55,7 @@ def _create_protein_hunter_conditioning_fn(config: CyclingOptimizerConfig) -> Ca
     The Protein Hunter algorithm predicts 3D structures from current sequences,
     then uses those structures to condition inverse folding for the next iteration.
     """
-    from proto_tools import (
-        StructurePredictionComplex,
-        predict_structures,
-    )
+    from proto_tools import StructurePredictionComplex, predict_structures
 
     structure_tool = config.protein_hunter.structure_tool if config.protein_hunter else "boltz2"
 
@@ -443,6 +440,9 @@ class CyclingOptimizer(Optimizer):
                 raise RuntimeError(f"Constraint {i} has no input segment(s) assigned")
             if constraint.threshold is None:
                 raise ValueError(f"CyclingOptimizer only supports filter constraints. Constraint {i} ('{constraint.label}') has no threshold set.")
+
+        # Deduplicate constraint labels for metadata namespacing
+        self._deduplicate_constraint_labels()
 
     def _revert_rejected_candidates(self, previous_sequences: List[Any]) -> int:
         """Roll back candidates that failed filter constraints. Returns num_passed."""

@@ -6,25 +6,27 @@ from __future__ import annotations
 
 from typing import List, Tuple
 
-from proto_language.language.core import Sequence
+from pydantic import model_validator
+
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
+from proto_language.language.core import Sequence
 from proto_language.utils import (
-    MIN_GC_CONTENT,
-    MAX_GC_CONTENT,
-    validate_range,
-    calculate_percentage_range_deviation,
     MAX_ENERGY,
+    MAX_GC_CONTENT,
+    MIN_GC_CONTENT,
+    calculate_percentage_range_deviation,
+    validate_range,
 )
 
 
 class GCContentConfig(BaseConfig):
     """Configuration for GC content constraint.
-    
+
     This class defines configuration parameters for evaluating the GC content
     in DNA or RNA sequences. This penalty scales linearly with deviation from the
     acceptable range.
-    
+
     Attributes:
         min_gc (float): Minimum acceptable GC content percentage (0-100). Sequences
             with GC content below this threshold are penalized. Typical values depend
@@ -34,7 +36,7 @@ class GCContentConfig(BaseConfig):
             with GC content above this threshold are penalized. Can be used to avoid
             sequences that are GC-rich, which can form secondary structures
             or have very high melting temperatures. Higher values are more permissive.
-    
+
     """
     # Required parameters
     min_gc: float = ConfigField(
@@ -51,6 +53,13 @@ class GCContentConfig(BaseConfig):
         description="Maximum acceptable GC content percentage (0-100)",
         examples=[70]
     )
+
+    @model_validator(mode='after')
+    def validate_gc_range(self):
+        """Ensure min_gc <= max_gc."""
+        if self.min_gc > self.max_gc:
+            raise ValueError(f"min_gc ({self.min_gc}) must be <= max_gc ({self.max_gc})")
+        return self
 
 
 @constraint(
@@ -74,7 +83,7 @@ def gc_content_constraint(input_sequences: List[Tuple[Sequence, ...]], config: G
 
     Args:
         input_sequences (List[Tuple[Sequence, ...]]): List of sequence tuples to evaluate.
-            Each tuple contains one DNA or RNA sequence. Empty sequences receive 
+            Each tuple contains one DNA or RNA sequence. Empty sequences receive
             maximum penalty.
 
         config (GCContentConfig): Configuration object containing ``min_gc``
@@ -101,9 +110,9 @@ def gc_content_constraint(input_sequences: List[Tuple[Sequence, ...]], config: G
     """
     validate_range(config.min_gc, MIN_GC_CONTENT, MAX_GC_CONTENT, "min_gc")
     validate_range(config.max_gc, MIN_GC_CONTENT, MAX_GC_CONTENT, "max_gc")
-   
+
     scores = []
-   
+
     for (seq,) in input_sequences:
         if len(seq.sequence) == 0:
             seq._metadata["gc_content"] = 0.0
@@ -117,7 +126,7 @@ def gc_content_constraint(input_sequences: List[Tuple[Sequence, ...]], config: G
         )
 
         seq._metadata["gc_content"] = gc_content
-        
+
         deviation = calculate_percentage_range_deviation(gc_content, config.min_gc, config.max_gc)
         scores.append(min(MAX_ENERGY,deviation))
 

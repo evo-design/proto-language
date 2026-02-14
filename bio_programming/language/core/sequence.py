@@ -6,9 +6,10 @@ Sequence class for the proto-language.
 Represents a single DNA, RNA, protein, or ligand sequence with validation and metadata.
 """
 from __future__ import annotations
+
 import copy
-from typing import Any, Dict, Iterable, List, Literal, Optional, Set, FrozenSet
 import warnings
+from typing import Any, Dict, FrozenSet, Iterable, List, Literal, Optional, Set
 
 # Valid characters for different sequence types
 DNA_NUCLEOTIDES = "ACGT"
@@ -226,7 +227,18 @@ class Sequence:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> Sequence:
         """Deserialize Sequence from dictionary."""
-        valid_chars = set(data["valid_chars"]) if data.get("valid_chars") else None
+        if data.get("valid_chars"):
+            chars = frozenset(data["valid_chars"])
+            if chars == _DEFAULT_DNA_CHARS:
+                valid_chars = _DEFAULT_DNA_CHARS
+            elif chars == _DEFAULT_RNA_CHARS:
+                valid_chars = _DEFAULT_RNA_CHARS
+            elif chars == _DEFAULT_PROTEIN_CHARS:
+                valid_chars = _DEFAULT_PROTEIN_CHARS
+            else:
+                valid_chars = chars
+        else:
+            valid_chars = None
         return cls(
             sequence=data["sequence"],
             sequence_type=data["sequence_type"],
@@ -258,7 +270,7 @@ def create_concatenated_sequence(subsequences: Iterable[Sequence], segment_label
     # Merge segment metadata if labels provided
     if segment_labels:
         assert len(segment_labels) == len(seq_list), f"Length mismatch: {len(segment_labels)} labels provided but {len(seq_list)} sequences to concatenate"
-        segments_metadata = {label: dict(seq._metadata) for label, seq in zip(segment_labels, seq_list)}
+        segments_metadata = {label: copy.deepcopy(seq._metadata) for label, seq in zip(segment_labels, seq_list)}
         joined_seq._metadata["segments"] = segments_metadata
     return joined_seq
 

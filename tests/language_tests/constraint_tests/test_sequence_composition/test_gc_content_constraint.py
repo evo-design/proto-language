@@ -1,8 +1,11 @@
 import pytest
+from pydantic import ValidationError
 
-from proto_language.language.core import Constraint, Segment
 from proto_language.language.constraint import gc_content_constraint
-from proto_language.language.constraint.sequence_composition.gc_content_constraint import GCContentConfig
+from proto_language.language.constraint.sequence_composition.gc_content_constraint import (
+    GCContentConfig,
+)
+from proto_language.language.core import Constraint, Segment
 
 
 # Tests for gc_content_constraint
@@ -61,3 +64,18 @@ class TestGCContentConstraint:
                 function=gc_content_constraint,
                 function_config=config,
             )
+
+
+class TestGCContentConfigValidation:
+    """Tests for GCContentConfig cross-field validation."""
+
+    def test_min_gc_greater_than_max_gc_raises(self):
+        """Test that min_gc > max_gc raises ValidationError."""
+        with pytest.raises(ValidationError, match="min_gc.*must be <= max_gc"):
+            GCContentConfig(min_gc=80, max_gc=20)
+
+    def test_min_gc_equal_max_gc_allowed(self):
+        """Test that min_gc == max_gc is a valid (exact target) config."""
+        config = GCContentConfig(min_gc=50, max_gc=50)
+        assert config.min_gc == 50
+        assert config.max_gc == 50

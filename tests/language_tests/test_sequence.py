@@ -1,6 +1,7 @@
 import copy
-import pytest
 import warnings
+
+import pytest
 
 from proto_language.language.core import Sequence
 from proto_language.language.core.sequence import validate_smiles
@@ -157,6 +158,25 @@ class TestSequenceDeepCopy:
         # Immutable data should be shared (same object)
         assert seq1.valid_chars is seq2.valid_chars
         assert seq1._sequence_type is seq2._sequence_type
+
+
+class TestConcatenatedSequence:
+    """Tests for create_concatenated_sequence."""
+
+    def test_concatenated_sequence_metadata_independence(self):
+        """Verify that mutating source metadata doesn't corrupt joined sequence (B6)."""
+        from proto_language.language.core.sequence import create_concatenated_sequence
+
+        seq1 = Sequence("ATCG", "dna", metadata={"nested": {"score": 0.5}})
+        seq2 = Sequence("GGGG", "dna", metadata={"nested": {"score": 0.8}})
+
+        joined = create_concatenated_sequence([seq1, seq2], ["seg1", "seg2"])
+
+        # Mutate source metadata after concatenation
+        seq1._metadata["nested"]["score"] = 999
+
+        # Joined sequence's metadata should be independent
+        assert joined._metadata["segments"]["seg1"]["nested"]["score"] == 0.5
 
 
 class TestSequenceSerialization:

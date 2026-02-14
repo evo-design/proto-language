@@ -4,7 +4,10 @@ Tests for serialization/deserialization of core language objects.
 Tests roundtrip serialization (to_dict -> from_dict) for Sequence, Segment, and Construct.
 """
 
+# import warnings
+
 from proto_language.language.core import Construct, Segment, Sequence
+from proto_language.language.core.sequence import _DEFAULT_DNA_CHARS
 
 
 class TestSequenceSerialization:
@@ -147,6 +150,60 @@ class TestSegmentSerialization:
         assert (
             seg_restored.original_sequence.metadata["annotation"] == "strong_promoter"
         )
+
+    def test_ligand_segment_roundtrip(self):
+        """Test ligand segment serialization doesn't crash on valid_chars=None (B1)."""
+        seg = Segment(sequence="CCO", sequence_type="ligand", label="ethanol")
+
+        seg_dict = seg.to_dict()
+        # This would crash with set(None) TypeError before the fix
+        seg_restored = Segment.from_dict(seg_dict)
+
+        assert str(seg_restored.original_sequence) == "CCO"
+        assert seg_restored.sequence_type == "ligand"
+        assert seg_restored.valid_chars is None
+        assert seg_restored.label == "ethanol"
+        assert len(seg_restored.candidate_sequences) == 1
+        assert len(seg_restored.selected_sequences) == 1
+
+    def test_ligand_sequence_roundtrip(self):
+        """Test ligand Sequence roundtrip at the Sequence level (B1)."""
+        seq = Sequence(sequence="CCO", sequence_type="ligand")
+
+        seq_dict = seq.to_dict()
+        seq_restored = Sequence.from_dict(seq_dict)
+
+        assert seq_restored.sequence == "CCO"
+        assert seq_restored.sequence_type == "ligand"
+        assert seq_restored.valid_chars is None
+
+    # def test_segment_roundtrip_no_warnings(self):
+    #     """Test that Segment.from_dict doesn't emit spurious UserWarnings (B2)."""
+    #     seg = Segment(
+    #         sequence="ATATCG", sequence_type="dna", label="promoter",
+    #         metadata={"custom_key": "custom_value"},
+    #     )
+    #     seg_dict = seg.to_dict()
+
+    #     with warnings.catch_warnings(record=True) as caught:
+    #         warnings.simplefilter("always")
+    #         Segment.from_dict(seg_dict)
+
+    #     user_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
+    #     assert len(user_warnings) == 0, (
+    #         f"Unexpected UserWarnings during deserialization: "
+    #         f"{[str(w.message) for w in user_warnings]}"
+    #     )
+
+    def test_valid_chars_preserved_as_frozenset_after_roundtrip(self):
+        """Test that valid_chars reuses shared frozenset defaults after roundtrip (B3)."""
+        seq = Sequence(sequence="ATCG", sequence_type="dna")
+
+        seq_dict = seq.to_dict()
+        seq_restored = Sequence.from_dict(seq_dict)
+
+        # Should reuse the shared module-level frozenset, not allocate a new set
+        assert seq_restored._valid_chars is _DEFAULT_DNA_CHARS
 
 
 class TestConstructSerialization:

@@ -354,6 +354,9 @@ class BeamSearchOptimizer(Optimizer):
         if self.beam_length > self.target_segment.sequence_length:
             raise ValueError(f"beam_length={self.beam_length} cannot be greater than target_segment length ({self.target_segment.sequence_length})")
 
+        # Deduplicate constraint labels for metadata namespacing
+        self._deduplicate_constraint_labels()
+
     def _capture_initial_state(self) -> None:
         """Capture state and reset BeamSearch-specific state for fresh run."""
         super()._capture_initial_state()

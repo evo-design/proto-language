@@ -212,14 +212,14 @@ class UniformMutationGenerator(Generator):
             current_sequence = sequence.sequence
             sequence_length = len(current_sequence)
 
-            # Ensure we don't try to mutate more positions than available
-            actual_mutations = min(self.num_mutations, sequence_length)
-
             # Define the positions to mutate
             if self.mutation_window is None or self.mutation_window.start is None:
                 window_range = range(sequence_length)
             else:
                 window_range = range(self.mutation_window.start, self.mutation_window.end)
+
+            # Cap mutations to both sequence length and available window positions
+            actual_mutations = min(self.num_mutations, sequence_length, len(window_range))
 
             # Select random positions to mutate (without replacement)
             positions_to_mutate = random.sample(window_range, actual_mutations)
@@ -234,8 +234,8 @@ class UniformMutationGenerator(Generator):
                 ]
                 mutated_char = random.choice(possible_mutations)
                 current_sequence = (
-                    current_sequence[:pos] + 
-                    mutated_char + 
+                    current_sequence[:pos] +
+                    mutated_char +
                     current_sequence[pos + 1:]
                 )
 

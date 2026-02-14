@@ -72,6 +72,13 @@ class Construct:
         joined_sequences = []
         segment_labels = [seg.label for seg in self.segments]
 
+        pool_sizes = [len(seg.selected_sequences) for seg in self.segments]
+        if len(set(pool_sizes)) > 1:
+            raise RuntimeError(
+                f"Cannot join sequences: segments have mismatched selected_sequences lengths: "
+                f"{dict(zip(segment_labels, pool_sizes))}"
+            )
+
         for sequences_to_combine in zip(*[segment.selected_sequences for segment in self.segments]):
             joined_seq = create_concatenated_sequence(sequences_to_combine, segment_labels)
             joined_sequences.append(joined_seq)

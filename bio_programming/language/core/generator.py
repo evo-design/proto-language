@@ -81,6 +81,11 @@ class Generator(ABC):
         if self._assigned_segment is None:
             raise RuntimeError(f"Generator {self.__class__.__name__} has no segment assigned.")
 
+        if not self._assigned_segment.candidate_sequences:
+            raise RuntimeError(
+                f"Segment '{self._assigned_segment.label or 'unlabeled'}' has an empty candidate_sequences pool."
+            )
+
         # Warn if segment already has populated sequences that will be overwritten (autoregressive only)
         if self._spec.category == "autoregressive" and self._assigned_segment.candidates_populated:
             warnings.warn(f"Segment '{self._assigned_segment.label or 'unlabeled'}' has an input sequence that will be overwritten by {self.__class__.__name__}.")
@@ -90,8 +95,8 @@ class Generator(ABC):
             if not self._assigned_segment.candidates_populated:
                 warnings.warn(f"Generator {self.__class__.__name__} is a mutation generator, but candidates have no sequences. Initializing random starting sequences.")
                 valid_chars = list(self._assigned_segment.valid_chars - set(" "))
-                random_sequence = "".join(random.choice(valid_chars) for _ in range(self._assigned_segment.sequence_length))
                 for sequence in self._assigned_segment.candidate_sequences:
+                    random_sequence = "".join(random.choice(valid_chars) for _ in range(self._assigned_segment.sequence_length))
                     sequence.sequence = random_sequence
 
         # Initialize unknown (X) sequences for inverse folding generators if no input sequence provided.

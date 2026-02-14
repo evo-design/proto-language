@@ -68,9 +68,9 @@ def calculate_range_deviation(actual: float, min_val: float, max_val: float) -> 
     if min_val <= actual <= max_val:
         return MIN_ENERGY
     elif actual < min_val:
-        return min(MAX_ENERGY, (min_val - actual) / min_val)
+        return min(MAX_ENERGY, (min_val - actual) / max(min_val, 1))
     else:
-        return min(MAX_ENERGY, (actual - max_val) / max_val)
+        return min(MAX_ENERGY, (actual - max_val) / max(max_val, 1))
 
 
 def calculate_percentage_range_deviation(

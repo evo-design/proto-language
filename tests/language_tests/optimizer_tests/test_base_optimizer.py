@@ -1,14 +1,17 @@
 from __future__ import annotations
-import pytest
-from unittest.mock import MagicMock, patch
+
+import logging
 from typing import List
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from proto_language.language.core import (
-    Optimizer,
-    Construct,
-    Segment,
     Constraint,
+    Construct,
     Generator,
+    Optimizer,
+    Segment,
     Sequence,
 )
 
@@ -145,7 +148,7 @@ class TestOptimizerValidation:
         # Use same constraint instance twice
         with pytest.raises(ValueError, match="appears multiple times.*can only be used once"):
             ConcreteOptimizer([construct], [generator], [constraint, constraint], 4, 2)
-    
+
     # 5. Unique constraint labels per segment (auto-renamed on collision)
     def test_duplicate_constraint_labels_same_segment_auto_renames(self):
         """Tests that duplicate constraint labels on same segment are auto-renamed."""
@@ -339,6 +342,72 @@ class TestOptimizerValidation:
 
         assert constraint1.label == "structure_constraint"
         assert constraint2.label == "structure_constraint_1"
+
+    def test_four_constraints_same_label_sequential_suffixes(self):
+        """Tests that 4+ constraints with same label on same segment get sequential suffixes.
+
+        Regression test for a bug where label mutation mid-iteration caused the
+        deduplication key to use the already-renamed label instead of the original,
+        leading to missed collisions.
+        """
+        construct, generator, _, segment = _setup_optimizer_components()
+
+        constraints = []
+        for _ in range(4):
+            c = MagicMock(spec=Constraint)
+            c.inputs = [segment]
+            c.label = "energy"
+            c.threshold = None
+            c.weight = 1.0
+            c.evaluate.return_value = [1.0, 1.0, 1.0, 1.0]
+            constraints.append(c)
+
+        ConcreteOptimizer([construct], [generator], constraints, 4, 2)
+
+        assert constraints[0].label == "energy"
+        assert constraints[1].label == "energy_1"
+        assert constraints[2].label == "energy_2"
+        assert constraints[3].label == "energy_3"
+
+    def test_multi_segment_constraint_label_dedup_uses_base_label(self):
+        """Tests that a multi-segment constraint's label dedup uses the original base label.
+
+        Regression test: if constraint A has inputs [seg1, seg2] and constraint B
+        also has label "X" on seg2, after A processes seg1 and gets renamed to "X_1",
+        it should still collide with B on seg2 using base label "X" (not "X_1").
+        """
+        segment1 = Segment(sequence="ATCG", sequence_type="dna")
+        segment2 = Segment(sequence="GCTA", sequence_type="dna")
+        construct = Construct([segment1, segment2])
+
+        gen1 = MockGenerator()
+        gen1.assign(segment1)
+        gen2 = MockGenerator()
+        gen2.assign(segment2)
+
+        # Constraint A: references both segments, label "score"
+        constraint_a = MagicMock(spec=Constraint)
+        constraint_a.inputs = [segment1, segment2]
+        constraint_a.label = "score"
+        constraint_a.threshold = None
+        constraint_a.weight = 1.0
+        constraint_a.evaluate.return_value = [1.0, 1.0, 1.0, 1.0]
+
+        # Constraint B: references seg1 only, same label "score"
+        constraint_b = MagicMock(spec=Constraint)
+        constraint_b.inputs = [segment1]
+        constraint_b.label = "score"
+        constraint_b.threshold = None
+        constraint_b.weight = 1.0
+        constraint_b.evaluate.return_value = [1.0, 1.0, 1.0, 1.0]
+
+        ConcreteOptimizer(
+            [construct], [gen1, gen2], [constraint_a, constraint_b], 4, 2
+        )
+
+        # constraint_a collides with constraint_b on seg1 → constraint_b gets renamed
+        assert constraint_a.label == "score"
+        assert constraint_b.label == "score_1"
 
 
 class TestOptimizerInitialization:
@@ -562,6 +631,30 @@ class TestFilterConstraints:
         # Verify scoring constraint received mask reflecting filter rejection
         _, kwargs = scoring_constraint.evaluate.call_args
         assert kwargs['mask'] == [True, False, True]
+
+    def test_filter_only_constraints_warns(self, caplog):
+        """Tests that filter-only constraints (no scoring constraints) logs a warning."""
+        construct, generator, filter_constraint, segment = _setup_optimizer_components(num_candidates=2)
+        segment.candidate_sequences = [Sequence("A"), Sequence("C")]
+
+        # Only a filter constraint, no scoring constraints
+        filter_constraint.threshold = 0.5
+        filter_constraint.evaluate.return_value = [True, True]
+
+        optimizer = ConcreteOptimizer(
+            constructs=[construct],
+            generators=[generator],
+            constraints=[filter_constraint],
+            num_candidates=2,
+            num_selected=2,
+        )
+
+        with caplog.at_level(logging.WARNING, logger="proto_language.language.core.optimizer"):
+            optimizer.score_energy()
+
+        assert any("All constraints are filters" in msg for msg in caplog.messages)
+        # Passing candidates get energy 0.0 (sum of empty list)
+        assert optimizer.energy_scores == [0.0, 0.0]
 
     def test_inconsistent_state_raises_error(self):
         """Tests that passed candidate with NaN score raises RuntimeError."""

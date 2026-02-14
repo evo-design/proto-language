@@ -4,19 +4,23 @@ Tests for TopKOptimizer functionality.
 Minimal tests verifying core behavior of the TopKOptimizer.
 """
 
+import heapq
+import logging
 import math
+import random
 
 import pytest
-import logging
-import heapq
-from proto_language.language.core import (
-    Construct, Segment, Constraint, Sequence)
+
+from proto_language.language.constraint import (
+    gc_content_constraint,
+    sequence_length_constraint,
+)
+from proto_language.language.core import Constraint, Construct, Segment, Sequence
 from proto_language.language.generator import (
     UniformMutationGenerator,
-    UniformMutationGeneratorConfig
+    UniformMutationGeneratorConfig,
 )
 from proto_language.language.optimizer import TopKOptimizer, TopKOptimizerConfig
-from proto_language.language.constraint import gc_content_constraint, sequence_length_constraint
 
 
 class TestTopKOptimizerStandardMode:
@@ -248,16 +252,16 @@ class TestTopKOptimizerStandardMode:
         optimizer.run()
         assert len(segment.selected_sequences) == 3
         assert optimizer._initial_state is not None
-        
+
         # Verify captured state contains cycled original sequences
         assert len(optimizer._initial_state['segments']) == 1
         captured_selected = optimizer._initial_state['segments'][0]['selected']
         assert len(captured_selected) == 3  # Cycled to num_selected
         assert all(s['sequence'] == original_seq for s in captured_selected)
-        
+
         # Verify energy scores captured
         assert 'energy_scores' in optimizer._initial_state
-        
+
         # Verify heap was cleared (TopK-specific state)
         assert len(optimizer._energy_heap) == 3  # Has k entries after run
 
@@ -269,7 +273,7 @@ class TestTopKOptimizerStandardMode:
         optimizer.run()
         assert len(segment.selected_sequences) == 3
         assert len(optimizer._energy_heap) == 3  # Rebuilt from scratch
-        
+
         # Verify sequences were restored (not all G's - restoration happened)
         assert any(seq.sequence != "GGGGGGGG" for seq in segment.selected_sequences)
 
@@ -357,7 +361,10 @@ class TestTopKOptimizerStandardMode:
     def test_inf_and_nan_energy_rejection(self):
         """Test that TopK optimizer skips inf/nan energies from heap."""
         import math
-        from proto_language.language.constraint.sequence_composition.gc_content_constraint import GCContentConfig
+
+        from proto_language.language.constraint.sequence_composition.gc_content_constraint import (
+            GCContentConfig,
+        )
 
         segment = Segment(sequence="ATCGATCGATCG", sequence_type="dna")
         construct = Construct([segment])
@@ -639,7 +646,9 @@ class TestTopKOptimizerInternals:
         This is a regression test for a bug where the optimizer would crash with
         RuntimeError when all candidates had inf/nan energies.
         """
-        from proto_language.language.constraint.sequence_composition.gc_content_constraint import GCContentConfig
+        from proto_language.language.constraint.sequence_composition.gc_content_constraint import (
+            GCContentConfig,
+        )
 
         segment = Segment(sequence="AAAAAAAAAA", sequence_type="dna")  # 0% GC
         construct = Construct([segment])
@@ -686,7 +695,9 @@ class TestTopKOptimizerInternals:
 
     def test_partial_candidates_rejected_by_filter(self):
         """Test TopK optimizer handles case where some but not all candidates pass filter."""
-        from proto_language.language.constraint.sequence_composition.gc_content_constraint import GCContentConfig
+        from proto_language.language.constraint.sequence_composition.gc_content_constraint import (
+            GCContentConfig,
+        )
 
         segment = Segment(sequence="ATCGATCGAT", sequence_type="dna")  # 40% GC
         construct = Construct([segment])
@@ -872,3 +883,166 @@ class TestTopKOptimizerTrajectoryPreservation:
                 assert candidates1[i] == "AAAA" and candidates2[i] == "TTTT"
             else:
                 assert candidates1[i] == "CCCC" and candidates2[i] == "GGGG"
+
+
+class TestTopKCustomLogging:
+    """Regression: custom_logging must not corrupt heap indices (Bug 1).
+
+    Previously, ``_log_round_progress`` called ``_sort_topk_by_energy()`` when
+    ``custom_logging`` was set, reordering ``selected_sequences`` in-place while
+    the heap still held the old indices.
+    """
+
+    def test_custom_logging_does_not_corrupt_results(self):
+        """Results with custom_logging must match results without it (same seed)."""
+        seed = 42
+
+        def run_topk(custom_logging_fn=None):
+            random.seed(seed)
+            segment = Segment(sequence="ATCGATCG", sequence_type="dna")
+            construct = Construct([segment])
+            gen = UniformMutationGenerator(
+                UniformMutationGeneratorConfig(num_mutations=2)
+            )
+            gen.assign(segment)
+            constraint = Constraint(
+                inputs=[segment],
+                function=gc_content_constraint,
+                function_config={"min_gc": 40.0, "max_gc": 60.0},
+            )
+            config = TopKOptimizerConfig(
+                num_samples=30, k=5, batch_size=1, verbose=False,
+            )
+            optimizer = TopKOptimizer(
+                constructs=[construct],
+                generators=[gen],
+                constraints=[constraint],
+                config=config,
+                custom_logging=custom_logging_fn,
+            )
+            optimizer.run()
+            return (
+                [s.sequence for s in segment.selected_sequences],
+                optimizer.energy_scores[:],
+            )
+
+        seqs_no_log, energies_no_log = run_topk(custom_logging_fn=None)
+
+        log_calls = []
+        seqs_with_log, energies_with_log = run_topk(
+            custom_logging_fn=lambda r, s: log_calls.append(r)
+        )
+
+        assert sorted(seqs_no_log) == sorted(seqs_with_log)
+        assert sorted(energies_no_log) == sorted(energies_with_log)
+        assert len(log_calls) > 0
+
+    def test_custom_logging_callback_receives_segments(self):
+        """Verify the custom_logging callback receives the correct arguments."""
+        received = []
+
+        def logger_fn(round_idx, segments):
+            received.append((round_idx, len(segments)))
+
+        segment = Segment(sequence="ATCGATCG", sequence_type="dna")
+        construct = Construct([segment])
+        gen = UniformMutationGenerator(
+            UniformMutationGeneratorConfig(num_mutations=1)
+        )
+        gen.assign(segment)
+        constraint = Constraint(
+            inputs=[segment],
+            function=sequence_length_constraint,
+            function_config={"target_length": 8},
+        )
+        config = TopKOptimizerConfig(
+            num_samples=5, k=3, batch_size=1, verbose=False,
+        )
+        optimizer = TopKOptimizer(
+            constructs=[construct],
+            generators=[gen],
+            constraints=[constraint],
+            config=config,
+            custom_logging=logger_fn,
+        )
+        optimizer.run()
+
+        assert len(received) == 5
+        for round_idx, num_segments in received:
+            assert isinstance(round_idx, int)
+            assert num_segments == 1
+
+
+class TestTopKLabelDeduplication:
+    """Regression: optimizer must deduplicate constraint labels (Bug 3)."""
+
+    def test_duplicate_constraint_labels_are_deduplicated(self):
+        """Two constraints with the same label should be auto-renamed."""
+        segment = Segment(sequence="AAAA", sequence_type="dna")
+        construct = Construct([segment])
+        gen = UniformMutationGenerator(
+            UniformMutationGeneratorConfig(num_mutations=1)
+        )
+        gen.assign(segment)
+
+        constraint1 = Constraint(
+            inputs=[segment],
+            function=gc_content_constraint,
+            function_config={"min_gc": 40.0, "max_gc": 60.0},
+        )
+        constraint2 = Constraint(
+            inputs=[segment],
+            function=gc_content_constraint,
+            function_config={"min_gc": 20.0, "max_gc": 80.0},
+        )
+        assert constraint1.label == constraint2.label
+
+        config = TopKOptimizerConfig(
+            num_samples=5, k=3, batch_size=1, verbose=False
+        )
+        optimizer = TopKOptimizer(
+            constructs=[construct],
+            generators=[gen],
+            constraints=[constraint1, constraint2],
+            config=config,
+        )
+        optimizer.run()
+        assert constraint1.label != constraint2.label
+
+    def test_deduplication_is_idempotent(self):
+        """Calling _deduplicate_constraint_labels twice must not accumulate suffixes."""
+        segment = Segment(sequence="AAAA", sequence_type="dna")
+        construct = Construct([segment])
+        gen = UniformMutationGenerator(
+            UniformMutationGeneratorConfig(num_mutations=1)
+        )
+        gen.assign(segment)
+
+        constraint1 = Constraint(
+            inputs=[segment],
+            function=gc_content_constraint,
+            function_config={"min_gc": 40.0, "max_gc": 60.0},
+        )
+        constraint2 = Constraint(
+            inputs=[segment],
+            function=gc_content_constraint,
+            function_config={"min_gc": 20.0, "max_gc": 80.0},
+        )
+
+        config = TopKOptimizerConfig(
+            num_samples=5, k=3, batch_size=1, verbose=False
+        )
+        optimizer = TopKOptimizer(
+            constructs=[construct],
+            generators=[gen],
+            constraints=[constraint1, constraint2],
+            config=config,
+        )
+
+        optimizer._deduplicate_constraint_labels()
+        label_after_first = constraint2.label
+        optimizer._deduplicate_constraint_labels()
+        label_after_second = constraint2.label
+
+        assert label_after_first == label_after_second
+        assert label_after_first.count("_1") == 1

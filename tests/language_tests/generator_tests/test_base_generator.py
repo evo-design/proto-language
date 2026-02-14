@@ -162,6 +162,35 @@ class TestGeneratorBase:
         # The sequence may be mutated but should still have same length
         assert len(segment.candidate_sequences[0].sequence) == len(predefined_seq)
 
+    def test_mutation_candidates_get_unique_random_sequences(self):
+        """Regression: each candidate must get a unique random sequence (Bug 4)."""
+        import random
+
+        from proto_language.language.core import Sequence
+        from proto_language.language.generator import (
+            UniformMutationGenerator,
+            UniformMutationGeneratorConfig,
+        )
+
+        random.seed(123)
+        segment = Segment(length=50, sequence_type="dna")
+        config = UniformMutationGeneratorConfig(num_mutations=1)
+        gen = UniformMutationGenerator(config)
+        gen.assign(segment)
+
+        # Set up multiple empty candidates
+        segment.candidate_sequences = [
+            Sequence(sequence="", sequence_type="dna") for _ in range(5)
+        ]
+        gen._validate_generator()
+
+        sequences = [s.sequence for s in segment.candidate_sequences]
+        assert all(len(s) == 50 for s in sequences)
+        assert all(all(c in "ACGT" for c in s) for s in sequences)
+        assert len(set(sequences)) > 1, (
+            "All candidates got the same random sequence — diversity is wasted"
+        )
+
     def test_assign_autoregressive_generator_no_random_init(self):
         """Tests that autoregressive generators don't initialize random sequences."""
         gen = ConcreteGenerator()
@@ -185,6 +214,24 @@ class TestGeneratorBase:
 
         # Should still have empty sequence (autoregressive generates from scratch)
         assert segment.original_sequence.sequence == ""
+
+
+    def test_validate_generator_empty_candidate_pool_raises(self):
+        """Tests that _validate_generator raises on empty candidate_sequences (I7)."""
+        from proto_language.language.generator import (
+            UniformMutationGenerator,
+            UniformMutationGeneratorConfig,
+        )
+
+        config = UniformMutationGeneratorConfig(num_mutations=1)
+        gen = UniformMutationGenerator(config)
+        segment = Segment(sequence="ATCG", sequence_type="dna")
+
+        gen.assign(segment)
+        segment.candidate_sequences = []
+
+        with pytest.raises(RuntimeError, match="empty candidate_sequences pool"):
+            gen._validate_generator()
 
 
 class TestGeneratorRegistry:

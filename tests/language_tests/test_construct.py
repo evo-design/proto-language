@@ -1,6 +1,6 @@
 import pytest
 
-from proto_language.language.core import Sequence, Segment, Construct
+from proto_language.language.core import Construct, Segment, Sequence
 
 
 class TestConstruct:
@@ -140,3 +140,21 @@ class TestConstructValidation:
         Construct([seg1, seg2])  # Auto-labeling happens during construct creation
         assert seg1.label == "promoter"
         assert seg2.label == "segment_1"
+
+    def test_joined_sequences_mismatched_pool_sizes_raises(self):
+        """Tests that joined_sequences raises on mismatched pool sizes (B4)."""
+        seg1 = Segment(sequence="ATCG", sequence_type="dna", label="seg1")
+        seg2 = Segment(sequence="GGGG", sequence_type="dna", label="seg2")
+        construct = Construct([seg1, seg2])
+
+        # Manually create a mismatch
+        seg1.selected_sequences = [
+            Sequence("AAAA", sequence_type="dna"),
+            Sequence("CCCC", sequence_type="dna"),
+        ]
+        seg2.selected_sequences = [
+            Sequence("TTTT", sequence_type="dna"),
+        ]
+
+        with pytest.raises(RuntimeError, match="mismatched selected_sequences lengths"):
+            construct.joined_sequences
