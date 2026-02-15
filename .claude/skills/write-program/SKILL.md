@@ -16,21 +16,11 @@ allowed-tools:
 
 ## Before You Start
 
-1. **Read example programs** to match the user's design goal:
-   - Simple DNA: `examples/scripts/toy.py`
-   - Multi-stage: `examples/scripts/toy-multiple-optimizers.py`
-   - TopK exploration: `examples/scripts/topk_example.py`
-   - Autoregressive DNA: `examples/scripts/evo2_example.py`
-   - Multi-segment intron design: `examples/scripts/program_intron_design.py`
-   - Protein structure design: `examples/scripts/program_symmetric_proteins.py`
-   - Protein hunting (cycling): `examples/scripts/protein_hunter.py`
-   - Beam search with KV caching: `examples/scripts/beam_search_kv_caching.py`
-   - 40+ protein system designs: `examples/scripts/human_systems_claude/programs/`
-2. **Check available components** via registries:
-   - Constraints: `proto_language/language/constraint/__init__.py`
-   - Generators: `proto_language/language/generator/__init__.py`
-   - Optimizers: `proto_language/language/optimizer/__init__.py`
-3. **Read JSON examples** for schema reference: `examples/jsons/`
+1. **Browse example programs** to match the user's design goal:
+   - Python scripts: `examples/scripts/` (DNA, RNA, protein, multi-chain designs)
+   - JSON programs: `examples/jsons/` (declarative format, run via `examples/scripts/run_program.py`)
+   - Read the example closest to the user's design goal before writing a new program.
+2. **Discover available components** using the registry API (see Component Discovery below) to find constraints, generators, and optimizers and inspect their config schemas.
 
 ## Program Structure (6 Steps)
 

@@ -25,6 +25,10 @@ _DEFAULT_PROTEIN_CHARS: FrozenSet[str] = frozenset(PROTEIN_AMINO_ACIDS)
 # Type alias for supported biological sequence types
 SequenceType = Literal["dna", "rna", "protein", "ligand"]
 
+# Reserved keys in the computed .metadata property — user-provided metadata
+# should not use these keys as they will be overwritten by identity fields.
+_RESERVED_METADATA_KEYS = frozenset({"sequence", "sequence_length", "constraints"})
+
 
 class Sequence:
     """
@@ -80,6 +84,15 @@ class Sequence:
         self._metadata: Dict[str, Any] = dict(metadata) if metadata else {}
         self._constraints_metadata: Dict[str, Any] = {}
 
+        # Warn about reserved key collisions in user-provided metadata
+        if self._metadata:
+            collisions = _RESERVED_METADATA_KEYS & self._metadata.keys()
+            if collisions:
+                warnings.warn(
+                    f"Metadata contains reserved keys {collisions} that will be "
+                    f"overwritten by identity fields in the .metadata property."
+                )
+
     def _validate_sequence(self, sequence: str) -> None:
         """
         Validate that genetic sequences contain only allowed characters for their types
@@ -116,9 +129,13 @@ class Sequence:
     def metadata(self) -> Dict[str, Any]:
         """
         Computed read-only view combining identity, user/generator metadata, and constraints.
+
+        Identity fields (sequence, sequence_length, constraints) always take
+        precedence over user-provided metadata with the same keys.
         """
-        result = {"sequence": self._sequence, "sequence_length": len(self._sequence)}
-        result.update(self._metadata)
+        result = dict(self._metadata)
+        result["sequence"] = self._sequence
+        result["sequence_length"] = len(self._sequence)
         result["constraints"] = self._constraints_metadata
         return result
 

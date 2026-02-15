@@ -65,15 +65,6 @@ class TestProteinDiversityConstraint:
         assert constraints["protein_diversity_constraint"]["data"]["aa_diversity_score"] == 1 / 20  # 1 out of 20 standard AAs
 
     def test_empty_sequence(self):
-        """Test that empty sequence raises error (constraint-specific edge case)."""
-        segment = Segment(length=0, sequence_type="protein")
-        config = ProteinDiversityConfig(min_diversity=0.3)
-
-        constraint = Constraint(
-            inputs=[segment],
-            function=protein_diversity_constraint,
-            function_config=config,
-        )
-
-        with pytest.raises(ValueError, match="Sequence is non-existent"):
-            constraint.evaluate()
+        """Test that zero-length segment raises ValueError."""
+        with pytest.raises(ValueError, match="Segment length must be positive"):
+            Segment(length=0, sequence_type="protein")

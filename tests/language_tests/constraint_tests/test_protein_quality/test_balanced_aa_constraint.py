@@ -1,3 +1,5 @@
+import pytest
+
 from proto_language.language.constraint import balanced_aa_constraint
 from proto_language.language.constraint.protein_quality.balanced_aa_constraint import (
     BalancedAaConfig,
@@ -48,17 +50,6 @@ class TestBalancedAAConstraint:
         assert "underrepresented_amino_acids" in constraints["balanced_aa_constraint"]["data"]
 
     def test_empty_sequence(self):
-        """Test empty sequence handling."""
-        segment = Segment(length=0, sequence_type="protein")
-        config = BalancedAaConfig(min_aa_frequency=0.05, max_underrepresented_count=5)
-
-        constraint = Constraint(
-            inputs=[segment],
-            function=balanced_aa_constraint,
-            function_config=config,
-        )
-
-        scores = constraint.evaluate()
-        assert len(scores) == 1
-        # Empty sequence has no underrepresented amino acids (0 count < 0 threshold is false)
-        assert scores[0] == 0.0
+        """Test that zero-length segment raises ValueError."""
+        with pytest.raises(ValueError, match="Segment length must be positive"):
+            Segment(length=0, sequence_type="protein")

@@ -56,6 +56,24 @@ class TestSequence:
         assert seq.metadata["sequence"] == "GATTACA"
         assert seq.metadata["sequence_length"] == 7
 
+    def test_metadata_identity_fields_cannot_be_shadowed(self):
+        """Identity fields in .metadata always reflect the actual sequence."""
+        with pytest.warns(UserWarning, match="reserved keys"):
+            seq = Sequence(
+                "ATCG", "dna",
+                metadata={"sequence": "WRONG", "sequence_length": 999},
+            )
+        # Identity fields must win over user metadata
+        assert seq.metadata["sequence"] == "ATCG"
+        assert seq.metadata["sequence_length"] == 4
+        # User data is still accessible in _metadata
+        assert seq._metadata["sequence"] == "WRONG"
+
+    def test_metadata_reserved_key_warning(self):
+        """Warn when user-provided metadata contains reserved keys."""
+        with pytest.warns(UserWarning, match="reserved keys"):
+            Sequence("ATCG", "dna", metadata={"constraints": {}})
+
 
 class TestLigandSequence:
     """Tests for ligand (SMILES) sequences."""

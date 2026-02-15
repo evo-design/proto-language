@@ -9,11 +9,13 @@ from pathlib import Path
 import pytest
 
 from proto_language.utils.export import (
+    _serialize_value,
     flatten_constraints,
     flatten_constructs,
     flatten_optimization,
     flatten_sequences,
     to_csv,
+    to_fasta,
     to_json,
     to_tsv,
     write_export,
@@ -368,7 +370,7 @@ class TestFlattenConstraints:
         }
         rows = flatten_constraints(batch_results)
         assert len(rows) == 1
-        assert rows[0]["input_segments"] == ["c0.protein_a", "c0.protein_b"]
+        assert json.loads(rows[0]["input_segments"]) == ["c0.protein_a", "c0.protein_b"]
         assert rows[0]["position_in_inputs"] == 0
         assert rows[0]["binding_energy"] == -5.0
 
@@ -833,7 +835,7 @@ class TestFiltering:
         assert "promoter.sequence" in rows[0]
         # No other segment columns should appear
         non_fixed_keys = {
-            k for r in rows for k in r if not k.startswith(("timepoint", "batch_idx", "energy_score"))
+            k for r in rows for k in r if not k.startswith(("timepoint", "batch_idx", "energy_score", "sequence_type", "stage"))
         }
         assert all(k.startswith("promoter.") for k in non_fixed_keys)
 
@@ -887,3 +889,384 @@ class TestFiltering:
         assert rows[0]["segment"] == "promoter"
         assert rows[0]["batch_idx"] == 1
         assert rows[0]["sequence"] == "TTAATTAA"
+
+
+# =============================================================================
+# Bug 2: Complex value serialization
+# =============================================================================
+
+
+class TestSerializeValue:
+    """Tests for _serialize_value helper."""
+
+    def test_file_reference_extracts_url(self):
+        """FileReference dicts serialize to URL string."""
+        file_ref = {
+            "__file_ref__": True,
+            "id": "abc123",
+            "file_type": "pdb",
+            "url": "gs://bucket/file.pdb",
+        }
+        assert _serialize_value(file_ref) == "gs://bucket/file.pdb"
+
+    def test_file_reference_missing_url(self):
+        """FileReference without url returns empty string."""
+        file_ref = {"__file_ref__": True, "id": "abc123"}
+        assert _serialize_value(file_ref) == ""
+
+    def test_dict_to_json(self):
+        """Regular dicts serialize to JSON string."""
+        d = {"a": 1, "b": [2, 3]}
+        result = _serialize_value(d)
+        assert result == json.dumps(d)
+        assert json.loads(result) == d
+
+    def test_list_to_json(self):
+        """Lists serialize to JSON string."""
+        lst = [1.0, 2.0, 3.0]
+        result = _serialize_value(lst)
+        assert result == json.dumps(lst)
+        assert json.loads(result) == lst
+
+    def test_tuple_to_json(self):
+        """Tuples serialize to JSON string (as arrays)."""
+        t = (1, 2, 3)
+        result = _serialize_value(t)
+        assert json.loads(result) == [1, 2, 3]
+
+    def test_scalar_passthrough(self):
+        """Scalars pass through unchanged."""
+        assert _serialize_value(42) == 42
+        assert _serialize_value(3.14) == 3.14
+        assert _serialize_value("hello") == "hello"
+        assert _serialize_value(None) is None
+
+
+class TestComplexValueSerialization:
+    """Tests that complex values in metadata/constraints serialize properly."""
+
+    def test_file_ref_in_constraint_data(self):
+        """FileReference in constraint data → URL in flattened output."""
+        batch_results = {
+            "batch_results": [
+                {
+                    "batch_idx": 0,
+                    "energy_score": 0.5,
+                    "constructs": [
+                        {
+                            "label": "c0",
+                            "type": "dna",
+                            "segments": [
+                                {
+                                    "label": "seg",
+                                    "sequence": "ATCG",
+                                    "constraints": {
+                                        "structure": {
+                                            "score": 0.1,
+                                            "weight": 1.0,
+                                            "weighted_score": 0.1,
+                                            "data": {
+                                                "pdb_output": {
+                                                    "__file_ref__": True,
+                                                    "id": "xyz",
+                                                    "url": "gs://bucket/out.pdb",
+                                                },
+                                                "per_residue": [0.9, 0.8, 0.7, 0.6],
+                                            },
+                                        },
+                                    },
+                                    "metadata": {},
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            "best_batch_idx": 0,
+        }
+
+        # flatten_sequences
+        rows = flatten_sequences(batch_results)
+        assert rows[0]["structure.pdb_output"] == "gs://bucket/out.pdb"
+        assert json.loads(rows[0]["structure.per_residue"]) == [0.9, 0.8, 0.7, 0.6]
+
+        # flatten_constraints
+        rows = flatten_constraints(batch_results)
+        assert rows[0]["pdb_output"] == "gs://bucket/out.pdb"
+        assert json.loads(rows[0]["per_residue"]) == [0.9, 0.8, 0.7, 0.6]
+
+        # flatten_constructs
+        rows = flatten_constructs(batch_results)
+        assert rows[0]["seg.structure.pdb_output"] == "gs://bucket/out.pdb"
+
+    def test_complex_metadata_serialized(self):
+        """Complex metadata values serialize to JSON strings."""
+        batch_results = {
+            "batch_results": [
+                {
+                    "batch_idx": 0,
+                    "energy_score": 0.5,
+                    "constructs": [
+                        {
+                            "label": "c0",
+                            "type": "dna",
+                            "segments": [
+                                {
+                                    "label": "seg",
+                                    "sequence": "ATCG",
+                                    "constraints": {},
+                                    "metadata": {
+                                        "scores": [1, 2, 3],
+                                        "nested": {"a": {"b": 1}},
+                                        "simple": "text",
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            "best_batch_idx": 0,
+        }
+
+        # flatten_sequences
+        rows = flatten_sequences(batch_results)
+        assert json.loads(rows[0]["metadata.scores"]) == [1, 2, 3]
+        assert json.loads(rows[0]["metadata.nested"]) == {"a": {"b": 1}}
+        assert rows[0]["metadata.simple"] == "text"  # Scalar unchanged
+
+        # flatten_constructs
+        rows = flatten_constructs(batch_results)
+        assert json.loads(rows[0]["seg.metadata.scores"]) == [1, 2, 3]
+
+
+# =============================================================================
+# Bug 3: Stage column in optimization history
+# =============================================================================
+
+
+class TestStageColumn:
+    """Tests for stage annotation in flatten_optimization."""
+
+    def test_stage_column_present(self):
+        """History entries with 'stage' produce a stage column."""
+        history = [
+            {
+                "time_step": 0,
+                "stage": 0,
+                "batch_results": [
+                    {
+                        "batch_idx": 0,
+                        "energy_score": 0.8,
+                        "constructs": [
+                            {
+                                "label": "c0",
+                                "type": "dna",
+                                "segments": [
+                                    {
+                                        "label": "seg",
+                                        "sequence": "AAAA",
+                                        "constraints": {},
+                                        "metadata": {},
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
+            {
+                "time_step": 0,
+                "stage": 1,
+                "batch_results": [
+                    {
+                        "batch_idx": 0,
+                        "energy_score": 0.5,
+                        "constructs": [
+                            {
+                                "label": "c0",
+                                "type": "dna",
+                                "segments": [
+                                    {
+                                        "label": "seg",
+                                        "sequence": "GCGC",
+                                        "constraints": {},
+                                        "metadata": {},
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
+        ]
+
+        rows = flatten_optimization(history)
+        assert len(rows) == 2
+        assert rows[0]["stage"] == 0
+        assert rows[1]["stage"] == 1
+        # Timepoints now distinguishable by stage
+        assert rows[0]["timepoint"] == 0
+        assert rows[1]["timepoint"] == 0
+
+    def test_no_stage_column_when_absent(self, sample_history):
+        """Legacy history without 'stage' key doesn't produce stage column."""
+        rows = flatten_optimization(sample_history)
+        assert "stage" not in rows[0]
+
+
+# =============================================================================
+# Improvement 1: sequence_type column
+# =============================================================================
+
+
+class TestSequenceTypeColumn:
+    """Tests for sequence_type column in all flatten functions."""
+
+    def test_sequences_has_sequence_type(self, sample_batch_results):
+        rows = flatten_sequences(sample_batch_results)
+        assert all(r["sequence_type"] == "dna" for r in rows)
+
+    def test_constraints_has_sequence_type(self, sample_batch_results):
+        rows = flatten_constraints(sample_batch_results)
+        assert all(r["sequence_type"] == "dna" for r in rows)
+
+    def test_constructs_has_sequence_type(self, sample_batch_results):
+        rows = flatten_constructs(sample_batch_results)
+        assert all(r["sequence_type"] == "dna" for r in rows)
+
+    def test_optimization_has_sequence_type(self, sample_history):
+        rows = flatten_optimization(sample_history)
+        assert all(r["sequence_type"] == "dna" for r in rows)
+
+    def test_protein_sequence_type(self):
+        """sequence_type reflects actual construct type."""
+        batch_results = {
+            "batch_results": [
+                {
+                    "batch_idx": 0,
+                    "energy_score": 0.1,
+                    "constructs": [
+                        {
+                            "label": "c0",
+                            "type": "protein",
+                            "segments": [
+                                {
+                                    "label": "seg",
+                                    "sequence": "MVLS",
+                                    "constraints": {},
+                                    "metadata": {},
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            "best_batch_idx": 0,
+        }
+        rows = flatten_sequences(batch_results)
+        assert rows[0]["sequence_type"] == "protein"
+
+
+# =============================================================================
+# Improvement 3: FASTA export
+# =============================================================================
+
+
+class TestFastaExport:
+    """Tests for to_fasta export."""
+
+    def test_basic_fasta_output(self, sample_batch_results):
+        """FASTA output has correct header/sequence pairs."""
+        result = to_fasta(sample_batch_results)
+        lines = result.strip().split("\n")
+        # 2 batches x 2 segments = 4 entries, each with header + sequence = 8 lines
+        assert len(lines) == 8
+        assert lines[0].startswith(">")
+        assert lines[1] == "ATCGATCG"
+
+    def test_fasta_default_header(self, sample_batch_results):
+        """Default header format: {construct}_{segment}_batch{batch_idx}."""
+        result = to_fasta(sample_batch_results)
+        assert ">construct_0_promoter_batch0" in result
+        assert ">construct_0_cds_batch1" in result
+
+    def test_fasta_custom_header(self, sample_batch_results):
+        """Custom header format works."""
+        result = to_fasta(
+            sample_batch_results,
+            header_format="batch{batch_idx}|{segment}",
+        )
+        assert ">batch0|promoter" in result
+
+    def test_fasta_segment_filter(self, sample_batch_results):
+        """Segment filter limits output."""
+        result = to_fasta(sample_batch_results, segments={"promoter"})
+        lines = [l for l in result.strip().split("\n") if l.startswith(">")]
+        assert len(lines) == 2
+        assert all("promoter" in l for l in lines)
+
+    def test_fasta_batch_filter(self, sample_batch_results):
+        """Batch index filter limits output."""
+        result = to_fasta(sample_batch_results, batch_indices={0})
+        lines = [l for l in result.strip().split("\n") if l.startswith(">")]
+        assert len(lines) == 2
+        assert all("batch0" in l for l in lines)
+
+    def test_fasta_empty(self):
+        """Empty results produce empty string."""
+        result = to_fasta({"batch_results": []})
+        assert result == ""
+
+    def test_fasta_writes_to_path(self, sample_batch_results):
+        """to_fasta writes to file path."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "test.fasta"
+            to_fasta(sample_batch_results, output=path)
+            assert path.exists()
+            content = path.read_text()
+            assert ">construct_0_promoter_batch0" in content
+
+
+# =============================================================================
+# Improvement 4: Segment boundaries in construct export
+# =============================================================================
+
+
+class TestSegmentBoundaries:
+    """Tests for segment boundary columns in flatten_constructs."""
+
+    def test_boundaries_present(self, sample_batch_results):
+        """Segment start/end columns are present."""
+        rows = flatten_constructs(sample_batch_results)
+        row = rows[0]
+        assert "promoter.start" in row
+        assert "promoter.end" in row
+        assert "cds.start" in row
+        assert "cds.end" in row
+
+    def test_boundaries_correct(self, sample_batch_results):
+        """Boundaries match segment positions in full_sequence."""
+        rows = flatten_constructs(sample_batch_results)
+        row = rows[0]
+        full = row["full_sequence"]
+
+        # promoter is first: [0:8]
+        assert row["promoter.start"] == 0
+        assert row["promoter.end"] == 8
+        assert full[row["promoter.start"]:row["promoter.end"]] == row["promoter.sequence"]
+
+        # cds follows: [8:16]
+        assert row["cds.start"] == 8
+        assert row["cds.end"] == 16
+        assert full[row["cds.start"]:row["cds.end"]] == row["cds.sequence"]
+
+    def test_boundaries_with_segment_filter(self, sample_batch_results):
+        """Boundaries are still correct when filtering segments."""
+        rows = flatten_constructs(sample_batch_results, segments={"cds"})
+        row = rows[0]
+        # cds should still be at offset 8 (promoter contributes 8 chars)
+        assert row["cds.start"] == 8
+        assert row["cds.end"] == 16

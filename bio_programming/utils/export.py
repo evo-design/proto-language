@@ -1,13 +1,14 @@
 """
 Export utilities for optimization results at different granularities.
 
-Four tables, each with a single natural format:
+Five tables, each with a single natural format:
 - sequences:    One row per (batch_idx, construct, segment)
 - constraints:  One row per (batch_idx, construct, segment, constraint)
 - constructs:   One row per (batch_idx, construct)
 - optimization: One row per (timepoint, batch_idx)
+- fasta:        Standard FASTA format for bioinformatics pipelines
 
-Supports CSV, TSV, JSON, and Excel output formats.
+Supports CSV, TSV, JSON, FASTA, and Excel output formats.
 """
 
 from __future__ import annotations
@@ -119,6 +120,23 @@ def build_batch_results(
 # =============================================================================
 
 
+def _serialize_value(value: Any) -> Any:
+    """Coerce complex values to CSV/JSON-friendly scalars.
+
+    - FileReference dicts (``__file_ref__: True``) → URL string
+    - Lists/tuples → JSON string
+    - Other dicts → JSON string
+    - Scalars → passthrough
+    """
+    if isinstance(value, dict):
+        if value.get("__file_ref__"):
+            return value.get("url", "")
+        return json.dumps(value)
+    if isinstance(value, (list, tuple)):
+        return json.dumps(value)
+    return value
+
+
 def _collect_all_columns(rows: List[Dict]) -> List[str]:
     """Collect all unique column names from rows, preserving insertion order."""
     columns = []
@@ -151,9 +169,9 @@ def _flatten_constraint_columns(
                 flat[f"{base}.{key}"] = cdata[key]
         for key in ("input_segments", "position_in_inputs"):
             if key in cdata:
-                flat[f"{base}.{key}"] = cdata[key]
+                flat[f"{base}.{key}"] = _serialize_value(cdata[key])
         for k, v in cdata.get("data", {}).items():
-            flat[f"{base}.{k}"] = v
+            flat[f"{base}.{k}"] = _serialize_value(v)
     return flat
 
 
@@ -193,6 +211,7 @@ def flatten_sequences(
                     "batch_idx": batch["batch_idx"],
                     "energy_score": batch["energy_score"],
                     "construct": construct["label"],
+                    "sequence_type": construct["type"],
                     "segment": segment["label"],
                     "sequence": segment["sequence"],
                 }
@@ -202,7 +221,7 @@ def flatten_sequences(
                     )
                 )
                 for key, value in segment.get("metadata", {}).items():
-                    row[f"metadata.{key}"] = value
+                    row[f"metadata.{key}"] = _serialize_value(value)
                 rows.append(row)
     return rows
 
@@ -242,6 +261,7 @@ def flatten_constraints(
                         "batch_idx": batch["batch_idx"],
                         "energy_score": batch["energy_score"],
                         "construct": construct["label"],
+                        "sequence_type": construct["type"],
                         "segment": segment["label"],
                         "constraint": label,
                         "score": cdata.get("score"),
@@ -250,9 +270,9 @@ def flatten_constraints(
                     }
                     for key in ("input_segments", "position_in_inputs"):
                         if key in cdata:
-                            row[key] = cdata[key]
+                            row[key] = _serialize_value(cdata[key])
                     for k, v in cdata.get("data", {}).items():
-                        row[k] = v
+                        row[k] = _serialize_value(v)
                     rows.append(row)
     return rows
 
@@ -285,15 +305,21 @@ def flatten_constructs(
                 "batch_idx": batch["batch_idx"],
                 "energy_score": batch["energy_score"],
                 "construct": construct["label"],
+                "sequence_type": construct["type"],
                 "full_sequence": "".join(
                     s["sequence"] for s in construct["segments"]
                 ),
             }
+            offset = 0
             for segment in construct["segments"]:
+                seg_len = len(segment["sequence"])
                 if segments is not None and segment["label"] not in segments:
+                    offset += seg_len
                     continue
                 seg = segment["label"]
                 row[f"{seg}.sequence"] = segment["sequence"]
+                row[f"{seg}.start"] = offset
+                row[f"{seg}.end"] = offset + seg_len
                 row.update(
                     _flatten_constraint_columns(
                         segment.get("constraints", {}),
@@ -301,7 +327,8 @@ def flatten_constructs(
                     )
                 )
                 for key, value in segment.get("metadata", {}).items():
-                    row[f"{seg}.metadata.{key}"] = value
+                    row[f"{seg}.metadata.{key}"] = _serialize_value(value)
+                offset += seg_len
             rows.append(row)
     return rows
 
@@ -337,7 +364,10 @@ def flatten_optimization(
                 "batch_idx": batch["batch_idx"],
                 "energy_score": batch["energy_score"],
             }
+            if "stage" in entry:
+                row["stage"] = entry["stage"]
             for construct in batch["constructs"]:
+                row["sequence_type"] = construct.get("type", "")
                 for segment in construct["segments"]:
                     if segments is not None and segment["label"] not in segments:
                         continue
@@ -564,3 +594,85 @@ def write_export(
         return None
     else:
         raise ValueError(f"Unsupported format: {format}")
+
+
+# =============================================================================
+# FASTA export
+# =============================================================================
+
+
+def to_fasta(
+    batch_results: BatchResults,
+    segments: Optional[Set[str]] = None,
+    batch_indices: Optional[Set[int]] = None,
+    header_format: str = "{construct}_{segment}_batch{batch_idx}",
+    output: Union[Path, IO, None] = None,
+) -> str:
+    """Export sequences in FASTA format for bioinformatics pipelines.
+
+    Args:
+        batch_results: Output from build_batch_results().
+        segments: If set, only include these segment labels.
+        batch_indices: If set, only include these batch indices.
+        header_format: Python format string for FASTA headers. Available
+            fields: construct, segment, batch_idx, energy_score, sequence_type.
+        output: Path or file-like object. If None, returns string.
+
+    Returns:
+        FASTA string if output is None.
+    """
+    lines: List[str] = []
+    for batch in batch_results.get("batch_results", []):
+        if batch_indices is not None and batch["batch_idx"] not in batch_indices:
+            continue
+        for construct in batch["constructs"]:
+            for segment in construct["segments"]:
+                if segments is not None and segment["label"] not in segments:
+                    continue
+                header = header_format.format(
+                    construct=construct["label"],
+                    segment=segment["label"],
+                    batch_idx=batch["batch_idx"],
+                    energy_score=batch["energy_score"],
+                    sequence_type=construct.get("type", ""),
+                )
+                lines.append(f">{header}")
+                lines.append(segment["sequence"])
+
+    fasta_str = "\n".join(lines) + "\n" if lines else ""
+
+    if output is None:
+        return fasta_str
+    elif isinstance(output, Path):
+        output.write_text(fasta_str)
+        return fasta_str
+    else:
+        output.write(fasta_str)
+        return fasta_str
+
+
+# =============================================================================
+# DataFrame export
+# =============================================================================
+
+
+def to_dataframe(rows: List[Dict]) -> "pd.DataFrame":
+    """Convert flatten output to a pandas DataFrame.
+
+    Args:
+        rows: List of dicts from any flatten function.
+
+    Returns:
+        pandas DataFrame.
+
+    Raises:
+        ImportError: If pandas is not installed.
+    """
+    try:
+        import pandas as pd
+    except ImportError:
+        raise ImportError(
+            "pandas is required for DataFrame export. "
+            "Install with: pip install pandas"
+        )
+    return pd.DataFrame(rows)

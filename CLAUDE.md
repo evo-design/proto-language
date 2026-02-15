@@ -77,20 +77,26 @@ Use sub-agents aggressively to parallelize independent work:
 
 The general rule: if two tasks don't depend on each other's output, run them in parallel sub-agents.
 
-## Skills (`.claude/skills/`)
+## Skills (`.claude/skills/`) & Commands (`.claude/commands/`)
 
-Detailed implementation guides are in skills (auto-loaded when relevant):
+### For users (writing programs)
+
+- **write-program** — composing optimization programs in Python (segments, constructs, generators, constraints, optimizers)
+
+### For developers (extending the framework)
+
+Skills (auto-loaded when relevant):
 
 - **general-dev** — coding conventions, config patterns, registry system, data model, export chains
 - **implement-constraint** — full constraint implementation lifecycle with templates and examples
 - **implement-generator** — full generator implementation lifecycle (ABC contract, categories, templates)
 - **implement-optimizer** — full optimizer implementation lifecycle (dual-pool architecture, templates)
-- **write-program** — composing programs in Python (segments, constructs, generators, constraints, optimizers)
 - **testing** — comprehensive test patterns, fixtures, markers, templates for each component type
-- **bio-tools** (in `proto-tools/`) — bioinformatics tool usage and script writing
 
-## Commands (`.claude/commands/`)
-
-User-invoked workflows triggered with `/command-name [args]`:
+Commands (invoked with `/command-name [args]`):
 
 - **`/fix-issue <number>`** — full GitHub issue fix lifecycle (read issue, explore, reproduce, fix, test, verify)
+
+### In `proto-tools/` submodule
+
+See the submodule's own CLAUDE.md for its skills and commands.

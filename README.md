@@ -103,6 +103,34 @@ pytest --gpu --all
 
 Some tools (e.g. ESM3, AlphaGenome) use gated HuggingFace models that require both authentication and accepting the model's license/terms on the HuggingFace model page. See the [proto-tools README](./proto-tools/README.md#huggingface-authentication) for the full list of gated models and setup instructions.
 
+## Using with Claude Code
+
+This repo includes [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills for both users writing programs and developers extending the framework. Launch `claude` from the repo root:
+
+```bash
+claude
+```
+
+### For users (writing programs)
+
+- **write-program** — composing optimization programs in Python (segments, constructs, generators, constraints, optimizers)
+
+### For developers (extending the framework)
+
+Skills (auto-loaded when relevant):
+
+- **general-dev** — coding conventions, config patterns, registry system, data model, export chains
+- **implement-constraint** — full constraint implementation lifecycle with templates and examples
+- **implement-generator** — full generator implementation lifecycle (ABC contract, categories, templates)
+- **implement-optimizer** — full optimizer implementation lifecycle (dual-pool architecture, templates)
+- **testing** — comprehensive test patterns, fixtures, markers, templates for each component type
+
+Commands (invoked with `/command-name`):
+
+- **`/fix-issue <number>`** — full GitHub issue fix lifecycle (read issue, explore, reproduce, fix, test, verify)
+
+The `proto-tools/` submodule has its own skills and commands — see its [README](./proto-tools/README.md#using-with-claude-code).
+
 ## Running the Toy Example
 
 ```bash

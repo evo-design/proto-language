@@ -73,8 +73,10 @@ class Segment:
             initial_sequence = sequence
             self.sequence_length = len(sequence)
 
-        # If length is provided - set sequence_length and initial_sequence to empty
+        # If length is provided - set sequence_length accordingly and initial_sequence to empty
         else:
+            if length <= 0:
+                raise ValueError("Segment length must be positive")
             initial_sequence = ""
             self.sequence_length = length
 

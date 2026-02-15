@@ -457,8 +457,11 @@ class Program:
                 )
             return list(self.optimizers[stage].history)
         history = []
-        for optimizer in self.optimizers:
-            history.extend(optimizer.history)
+        for stage_idx, optimizer in enumerate(self.optimizers):
+            for entry in optimizer.history:
+                annotated = dict(entry)
+                annotated["stage"] = stage_idx
+                history.append(annotated)
         return history
 
     def export_results(
@@ -605,6 +608,41 @@ class Program:
         )
         return write_export(rows, format, Path(path) if path else None)
 
+    def export_fasta(
+        self,
+        stage: Optional[int] = None,
+        segments: Optional[Set[str]] = None,
+        batch_indices: Optional[Set[int]] = None,
+        header_format: str = "{construct}_{segment}_batch{batch_idx}",
+        path: Optional[Path] = None,
+    ) -> str | Path:
+        """Export sequences in FASTA format for bioinformatics pipelines.
+
+        Args:
+            stage: Optional optimization stage index.
+            segments: If set, only include these segment labels.
+            batch_indices: If set, only include these batch indices.
+            header_format: Python format string for FASTA headers. Available
+                fields: construct, segment, batch_idx, energy_score, sequence_type.
+            path: Output path. If None, returns string.
+
+        Returns:
+            FASTA string or Path where file was saved.
+        """
+        from proto_language.utils.export import to_fasta
+
+        batch_results = self._get_batch_results(stage)
+        result = to_fasta(
+            batch_results,
+            segments=segments,
+            batch_indices=batch_indices,
+            header_format=header_format,
+            output=Path(path) if path else None,
+        )
+        if path:
+            return Path(path)
+        return result
+
     def export_optimization(
         self,
         format: Literal["csv", "tsv", "json", "xlsx"] = "csv",
@@ -633,3 +671,58 @@ class Program:
             batch_indices=batch_indices,
         )
         return write_export(rows, format, Path(path) if path else None)
+
+    def to_dataframe(
+        self,
+        table: Literal[
+            "sequences", "constraints", "constructs", "optimization"
+        ] = "sequences",
+        stage: Optional[int] = None,
+        segments: Optional[Set[str]] = None,
+        constraints: Optional[Set[str]] = None,
+        batch_indices: Optional[Set[int]] = None,
+    ) -> "pd.DataFrame":
+        """Export a result table as a pandas DataFrame.
+
+        Args:
+            table: Which table to export.
+            stage: Optional optimization stage index.
+            segments: If set, only include these segment labels.
+            constraints: If set, only include these constraint labels
+                (only applies to "constraints" table).
+            batch_indices: If set, only include these batch indices.
+
+        Returns:
+            pandas DataFrame.
+
+        Raises:
+            ImportError: If pandas is not installed.
+            ValueError: If table name is invalid.
+        """
+        from proto_language.utils.export import (
+            flatten_constraints,
+            flatten_constructs,
+            flatten_optimization,
+            flatten_sequences,
+            to_dataframe,
+        )
+
+        batch_results = self._get_batch_results(stage)
+        f = {"segments": segments, "batch_indices": batch_indices}
+
+        if table == "sequences":
+            rows = flatten_sequences(batch_results, **f)
+        elif table == "constraints":
+            rows = flatten_constraints(
+                batch_results, constraints=constraints, **f
+            )
+        elif table == "constructs":
+            rows = flatten_constructs(batch_results, **f)
+        elif table == "optimization":
+            rows = flatten_optimization(self._collect_history(stage), **f)
+        else:
+            raise ValueError(
+                f"Unknown table '{table}'. "
+                f"Choose from: sequences, constraints, constructs, optimization"
+            )
+        return to_dataframe(rows)

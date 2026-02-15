@@ -98,24 +98,9 @@ class TestKmerFrequencyConstraint:
         assert "2mer_frequencies" in constraints["kmer_frequency_constraint"]["data"]
 
     def test_empty_sequence(self):
-        """Test handling of empty sequences."""
-        seq = Segment(length=0, sequence_type="dna")
-
-        config = KmerFrequencyConfig(
-            k=2,
-            scoring_mode="frequency",
-            min_value=0.0,
-            max_value=0.5
-        )
-
-        constraint = Constraint(
-            inputs=[seq],
-            function=kmer_frequency_constraint,
-            function_config=config,
-        )
-
-        score = constraint.evaluate()[0]
-        assert score == 1.0  # MAX_ENERGY for empty sequence
+        """Test that zero-length segment raises ValueError."""
+        with pytest.raises(ValueError, match="Segment length must be positive"):
+            Segment(length=0, sequence_type="dna")
 
     def test_sequence_too_short(self):
         """Test sequences shorter than k."""
