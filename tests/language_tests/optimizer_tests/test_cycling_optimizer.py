@@ -250,8 +250,8 @@ class TestCyclingOptimizerRun:
         for entry in optimizer.history:
             assert "time_step" in entry and "batch_results" in entry
 
-    def test_filter_constraint_rollback(self):
-        """Test that failing candidates are rolled back to previous sequences."""
+    def test_filter_constraint_rejection_preserves_selected(self):
+        """Test that selected_sequences stay unchanged when all candidates fail."""
         components = _setup_cycling_components(
             num_steps=1,
             num_candidates=2,
@@ -276,18 +276,18 @@ class TestCyclingOptimizerRun:
 
         original_seqs = [
             copy.deepcopy(s.sequence)
-            for s in components["target_segment"].candidate_sequences
+            for s in components["target_segment"].selected_sequences
         ]
         optimizer.run()
 
-        # All should be rolled back since constraint fails all
-        for i, candidate in enumerate(
-            components["target_segment"].candidate_sequences
+        # All should stay unchanged in selected_sequences since constraint fails all
+        for i, selected in enumerate(
+            components["target_segment"].selected_sequences
         ):
-            assert candidate.sequence == original_seqs[i]
+            assert selected.sequence == original_seqs[i]
 
-    def test_partial_filter_rejection(self):
-        """Test that only failing candidates are rolled back."""
+    def test_partial_filter_acceptance(self):
+        """Test that only passing candidates update selected_sequences."""
         target_segment = Segment(sequence="A" * 20, sequence_type="protein")
         construct = Construct([target_segment])
 
@@ -340,13 +340,15 @@ class TestCyclingOptimizerRun:
         )
 
         original_seqs = [
-            copy.deepcopy(s.sequence) for s in target_segment.candidate_sequences
+            copy.deepcopy(s.sequence) for s in target_segment.selected_sequences
         ]
         optimizer.run()
 
-        assert target_segment.candidate_sequences[0].sequence == pass_seq
-        assert target_segment.candidate_sequences[1].sequence == original_seqs[1]
-        assert target_segment.candidate_sequences[2].sequence == original_seqs[2]
+        # Candidate 0 passed → selected updated
+        assert target_segment.selected_sequences[0].sequence == pass_seq
+        # Candidates 1, 2 failed → selected unchanged
+        assert target_segment.selected_sequences[1].sequence == original_seqs[1]
+        assert target_segment.selected_sequences[2].sequence == original_seqs[2]
 
     def test_conditioning_fn_wrong_length_raises(self):
         """Test that conditioning_fn returning wrong number of items raises ValueError.
@@ -407,6 +409,265 @@ class TestCyclingOptimizerRun:
 
         with pytest.raises(ValueError, match="conditioning_fn returned 5 items, expected 2"):
             optimizer.run()
+
+
+# =============================================================================
+# Accept Pattern Behavior Tests
+# =============================================================================
+
+
+class TestAcceptPatternBehavior:
+    """Tests for the accept pattern: passing candidates update selected, failed stay unchanged."""
+
+    def test_all_rejected_selected_unchanged(self):
+        """Test that all-fail → selected stays at initial state, energy stays inf."""
+        target_segment = Segment(sequence="A" * 20, sequence_type="protein")
+        construct = Construct([target_segment])
+
+        generator = ProteinMPNNGenerator(
+            ProteinMPNNGeneratorConfig(
+                structure_inputs=InverseFoldingStructureInput(
+                    structure=make_mock_structure()
+                )
+            )
+        )
+        generator.assign(target_segment)
+
+        def always_fail_filter(input_sequences, config=None):
+            return [1.0 for _ in input_sequences]
+
+        always_fail_filter._constraint_config_class = EmptyConfig
+        always_fail_filter._constraint_supported_sequence_types = ["protein"]
+
+        constraint = Constraint(
+            inputs=[target_segment],
+            function=always_fail_filter,
+            function_config=EmptyConfig(),
+            threshold=0.5,
+            label="test_filter",
+        )
+
+        conditioning_fn, _ = make_mock_conditioning_fn(2)
+
+        new_seq = "MKTAYIAKQRQISFVKSHFS"
+
+        def mock_sample(structure_inputs=None):
+            for c in target_segment.candidate_sequences:
+                c.sequence = new_seq
+
+        generator.sample = mock_sample
+
+        config = CyclingOptimizerConfig(
+            num_steps=1,
+            num_candidates=2,
+            conditioning_param_name="structure_inputs",
+        )
+
+        optimizer = CyclingOptimizer(
+            target_segment=target_segment,
+            constructs=[construct],
+            generators=[generator],
+            constraints=[constraint],
+            config=config,
+            conditioning_fn=conditioning_fn,
+        )
+
+        original_seqs = [
+            copy.deepcopy(s.sequence) for s in target_segment.selected_sequences
+        ]
+        optimizer.run()
+
+        # Selected sequences should be unchanged (all rejected)
+        for i, selected in enumerate(target_segment.selected_sequences):
+            assert selected.sequence == original_seqs[i]
+
+        # Energy scores should stay at inf (never accepted)
+        assert all(e == float("inf") for e in optimizer.energy_scores)
+
+    def test_energy_tracks_accepted_values(self):
+        """Test that partial acceptance → correct energies in snapshot."""
+        target_segment = Segment(sequence="A" * 20, sequence_type="protein")
+        construct = Construct([target_segment])
+
+        generator = ProteinMPNNGenerator(
+            ProteinMPNNGeneratorConfig(
+                structure_inputs=InverseFoldingStructureInput(
+                    structure=make_mock_structure()
+                )
+            )
+        )
+        generator.assign(target_segment)
+
+        # Filter that passes candidate 0, rejects candidate 1
+        def partial_filter(input_sequences, config=None):
+            return [0.0 if idx == 0 else 1.0 for idx, _ in enumerate(input_sequences)]
+
+        partial_filter._constraint_config_class = EmptyConfig
+        partial_filter._constraint_supported_sequence_types = ["protein"]
+
+        constraint = Constraint(
+            inputs=[target_segment],
+            function=partial_filter,
+            function_config=EmptyConfig(),
+            threshold=0.5,
+            label="partial_filter",
+        )
+
+        conditioning_fn, _ = make_mock_conditioning_fn(2)
+
+        pass_seq = "MKTAYIAKQRQISFVKSHFS"
+        fail_seq = "GPLAFVTNLTGLRSQNEEIR"
+
+        def mock_sample(structure_inputs=None):
+            target_segment.candidate_sequences[0].sequence = pass_seq
+            target_segment.candidate_sequences[1].sequence = fail_seq
+
+        generator.sample = mock_sample
+
+        config = CyclingOptimizerConfig(
+            num_steps=1,
+            num_candidates=2,
+            conditioning_param_name="structure_inputs",
+        )
+
+        optimizer = CyclingOptimizer(
+            target_segment=target_segment,
+            constructs=[construct],
+            generators=[generator],
+            constraints=[constraint],
+            config=config,
+            conditioning_fn=conditioning_fn,
+        )
+
+        optimizer.run()
+
+        # Candidate 0 passed → selected updated
+        assert target_segment.selected_sequences[0].sequence == pass_seq
+        # Candidate 1 rejected → selected unchanged
+        assert target_segment.selected_sequences[1].sequence == "A" * 20
+
+        # Energy for candidate 0: accepted score (0.0 from filter-only)
+        assert optimizer.energy_scores[0] == 0.0
+        # Energy for candidate 1: still inf (never accepted)
+        assert optimizer.energy_scores[1] == float("inf")
+
+    def test_conditioning_reads_from_selected_sequences(self):
+        """Test that conditioning fn receives selected_sequences, not candidates."""
+        target_segment = Segment(sequence="A" * 20, sequence_type="protein")
+        construct = Construct([target_segment])
+
+        generator = ProteinMPNNGenerator(
+            ProteinMPNNGeneratorConfig(
+                structure_inputs=InverseFoldingStructureInput(
+                    structure=make_mock_structure()
+                )
+            )
+        )
+        generator.assign(target_segment)
+
+        received_sequences = []
+
+        def tracking_conditioning_fn(sequences):
+            received_sequences.append([s.sequence for s in sequences])
+            return [make_mock_structure() for _ in sequences]
+
+        def mock_sample(structure_inputs=None):
+            for c in target_segment.candidate_sequences:
+                c.sequence = "MKTAYIAKQRQISFVKSHFS"
+
+        generator.sample = mock_sample
+
+        config = CyclingOptimizerConfig(
+            num_steps=2,
+            num_candidates=2,
+            conditioning_param_name="structure_inputs",
+        )
+
+        optimizer = CyclingOptimizer(
+            target_segment=target_segment,
+            constructs=[construct],
+            generators=[generator],
+            constraints=[],
+            config=config,
+            conditioning_fn=tracking_conditioning_fn,
+        )
+
+        optimizer.run()
+
+        # Step 1: conditioning fn receives initial selected_sequences (all "A" * 20)
+        assert all(s == "A" * 20 for s in received_sequences[0])
+        # Step 2: conditioning fn receives updated selected (from step 1 acceptance)
+        assert all(s == "MKTAYIAKQRQISFVKSHFS" for s in received_sequences[1])
+
+    def test_multi_step_rejection_preserves_previous_accepted(self):
+        """Test: step 1 accepts, step 2 rejects → selected retains step 1 state."""
+        target_segment = Segment(sequence="A" * 20, sequence_type="protein")
+        construct = Construct([target_segment])
+
+        generator = ProteinMPNNGenerator(
+            ProteinMPNNGeneratorConfig(
+                structure_inputs=InverseFoldingStructureInput(
+                    structure=make_mock_structure()
+                )
+            )
+        )
+        generator.assign(target_segment)
+
+        filter_call_count = [0]
+
+        # Filter call 1 (step 1): pass all. Filter call 2 (step 2): fail all.
+        def step_dependent_filter(input_sequences, config=None):
+            filter_call_count[0] += 1
+            if filter_call_count[0] == 1:
+                return [0.0 for _ in input_sequences]  # Pass
+            else:
+                return [1.0 for _ in input_sequences]  # Fail
+
+        step_dependent_filter._constraint_config_class = EmptyConfig
+        step_dependent_filter._constraint_supported_sequence_types = ["protein"]
+
+        constraint = Constraint(
+            inputs=[target_segment],
+            function=step_dependent_filter,
+            function_config=EmptyConfig(),
+            threshold=0.5,
+        )
+
+        conditioning_fn, _ = make_mock_conditioning_fn(2)
+
+        step1_seq = "MKTAYIAKQRQISFVKSHFS"
+        step2_seq = "GPLAFVTNLTGLRSQNEEIR"
+
+        sample_call_count = [0]
+
+        def mock_sample(structure_inputs=None):
+            sample_call_count[0] += 1
+            seq = step1_seq if sample_call_count[0] == 1 else step2_seq
+            for c in target_segment.candidate_sequences:
+                c.sequence = seq
+
+        generator.sample = mock_sample
+
+        config = CyclingOptimizerConfig(
+            num_steps=2,
+            num_candidates=2,
+            conditioning_param_name="structure_inputs",
+        )
+
+        optimizer = CyclingOptimizer(
+            target_segment=target_segment,
+            constructs=[construct],
+            generators=[generator],
+            constraints=[constraint],
+            config=config,
+            conditioning_fn=conditioning_fn,
+        )
+
+        optimizer.run()
+
+        # Step 2 rejected → selected retains step 1's accepted sequence
+        for selected in target_segment.selected_sequences:
+            assert selected.sequence == step1_seq
 
 
 # =============================================================================

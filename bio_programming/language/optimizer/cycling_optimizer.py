@@ -3,7 +3,7 @@ Cycling Optimizer that cycles between a conditioning function and a generator.
 
 A generalized optimizer that iteratively runs a user-defined conditioning function
 and passes its output to a generator. Supports optional constraint filtering with
-rollback for rejected candidates.
+accept pattern for passing candidates.
 """
 
 from __future__ import annotations
@@ -11,7 +11,6 @@ from __future__ import annotations
 import copy
 import inspect
 import logging
-import math
 from typing import Any, Callable, Dict, List, Literal, Optional, final
 
 from pydantic import model_validator
@@ -252,9 +251,9 @@ class CyclingOptimizer(Optimizer):
     A generalized optimizer that cycles between a user-defined conditioning function
     and a generator:
 
-    1. Call conditioning function with current sequences
-    2. Pass conditioning output to generator's sample() method
-    3. Optionally filter sequences using constraints (with rollback for rejected)
+    1. Call conditioning function with current sequences (from selected_sequences)
+    2. Pass conditioning output to generator's sample() method (into candidate_sequences)
+    3. Accept passing candidates into selected_sequences (failed stay unchanged)
     4. Repeat for num_steps
 
     This enables flexible optimization patterns such as:
@@ -290,7 +289,7 @@ class CyclingOptimizer(Optimizer):
 
     Note:
         - Constraints are optional; if provided, must be filter constraints
-          (have ``threshold`` set) - sequences that fail are rolled back
+          (have ``threshold`` set) - only passing candidates update selected_sequences
     """
 
     config_class = CyclingOptimizerConfig
@@ -368,35 +367,31 @@ class CyclingOptimizer(Optimizer):
 
         if self.verbose:
             logger.info(f"CyclingOptimizer: {self.num_steps} steps, {self.num_candidates} candidates")
+
         self._save_progress_snapshot(time_step=0)
 
         for step in range(1, self.num_steps + 1):
-            # 1. Save state for potential rollback
-            if self.constraints:
-                previous_sequences = [
-                    copy.deepcopy(self.target_segment.candidate_sequences[i])
-                    for i in range(self.num_candidates)
-                ]
-
-            # 2. Call conditioning function with current sequences
-            current_sequences = list(self.target_segment.candidate_sequences)
+            # 1. Condition from current best (selected_sequences)
+            current_sequences = list(self.target_segment.selected_sequences)
             conditioning_data = self.conditioning_fn(current_sequences)
 
             # Validate conditioning_fn returned the correct number of items
             if len(conditioning_data) != self.num_candidates:
                 raise ValueError(f"conditioning_fn returned {len(conditioning_data)} items, expected {self.num_candidates}. The conditioning function must return one conditioning item per candidate.")
 
-            # 3. Generate sequences conditioned on the conditioning data
+            # 2. Generate proposals into candidate_sequences
             self.generator.sample(**{self.conditioning_param_name: conditioning_data})
 
-            # 4. Evaluate filter constraints and rollback rejected
+            # 3. Evaluate and accept/reject
             num_passed = self.num_candidates
-            if self.constraints:
-                self.score_energy()
-                num_passed = self._revert_rejected_candidates(previous_sequences)
+            if self.constraints:  # If constraints exist, filter
+                prev_energies = list(self.energy_scores)
+                passed_mask = self.score_energy()
+                num_passed = self._accept_passed_candidates(passed_mask, prev_energies)
+            else:  # Otherwise, unconditionally accept all new candidates
+                self.target_segment.selected_sequences = [copy.deepcopy(seq) for seq in self.target_segment.candidate_sequences]
+                self.energy_scores = [0.0] * self.num_candidates
 
-            # 5. Sync and save
-            self.target_segment.selected_sequences = [copy.deepcopy(seq) for seq in self.target_segment.candidate_sequences]
             self._save_progress_snapshot(time_step=step)
             self._log_step_progress(step, num_passed)
 
@@ -444,21 +439,27 @@ class CyclingOptimizer(Optimizer):
         # Deduplicate constraint labels for metadata namespacing
         self._deduplicate_constraint_labels()
 
-    def _revert_rejected_candidates(self, previous_sequences: List[Any]) -> int:
-        """Roll back candidates that failed filter constraints. Returns num_passed."""
-        num_rejected = 0
-        for candidate_idx, score in enumerate(self.energy_scores):
-            if math.isinf(score):
-                num_rejected += 1
-                self.target_segment.candidate_sequences[candidate_idx] = copy.deepcopy(previous_sequences[candidate_idx])
-        return self.num_candidates - num_rejected
+    def _accept_passed_candidates(self, passed_mask: list[bool], prev_energies: list[float]) -> int:
+        """Accept candidates that passed filters into selected_sequences.
+
+        Passed: copy candidate -> selected, keep new energy.
+        Failed: selected stays unchanged, energy reverts to prev_energies.
+        """
+        num_accepted = 0
+        for i in range(self.num_candidates):
+            if passed_mask[i]:
+                num_accepted += 1
+                self.target_segment.selected_sequences[i] = copy.deepcopy(self.target_segment.candidate_sequences[i])
+            else:
+                self.energy_scores[i] = prev_energies[i]
+        return num_accepted
 
     def _log_step_progress(self, step: int, num_passed: int) -> None:
         """Log step progress."""
         if self.verbose:
-            seq = self.target_segment.selected_sequences[0].sequence
+            first_seq = self.target_segment.selected_sequences[0].sequence
             logger.info(f"Step {step}/{self.num_steps}")
-            logger.info(f"passed: {num_passed}/{self.num_candidates}")
-            logger.info(f"seq: {seq}")
+            logger.info(f"  Accepted: {num_passed}/{self.num_candidates}")
+            logger.info(f"  First seq: {first_seq}")
         if self.custom_logging:
             self.custom_logging(step, self.segments)

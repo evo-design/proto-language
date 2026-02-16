@@ -183,8 +183,9 @@ class TestMCMCOptimizer:
         segment.candidate_sequences[1].sequence = "TTTTTTTTTT"
         segment.candidate_sequences[2].sequence = "CCCCCCCCCC"
 
-        # Run acceptance step
-        optimizer._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences)
+        # Run acceptance step (passed_mask=all False since energies are inf/nan)
+        passed_mask = [False] * optimizer.num_candidates
+        optimizer._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences, passed_mask=passed_mask)
 
         # After rejection of all inf/nan proposals, selected_sequences should be restored
         # to the initial sequence (trajectory keeps old state when all proposals rejected)
@@ -881,7 +882,8 @@ class TestMCMCOptimizer:
         # Keep trajectory 2's candidates at their original (energy=5)
 
         # Run acceptance step
-        optimizer._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences)
+        passed_mask = [True] * optimizer.num_candidates
+        optimizer._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences, passed_mask=passed_mask)
 
         # Verify NO CROSSOVER with the new "best first, then MH" logic:
         # - Trajectory 1 finds its best proposal (energy=0 at index 4)
@@ -1024,7 +1026,8 @@ class TestMCMCOptimizer:
         segment.candidate_sequences[2].sequence = "AAAAAAGGGG"  # 4 non-A
         optimizer.energy_scores = [3.0, 1.0, 4.0]
 
-        optimizer._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences)
+        passed_mask = [True] * optimizer.num_candidates
+        optimizer._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences, passed_mask=passed_mask)
 
         # With low temperature, the best proposal (energy=1.0) should be accepted
         # because it improves from energy=5.0
@@ -1062,7 +1065,8 @@ class TestMCMCOptimizer:
         segment.candidate_sequences[2].sequence = "AAAAAAAAAC"  # 1 non-A
         optimizer2.energy_scores = [1.0, 4.0, 1.0]
 
-        optimizer2._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences2)
+        passed_mask = [True] * optimizer2.num_candidates
+        optimizer2._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences2, passed_mask=passed_mask)
 
         # At very low temperature, worse proposals should be rejected
         # The old state should be kept

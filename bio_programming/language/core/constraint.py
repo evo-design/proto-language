@@ -26,6 +26,7 @@ from .sequence import Sequence
 
 logger = logging.getLogger(__name__)
 
+
 # Reserved keys used in constraint data structure — constraint scoring functions
 # must not write these to seq._metadata as they would collide with infrastructure fields.
 _RESERVED_CONSTRAINT_KEYS = frozenset({

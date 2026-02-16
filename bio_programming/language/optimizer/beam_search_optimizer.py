@@ -503,11 +503,11 @@ class BeamSearchOptimizer(Optimizer):
             Sequence(sequence=beam.running_sequence, sequence_type=self.target_segment.sequence_type)
             for beam in all_candidates
         ]
-        self.score_energy()
+        passed_mask = self.score_energy()
 
-        # Collect valid candidates
+        # Collect valid candidates (those that passed filter constraints)
         for i, (candidate, score) in enumerate(zip(all_candidates, self.energy_scores)):
-            if not (math.isinf(score) or math.isnan(score)):
+            if passed_mask[i]:
                 beam_idx = i // self.candidates_per_beam
                 candidate.beam_scores.append(score)
                 beam_candidates[beam_idx].append(candidate)
@@ -532,10 +532,10 @@ class BeamSearchOptimizer(Optimizer):
                     Sequence(sequence=beam.running_sequence, sequence_type=self.target_segment.sequence_type)
                     for beam in candidates
                 ]
-                self.score_energy()
+                passed_mask = self.score_energy()
 
-                for candidate, score in zip(candidates, self.energy_scores):
-                    if not (math.isinf(score) or math.isnan(score)):
+                for j, (candidate, score) in enumerate(zip(candidates, self.energy_scores)):
+                    if passed_mask[j]:
                         candidate.beam_scores.append(score)
                         beam_candidates[beam_idx].append(candidate)
 

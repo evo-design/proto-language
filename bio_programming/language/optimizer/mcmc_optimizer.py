@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import copy
 import logging
-import math
 import random
 from typing import Callable, Dict, List, Optional, Tuple, final
 
@@ -282,10 +281,10 @@ class MCMCOptimizer(Optimizer):
             generator.sample()
 
             # 4. Score candidate_sequences
-            self.score_energy()
+            passed_mask = self.score_energy()
 
             # 5. Metropolis-Hastings acceptance and update energy score, candidate_sequences, and selected_sequences state
-            self._select_topk_with_mcmc_acceptance(step, old_selected_sequences)
+            self._select_topk_with_mcmc_acceptance(step, old_selected_sequences, passed_mask)
 
             # Logging and history tracking
             if step % self.track_step_size == 0:
@@ -329,7 +328,8 @@ class MCMCOptimizer(Optimizer):
     def _select_topk_with_mcmc_acceptance(
         self,
         step: int,
-        old_selected_sequences: List[Tuple[Dict[int, Sequence], float]]
+        old_selected_sequences: List[Tuple[Dict[int, Sequence], float]],
+        passed_mask: List[bool],
     ) -> None:
         """Apply Metropolis-Hastings acceptance independently per trajectory (batch index).
 
@@ -356,8 +356,8 @@ class MCMCOptimizer(Optimizer):
             for candidate_idx in range(proposal_pool_start_idx, proposal_pool_end_idx):
                 proposal_energy = self.energy_scores[candidate_idx]
 
-                # Skip inf or nan energies
-                if math.isnan(proposal_energy) or math.isinf(proposal_energy):
+                # Skip candidates that failed filter constraints
+                if not passed_mask[candidate_idx]:
                     continue
 
                 if proposal_energy < best_energy:

@@ -6,7 +6,6 @@ from __future__ import annotations
 import copy
 import heapq
 import logging
-import math
 from typing import Callable, List, Optional, final
 
 from pydantic import model_validator
@@ -236,14 +235,14 @@ class TopKOptimizer(Optimizer):
             generator.sample()
 
         # 3. Evaluate all candidates after all generators
-        self.score_energy()
+        passed_mask = self.score_energy()
 
         # 4. Process each candidate in the batch - store directly in selected_sequences
         for candidate_idx in range(self.batch_size):
             energy = self.energy_scores[candidate_idx]
 
-            # Skip inf/nan energies
-            if math.isinf(energy) or math.isnan(energy):
+            # Skip candidates that failed filter constraints
+            if not passed_mask[candidate_idx]:
                 continue
 
             # 5. Maintain top-k in selected_sequences (in-place) with max-heap

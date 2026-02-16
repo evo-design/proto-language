@@ -128,7 +128,7 @@ class Optimizer(ABC):
         self,
         operation: Literal["add", "multiply"] = "add",
         filter_penalty: float = float("inf"),
-    ) -> None:
+    ) -> List[bool]:
         """
         Compute energy scores by combining all constraint evaluation scores on the candidate sequences.
 
@@ -144,6 +144,10 @@ class Optimizer(ABC):
         Args:
             operation: How to combine scores: 'add' (sum) or 'multiply' (product)
             filter_penalty: Score for rejected candidates (default: inf)
+
+        Returns:
+            Passed mask — True for candidates that passed all filter constraints,
+            False for rejected candidates.
 
         Raises:
             ValueError: If optimizer is not properly initialized or operation is not 'add' or 'multiply'.
@@ -166,11 +170,16 @@ class Optimizer(ABC):
                 f"Formula: energy = {op}(weight_i x constraint_score_i)"
             )
 
-        # Pass 1: Evaluate all filter constraints first to skip expensive scoring on rejected candidates
+        # Pass 1: Evaluate all filter constraints first to skip expensive scoring on rejected candidates.
+        # Record the constraint that rejected each candidate
+        per_candidate_rejector: list[str | None] = [None] * num_sequences
         for idx, constraint in enumerate(filters):
             if self.verbose:
                 logger.info(f"Filter {idx+1}: {constraint.label}")
             results = constraint.evaluate(mask=passed, verbose=self.verbose)
+            for i, (p, r) in enumerate(zip(passed, results)):
+                if p and not r:
+                    per_candidate_rejector[i] = constraint.label
             passed = [p and r for p, r in zip(passed, results)]
 
         # Pass 2: Score passing candidates (skip rejected candidates for performance)
@@ -182,13 +191,14 @@ class Optimizer(ABC):
 
         # Warn if no scoring constraints exist (all are filters)
         if not all_scores:
+            identity = "0.0" if operation == "add" else "1.0"
             logger.warning(
-                "All constraints are filters (have threshold set). "
-                "Passing candidates will receive energy score 0.0 since there are no scoring constraints."
+                f"All constraints are filters (have threshold set). "
+                f"Passing candidates will receive energy score {identity} since there are no scoring constraints."
             )
 
         # Aggregate scores across all scoring constraints into a single energy score per candidate.
-        # NaN propagates through sum/prod operations, resuling in NaN if any constraint is unevaluated.
+        # NaN propagates through sum/prod operations, resulting in NaN if any constraint is unevaluated.
         if operation == "add":
             self.energy_scores = [sum(s[i] for s in all_scores) for i in range(num_sequences)]
         elif operation == "multiply":
@@ -214,9 +224,17 @@ class Optimizer(ABC):
         if self.verbose:
             logger.info("Final Energy Scores:")
             for i, score in enumerate(self.energy_scores):
-                logger.info(f"  Candidate {i}: {score:.4f}{' [REJECTED]' if not passed[i] else ''}")
+                if passed[i]:
+                    logger.info(f"  Candidate {i}: {score:.4f} [PASSED]")
+                else:
+                    logger.info(
+                        f"  Candidate {i}: {score:.4f} "
+                        f"[REJECTED by {per_candidate_rejector[i]}]"
+                    )
 
         self._clear_tool_cache()
+
+        return passed
 
     def _clear_tool_cache(self) -> None:
         """

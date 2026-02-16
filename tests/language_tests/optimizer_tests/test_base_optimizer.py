@@ -678,6 +678,56 @@ class TestFilterConstraints:
         with pytest.raises(RuntimeError, match="Inconsistent state: candidate 1 passed all filters but has NaN score"):
             optimizer.score_energy(operation="add")
 
+    def test_verbose_logs_rejection_reasons(self, caplog):
+        """Tests that verbose logging accurately attributes rejections to the filter that evaluated them.
+
+        Filter 1 (pLDDT): passes candidate 0, rejects candidate 1
+        Filter 2 (Length): rejects candidate 2 (candidate 1 was already masked, so Length never evaluated it)
+
+        Expected: candidate 1 → "pLDDT Filter" only, candidate 2 → "Length Filter" only.
+        """
+        construct, generator, _, segment = _setup_optimizer_components(num_candidates=3)
+        segment.candidate_sequences = [Sequence("A"), Sequence("G"), Sequence("C")]
+
+        filter1 = MagicMock(spec=Constraint)
+        filter1.inputs = [segment]
+        filter1.label = "pLDDT Filter"
+        filter1.threshold = 0.5
+        filter1.weight = 1.0
+        filter1.evaluate.return_value = [True, False, True]
+
+        filter2 = MagicMock(spec=Constraint)
+        filter2.inputs = [segment]
+        filter2.label = "Length Filter"
+        filter2.threshold = 0.5
+        filter2.weight = 1.0
+        filter2.evaluate.return_value = [True, True, False]
+
+        optimizer = ConcreteOptimizer(
+            constructs=[construct],
+            generators=[generator],
+            constraints=[filter1, filter2],
+            num_candidates=3,
+            num_selected=2,
+            verbose=True,
+        )
+
+        with caplog.at_level(logging.INFO, logger="proto_language.language.core.optimizer"):
+            optimizer.score_energy()
+
+        # Candidate 0 passed both filters
+        assert any("Candidate 0" in m and "PASSED" in m for m in caplog.messages)
+        # Candidate 1 rejected by pLDDT Filter only (Length Filter never evaluated it)
+        assert any(
+            "Candidate 1" in m and "REJECTED by pLDDT Filter" in m and "Length Filter" not in m
+            for m in caplog.messages
+        )
+        # Candidate 2 rejected by Length Filter only (pLDDT Filter passed it)
+        assert any(
+            "Candidate 2" in m and "REJECTED by Length Filter" in m and "pLDDT" not in m
+            for m in caplog.messages
+        )
+
 
 class TestToolCacheClearing:
     """Tests for tool cache clearing functionality."""
@@ -806,3 +856,68 @@ class TestStateRestartBehavior:
         # Captured state should be unchanged (now stored as serialized dicts)
         captured_seq = optimizer._initial_state['segments'][0]['candidates'][0]['sequence']
         assert captured_seq == "ATCG"
+
+
+class TestPassedMask:
+    """Tests for passed_mask tracking."""
+
+    def test_passed_mask_all_pass_no_filters(self):
+        """Tests that score_energy returns all True when there are no filter constraints."""
+        construct, generator, constraint, segment = _setup_optimizer_components(num_candidates=3)
+        segment.candidate_sequences = [Sequence("A"), Sequence("G"), Sequence("C")]
+        constraint.threshold = None
+        constraint.evaluate.return_value = [1.0, 2.0, 3.0]
+
+        optimizer = ConcreteOptimizer([construct], [generator], [constraint], 3, 2)
+        passed_mask = optimizer.score_energy()
+
+        assert passed_mask == [True, True, True]
+
+    def test_passed_mask_with_filter_rejection(self):
+        """Tests that score_energy return value correctly reflects filter rejections."""
+        construct, generator, filter_constraint, segment = _setup_optimizer_components(num_candidates=3)
+        segment.candidate_sequences = [Sequence("A"), Sequence("G"), Sequence("C")]
+
+        filter_constraint.threshold = 0.5
+        filter_constraint.evaluate.return_value = [True, False, True]
+
+        scoring_constraint = MagicMock(spec=Constraint)
+        scoring_constraint.inputs = [segment]
+        scoring_constraint.label = "ScoringConstraint"
+        scoring_constraint.threshold = None
+        scoring_constraint.weight = 1.0
+        scoring_constraint.evaluate.return_value = [10.0, float('nan'), 20.0]
+
+        optimizer = ConcreteOptimizer(
+            [construct], [generator], [filter_constraint, scoring_constraint], 3, 2
+        )
+        passed_mask = optimizer.score_energy()
+
+        assert passed_mask == [True, False, True]
+
+    def test_passed_mask_and_logic_across_multiple_filters(self):
+        """Tests that score_energy return value uses AND logic across multiple filter constraints."""
+        construct, generator, _, segment = _setup_optimizer_components(num_candidates=3)
+        segment.candidate_sequences = [Sequence("A"), Sequence("G"), Sequence("C")]
+
+        filter1 = MagicMock(spec=Constraint)
+        filter1.inputs = [segment]
+        filter1.label = "Filter1"
+        filter1.threshold = 0.5
+        filter1.weight = 1.0
+        filter1.evaluate.return_value = [True, True, False]  # Candidate 2 fails
+
+        filter2 = MagicMock(spec=Constraint)
+        filter2.inputs = [segment]
+        filter2.label = "Filter2"
+        filter2.threshold = 0.5
+        filter2.weight = 1.0
+        filter2.evaluate.return_value = [True, False, True]  # Candidate 1 fails (but 2 already failed)
+
+        optimizer = ConcreteOptimizer(
+            [construct], [generator], [filter1, filter2], 3, 2
+        )
+        passed_mask = optimizer.score_energy()
+
+        # AND logic: only candidate 0 passes both filters
+        assert passed_mask == [True, False, False]
