@@ -16,6 +16,7 @@ from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from proto_tools import (
+    Structure,
     StructurePredictionComplex,
     predict_structures,
 )
@@ -307,12 +308,13 @@ class StructureSimilarityConfig(StructureBasedConstraintConfig):
     This configuration manages the setup for predicting protein structures from
     candidate sequences and defining the target structure against which candidates
     are compared. It supports defining targets via direct sequence folding or
-    by providing an existing PDB structure.
+    by providing an existing structure.
 
-    The user should provide a target structure as **one** of:
-    - `target_chains`: A list of protein sequences to dynamically fold.
-    - `target_pdb_file`: A path to a PDB file.
-    - `target_pdb_content`: The raw string content of a PDB file.
+    The user should provide a target as **one** of:
+    - `target_chains`: Sequences to dynamically fold (tuple of strings or a
+      StructurePredictionComplex).
+    - `target_structure`: A Structure object, a file path to a PDB/CIF file,
+      or raw PDB/CIF content as a string.
 
     Inherits tool selection and configuration from StructureBasedConstraintConfig:
 
@@ -333,21 +335,17 @@ class StructureSimilarityConfig(StructureBasedConstraintConfig):
 
     Attributes:
 
-        target_chains (Optional[Tuple[str]]):
-            The sequences of the target chains (protein, DNA, RNA, or ligand).
-            If provided, these sequences will be folded using the specified
-            `structure_tool` to generate the reference structure. Entity types
-            are automatically detected from the sequence content. This is mutually
-            exclusive with `target_pdb_file` and `target_pdb_content`.
+        target_chains (Optional[Tuple[str, ...] | StructurePredictionComplex]):
+            The sequences of the target chains. Accepts either a tuple of sequence
+            strings (entity types are auto-detected) or a StructurePredictionComplex.
+            If provided, these will be folded using the specified `structure_tool`
+            to generate the reference structure. Mutually exclusive with
+            `target_structure`.
 
-        target_pdb_file (Optional[str]):
-            The local file path to a PDB file serving as the reference structure.
-            This is mutually exclusive with `target_chains` and `target_pdb_content`.
-
-        target_pdb_content (Optional[str]):
-            The raw string content of a PDB file serving as the reference structure.
-            Useful when the PDB data is loaded in memory or passed via API.
-            This is mutually exclusive with `target_chains` and `target_pdb_file`.
+        target_structure (Optional[Structure | str]):
+            The target structure. Accepts a Structure object, a file path to a
+            PDB/CIF file (identified by .pdb/.cif/.mmcif extension), or raw
+            PDB/CIF content as a string. Mutually exclusive with `target_chains`.
 
         min_target_plddt (float):
             Only used if the target structure is provided via `target_chains`. This is
@@ -358,21 +356,15 @@ class StructureSimilarityConfig(StructureBasedConstraintConfig):
     """
 
     # Target specification (mutually exclusive):
-    target_chains: Optional[Tuple[str, ...]] = ConfigField(
+    target_chains: Optional[Tuple[str, ...] | StructurePredictionComplex] = ConfigField(
         title="Target Chains",
         default=None,
-        description="Sequences of the target chains. Entity types are auto-detected.",
+        description="Target chains: a tuple of sequence strings (entity types auto-detected).",
     )
-    target_pdb_file: Optional[str] = ConfigField(
-        title="Target PDB File",
+    target_structure: Optional[Structure | str] = ConfigField(
+        title="Target Structure",
         default=None,
-        description="Path to a local PDB file serving as the reference structure.",
-    )
-    target_pdb_content: Optional[str] = ConfigField(
-        title="Target PDB Content",
-        default=None,
-        description="Raw string content of the target PDB.",
-        advanced=True,
+        description="Target structure: a Structure object, file path (.pdb/.cif), or raw PDB/CIF content string.",
     )
 
     min_target_plddt: float = ConfigField(
@@ -384,13 +376,10 @@ class StructureSimilarityConfig(StructureBasedConstraintConfig):
     @model_validator(mode="after")
     def validate_target(self) -> StructureSimilarityConfig:
         """Ensure exactly one target source is provided."""
-        sources = [self.target_chains, self.target_pdb_file, self.target_pdb_content]
+        sources = [self.target_chains, self.target_structure]
         provided = sum(s is not None for s in sources)
         if provided != 1:
-            raise ValueError(
-                "Exactly one of 'target_chains', 'target_pdb_file', or 'target_pdb_content' "
-                "must be provided."
-            )
+            raise ValueError("Exactly one of 'target_chains' or 'target_structure' must be provided.")
         return self
 
 
@@ -416,20 +405,16 @@ class StructureRMSDConfig(StructureSimilarityConfig):
             sharper transition from good to bad scores around the inflection point.
             Default is 3.0.
 
-        target_chains (Optional[Tuple[str]]):
-            The amino acid sequences of the target protein chains. If provided,
-            these sequences will be folded using the specified `structure_tool`
-            to generate the reference structure. This is mutually exclusive
-            with `target_pdb_file` and `target_pdb_content`.
+        target_chains (Optional[Tuple[str, ...] | StructurePredictionComplex]):
+            The sequences of the target chains. Accepts a tuple of sequence strings
+            (entity types auto-detected) or a StructurePredictionComplex. If provided,
+            these will be folded using the specified `structure_tool` to generate the
+            reference structure. Mutually exclusive with `target_structure`.
 
-        target_pdb_file (Optional[str]):
-            The local file path to a PDB file serving as the reference structure.
-            This is mutually exclusive with `target_chains` and `target_pdb_content`.
-
-        target_pdb_content (Optional[str]):
-            The raw string content of a PDB file serving as the reference structure.
-            Useful when the PDB data is loaded in memory or passed via API.
-            This is mutually exclusive with `target_chains` and `target_pdb_file`.
+        target_structure (Optional[Structure | str]):
+            The target structure. Accepts a Structure object, a file path to a
+            PDB/CIF file, or raw PDB/CIF content as a string. Mutually exclusive
+            with `target_chains`.
 
         structure_tool (Literal["esmfold", "alphafold3", "boltz2", "chai1"]):
             The structure prediction tool to use for folding both the target (if provided
@@ -495,20 +480,16 @@ class StructureTMScoreConfig(StructureSimilarityConfig):
             - "mean": Take the arithmetic mean of both TM-scores (default).
             Default is "mean".
 
-        target_chains (Optional[Tuple[str]]):
-            The amino acid sequences of the target protein chains. If provided,
-            these sequences will be folded using the specified `structure_tool`
-            to generate the reference structure. This is mutually exclusive
-            with `target_pdb_file` and `target_pdb_content`.
+        target_chains (Optional[Tuple[str, ...] | StructurePredictionComplex]):
+            The sequences of the target chains. Accepts a tuple of sequence strings
+            (entity types auto-detected) or a StructurePredictionComplex. If provided,
+            these will be folded using the specified `structure_tool` to generate the
+            reference structure. Mutually exclusive with `target_structure`.
 
-        target_pdb_file (Optional[str]):
-            The local file path to a PDB file serving as the reference structure.
-            This is mutually exclusive with `target_chains` and `target_pdb_content`.
-
-        target_pdb_content (Optional[str]):
-            The raw string content of a PDB file serving as the reference structure.
-            Useful when the PDB data is loaded in memory or passed via API.
-            This is mutually exclusive with `target_chains` and `target_pdb_file`.
+        target_structure (Optional[Structure | str]):
+            The target structure. Accepts a Structure object, a file path to a
+            PDB/CIF file, or raw PDB/CIF content as a string. Mutually exclusive
+            with `target_chains`.
 
         structure_tool (Literal["esmfold", "alphafold3", "boltz2", "chai1"]):
             The structure prediction tool to use for folding both the target (if provided
@@ -566,31 +547,27 @@ class StructureTMScoreConfig(StructureSimilarityConfig):
 def _prepare_target_structure(config: StructureSimilarityConfig) -> Optional[str]:
     """
     Resolve the target structure to a PDB string.
-    If target is a sequence, it folds it (as a monomer).
+    If target is a sequence, it folds it.
     """
-    # The user just provides the full PDB content.
-    if config.target_pdb_content:
-        return config.target_pdb_content
+    if config.target_structure is not None:
+        if isinstance(config.target_structure, Structure):
+            return config.target_structure.structure_pdb
+        return Structure(config.target_structure).structure_pdb
 
-    # The user provided a path to a PDB file.
-    if config.target_pdb_file:
-        with open(config.target_pdb_file, 'r') as f:
-            return f.read()
+    if config.target_chains is not None:
+        if isinstance(config.target_chains, StructurePredictionComplex):
+            complexes = [config.target_chains]
+        else:
+            from proto_language.language.core import detect_sequence_type
 
-    # The user provided a list of sequences (can be protein, DNA, RNA, or ligand).
-    if config.target_chains:
-        # Auto-detect entity types from sequences
-        from proto_language.language.core import detect_sequence_type
-
-        chains = [
-            {"sequence": seq, "entity_type": detect_sequence_type(seq)}
-            for seq in config.target_chains
-        ]
-        complexes = [StructurePredictionComplex(chains=chains)]
+            chains = [
+                {"sequence": seq, "entity_type": detect_sequence_type(seq)}
+                for seq in config.target_chains
+            ]
+            complexes = [StructurePredictionComplex(chains=chains)]
 
         output = predict_structures(complexes, config.structure_tool, config.tool_config)
 
-        # Check confidence.
         if output.structures[0].avg_plddt < config.min_target_plddt:
             logger.warning(
                 f"Target fold confidence ({output.structures[0].avg_plddt:.2f}) "

@@ -36,44 +36,37 @@ MOCK_PDB_MULTICHAIN = MOCK_PDB.replace("END\n", "") + MOCK_PDB_CHAIN_B
 class TestConfig:
     """Tests for StructureEnsembleSimilarityConfig validation."""
 
-    def test_requires_exactly_one_target_source(self):
-        """Must provide exactly one of target_structure, target_pdb_file, target_pdb_content."""
-        # No target - should fail
-        with pytest.raises(ValueError, match="Exactly one of"):
+    def test_target_structure_required(self):
+        """Must provide target_structure (it's a required field)."""
+        # No target - should fail (missing required field)
+        with pytest.raises(ValueError):
             StructureEnsembleSimilarityConfig()
 
-        # Multiple targets - should fail
-        with pytest.raises(ValueError, match="Exactly one of"):
-            StructureEnsembleSimilarityConfig(
-                target_pdb_file="/path/to/file.pdb",
-                target_pdb_content=MOCK_PDB,
-            )
-
-        # Single target - should work
+        # Valid string - should work
         config = StructureEnsembleSimilarityConfig(
-            target_pdb_content=MOCK_PDB,
+            target_structure=MOCK_PDB,
         )
-        assert config.target_pdb_content == MOCK_PDB
+        assert config.target_structure == MOCK_PDB
 
     def test_residue_range_validation(self):
         """Residue ranges must be valid (1-indexed, start <= end)."""
         # Start < 1 should fail
         with pytest.raises(ValueError, match="must be >= 1"):
             StructureEnsembleSimilarityConfig(
-                target_pdb_content=MOCK_PDB,
+                target_structure=MOCK_PDB,
                 target_residue_range=(0, 10),
             )
 
         # End < start should fail
         with pytest.raises(ValueError, match="must be >= start"):
             StructureEnsembleSimilarityConfig(
-                target_pdb_content=MOCK_PDB,
+                target_structure=MOCK_PDB,
                 candidate_residue_range=(10, 5),
             )
 
     def test_default_values(self):
         """Check key defaults."""
-        config = StructureEnsembleSimilarityConfig(target_pdb_content=MOCK_PDB)
+        config = StructureEnsembleSimilarityConfig(target_structure=MOCK_PDB)
         assert config.rmsd_aggregation == "min"
         assert config.inflection_point_angstroms == 3.0
 
@@ -119,7 +112,7 @@ class TestConstraintWithMocks:
     def test_constraint_returns_score(self, mock_bioemu, mock_pymol_rmsd):
         """Basic test that constraint runs and returns a score."""
         config = StructureEnsembleSimilarityConfig(
-            target_pdb_content=MOCK_PDB,
+            target_structure=MOCK_PDB,
             bioemu_config=BioEmuConfig(num_samples=3),
         )
 
@@ -136,7 +129,7 @@ class TestConstraintWithMocks:
     def test_metadata_populated(self, mock_bioemu, mock_pymol_rmsd):
         """Check that metadata is populated on the sequence."""
         config = StructureEnsembleSimilarityConfig(
-            target_pdb_content=MOCK_PDB,
+            target_structure=MOCK_PDB,
             bioemu_config=BioEmuConfig(num_samples=3),
         )
 
@@ -158,7 +151,7 @@ class TestConstraintWithMocks:
     def test_candidate_residue_range_subsets_sequence(self, mock_bioemu, mock_pymol_rmsd):
         """Verify candidate_residue_range subsets sequence before BioEmu."""
         config = StructureEnsembleSimilarityConfig(
-            target_pdb_content=MOCK_PDB,
+            target_structure=MOCK_PDB,
             candidate_residue_range=(5, 15),  # 11 residues
             bioemu_config=BioEmuConfig(num_samples=3),
         )
@@ -194,7 +187,7 @@ class TestConstraintWithMocks:
                 ]
 
                 config = StructureEnsembleSimilarityConfig(
-                    target_pdb_content=MOCK_PDB,
+                    target_structure=MOCK_PDB,
                     rmsd_aggregation=agg,
                     bioemu_config=BioEmuConfig(num_samples=3),
                 )
@@ -216,7 +209,7 @@ class TestConstraintIntegration:
     def test_full_pipeline(self):
         """End-to-end test with real BioEmu and PyMOL."""
         config = StructureEnsembleSimilarityConfig(
-            target_pdb_content=MOCK_PDB,
+            target_structure=MOCK_PDB,
             bioemu_config=BioEmuConfig(num_samples=10),  # Small for speed
             verbose=True,
         )

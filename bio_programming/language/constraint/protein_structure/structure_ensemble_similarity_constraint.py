@@ -24,7 +24,7 @@ from proto_tools import (
     StructurePredictionComplex,
     run_bioemu,
 )
-from pydantic import field_validator, model_validator
+from pydantic import field_validator
 
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
@@ -190,38 +190,26 @@ def _summarize_rmsds(
 # ============================================================================
 
 def _prepare_target_structure(
-    target_structure: Optional[Structure] = None,
-    target_pdb_file: Optional[str] = None,
-    target_pdb_content: Optional[str] = None,
+    target_structure: Structure | str,
     residue_range: Optional[Tuple[int, int]] = None,
     chain_id: Optional[str] = None,
-) -> Optional[str]:
+) -> str:
     """
     Resolve the target structure to a PDB string, optionally extracting a
     specific chain and residue range.
 
     Args:
-        target_structure: Structure object.
-        target_pdb_file: Path to a PDB file.
-        target_pdb_content: Raw PDB string content.
+        target_structure: A Structure object, file path (.pdb/.cif), or raw PDB/CIF content string.
         residue_range: Optional (start, end) 1-indexed residue range to extract.
         chain_id: Optional chain ID to extract.
 
     Returns:
         PDB content string for the target structure.
     """
-    pdb_content = None
-
-    if target_structure is not None:
+    if isinstance(target_structure, Structure):
         pdb_content = target_structure.structure_pdb
-    elif target_pdb_content is not None:
-        pdb_content = target_pdb_content
-    elif target_pdb_file is not None:
-        with open(target_pdb_file, 'r') as f:
-            pdb_content = f.read()
-
-    if pdb_content is None:
-        return None
+    else:
+        pdb_content = Structure(target_structure).structure_pdb
 
     # Extract specific chain if requested.
     if chain_id is not None:
@@ -313,23 +301,11 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
     sequence and computes the RMSD between ensemble members and an experimental
     target structure using PyMOL's align command.
 
-    The target structure must be an experimental structure provided as one of:
-    - `target_structure`: A Structure object.
-    - `target_pdb_file`: A path to a PDB file.
-    - `target_pdb_content`: The raw string content of a PDB file.
-
     Attributes:
-        target_structure (Optional[Structure]):
-            A Structure object representing the target structure.
-            Mutually exclusive with `target_pdb_file` and `target_pdb_content`.
-
-        target_pdb_file (Optional[str]):
-            Path to a PDB file serving as the reference structure.
-            Mutually exclusive with `target_structure` and `target_pdb_content`.
-
-        target_pdb_content (Optional[str]):
-            Raw string content of a PDB file serving as the reference structure.
-            Mutually exclusive with `target_structure` and `target_pdb_file`.
+        target_structure (Structure | str):
+            The target structure. Accepts a Structure object, a file path to a
+            PDB/CIF file (identified by .pdb/.cif/.mmcif extension), or raw
+            PDB/CIF content as a string.
 
         target_chain_id (Optional[str]):
             If specified, extract only this chain from the target structure.
@@ -373,21 +349,13 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
             Whether to print progress messages. Default: False.
     """
 
-    # Target specification (mutually exclusive)
-    target_structure: Optional[Structure] = ConfigField(
+    # Target specification (required)
+    target_structure: Structure | str = ConfigField(
         title="Target Structure",
-        default=None,
-        description="Structure object for the target.",
-    )
-    target_pdb_file: Optional[str] = ConfigField(
-        title="Target PDB File",
-        default=None,
-        description="Path to a PDB file serving as the reference structure.",
-    )
-    target_pdb_content: Optional[str] = ConfigField(
-        title="Target PDB Content",
-        default=None,
-        description="Raw string content of the target PDB.",
+        description=(
+            "Target structure: a Structure object, file path (.pdb/.cif), "
+            "or raw PDB/CIF content string."
+        ),
     )
 
     # Target subsetting
@@ -451,22 +419,6 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
         hidden=True,
     )
 
-    @model_validator(mode="after")
-    def validate_target(self) -> StructureEnsembleSimilarityConfig:
-        """Ensure exactly one target source is provided."""
-        sources = [
-            self.target_structure,
-            self.target_pdb_file,
-            self.target_pdb_content,
-        ]
-        provided = sum(s is not None for s in sources)
-        if provided != 1:
-            raise ValueError(
-                "Exactly one of 'target_structure', 'target_pdb_file', or "
-                "'target_pdb_content' must be provided."
-            )
-        return self
-
     @field_validator("target_residue_range", "candidate_residue_range", mode="after")
     @classmethod
     def validate_residue_range(
@@ -527,15 +479,9 @@ def structure_ensemble_rmsd_constraint(
     # Prepare target structure
     target_pdb = _prepare_target_structure(
         target_structure=config.target_structure,
-        target_pdb_file=config.target_pdb_file,
-        target_pdb_content=config.target_pdb_content,
         residue_range=config.target_residue_range,
         chain_id=config.target_chain_id,
     )
-
-    if target_pdb is None:
-        logger.error("Target structure preparation failed.")
-        return [1.0] * len(input_sequences)
 
     if config.verbose:
         logger.info(f"Target structure prepared ({len(target_pdb)} characters)")

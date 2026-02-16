@@ -14,31 +14,29 @@ To customize:
 - Modify hyperparameters in the config or below
 """
 
-from Bio.Seq import Seq
-from datetime import datetime
 import gc
 import os
 import sys
-import torch
+from datetime import datetime
 from typing import Dict, List
+
+import torch
+from Bio.Seq import Seq
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from lib import (
-    load_config,
-    gene_ids_to_program,
-    score_complexes_in_program_with_af3,
-)
-from proto_language.language.core import Constraint, Construct, Segment
-from proto_language.language.constraint import structure_ensemble_rmsd_constraint
-from proto_language.utils import inverse_sigmoid_score
-
+from lib import gene_ids_to_program, load_config, score_complexes_in_program_with_af3
 from vi_signaling_pathways__b2ar_to_tf_pathway__creb_dna import (
-    generate_creb_dna_sequence,
     DESIGN_SEQ_LENGTH as CREB_DNA_LENGTH,
 )
+from vi_signaling_pathways__b2ar_to_tf_pathway__creb_dna import (
+    generate_creb_dna_sequence,
+)
 
+from proto_language.language.constraint import structure_ensemble_rmsd_constraint
+from proto_language.language.core import Constraint, Construct, Segment
+from proto_language.utils import inverse_sigmoid_score
 
 # =============================================================================
 # CUSTOMIZE HERE: Add row-specific constraints
@@ -164,7 +162,7 @@ def main():
         inputs=[program.constructs[1].segments[0]],
         function=structure_ensemble_rmsd_constraint,
         function_config={
-            'target_pdb_file': 'examples/data/pdb_cache/6au6.pdb',
+            'target_structure': 'examples/data/pdb_cache/6au6.pdb',
             'target_chain_id': 'A',
             'target_residue_range': (85, 394),
             'candidate_residue_range': (85, 394),
@@ -188,7 +186,7 @@ def main():
         inputs=[program.constructs[1].segments[0]],
         function=structure_ensemble_rmsd_constraint,
         function_config={
-            'target_pdb_file': 'examples/data/pdb_cache/3sn6.pdb',
+            'target_structure': 'examples/data/pdb_cache/3sn6.pdb',
             'target_chain_id': 'A',
             'target_residue_range': (85, 394),
             'candidate_residue_range': (85, 394),
@@ -212,7 +210,7 @@ def main():
         inputs=[program.constructs[6].segments[0]],
         function=structure_ensemble_rmsd_constraint,
         function_config={
-            'target_pdb_file': 'examples/data/pdb_cache/1rl3.pdb',
+            'target_structure': 'examples/data/pdb_cache/1rl3.pdb',
             'target_chain_id': 'A',
             'target_residue_range': (119, 379),
             'candidate_residue_range': (119, 379),
@@ -236,7 +234,7 @@ def main():
         inputs=[program.constructs[6].segments[0]],
         function=structure_ensemble_rmsd_constraint,
         function_config={
-            'target_pdb_file': 'examples/data/pdb_cache/2qcs.pdb',
+            'target_structure': 'examples/data/pdb_cache/2qcs.pdb',
             'target_chain_id': 'B',
             'target_residue_range': (119, 379),
             'candidate_residue_range': (119, 379),

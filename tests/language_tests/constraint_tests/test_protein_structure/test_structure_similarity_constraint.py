@@ -98,7 +98,7 @@ class TestESMFoldRMSDConstraint:
         so only need to test once.
         """
         config = StructureRMSDConfig(
-            target_pdb_file="tests/dummy_data/test_structure_similarity.pdb",
+            target_structure="tests/dummy_data/test_structure_similarity.pdb",
             structure_tool="esmfold",
         )
         rmsd = structure_rmsd_constraint(
@@ -116,7 +116,7 @@ class TestESMFoldRMSDConstraint:
             pdb_content = f.read().rstrip()
 
         config = StructureRMSDConfig(
-            target_pdb_content=pdb_content,
+            target_structure=pdb_content,
             structure_tool="esmfold",
         )
         rmsd = structure_rmsd_constraint(
@@ -276,7 +276,7 @@ class TestESMFoldTMscoreConstraint:
 
         for mode, expected_tm in cases:
             config = StructureTMScoreConfig(
-                target_pdb_content="FAKE", # Content doesn't matter, mocked
+                target_structure="FAKE", # Content doesn't matter, mocked
                 structure_tool="esmfold",
                 tm_score_normalization=mode
             )
