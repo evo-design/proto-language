@@ -18,16 +18,29 @@ import random
 from typing import Dict, List, Optional
 from unittest.mock import Mock
 
-from proto_language.language.core import Program, Construct, Segment, Constraint, Sequence, Generator
-from proto_language.language.generator import UniformMutationGenerator, UniformMutationGeneratorConfig
-from proto_language.language.optimizer import (
-    TopKOptimizer, TopKOptimizerConfig,
-    MCMCOptimizer, MCMCOptimizerConfig,
-    BeamSearchOptimizer, BeamSearchOptimizerConfig,
-    CyclingOptimizer, CyclingOptimizerConfig,
-)
 from proto_language.language.constraint import gc_content_constraint
-
+from proto_language.language.core import (
+    Constraint,
+    Construct,
+    Generator,
+    Program,
+    Segment,
+    Sequence,
+)
+from proto_language.language.generator import (
+    UniformMutationGenerator,
+    UniformMutationGeneratorConfig,
+)
+from proto_language.language.optimizer import (
+    BeamSearchOptimizer,
+    BeamSearchOptimizerConfig,
+    CyclingOptimizer,
+    CyclingOptimizerConfig,
+    MCMCOptimizer,
+    MCMCOptimizerConfig,
+    TopKOptimizer,
+    TopKOptimizerConfig,
+)
 
 # =============================================================================
 # Mock Generators
@@ -125,7 +138,7 @@ def create_mcmc_optimizer(construct, segment, num_selected=3, num_steps=10, num_
         constructs=[construct],
         generators=[gen],
         constraints=[constraint],
-        config=MCMCOptimizerConfig(num_selected=num_selected, num_steps=num_steps, track_step_size=num_steps),
+        config=MCMCOptimizerConfig(num_selected=num_selected, num_steps=num_steps),
     )
 
 

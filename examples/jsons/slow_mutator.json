@@ -44,7 +44,6 @@
         "config": {
           "num_selected": 1,
           "num_steps": 20,
-          "track_step_size": 2,
           "max_temperature": 2.0,
           "min_temperature": 0.1
         }

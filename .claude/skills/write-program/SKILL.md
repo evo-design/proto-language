@@ -86,7 +86,6 @@ optimizer = MCMCOptimizer(
     config=MCMCOptimizerConfig(
         num_selected=1,
         num_steps=100,
-        track_step_size=10,
     ),
 )
 

@@ -12,27 +12,24 @@ import sys
 from datetime import datetime
 from typing import Tuple
 
+from proto_language.language.constraint import (
+    protein_globularity_constraint,
+    protein_symmetry_ring_constraint,
+    structure_plddt_constraint,
+    structure_ptm_constraint,
+)
 from proto_language.language.core import (
     Constraint,
     Construct,
+    Program,
     Segment,
     Sequence,
-    Program,
-)
-from proto_language.language.constraint import (
-    structure_plddt_constraint,
-    structure_ptm_constraint,
-    protein_globularity_constraint,
-    protein_symmetry_ring_constraint,
-)
-from proto_language.language.optimizer import (
-    MCMCOptimizer,
-    MCMCOptimizerConfig,
 )
 from proto_language.language.generator import (
     UniformMutationGenerator,
     UniformMutationGeneratorConfig,
 )
+from proto_language.language.optimizer import MCMCOptimizer, MCMCOptimizerConfig
 from proto_language.storage import get_file_content
 
 
@@ -220,7 +217,6 @@ def run_optimization(
             num_steps=n_steps,
             max_temperature=1.,
             min_temperature=0.0001,
-            track_step_size=1,
             verbose=True,
         )
 

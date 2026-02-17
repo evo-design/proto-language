@@ -174,14 +174,6 @@ class MyOptimizerConfig(BaseConfig):
         ge=1,
     )
 
-    track_step_size: int = ConfigField(
-        default=10,
-        title="Track Step Size",
-        description="Save snapshot every N steps",
-        ge=1,
-        advanced=True,
-    )
-
     verbose: bool = ConfigField(
         default=True,
         title="Verbose",
@@ -191,8 +183,6 @@ class MyOptimizerConfig(BaseConfig):
 
     @model_validator(mode="after")
     def validate_config(self):
-        if self.track_step_size > self.num_steps:
-            self.track_step_size = self.num_steps
         return self
 ```
 
@@ -222,7 +212,6 @@ class MyOptimizer(Optimizer):
         # (super validates, which may need config values)
         self._num_selected = config.num_selected
         self._num_steps = config.num_steps
-        self._track_step_size = config.track_step_size
         self._verbose = config.verbose
 
         super().__init__(
@@ -267,8 +256,7 @@ class MyOptimizer(Optimizer):
             self._select_top_candidates()
 
             # 5. Track progress
-            if step % self._track_step_size == 0 or step == self._num_steps:
-                self._save_progress_snapshot(step)
+            self._save_progress_snapshot(step)
 
             if self._verbose:
                 best_score = min(self.energy_scores)

@@ -60,12 +60,8 @@ class MCMCOptimizerConfig(BaseConfig):
             accepting only improvements. Must be greater than 0 and less than
             ``max_temperature``. Default: 0.001.
 
-        track_step_size (int): Interval for saving progress snapshots to history.
-            For example, ``track_step_size=10`` saves state every 10 steps. Must be
-            at least 1. Default: 1.
-
         verbose (bool): Whether to print detailed progress information at each
-            tracked step, including energy statistics and temperature. Default: ``False``.
+            step, including energy statistics and temperature. Default: ``False``.
 
     Note:
         - When ``num_selected=1`` (default), behaves like standard single-chain MCMC.
@@ -104,13 +100,6 @@ class MCMCOptimizerConfig(BaseConfig):
         gt=0.0,
         title="Min Temperature",
         description="Minimum temperature for annealing",
-        advanced=True,
-    )
-    track_step_size: int = ConfigField(
-        default=1,
-        ge=1,
-        title="Track Interval",
-        description="Interval for progress tracking",
         advanced=True,
     )
     verbose: bool = ConfigField(
@@ -157,7 +146,6 @@ class MCMCOptimizer(Optimizer):
         mcmc_width (int): Number of proposals per sequence trajectory.
         max_temperature (float): Starting temperature for annealing.
         min_temperature (float): Ending temperature for annealing.
-        track_step_size (int): Interval for progress tracking.
 
     Example:
         >>> constructs = [Construct([segment1, segment2])]
@@ -231,7 +219,6 @@ class MCMCOptimizer(Optimizer):
         self.num_steps: int = config.num_steps
         self.max_temperature: float = config.max_temperature
         self.min_temperature: float = config.min_temperature
-        self.track_step_size: int = config.track_step_size
 
     def run(self) -> None:
         """
@@ -281,20 +268,15 @@ class MCMCOptimizer(Optimizer):
             generator.sample()
 
             # 4. Score candidate_sequences
-            passed_mask = self.score_energy()
+            self.score_energy()
 
             # 5. Metropolis-Hastings acceptance and update energy score, candidate_sequences, and selected_sequences state
-            self._select_topk_with_mcmc_acceptance(step, old_selected_sequences, passed_mask)
+            self._select_topk_with_mcmc_acceptance(step, old_selected_sequences)
 
-            # Logging and history tracking
-            if step % self.track_step_size == 0:
-                self._save_progress_snapshot(time_step=step)
-                if self.verbose:
-                    self._log_mcmc_progress(step)
-
-        # Track final state
-        if self.num_steps % self.track_step_size != 0:
-            self._save_progress_snapshot(time_step=self.num_steps)
+            # Save snapshot every step
+            self._save_progress_snapshot(time_step=step)
+            if self.verbose:
+                self._log_mcmc_progress(step)
 
     def _save_sequence_state(self) -> List[Tuple[Dict[int, Sequence], float]]:
         """Save state of selected sequences.
@@ -329,61 +311,68 @@ class MCMCOptimizer(Optimizer):
         self,
         step: int,
         old_selected_sequences: List[Tuple[Dict[int, Sequence], float]],
-        passed_mask: List[bool],
     ) -> None:
-        """Apply Metropolis-Hastings acceptance independently per trajectory (batch index).
+        """Select the best proposal per trajectory and apply Metropolis-Hastings acceptance.
 
-        For each batch index in selected_sequences:
-        1. Find the best proposal by energy from its pool
-        2. Apply MH acceptance to that single best proposal
-        3. If rejected or no valid proposals, keep the old state
+        For each trajectory (processed independently):
+
+        1. Find the best candidate by energy from the trajectory's proposal pool.
+        2. Apply MH acceptance criterion: accept if ``random() < min(1, exp(-dE/T))``.
+        3. Update the trajectory state (accept new or keep old).
+        4. Classify each candidate's outcome: "accepted", "Metropolis-Hastings
+           rejection", "Not best in proposal pool", or unchanged (filter-rejected).
+        5. Truncate energy_scores to num_selected (discard stale proposal energies).
 
         Args:
-            step: Current MCMC step for temperature annealing
-            old_selected_sequences: Saved state of selected_sequences before proposals
+            step: Current MCMC step (used for temperature annealing).
+            old_selected_sequences: Saved trajectory state before proposals.
         """
+        outcomes = list(self._candidate_outcomes)
+
         for selected_batch_idx in range(self.num_selected):
             old_segments_dict, old_selected_energy = old_selected_sequences[selected_batch_idx]
+            proposal_pool_start = selected_batch_idx * self.mcmc_width
+            proposal_pool_end = (selected_batch_idx + 1) * self.mcmc_width
+
+            # 1. Find the best proposal by energy
             best_energy = float('inf')
             best_candidate_idx = None
-
-            # Proposal pool for this trajectory: candidate_sequences[pool_start:pool_end]
-            # Candidate sequences layout: [traj_0 x mcmc_width, traj_1 x mcmc_width, ...]
-            proposal_pool_start_idx = selected_batch_idx * self.mcmc_width
-            proposal_pool_end_idx = (selected_batch_idx + 1) * self.mcmc_width
-
-            # Step 1: Find the best proposal by energy
-            for candidate_idx in range(proposal_pool_start_idx, proposal_pool_end_idx):
-                proposal_energy = self.energy_scores[candidate_idx]
-
-                # Skip candidates that failed filter constraints
-                if not passed_mask[candidate_idx]:
+            for candidate_idx in range(proposal_pool_start, proposal_pool_end):
+                if outcomes[candidate_idx] != "accepted":
                     continue
-
-                if proposal_energy < best_energy:
-                    best_energy = proposal_energy
+                if self.energy_scores[candidate_idx] < best_energy:
+                    best_energy = self.energy_scores[candidate_idx]
                     best_candidate_idx = candidate_idx
 
-            # Step 2: Apply MH acceptance and update trajectory
-            # Accept if: (1) valid proposal exists
-            #            (2) passes MH criterion
+            # 2. Apply MH acceptance criterion
             valid_proposals_exist = best_candidate_idx is not None
             alpha = self._compute_mcmc_alpha(old_selected_energy, best_energy, step)
             accepted = valid_proposals_exist and random.random() < alpha
 
+            # 3. Update trajectory state
             if accepted:
                 for segment in self.segments:
                     segment.selected_sequences[selected_batch_idx] = copy.deepcopy(segment.candidate_sequences[best_candidate_idx])
             else:
-                # Rejected or no valid proposals - restore old state
                 best_energy = old_selected_energy
                 for segment in self.segments:
                     segment.selected_sequences[selected_batch_idx] = copy.deepcopy(old_segments_dict[id(segment)])
-
             self.energy_scores[selected_batch_idx] = best_energy
 
-        # Truncate to only keep selected energies (indices [num_selected:] are stale proposal energies)
-        # score_energy() will resize back to num_candidates at the start of each step
+            # 4. Classify each candidate's outcome
+            for candidate_idx in range(proposal_pool_start, proposal_pool_end):
+                if outcomes[candidate_idx] != "accepted":
+                    continue
+                if candidate_idx == best_candidate_idx and accepted:
+                    outcomes[candidate_idx] = "accepted"
+                elif candidate_idx == best_candidate_idx:
+                    outcomes[candidate_idx] = "Metropolis-Hastings rejection"
+                else:
+                    outcomes[candidate_idx] = "Not best in proposal pool"
+
+        self._candidate_outcomes = outcomes
+
+        # 5. Truncate to num_selected (score_energy() resizes back each step)
         self.energy_scores = self.energy_scores[:self.num_selected]
 
     def _compute_temperature(self, step: int) -> float:

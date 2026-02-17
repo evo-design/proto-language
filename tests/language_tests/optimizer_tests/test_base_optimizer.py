@@ -716,7 +716,7 @@ class TestFilterConstraints:
             optimizer.score_energy()
 
         # Candidate 0 passed both filters
-        assert any("Candidate 0" in m and "PASSED" in m for m in caplog.messages)
+        assert any("Candidate 0" in m and "ACCEPTED" in m for m in caplog.messages)
         # Candidate 1 rejected by pLDDT Filter only (Length Filter never evaluated it)
         assert any(
             "Candidate 1" in m and "REJECTED by pLDDT Filter" in m and "Length Filter" not in m
@@ -779,16 +779,30 @@ class TestProgressSnapshot:
         assert snapshot["batch_results"][0]["energy_score"] == 0.1
         assert isinstance(snapshot["batch_results"][0]["constructs"], list)
 
-    def test_snapshot_validates_energy_scores_length(self):
-        """Tests that snapshot raises error if energy_scores length != num_selected."""
-        construct, generator, constraint, _ = _setup_optimizer_components(num_candidates=2)
+    def test_snapshot_validates_energy_scores_matches_selected(self):
+        """Tests that snapshot raises error if energy_scores length != selected_sequences length."""
+        construct, generator, constraint, segment = _setup_optimizer_components(num_candidates=2)
         optimizer = ConcreteOptimizer([construct], [generator], [constraint], 2, 1)
 
-        # energy_scores has wrong length (num_candidates instead of num_selected)
+        # energy_scores doesn't match selected_sequences length (1)
         optimizer.energy_scores = [0.1, 0.9]
 
         with pytest.raises(RuntimeError, match="energy_scores has length 2, expected 1"):
             optimizer._save_progress_snapshot(time_step=5)
+
+    def test_snapshot_allows_partial_selected(self):
+        """Tests that snapshot allows partial selected_sequences (e.g. TopK mid-run)."""
+        construct, generator, constraint, segment = _setup_optimizer_components(num_candidates=4)
+        optimizer = ConcreteOptimizer([construct], [generator], [constraint], 4, 3)
+
+        # Simulate partial state: only 2 of 3 selected
+        segment.selected_sequences = segment.selected_sequences[:2]
+        optimizer.energy_scores = [0.1, 0.5]
+
+        # Should NOT raise — relaxed validation allows partial
+        optimizer._save_progress_snapshot(time_step=1)
+        assert len(optimizer.history) == 1
+        assert len(optimizer.history[0]["batch_results"]) == 2
 
 
 class TestStateRestartBehavior:
@@ -858,45 +872,11 @@ class TestStateRestartBehavior:
         assert captured_seq == "ATCG"
 
 
-class TestPassedMask:
-    """Tests for passed_mask tracking."""
+class TestCandidateTracking:
+    """Tests for _candidate_outcomes and candidate_results in snapshots."""
 
-    def test_passed_mask_all_pass_no_filters(self):
-        """Tests that score_energy returns all True when there are no filter constraints."""
-        construct, generator, constraint, segment = _setup_optimizer_components(num_candidates=3)
-        segment.candidate_sequences = [Sequence("A"), Sequence("G"), Sequence("C")]
-        constraint.threshold = None
-        constraint.evaluate.return_value = [1.0, 2.0, 3.0]
-
-        optimizer = ConcreteOptimizer([construct], [generator], [constraint], 3, 2)
-        passed_mask = optimizer.score_energy()
-
-        assert passed_mask == [True, True, True]
-
-    def test_passed_mask_with_filter_rejection(self):
-        """Tests that score_energy return value correctly reflects filter rejections."""
-        construct, generator, filter_constraint, segment = _setup_optimizer_components(num_candidates=3)
-        segment.candidate_sequences = [Sequence("A"), Sequence("G"), Sequence("C")]
-
-        filter_constraint.threshold = 0.5
-        filter_constraint.evaluate.return_value = [True, False, True]
-
-        scoring_constraint = MagicMock(spec=Constraint)
-        scoring_constraint.inputs = [segment]
-        scoring_constraint.label = "ScoringConstraint"
-        scoring_constraint.threshold = None
-        scoring_constraint.weight = 1.0
-        scoring_constraint.evaluate.return_value = [10.0, float('nan'), 20.0]
-
-        optimizer = ConcreteOptimizer(
-            [construct], [generator], [filter_constraint, scoring_constraint], 3, 2
-        )
-        passed_mask = optimizer.score_energy()
-
-        assert passed_mask == [True, False, True]
-
-    def test_passed_mask_and_logic_across_multiple_filters(self):
-        """Tests that score_energy return value uses AND logic across multiple filter constraints."""
+    def test_filter_outcomes_with_and_logic(self):
+        """score_energy() sets outcomes to 'accepted' or the first failing filter's label."""
         construct, generator, _, segment = _setup_optimizer_components(num_candidates=3)
         segment.candidate_sequences = [Sequence("A"), Sequence("G"), Sequence("C")]
 
@@ -912,12 +892,39 @@ class TestPassedMask:
         filter2.label = "Filter2"
         filter2.threshold = 0.5
         filter2.weight = 1.0
-        filter2.evaluate.return_value = [True, False, True]  # Candidate 1 fails (but 2 already failed)
+        filter2.evaluate.return_value = [True, False, True]  # Candidate 1 fails
 
         optimizer = ConcreteOptimizer(
             [construct], [generator], [filter1, filter2], 3, 2
         )
-        passed_mask = optimizer.score_energy()
+        optimizer.score_energy()
 
-        # AND logic: only candidate 0 passes both filters
-        assert passed_mask == [True, False, False]
+        assert optimizer._candidate_outcomes == ["accepted", "Filter2", "Filter1"]
+
+    def test_snapshot_includes_candidate_results(self):
+        """_save_progress_snapshot includes candidate_results derived from _candidate_outcomes."""
+        construct, generator, constraint, segment = _setup_optimizer_components(num_candidates=2)
+        optimizer = ConcreteOptimizer([construct], [generator], [constraint], 2, 1)
+
+        optimizer.energy_scores = [0.5]
+        optimizer._candidate_outcomes = ["accepted", "GC Filter"]
+
+        optimizer._save_progress_snapshot(time_step=1)
+
+        snapshot = optimizer.history[0]
+        assert "candidate_results" in snapshot
+        assert len(snapshot["candidate_results"]) == 2
+        assert snapshot["candidate_results"][0]["accepted"] is True
+        assert snapshot["candidate_results"][0]["rejected_by"] is None
+        assert snapshot["candidate_results"][1]["accepted"] is False
+        assert snapshot["candidate_results"][1]["rejected_by"] == "GC Filter"
+
+    def test_snapshot_omits_candidate_results_when_outcomes_empty(self):
+        """_save_progress_snapshot omits candidate_results before any scoring."""
+        construct, generator, constraint, _ = _setup_optimizer_components(num_candidates=2)
+        optimizer = ConcreteOptimizer([construct], [generator], [constraint], 2, 1)
+
+        optimizer.energy_scores = [0.5]
+        optimizer._save_progress_snapshot(time_step=0)
+
+        assert "candidate_results" not in optimizer.history[0]

@@ -1104,3 +1104,43 @@ class TestCyclingOptimizerPipelineResolution:
             config=config,
         )
         assert optimizer.pipeline == "protein-hunter"
+
+
+class TestCyclingCandidateTracking:
+    """Test candidate_results tracking in Cycling history."""
+
+    def test_candidate_tracking(self):
+        """History has candidate_results — all accepted when no filter rejects."""
+        components = _setup_cycling_components(
+            num_steps=3, num_candidates=2, include_constraint=True, constraint_passes=True
+        )
+        optimizer = CyclingOptimizer(
+            target_segment=components["target_segment"],
+            constructs=[components["construct"]],
+            generators=[components["generator"]],
+            constraints=components["constraints"],
+            config=components["config"],
+            conditioning_fn=components["conditioning_fn"],
+        )
+
+        def mock_sample(structure_inputs=None):
+            for c in components["target_segment"].candidate_sequences:
+                c.sequence = "MKTAYIAKQRQISFVKSHFS"
+
+        components["generator"].sample = mock_sample
+
+        optimizer.run()
+
+        # Skip initial snapshot (time_step=0, before any scoring)
+        for entry in optimizer.history:
+            if "candidate_results" not in entry:
+                continue
+            for cand in entry["candidate_results"]:
+                assert isinstance(cand["accepted"], bool)
+                if cand["accepted"]:
+                    assert cand["rejected_by"] is None
+                else:
+                    assert cand["rejected_by"] is not None
+
+        # At least one step should have candidate_results
+        assert any("candidate_results" in e for e in optimizer.history)

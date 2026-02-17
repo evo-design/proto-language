@@ -1046,3 +1046,44 @@ class TestTopKLabelDeduplication:
 
         assert label_after_first == label_after_second
         assert label_after_first.count("_1") == 1
+
+
+class TestTopKCandidateTracking:
+    """Test candidate_results tracking in TopK history."""
+
+    def test_candidate_tracking(self):
+        """History has candidate_results with 'Not in top-k' for rejected candidates."""
+        segment = Segment(sequence="ATCGATCG", sequence_type="dna")
+        construct = Construct([segment])
+        gen = UniformMutationGenerator(
+            UniformMutationGeneratorConfig(num_mutations=1)
+        )
+        gen.assign(segment)
+        constraint = Constraint(
+            inputs=[segment],
+            function=gc_content_constraint,
+            function_config={"min_gc": 40.0, "max_gc": 60.0},
+        )
+        optimizer = TopKOptimizer(
+            constructs=[construct],
+            generators=[gen],
+            constraints=[constraint],
+            config=TopKOptimizerConfig(
+                num_samples=20, k=3, batch_size=5, verbose=False
+            ),
+        )
+        optimizer.run()
+
+        valid_rejectors = {"Not in top-k"}
+        all_rejectors = set()
+        for entry in optimizer.history:
+            if "candidate_results" not in entry:
+                continue
+            for cand in entry["candidate_results"]:
+                assert isinstance(cand["accepted"], bool)
+                if cand["accepted"]:
+                    assert cand["rejected_by"] is None
+                else:
+                    all_rejectors.add(cand["rejected_by"])
+
+        assert all_rejectors.issubset(valid_rejectors)

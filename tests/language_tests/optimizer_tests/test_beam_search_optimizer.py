@@ -893,7 +893,8 @@ class TestBeamSearchOptimizerRestart:
         assert any(seq.sequence != "G" * 44 for seq in segment.selected_sequences)
 
         # History should be fresh (cleared on restart)
-        assert len(optimizer.history) == 1  # Only final snapshot
+        # Per-beam snapshots (2 beams) + final snapshot = 3
+        assert len(optimizer.history) == 3
 
     def test_beams_reset_on_restore(self):
         """Test that beams are reset to initial prompt on restore and sequences are restored."""
@@ -935,3 +936,28 @@ class TestBeamSearchOptimizerRestart:
         assert len(restored_sequences) == len(original_selected)
         for orig, restored in zip(original_selected, restored_sequences):
             assert orig == restored
+
+
+class TestBeamSearchCandidateTracking:
+    """Test candidate_results tracking in BeamSearch history."""
+
+    def test_candidate_tracking(self):
+        """History has candidate_results with 'Beam pruned' for rejected candidates."""
+        optimizer, _, _, _ = _setup_beam_search(
+            beam_width=3, candidates_per_beam=2, beam_length=10
+        )
+        optimizer.run()
+
+        valid_rejectors = {"Beam pruned"}
+        all_rejectors = set()
+        for entry in optimizer.history:
+            if "candidate_results" not in entry:
+                continue
+            for cand in entry["candidate_results"]:
+                assert isinstance(cand["accepted"], bool)
+                if cand["accepted"]:
+                    assert cand["rejected_by"] is None
+                else:
+                    all_rejectors.add(cand["rejected_by"])
+
+        assert all_rejectors.issubset(valid_rejectors)

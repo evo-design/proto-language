@@ -1,16 +1,25 @@
 from __future__ import annotations
+
 from typing import Tuple
 
-from proto_language.language.generator import UniformMutationGenerator, UniformMutationGeneratorConfig
-from proto_language.language.optimizer import TopKOptimizer, TopKOptimizerConfig, MCMCOptimizer, MCMCOptimizerConfig
+from proto_language.language.constraint import gc_content_constraint
 from proto_language.language.core import (
     Constraint,
     Construct,
+    Program,
     Segment,
     Sequence,
 )
-from proto_language.language.core import Program
-from proto_language.language.constraint import gc_content_constraint
+from proto_language.language.generator import (
+    UniformMutationGenerator,
+    UniformMutationGeneratorConfig,
+)
+from proto_language.language.optimizer import (
+    MCMCOptimizer,
+    MCMCOptimizerConfig,
+    TopKOptimizer,
+    TopKOptimizerConfig,
+)
 
 # Construct Segment
 seq1 = Segment(length=20, sequence_type="dna")
@@ -19,7 +28,7 @@ seq1 = Segment(length=20, sequence_type="dna")
 construct = Construct([seq1])
 
 
-# OPTIMIZATION STAGE 1 
+# OPTIMIZATION STAGE 1
 
 # Generator
 uniform_gen_config_1 = UniformMutationGeneratorConfig(
@@ -47,10 +56,10 @@ def topk_custom_logger(round_idx, segments):
 
 # Optimizer 1: TopK optimizer (standard mode)
 topk_config = TopKOptimizerConfig(
-    num_samples=10, 
-    k=3,            
+    num_samples=10,
+    k=3,
     batch_size=2,
-    verbose=True, 
+    verbose=True,
 )
 
 optimizer_1 = TopKOptimizer(
@@ -92,7 +101,6 @@ mcmc_config = MCMCOptimizerConfig(
     num_selected=1,
     mcmc_width=20,
     num_steps=10,
-    track_step_size=1,
     max_temperature=2.0,
 )
 
@@ -183,4 +191,3 @@ program_incremental = Program(
     optimizers=[optimizer_1_inc, optimizer_2_inc],
     verbose=True,
 )
-

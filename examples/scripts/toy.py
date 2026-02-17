@@ -1,16 +1,20 @@
 from __future__ import annotations
+
 from typing import Tuple
 
-from proto_language.language.generator import UniformMutationGenerator, UniformMutationGeneratorConfig
-from proto_language.language.optimizer import MCMCOptimizer, MCMCOptimizerConfig
+from proto_language.language.constraint import gc_content_constraint
 from proto_language.language.core import (
     Constraint,
     Construct,
+    Program,
     Segment,
     Sequence,
 )
-from proto_language.language.core import Program
-from proto_language.language.constraint import gc_content_constraint
+from proto_language.language.generator import (
+    UniformMutationGenerator,
+    UniformMutationGeneratorConfig,
+)
+from proto_language.language.optimizer import MCMCOptimizer, MCMCOptimizerConfig
 
 # Construct Segment
 seq1 = Segment(length=20, sequence_type="dna")
@@ -46,7 +50,6 @@ optimizer_config = MCMCOptimizerConfig(
     num_selected=1,
     mcmc_width=20,
     num_steps=10,
-    track_step_size=1,
     max_temperature=2.0,
 )
 

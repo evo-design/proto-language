@@ -379,6 +379,9 @@ class BeamSearchOptimizer(Optimizer):
             # Select top beam_width candidates and update beam states
             self._select_topk_beams(candidate_beams)
 
+            # Save per-beam snapshot (selected_sequences set by _select_topk_beams)
+            self._save_progress_snapshot(time_step=beam_idx)
+
             tokens_generated += beam_tokens
 
             # Log progress
@@ -394,8 +397,8 @@ class BeamSearchOptimizer(Optimizer):
             for beam in self.beams
         ]
 
-        # Save progress snapshot
-        self._save_progress_snapshot(time_step=0)
+        # Save final snapshot
+        self._save_progress_snapshot(time_step=self.num_beams)
 
     def _generate_candidates_for_beam(
         self,
@@ -479,11 +482,11 @@ class BeamSearchOptimizer(Optimizer):
             Sequence(sequence=beam.running_sequence, sequence_type=self.target_segment.sequence_type)
             for beam in all_candidates
         ]
-        passed_mask = self.score_energy()
+        self.score_energy()
 
         # Collect valid candidates (those that passed filter constraints)
         for i, (candidate, score) in enumerate(zip(all_candidates, self.energy_scores)):
-            if passed_mask[i]:
+            if self._candidate_outcomes[i] == "accepted":
                 beam_idx = i // self.candidates_per_beam
                 candidate.beam_scores.append(score)
                 beam_candidates[beam_idx].append(candidate)
@@ -508,10 +511,10 @@ class BeamSearchOptimizer(Optimizer):
                     Sequence(sequence=beam.running_sequence, sequence_type=self.target_segment.sequence_type)
                     for beam in candidates
                 ]
-                passed_mask = self.score_energy()
+                self.score_energy()
 
                 for j, (candidate, score) in enumerate(zip(candidates, self.energy_scores)):
-                    if passed_mask[j]:
+                    if self._candidate_outcomes[j] == "accepted":
                         candidate.beam_scores.append(score)
                         beam_candidates[beam_idx].append(candidate)
 
@@ -537,26 +540,55 @@ class BeamSearchOptimizer(Optimizer):
         return all_valid_candidates
 
     def _select_topk_beams(self, candidate_beams: List[BeamState]) -> None:
-        """
-        Select top beam_width candidates and update beam states.
+        """Select top beam_width candidates and update state for the next beam step.
+
+        1. Score each candidate beam (mean or last score, per ``score_by``).
+        2. Sort by score and keep the top ``beam_width`` beams.
+        3. Update ``_candidate_outcomes`` — selected beams get "accepted",
+           pruned beams get "Beam pruned".
+        4. Write all candidate beams to ``candidate_sequences`` and selected
+           beams to ``selected_sequences`` so ``_save_progress_snapshot``
+           captures the current state.
 
         Args:
-            candidate_beams: All valid candidate BeamStates
+            candidate_beams: All valid candidate BeamStates from expansion.
         """
-        # Score candidates using aggregated scores
+        # 1. Score each candidate beam
         scored_candidates = [
-            (beam, self._get_aggregated_score(beam))
-            for beam in candidate_beams
+            (i, beam, self._get_aggregated_score(beam))
+            for i, beam in enumerate(candidate_beams)
         ]
 
-        # Select top beam_width and update scores
-        sorted_candidates = sorted(scored_candidates, key=lambda x: x[1])
-        self.beams = [beam for beam, _ in sorted_candidates[:self.beam_width]]
-        self.energy_scores = [score for _, score in sorted_candidates[:self.beam_width]]
+        # 2. Sort by score and keep top beam_width
+        sorted_candidates = sorted(scored_candidates, key=lambda x: x[2])
+        selected_indices = {orig_idx for orig_idx, _, _ in sorted_candidates[:self.beam_width]}
+        self.beams = [beam for _, beam, _ in sorted_candidates[:self.beam_width]]
+        self.energy_scores = [score for _, _, score in sorted_candidates[:self.beam_width]]
+
+        # 3. Update _candidate_outcomes
+        self._candidate_outcomes = ["Beam pruned"] * len(candidate_beams)
+        for idx in selected_indices:
+            self._candidate_outcomes[idx] = "accepted"
+
+        # 4. Write candidate_sequences and selected_sequences for snapshot
+        self.target_segment.candidate_sequences = [
+            Sequence(
+                sequence=beam.running_sequence if self.prepend_prompt else beam.running_sequence[len(self.prompt):],
+                sequence_type=self.target_segment.sequence_type,
+            )
+            for beam in candidate_beams
+        ]
+        self.target_segment.selected_sequences = [
+            Sequence(
+                sequence=beam.running_sequence if self.prepend_prompt else beam.running_sequence[len(self.prompt):],
+                sequence_type=self.target_segment.sequence_type,
+            )
+            for beam in self.beams
+        ]
 
         if self.verbose:
             logger.info(f"Selected top {self.beam_width} beams:")
-            for i, (beam, score) in enumerate(sorted_candidates[:self.beam_width]):
+            for i, beam, score in sorted_candidates[:self.beam_width]:
                 logger.info(f"  [{i}] score={score:.4f}, prompt_len={len(beam.running_sequence)}")
 
     def _get_aggregated_score(self, beam: BeamState) -> float:

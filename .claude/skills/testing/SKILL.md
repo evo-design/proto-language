@@ -391,9 +391,7 @@ class TestMyOptimizer:
     def test_history_tracking(self):
         """Snapshots saved at correct intervals."""
         opt, _, _, _ = _setup_components(num_steps=20)
-        opt.config.track_step_size = 5
         opt.run()
-        # Should have snapshots at steps 0, 5, 10, 15, 20
         tracked_steps = [h["time_step"] for h in opt.history]
         assert 0 in tracked_steps
         assert 20 in tracked_steps

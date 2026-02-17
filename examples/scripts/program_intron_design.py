@@ -1,24 +1,20 @@
-from tap import Tap
-from typing import Any, Dict, List, Tuple
-from pathlib import Path
 import logging
 import random
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
 
-from proto_language.language.core import (
-    Constraint,
-    Construct,
-    Segment,
-    Sequence,
-)
+from tap import Tap
+
 from proto_language.language.constraint import (
     splice_transformer_intron_boundary,
     splice_transformer_specificity,
 )
-from proto_language.language.optimizer import (
-    MCMCOptimizer,
-    MCMCOptimizerConfig,
-    TopKOptimizer,
-    TopKOptimizerConfig,
+from proto_language.language.core import (
+    Constraint,
+    Construct,
+    Program,
+    Segment,
+    Sequence,
 )
 from proto_language.language.generator import (
     Evo2Generator,
@@ -26,8 +22,12 @@ from proto_language.language.generator import (
     UniformMutationGenerator,
     UniformMutationGeneratorConfig,
 )
-from proto_language.language.core import Program
-
+from proto_language.language.optimizer import (
+    MCMCOptimizer,
+    MCMCOptimizerConfig,
+    TopKOptimizer,
+    TopKOptimizerConfig,
+)
 
 # SpliceTransformer constants.
 TARGET_LENGTH = 1000
@@ -268,7 +268,7 @@ def process_splice_transformer_input(
         right_exon_in_target = right_exon[:space_on_right] # Take the start of the right exon.
         right_exon_in_context = right_exon[space_on_right:]
         gene_end_pos_in_target = TARGET_LENGTH - 1
-        
+
     target_seq = (
         left_pad_seq +
         left_exon_in_target +
@@ -303,7 +303,7 @@ def process_splice_transformer_input(
         gene_end_pos_in_target,
         donor_start_pos_in_target,
         acceptor_end_pos_in_target,
-    )    
+    )
 
 
 if __name__ == '__main__':
@@ -545,7 +545,6 @@ if __name__ == '__main__':
             num_steps=args.n_steps,
             max_temperature=args.temperature,
             min_temperature=args.temperature_min,
-            track_step_size=1,
             verbose=True,
         )
         optimizer = MCMCOptimizer(

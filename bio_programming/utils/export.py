@@ -115,6 +115,74 @@ def build_batch_results(
     return {"batch_results": batch_results, "best_batch_idx": best_idx}
 
 
+def build_candidate_results(
+    constructs: list,
+    outcomes: list[str],
+) -> list[dict[str, Any]]:
+    """Build per-candidate results with accept/reject status from live Construct objects.
+
+    Reads from ``candidate_sequences`` (all proposed sequences) and annotates each
+    with whether it was accepted and the rejection reason (if any).
+
+    Args:
+        constructs: List of Construct objects.
+        outcomes: Per-candidate outcome — ``"accepted"`` or a rejection reason string.
+
+    Returns:
+        List of candidate dicts::
+
+            [{
+                "candidate_idx": 0,
+                "accepted": True,
+                "rejected_by": None,
+                "constructs": [{
+                    "label": "construct_0",
+                    "type": "dna",
+                    "segments": [{
+                        "label": "promoter",
+                        "sequence": "ATCG",
+                        "constraints": {...},
+                        "metadata": {}
+                    }]
+                }]
+            }, ...]
+    """
+    if not constructs or not constructs[0].segments:
+        return []
+
+    num_candidates = len(constructs[0].segments[0].candidate_sequences)
+    candidate_results = []
+
+    for cand_idx in range(num_candidates):
+        structured_constructs = []
+        for construct in constructs:
+            structured_segments = []
+            for seg_idx, segment in enumerate(construct.segments):
+                seq = segment.candidate_sequences[cand_idx]
+                constraints = copy.deepcopy(seq._constraints_metadata)
+                metadata = copy.deepcopy(seq._metadata)
+                structured_segments.append({
+                    "label": segment.label or f"segment_{seg_idx}",
+                    "sequence": seq.sequence,
+                    "constraints": constraints,
+                    "metadata": metadata,
+                })
+            structured_constructs.append({
+                "label": construct.label,
+                "type": construct.sequence_type,
+                "segments": structured_segments,
+            })
+        outcome = outcomes[cand_idx] if cand_idx < len(outcomes) else None
+        candidate_results.append({
+            "candidate_idx": cand_idx,
+            "accepted": outcome == "accepted",
+            "rejected_by": None if outcome == "accepted" else outcome,
+            "constructs": structured_constructs,
+        })
+
+    return candidate_results
+
+
 # =============================================================================
 # Shared helpers
 # =============================================================================
@@ -337,6 +405,7 @@ def flatten_optimization(
     history: List[Dict[str, Any]],
     segments: Optional[Set[str]] = None,
     batch_indices: Optional[Set[int]] = None,
+    include_candidates: bool = False,
 ) -> List[Dict[str, Any]]:
     """One row per (timepoint, batch_idx). Sequences + constraint scores.
 
@@ -347,11 +416,18 @@ def flatten_optimization(
         history: List of history entries from optimizer(s).
         segments: If set, only include these segment labels.
         batch_indices: If set, only include these batch indices.
+        include_candidates: If True, add candidate rows alongside selected rows.
+            Selected rows get ``pool="selected"``, candidate rows get
+            ``pool="candidate"`` with ``candidate_idx``, ``accepted``,
+            ``rejected_by`` columns. When False, output is identical to
+            previous behavior (no new columns).
 
     Columns:
         Fixed: timepoint, batch_idx, energy_score
         Per segment: {segment}.sequence
         Per segment x constraint: {segment}.{constraint}.score, etc.
+        When include_candidates=True:
+            pool, candidate_idx, accepted, rejected_by
     """
     rows = []
     for entry in history:
@@ -366,6 +442,8 @@ def flatten_optimization(
             }
             if "stage" in entry:
                 row["stage"] = entry["stage"]
+            if include_candidates:
+                row["pool"] = "selected"
             for construct in batch["constructs"]:
                 row["sequence_type"] = construct.get("type", "")
                 for segment in construct["segments"]:
@@ -380,6 +458,34 @@ def flatten_optimization(
                         )
                     )
             rows.append(row)
+
+        # Append candidate rows when requested
+        if include_candidates:
+            for candidate in entry.get("candidate_results", []):
+                row = {
+                    "timepoint": timepoint,
+                    "pool": "candidate",
+                    "candidate_idx": candidate["candidate_idx"],
+                    "accepted": candidate["accepted"],
+                    "rejected_by": candidate["rejected_by"],
+                }
+                if "stage" in entry:
+                    row["stage"] = entry["stage"]
+                for construct in candidate["constructs"]:
+                    row["sequence_type"] = construct.get("type", "")
+                    for segment in construct["segments"]:
+                        if segments is not None and segment["label"] not in segments:
+                            continue
+                        seg = segment["label"]
+                        row[f"{seg}.sequence"] = segment["sequence"]
+                        row.update(
+                            _flatten_constraint_columns(
+                                segment.get("constraints", {}),
+                                prefix=f"{seg}.",
+                            )
+                        )
+                rows.append(row)
+
     return rows
 
 

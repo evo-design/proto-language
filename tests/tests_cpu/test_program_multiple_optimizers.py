@@ -7,23 +7,19 @@ different optimizer combinations work as expected.
 """
 
 import pytest
-from proto_language.language.core import (
-    Program,
-    Construct,
-    Segment,
-    Constraint,
-)
+
+from proto_language.language.constraint import gc_content_constraint
+from proto_language.language.core import Constraint, Construct, Program, Segment
 from proto_language.language.generator import (
     UniformMutationGenerator,
     UniformMutationGeneratorConfig,
 )
 from proto_language.language.optimizer import (
-    TopKOptimizer,
-    TopKOptimizerConfig,
     MCMCOptimizer,
     MCMCOptimizerConfig,
+    TopKOptimizer,
+    TopKOptimizerConfig,
 )
-from proto_language.language.constraint import gc_content_constraint
 
 
 class TestMultipleOptimizers:
@@ -68,7 +64,7 @@ class TestMultipleOptimizers:
             constructs=[construct],
             generators=[gen2],
             constraints=[constraint2],
-            config=MCMCOptimizerConfig(num_selected=1, num_steps=5, track_step_size=1),
+            config=MCMCOptimizerConfig(num_selected=1, num_steps=5),
         )
 
         # Create program with both optimizers
@@ -147,7 +143,7 @@ class TestMultipleOptimizers:
                 constructs=[construct],
                 generators=[gen],
                 constraints=[constraint],
-                config=MCMCOptimizerConfig(num_selected=1, num_steps=num_steps, track_step_size=1),
+                config=MCMCOptimizerConfig(num_selected=1, num_steps=num_steps),
             )
             optimizers.append(optimizer)
 
@@ -314,7 +310,7 @@ class TestMultipleOptimizers:
                 constructs=[construct],
                 generators=[gen],
                 constraints=[constraint],
-                config=MCMCOptimizerConfig(num_selected=1, num_steps=3, track_step_size=1),
+                config=MCMCOptimizerConfig(num_selected=1, num_steps=3),
             )
             optimizers.append(optimizer)
 
@@ -366,7 +362,7 @@ class TestMultipleOptimizers:
             constructs=[construct],
             generators=[gen2],
             constraints=[constraint2],
-            config=MCMCOptimizerConfig(num_selected=1, num_steps=3, track_step_size=1),
+            config=MCMCOptimizerConfig(num_selected=1, num_steps=3),
         )
 
         # Verify optimizer2 starts from opt1's ending state
@@ -394,7 +390,7 @@ class TestMultipleOptimizers:
             constructs=[construct],
             generators=[gen1],
             constraints=[constraint1],
-            config=MCMCOptimizerConfig(num_selected=1, num_steps=5, track_step_size=1),
+            config=MCMCOptimizerConfig(num_selected=1, num_steps=5),
         )
 
         # TopK second

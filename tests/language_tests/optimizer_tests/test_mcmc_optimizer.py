@@ -183,9 +183,9 @@ class TestMCMCOptimizer:
         segment.candidate_sequences[1].sequence = "TTTTTTTTTT"
         segment.candidate_sequences[2].sequence = "CCCCCCCCCC"
 
-        # Run acceptance step (passed_mask=all False since energies are inf/nan)
-        passed_mask = [False] * optimizer.num_candidates
-        optimizer._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences, passed_mask=passed_mask)
+        # All candidates are "rejected" since energies are inf/nan
+        optimizer._candidate_outcomes = ["inf/nan energy"] * optimizer.num_candidates
+        optimizer._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences)
 
         # After rejection of all inf/nan proposals, selected_sequences should be restored
         # to the initial sequence (trajectory keeps old state when all proposals rejected)
@@ -364,10 +364,9 @@ class TestMCMCOptimizer:
         assert len(segment.selected_sequences) == num_selected
 
     def test_history_tracking(self):
-        """Tests that history is properly tracked during MCMC."""
+        """Tests that history is properly tracked during MCMC — every step saved."""
         num_selected = 2
-        num_steps = 30
-        track_step_size = 10
+        num_steps = 10
         seq_length = 10
 
         optimizer, _, _, _ = _setup_mcmc_components(
@@ -375,12 +374,11 @@ class TestMCMCOptimizer:
             num_selected=num_selected,
             num_mcmc_steps=num_steps,
         )
-        optimizer.track_step_size = track_step_size
 
         optimizer.run()
 
-        # History should have snapshots: 0 (initial), 10, 20, 30 (final)
-        expected_snapshots = 4
+        # History should have snapshots: 0 (initial) + 1..num_steps = num_steps + 1
+        expected_snapshots = num_steps + 1
         assert len(optimizer.history) == expected_snapshots
 
         # Each history entry should have proper structure
@@ -392,18 +390,16 @@ class TestMCMCOptimizer:
     def test_history_timesteps_validation(self):
         """Tests that time_step values in history entries are correctly tracked."""
         num_selected = 2
-        num_steps = 35
-        track_step_size = 10
+        num_steps = 5
 
         optimizer, _, _, _ = _setup_mcmc_components(
             num_selected=num_selected, num_mcmc_steps=num_steps
         )
-        optimizer.track_step_size = track_step_size
 
         optimizer.run()
 
-        # Expected timesteps: 0 (initial), 10, 20, 30, 35 (final)
-        expected_timesteps = [0, 10, 20, 30, 35]
+        # Every step is saved: 0 (initial), 1, 2, 3, 4, 5
+        expected_timesteps = list(range(num_steps + 1))
         actual_timesteps = [entry["time_step"] for entry in optimizer.history]
 
         assert actual_timesteps == expected_timesteps
@@ -548,10 +544,9 @@ class TestMCMCOptimizer:
         assert final_best_energy < initial_best_energy * 0.5
 
     def test_custom_logging_callback(self):
-        """Test that custom_logging is called at tracked steps."""
+        """Test that custom_logging is called at every step."""
         seq_length = 15
-        num_steps = 25
-        track_step_size = 5
+        num_steps = 5
 
         log_calls = []
 
@@ -577,7 +572,6 @@ class TestMCMCOptimizer:
             config=MCMCOptimizerConfig(
                 num_selected=1,
                 num_steps=num_steps,
-                track_step_size=track_step_size,
                 verbose=True,
             ),
             custom_logging=custom_log,
@@ -585,7 +579,8 @@ class TestMCMCOptimizer:
 
         optimizer.run()
 
-        expected_steps = [5, 10, 15, 20, 25]
+        # Every step should trigger custom logging
+        expected_steps = list(range(1, num_steps + 1))
         actual_steps = [call["step"] for call in log_calls]
         assert actual_steps == expected_steps
 
@@ -613,7 +608,7 @@ class TestMCMCOptimizer:
             generators=[proposal_gen1],
             constraints=[constraint1],
             config=MCMCOptimizerConfig(
-                num_selected=1, num_steps=3, track_step_size=1, verbose=True
+                num_selected=1, num_steps=3, verbose=True
             ),
         )
 
@@ -644,7 +639,7 @@ class TestMCMCOptimizer:
             generators=[proposal_gen2],
             constraints=[constraint2],
             config=MCMCOptimizerConfig(
-                num_selected=3, num_steps=3, track_step_size=1, verbose=True
+                num_selected=3, num_steps=3, verbose=True
             ),
         )
 
@@ -882,8 +877,8 @@ class TestMCMCOptimizer:
         # Keep trajectory 2's candidates at their original (energy=5)
 
         # Run acceptance step
-        passed_mask = [True] * optimizer.num_candidates
-        optimizer._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences, passed_mask=passed_mask)
+        optimizer._candidate_outcomes = ["accepted"] * optimizer.num_candidates
+        optimizer._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences)
 
         # Verify NO CROSSOVER with the new "best first, then MH" logic:
         # - Trajectory 1 finds its best proposal (energy=0 at index 4)
@@ -933,7 +928,6 @@ class TestMCMCOptimizer:
                 num_selected=num_selected,
                 mcmc_width=mcmc_width,
                 num_steps=num_steps,
-                track_step_size=1,
                 max_temperature=1.0,
                 min_temperature=0.01,
                 verbose=False,
@@ -1026,8 +1020,8 @@ class TestMCMCOptimizer:
         segment.candidate_sequences[2].sequence = "AAAAAAGGGG"  # 4 non-A
         optimizer.energy_scores = [3.0, 1.0, 4.0]
 
-        passed_mask = [True] * optimizer.num_candidates
-        optimizer._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences, passed_mask=passed_mask)
+        optimizer._candidate_outcomes = ["accepted"] * optimizer.num_candidates
+        optimizer._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences)
 
         # With low temperature, the best proposal (energy=1.0) should be accepted
         # because it improves from energy=5.0
@@ -1065,8 +1059,8 @@ class TestMCMCOptimizer:
         segment.candidate_sequences[2].sequence = "AAAAAAAAAC"  # 1 non-A
         optimizer2.energy_scores = [1.0, 4.0, 1.0]
 
-        passed_mask = [True] * optimizer2.num_candidates
-        optimizer2._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences2, passed_mask=passed_mask)
+        optimizer2._candidate_outcomes = ["accepted"] * optimizer2.num_candidates
+        optimizer2._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences2)
 
         # At very low temperature, worse proposals should be rejected
         # The old state should be kept
@@ -1074,3 +1068,54 @@ class TestMCMCOptimizer:
             f"Expected rejection - old state should be kept. Got: {segment.selected_sequences[0].sequence}"
         )
         assert optimizer2.energy_scores[0] == 0.0
+
+    def test_candidate_tracking(self):
+        """Tests that history has candidate_results with unified rejection reasons."""
+        seq_length = 10
+        segment = Segment(sequence="A" * seq_length, sequence_type="dna")
+        proposal_gen = UniformMutationGenerator(
+            UniformMutationGeneratorConfig(num_mutations=3)
+        )
+        proposal_gen.assign(segment)
+        construct = Construct([segment])
+
+        gc_filter = Constraint(
+            inputs=[segment],
+            function=gc_content_constraint,
+            function_config=GCContentConfig(min_gc=45.0, max_gc=55.0),
+            threshold=0.1,
+        )
+
+        optimizer = MCMCOptimizer(
+            constructs=[construct],
+            generators=[proposal_gen],
+            constraints=[gc_filter],
+            config=MCMCOptimizerConfig(
+                num_selected=2,
+                mcmc_width=3,
+                num_steps=10,
+                verbose=False,
+            ),
+        )
+
+        optimizer.run()
+
+        # Every step has candidate_results with correct structure
+        valid_rejectors = {
+            "gc_content_constraint",
+            "Not best in proposal pool",
+            "Metropolis-Hastings rejection",
+        }
+        all_rejectors = set()
+        for entry in optimizer.history:
+            assert "candidate_results" in entry
+            for cand in entry["candidate_results"]:
+                assert isinstance(cand["accepted"], bool)
+                assert "rejected_by" in cand
+                assert "constructs" in cand
+                if cand["accepted"]:
+                    assert cand["rejected_by"] is None
+                else:
+                    all_rejectors.add(cand["rejected_by"])
+
+        assert all_rejectors.issubset(valid_rejectors)

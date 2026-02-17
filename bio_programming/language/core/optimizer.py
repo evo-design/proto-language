@@ -15,7 +15,7 @@ from typing import Any, Callable, Dict, List, Literal, Optional
 
 from proto_tools.utils.tool_cache import ToolCache, _program_tool_cache
 
-from proto_language.utils.export import build_batch_results
+from proto_language.utils.export import build_batch_results, build_candidate_results
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +97,9 @@ class Optimizer(ABC):
         self._initial_state: Optional[Dict] = None  # Captured on first run() for restart
         self._labels_deduplicated: bool = False
 
+        # For logging: "accepted" or a rejection reason string
+        self._candidate_outcomes: list[str] = []
+
         # Default value for progress tracking (can be overridden by subclasses)
         self.num_steps: int = 1
 
@@ -130,12 +133,13 @@ class Optimizer(ABC):
         self,
         operation: Literal["add", "multiply"] = "add",
         filter_penalty: float = float("inf"),
-    ) -> List[bool]:
+    ) -> None:
         """
         Compute energy scores by combining all constraint evaluation scores on the candidate sequences.
 
         Filter constraints are evaluated first. Rejected candidates skip subsequent
-        constraint evaluations for performance.
+        constraint evaluations for performance. Sets ``_candidate_outcomes`` with
+        "accepted" for passing candidates or the rejecting constraint's label.
 
         Evaluation order:
             1. Filter constraints (with threshold) evaluated first
@@ -146,10 +150,6 @@ class Optimizer(ABC):
         Args:
             operation: How to combine scores: 'add' (sum) or 'multiply' (product)
             filter_penalty: Score for rejected candidates (default: inf)
-
-        Returns:
-            Passed mask — True for candidates that passed all filter constraints,
-            False for rejected candidates.
 
         Raises:
             ValueError: If optimizer is not properly initialized or operation is not 'add' or 'multiply'.
@@ -172,16 +172,15 @@ class Optimizer(ABC):
                 f"Formula: energy = {op}(weight_i x constraint_score_i)"
             )
 
-        # Pass 1: Evaluate all filter constraints first to skip expensive scoring on rejected candidates.
-        # Record the constraint that rejected each candidate
-        per_candidate_rejector: list[str | None] = [None] * num_sequences
+        # Pass 1: Evaluate filter constraints first to skip expensive scoring on rejected candidates.
+        self._candidate_outcomes = ["accepted"] * num_sequences
         for idx, constraint in enumerate(filters):
             if self.verbose:
                 logger.info(f"Filter {idx+1}: {constraint.label}")
             results = constraint.evaluate(mask=passed, verbose=self.verbose)
             for i, (p, r) in enumerate(zip(passed, results)):
                 if p and not r:
-                    per_candidate_rejector[i] = constraint.label
+                    self._candidate_outcomes[i] = constraint.label
             passed = [p and r for p, r in zip(passed, results)]
 
         # Pass 2: Score passing candidates (skip rejected candidates for performance)
@@ -209,34 +208,30 @@ class Optimizer(ABC):
             raise ValueError(f"Operation must be 'add' or 'multiply'")
 
         # Check for inconsistent state
-        assert len(self.energy_scores) == len(passed), \
-            ("Inconsistent state: energy scores should have the same length as passed mask")
+        assert len(self.energy_scores) == num_sequences, \
+            ("Inconsistent state: energy scores should have the same length as candidates")
 
         # NaN signals "not evaluated" and propagates through arithmetic, making bugs visible
-        for i, (score, did_pass) in enumerate(zip(self.energy_scores, passed)):
-            if did_pass and math.isnan(score):
+        for i, score in enumerate(self.energy_scores):
+            if self._candidate_outcomes[i] == "accepted" and math.isnan(score):
                 raise RuntimeError(f"Inconsistent state: candidate {i} passed all filters but has NaN score.")
 
         # Apply filter_penalty to rejected candidates
         self.energy_scores = [
-            score if passed[i] else filter_penalty
-            for (i, score) in enumerate(self.energy_scores)
+            score if self._candidate_outcomes[i] == "accepted" else filter_penalty
+            for i, score in enumerate(self.energy_scores)
         ]
 
         if self.verbose:
             logger.info("Final Energy Scores:")
             for i, score in enumerate(self.energy_scores):
-                if passed[i]:
-                    logger.info(f"  Candidate {i}: {score:.4f} [PASSED]")
+                outcome = self._candidate_outcomes[i]
+                if outcome == "accepted":
+                    logger.info(f"  Candidate {i}: {score:.4f} [ACCEPTED]")
                 else:
-                    logger.info(
-                        f"  Candidate {i}: {score:.4f} "
-                        f"[REJECTED by {per_candidate_rejector[i]}]"
-                    )
+                    logger.info(f"  Candidate {i}: {score:.4f} [REJECTED by {outcome}]")
 
         self._clear_tool_cache()
-
-        return passed
 
     def _clear_tool_cache(self) -> None:
         """
@@ -471,16 +466,21 @@ class Optimizer(ABC):
     def _save_progress_snapshot(self, time_step: int) -> None:
         """Save current optimization state to history.
 
-        Validates that ``selected_sequences`` and ``energy_scores`` have length
-        ``num_selected``, then appends a snapshot using the standardized
-        batch_results format (same structure as extract_batch_results).
+        Validates internal consistency: all segments have the same number of
+        ``selected_sequences`` and ``energy_scores`` matches that count.
+        Allows partial snapshots (e.g. TopK mid-run with heap < k).
         """
+        expected_len = len(self.segments[0].selected_sequences)
         for segment in self.segments:
-            if len(segment.selected_sequences) != self.num_selected:
-                raise RuntimeError(f"selected_sequences has length {len(segment.selected_sequences)} for segment {segment.label or 'unlabeled'}', expected {self.num_selected}")
-        if len(self.energy_scores) != self.num_selected:
-            raise RuntimeError(f"energy_scores has length {len(self.energy_scores)}, expected {self.num_selected}")
+            if len(segment.selected_sequences) != expected_len:
+                raise RuntimeError(f"selected_sequences length mismatch: segment '{segment.label or 'unlabeled'}' has {len(segment.selected_sequences)}, expected {expected_len}")
+        if len(self.energy_scores) != expected_len:
+            raise RuntimeError(f"energy_scores has length {len(self.energy_scores)}, expected {expected_len} (matching selected_sequences)")
 
         result = build_batch_results(self.constructs, self.energy_scores)
         result["time_step"] = time_step
+
+        if self._candidate_outcomes:
+            result["candidate_results"] = build_candidate_results(self.constructs, self._candidate_outcomes)
+
         self.history.append(result)

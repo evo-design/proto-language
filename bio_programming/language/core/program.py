@@ -650,6 +650,7 @@ class Program:
         stage: Optional[int] = None,
         segments: Optional[Set[str]] = None,
         batch_indices: Optional[Set[int]] = None,
+        include_candidates: bool = False,
     ) -> str | Path:
         """Export optimization trajectory (one row per timepoint x batch).
 
@@ -659,6 +660,8 @@ class Program:
             stage: If set, only include history from this optimizer stage.
             segments: If set, only include these segment labels.
             batch_indices: If set, only include these batch indices.
+            include_candidates: If True, include candidate rows with
+                accept/reject status alongside selected rows.
 
         Returns:
             String content or Path where file was saved.
@@ -669,6 +672,7 @@ class Program:
             self._collect_history(stage),
             segments=segments,
             batch_indices=batch_indices,
+            include_candidates=include_candidates,
         )
         return write_export(rows, format, Path(path) if path else None)
 
@@ -681,6 +685,7 @@ class Program:
         segments: Optional[Set[str]] = None,
         constraints: Optional[Set[str]] = None,
         batch_indices: Optional[Set[int]] = None,
+        include_candidates: bool = False,
     ) -> "pd.DataFrame":
         """Export a result table as a pandas DataFrame.
 
@@ -691,6 +696,8 @@ class Program:
             constraints: If set, only include these constraint labels
                 (only applies to "constraints" table).
             batch_indices: If set, only include these batch indices.
+            include_candidates: If True, include candidate rows in the
+                optimization table (only applies to "optimization" table).
 
         Returns:
             pandas DataFrame.
@@ -719,7 +726,11 @@ class Program:
         elif table == "constructs":
             rows = flatten_constructs(batch_results, **f)
         elif table == "optimization":
-            rows = flatten_optimization(self._collect_history(stage), **f)
+            rows = flatten_optimization(
+                self._collect_history(stage),
+                include_candidates=include_candidates,
+                **f,
+            )
         else:
             raise ValueError(
                 f"Unknown table '{table}'. "

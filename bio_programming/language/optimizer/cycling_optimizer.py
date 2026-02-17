@@ -384,17 +384,22 @@ class CyclingOptimizer(Optimizer):
             self.generator.sample(**{self.conditioning_param_name: conditioning_data})
 
             # 3. Evaluate and accept/reject
-            num_passed = self.num_candidates
-            if self.constraints:  # If constraints exist, filter
+            if self.constraints:
                 prev_energies = list(self.energy_scores)
-                passed_mask = self.score_energy()
-                num_passed = self._accept_passed_candidates(passed_mask, prev_energies)
-            else:  # Otherwise, unconditionally accept all new candidates
+                self.score_energy()
+                for i in range(self.num_candidates):
+                    # accept
+                    if self._candidate_outcomes[i] == "accepted":
+                        self.target_segment.selected_sequences[i] = copy.deepcopy(self.target_segment.candidate_sequences[i])
+                    else: # reject
+                        self.energy_scores[i] = prev_energies[i]
+            else:
                 self.target_segment.selected_sequences = [copy.deepcopy(seq) for seq in self.target_segment.candidate_sequences]
                 self.energy_scores = [float("inf")] * self.num_candidates
+                self._candidate_outcomes = ["accepted"] * self.num_candidates
 
             self._save_progress_snapshot(time_step=step)
-            self._log_step_progress(step, num_passed)
+            self._log_step_progress(step)
 
     def _validate_optimizer(self) -> None:
         """Validate cycling optimizer configuration.
@@ -426,27 +431,13 @@ class CyclingOptimizer(Optimizer):
                     f"Constraint {i} ('{constraint.label}') has no threshold set."
                 )
 
-    def _accept_passed_candidates(self, passed_mask: list[bool], prev_energies: list[float]) -> int:
-        """Accept candidates that passed filters into selected_sequences.
-
-        Passed: copy candidate -> selected, keep new energy.
-        Failed: selected stays unchanged, energy reverts to prev_energies.
-        """
-        num_accepted = 0
-        for i in range(self.num_candidates):
-            if passed_mask[i]:
-                num_accepted += 1
-                self.target_segment.selected_sequences[i] = copy.deepcopy(self.target_segment.candidate_sequences[i])
-            else:
-                self.energy_scores[i] = prev_energies[i]
-        return num_accepted
-
-    def _log_step_progress(self, step: int, num_passed: int) -> None:
+    def _log_step_progress(self, step: int) -> None:
         """Log step progress."""
         if self.verbose:
+            num_accepted = self._candidate_outcomes.count("accepted")
             first_seq = self.target_segment.selected_sequences[0].sequence
             logger.info(f"Step {step}/{self.num_steps}")
-            logger.info(f"  Accepted: {num_passed}/{self.num_candidates}")
+            logger.info(f"  Accepted: {num_accepted}/{self.num_candidates}")
             logger.info(f"  First seq: {first_seq}")
         if self.custom_logging:
             self.custom_logging(step, self.segments)

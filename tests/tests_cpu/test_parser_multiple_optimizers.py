@@ -126,8 +126,7 @@ def test_parse_multiple_optimizers():
                     "method": "mcmc",
                     "config": {
                         "num_selected": 1,
-                        "num_steps": 10,
-                        "track_step_size": 1
+                        "num_steps": 10
                     }
                 },
                 "generators": [

@@ -10,6 +10,7 @@ import pytest
 
 from proto_language.utils.export import (
     _serialize_value,
+    build_candidate_results,
     flatten_constraints,
     flatten_constructs,
     flatten_optimization,
@@ -1270,3 +1271,212 @@ class TestSegmentBoundaries:
         # cds should still be at offset 8 (promoter contributes 8 chars)
         assert row["cds.start"] == 8
         assert row["cds.end"] == 16
+
+
+# =============================================================================
+# Test build_candidate_results
+# =============================================================================
+
+
+class TestBuildCandidateResults:
+    """Tests for build_candidate_results function."""
+
+    def _make_constructs(self, candidate_sequences):
+        """Helper to create mock constructs with candidate_sequences."""
+        from unittest.mock import MagicMock
+
+        from proto_language.language.core import Construct, Segment, Sequence
+
+        segment = MagicMock(spec=Segment)
+        segment.label = "promoter"
+        segment.candidate_sequences = [
+            Sequence(seq, sequence_type="dna") for seq in candidate_sequences
+        ]
+        construct = MagicMock(spec=Construct)
+        construct.label = "construct_0"
+        construct.sequence_type = "dna"
+        construct.segments = [segment]
+        return [construct]
+
+    def test_mixed_accepted_rejected(self):
+        """Candidates with mixed pass/fail status are correctly annotated."""
+        constructs = self._make_constructs(["ATCG", "GCTA", "TTAA"])
+        outcomes = ["accepted", "GC Filter", "accepted"]
+
+        results = build_candidate_results(constructs, outcomes)
+
+        assert len(results) == 3
+        assert results[0]["candidate_idx"] == 0
+        assert results[0]["accepted"] is True
+        assert results[0]["rejected_by"] is None
+        assert results[1]["candidate_idx"] == 1
+        assert results[1]["accepted"] is False
+        assert results[1]["rejected_by"] == "GC Filter"
+        assert results[2]["accepted"] is True
+
+    def test_all_accepted(self):
+        """All candidates accepted produces correct output."""
+        constructs = self._make_constructs(["ATCG", "GCTA"])
+        outcomes = ["accepted", "accepted"]
+
+        results = build_candidate_results(constructs, outcomes)
+
+        assert len(results) == 2
+        assert all(r["accepted"] for r in results)
+        assert all(r["rejected_by"] is None for r in results)
+
+    def test_all_rejected(self):
+        """All candidates rejected produces correct output."""
+        constructs = self._make_constructs(["ATCG", "GCTA"])
+        outcomes = ["Filter A", "Filter B"]
+
+        results = build_candidate_results(constructs, outcomes)
+
+        assert len(results) == 2
+        assert not any(r["accepted"] for r in results)
+        assert results[0]["rejected_by"] == "Filter A"
+        assert results[1]["rejected_by"] == "Filter B"
+
+    def test_construct_structure(self):
+        """Each candidate has correct construct/segment structure."""
+        constructs = self._make_constructs(["ATCG"])
+        results = build_candidate_results(constructs, ["accepted"])
+
+        assert len(results) == 1
+        cand = results[0]
+        assert len(cand["constructs"]) == 1
+        assert cand["constructs"][0]["label"] == "construct_0"
+        assert cand["constructs"][0]["type"] == "dna"
+        assert len(cand["constructs"][0]["segments"]) == 1
+        assert cand["constructs"][0]["segments"][0]["sequence"] == "ATCG"
+
+    def test_constraint_metadata_on_rejected_candidate(self):
+        """Constraint metadata written to rejected candidates is exported."""
+        from unittest.mock import MagicMock
+
+        from proto_language.language.core import Sequence
+
+        seq = Sequence("ATCG", sequence_type="dna")
+        seq._constraints_metadata = {
+            "GC Filter": {"score": 0.8, "weight": 1.0, "weighted_score": 0.8, "data": {"gc_content": 80.0}}
+        }
+
+        segment = MagicMock()
+        segment.label = "seg"
+        segment.candidate_sequences = [seq]
+        construct = MagicMock()
+        construct.label = "c0"
+        construct.sequence_type = "dna"
+        construct.segments = [segment]
+
+        results = build_candidate_results([construct], ["GC Filter"])
+
+        assert results[0]["accepted"] is False
+        assert "GC Filter" in results[0]["constructs"][0]["segments"][0]["constraints"]
+
+    def test_empty_constructs(self):
+        """Empty constructs list returns empty results."""
+        assert build_candidate_results([], ["accepted"]) == []
+
+    def test_empty_segments(self):
+        """Constructs with no segments returns empty results."""
+        from unittest.mock import MagicMock
+
+        construct = MagicMock()
+        construct.segments = []
+        assert build_candidate_results([construct], ["accepted"]) == []
+
+
+# =============================================================================
+# Test flatten_optimization with include_candidates
+# =============================================================================
+
+
+class TestFlattenOptimizationCandidates:
+    """Tests for flatten_optimization with include_candidates=True."""
+
+    @pytest.fixture
+    def history_with_candidates(self):
+        """History with candidate_results alongside batch_results."""
+        return [
+            {
+                "time_step": 0,
+                "batch_results": [
+                    {
+                        "batch_idx": 0,
+                        "energy_score": 0.5,
+                        "constructs": [{
+                            "label": "c0", "type": "dna",
+                            "segments": [{"label": "seg", "sequence": "AAAA", "constraints": {}, "metadata": {}}],
+                        }],
+                    },
+                ],
+                "candidate_results": [
+                    {
+                        "candidate_idx": 0,
+                        "accepted": True,
+                        "rejected_by": None,
+                        "constructs": [{
+                            "label": "c0", "type": "dna",
+                            "segments": [{"label": "seg", "sequence": "AAAA", "constraints": {}, "metadata": {}}],
+                        }],
+                    },
+                    {
+                        "candidate_idx": 1,
+                        "accepted": False,
+                        "rejected_by": "GC Filter",
+                        "constructs": [{
+                            "label": "c0", "type": "dna",
+                            "segments": [{"label": "seg", "sequence": "GGGG", "constraints": {
+                                "GC Filter": {"score": 1.0, "weight": 1.0, "weighted_score": 1.0, "data": {"gc_content": 100.0}},
+                            }, "metadata": {}}],
+                        }],
+                    },
+                ],
+                "best_batch_idx": 0,
+            },
+        ]
+
+    def test_include_candidates_false_unchanged(self, history_with_candidates):
+        """include_candidates=False produces identical output to default (no new columns)."""
+        rows_default = flatten_optimization(history_with_candidates)
+        rows_false = flatten_optimization(history_with_candidates, include_candidates=False)
+        assert rows_default == rows_false
+        assert all("pool" not in r for r in rows_default)
+
+    def test_include_candidates_adds_pool_column(self, history_with_candidates):
+        """include_candidates=True adds pool column to selected rows."""
+        rows = flatten_optimization(history_with_candidates, include_candidates=True)
+        selected = [r for r in rows if r.get("pool") == "selected"]
+        candidates = [r for r in rows if r.get("pool") == "candidate"]
+        assert len(selected) == 1
+        assert len(candidates) == 2
+
+    def test_candidate_rows_have_tracking_columns(self, history_with_candidates):
+        """Candidate rows have candidate_idx, accepted, rejected_by columns."""
+        rows = flatten_optimization(history_with_candidates, include_candidates=True)
+        candidates = [r for r in rows if r.get("pool") == "candidate"]
+
+        accepted_cand = [c for c in candidates if c["candidate_idx"] == 0][0]
+        assert accepted_cand["accepted"] is True
+        assert accepted_cand["rejected_by"] is None
+
+        rejected_cand = [c for c in candidates if c["candidate_idx"] == 1][0]
+        assert rejected_cand["accepted"] is False
+        assert rejected_cand["rejected_by"] == "GC Filter"
+
+    def test_candidate_constraint_data_exported(self, history_with_candidates):
+        """Constraint data on candidate rows is properly flattened."""
+        rows = flatten_optimization(history_with_candidates, include_candidates=True)
+        rejected_cand = [r for r in rows if r.get("pool") == "candidate" and r.get("candidate_idx") == 1][0]
+        assert rejected_cand["seg.GC Filter.score"] == 1.0
+        assert rejected_cand["seg.GC Filter.gc_content"] == 100.0
+
+    def test_backward_compat_no_candidate_results_key(self, sample_history):
+        """History without candidate_results key works with include_candidates=True."""
+        rows = flatten_optimization(sample_history, include_candidates=True)
+        selected = [r for r in rows if r.get("pool") == "selected"]
+        candidates = [r for r in rows if r.get("pool") == "candidate"]
+        # All rows are selected, no candidates
+        assert len(selected) == 4
+        assert len(candidates) == 0

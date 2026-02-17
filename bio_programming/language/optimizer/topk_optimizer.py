@@ -211,14 +211,18 @@ class TopKOptimizer(Optimizer):
         self._energy_heap: List[tuple] = []
 
     def _run_sampling_round(self, round_idx: int) -> None:
-        """
-        Execute a single sampling round.
+        """Execute a single sampling round.
+
+        1. Reset candidate sequences to their initial state (fresh each round).
+        2. Run all generators sequentially on the candidates.
+        3. Score candidates with constraints (sets ``_candidate_outcomes``).
+        4. Update the top-k heap and classify outcomes.
+        5. Save a progress snapshot from the current heap state.
 
         Args:
             round_idx: The index of the current round (for tracking purposes).
         """
-        # 1. Create fresh candidate sequences at the start of each round (clean metadata state)
-        # Each candidate uses its own initial sequence from the handoff (preserves diversity)
+        # 1. Reset candidate sequences to their initial state
         for seg_idx, segment in enumerate(self.segments):
             candidates = self._initial_state['segments'][seg_idx]['candidates']
             segment.candidate_sequences = [
@@ -230,50 +234,54 @@ class TopKOptimizer(Optimizer):
                 for i in range(self.num_candidates)
             ]
 
-        # 2. Sample each generator in sequence (they see all batch_size candidates)
+        # 2. Run all generators sequentially
         for generator in self.generators:
             generator.sample()
 
-        # 3. Evaluate all candidates after all generators
-        passed_mask = self.score_energy()
+        # 3. Score candidates with constraints
+        self.score_energy()
 
-        # 4. Process each candidate in the batch - store directly in selected_sequences
+        # 4. Update the top-k heap and classify outcomes
         for candidate_idx in range(self.batch_size):
-            energy = self.energy_scores[candidate_idx]
-
-            # Skip candidates that failed filter constraints
-            if not passed_mask[candidate_idx]:
+            if self._candidate_outcomes[candidate_idx] != "accepted":
                 continue
-
-            # 5. Maintain top-k in selected_sequences (in-place) with max-heap
-            # selected_sequences pool < k (not full yet) - append and push to heap
+            energy = self.energy_scores[candidate_idx]
             if len(self._energy_heap) < self.k:
                 heap_idx = len(self._energy_heap)
                 heapq.heappush(self._energy_heap, (-energy, heap_idx))
                 for segment in self.segments:
                     segment.selected_sequences.append(copy.deepcopy(segment.candidate_sequences[candidate_idx]))
-
-            # Better than worst in top-k (selected_sequences pool) - replace worst
             elif energy < -self._energy_heap[0][0]:
-                # Pop worst entry and reuse its slot index for the new better sequence
-                # heap_idx is a stable identifier for a position in selected_sequences, not heap position
                 _, worst_heap_idx = heapq.heappop(self._energy_heap)
                 heapq.heappush(self._energy_heap, (-energy, worst_heap_idx))
                 for segment in self.segments:
                     segment.selected_sequences[worst_heap_idx] = copy.deepcopy(segment.candidate_sequences[candidate_idx])
+            else:
+                self._candidate_outcomes[candidate_idx] = "Not in top-k"
 
-        # Sort for logging (both default and custom)
+        # 5. Save a progress snapshot from the current heap state
+        saved_energy_scores = self.energy_scores
+        self.energy_scores = [-e for e, _ in sorted(self._energy_heap, key=lambda x: x[1])]
+        self._save_progress_snapshot(time_step=round_idx)
+        self.energy_scores = saved_energy_scores
+
         self._log_round_progress(round_idx)
 
     def _capture_initial_state(self) -> None:
         """Capture state and clear TopK-specific state for fresh run."""
         super()._capture_initial_state()
         self._energy_heap = []
+        # TopK builds selected_sequences dynamically via the heap
+        for segment in self.segments:
+            segment.selected_sequences = []
 
     def _restore_initial_state(self) -> None:
         """Restore to captured state and reset TopK-specific state."""
         super()._restore_initial_state()
         self._energy_heap = []
+        # TopK builds selected_sequences dynamically via the heap
+        for segment in self.segments:
+            segment.selected_sequences = []
 
     def run(self) -> None:
         """
@@ -291,10 +299,6 @@ class TopKOptimizer(Optimizer):
         - Updates the top-k in selected_sequences (in-place)
         """
         self._prepare_run()
-
-        # Clear selected_sequences since TopK populates this dynamically during optimization
-        for segment in self.segments:
-            segment.selected_sequences = []
 
         candidates_generated = 0
         threshold_met = False
@@ -327,11 +331,11 @@ class TopKOptimizer(Optimizer):
                 self._run_sampling_round(round_idx)
                 candidates_generated += self.batch_size
 
-        # Sort selected_sequences and energy_scores by energy (best first)
+        # Sort selected_sequences and energy_scores by energy (best first), pad to k
         self._sort_topk_by_energy()
 
-        # Save single final timepoint with top-k results
-        self._save_progress_snapshot(time_step=0)
+        # Save final snapshot with sorted, padded top-k results
+        self._save_progress_snapshot(time_step=num_sampling_rounds)
 
         # Log statistics
         if self.verbose:
