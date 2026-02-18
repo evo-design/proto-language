@@ -121,6 +121,7 @@ class MSAGenerator(Generator):
             config: Configuration containing MSA and parameters.
         """
         super().__init__()
+        self.config = config
         self.msa = config.msa
         self.num_mutations = config.num_mutations
         self.include_gaps = config.include_gaps

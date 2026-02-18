@@ -856,10 +856,10 @@ def build_program(
         ),
     ]
 
-    # TopK optimizer: k = num_samples to keep all survivors
+    # TopK optimizer: num_results = num_samples to keep all survivors
     optimizer_config = TopKOptimizerConfig(
         num_samples=n_samples,
-        k=n_samples,
+        num_results=n_samples,
         batch_size=batch_size,
         verbose=verbose,
     )
@@ -870,7 +870,7 @@ def build_program(
         config=optimizer_config,
     )
 
-    program = Program(optimizers=[optimizer], verbose=verbose)
+    program = Program(optimizers=[optimizer], num_results=n_samples, verbose=verbose)
     return program, segment
 
 

@@ -77,10 +77,10 @@ def build_batch_results(
     if not constructs or not constructs[0].segments:
         return {"batch_results": [], "best_batch_idx": 0}
 
-    num_selected = len(constructs[0].segments[0].selected_sequences)
+    num_results = len(constructs[0].segments[0].selected_sequences)
     batch_results = []
 
-    for batch_idx in range(num_selected):
+    for batch_idx in range(num_results):
         structured_constructs = []
         for construct in constructs:
             structured_segments = []

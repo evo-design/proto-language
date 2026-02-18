@@ -24,10 +24,7 @@ import sys
 from datetime import datetime
 from typing import List, Tuple
 
-from proto_tools import (
-    StructurePredictionComplex,
-    predict_structures,
-)
+from proto_tools import StructurePredictionComplex, predict_structures
 
 from proto_language.language.core import Construct, Program, Segment, Sequence
 from proto_language.language.generator import (
@@ -183,7 +180,7 @@ def run_protein_hunter(
 
         optimizer_config = CyclingOptimizerConfig(
             num_steps=num_cycles,
-            num_candidates=num_candidates,
+            num_results=num_candidates,
             conditioning_param_name="structure_inputs",
             verbose=True,
         )
@@ -198,7 +195,7 @@ def run_protein_hunter(
             custom_logging=step_logging,
         )
 
-        program = Program(optimizers=[optimizer])
+        program = Program(optimizers=[optimizer], num_results=num_candidates)
         program.run()
 
         print("\n" + "=" * 60)

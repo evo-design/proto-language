@@ -14,10 +14,20 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 import pymol
-pymol.finish_launching(['pymol', '-qc'])
-from pymol import cmd
-from Bio import SeqIO
 
+pymol.finish_launching(['pymol', '-qc'])
+from Bio import SeqIO
+from pymol import cmd
+
+from proto_language.language.constraint import (
+    overall_protein_quality_constraint,
+    structure_iptm_constraint,
+    structure_pae_constraint,
+    structure_plddt_constraint,
+    structure_ptm_constraint,
+    structure_rmsd_constraint,
+    structure_tmscore_constraint,
+)
 from proto_language.language.core import (
     Constraint,
     Construct,
@@ -25,27 +35,11 @@ from proto_language.language.core import (
     Segment,
     Sequence,
 )
-from proto_language.language.constraint import (
-    structure_plddt_constraint,
-    structure_ptm_constraint,
-    structure_iptm_constraint,
-    structure_pae_constraint,
-    structure_rmsd_constraint,
-    structure_tmscore_constraint,
-    overall_protein_quality_constraint,
-)
-from proto_language.language.optimizer import (
-    MCMCOptimizer,
-    MCMCOptimizerConfig,
-)
-from proto_language.language.generator import (
-    ESM3Generator,
-    ESM3GeneratorConfig,
-)
+from proto_language.language.generator import ESM3Generator, ESM3GeneratorConfig
+from proto_language.language.optimizer import MCMCOptimizer, MCMCOptimizerConfig
 from proto_language.utils import inverse_sigmoid_score
 
 from .stoichiometry import expand_gene_ids_by_stoichiometry
-
 
 # Constants for RMSD scoring
 INFLECTION_POINT_ANGSTROMS = 5.0  # Corresponds to 0.5 after sigmoid
@@ -311,8 +305,8 @@ def gene_ids_to_program(
 
     # Configure optimizer
     mcmc_optimizer_config = MCMCOptimizerConfig(
-        num_selected=1,
-        mcmc_width=1,
+        num_results=1,
+        candidates_per_result=1,
         num_steps=len(generators) * n_steps_per_generator,
         max_temperature=0.1,
         min_temperature=0.01,
@@ -335,7 +329,7 @@ def gene_ids_to_program(
         clear_tool_cache=4 * 1024 * 1024 * 1024,  # 4 GB
     )
 
-    program = Program(optimizers=[optimizer])
+    program = Program(optimizers=[optimizer], num_results=1)
 
     return program, gene_id_to_segment
 

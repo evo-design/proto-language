@@ -108,7 +108,7 @@ class MockCyclingGenerator(Generator):
 # Helper Functions
 # =============================================================================
 
-def create_topk_optimizer(construct, segment, num_samples=20, k=3, batch_size=5, num_mutations=3):
+def create_topk_optimizer(construct, segment, num_samples=20, num_results=3, batch_size=5, num_mutations=3):
     """Create a TopK optimizer."""
     gen = UniformMutationGenerator(UniformMutationGeneratorConfig(num_mutations=num_mutations))
     gen.assign(segment)
@@ -121,11 +121,11 @@ def create_topk_optimizer(construct, segment, num_samples=20, k=3, batch_size=5,
         constructs=[construct],
         generators=[gen],
         constraints=[constraint],
-        config=TopKOptimizerConfig(num_samples=num_samples, k=k, batch_size=batch_size),
+        config=TopKOptimizerConfig(num_samples=num_samples, num_results=num_results, batch_size=batch_size),
     )
 
 
-def create_mcmc_optimizer(construct, segment, num_selected=3, num_steps=10, num_mutations=2):
+def create_mcmc_optimizer(construct, segment, num_results=3, num_steps=10, num_mutations=2):
     """Create an MCMC optimizer."""
     gen = UniformMutationGenerator(UniformMutationGeneratorConfig(num_mutations=num_mutations))
     gen.assign(segment)
@@ -138,11 +138,11 @@ def create_mcmc_optimizer(construct, segment, num_selected=3, num_steps=10, num_
         constructs=[construct],
         generators=[gen],
         constraints=[constraint],
-        config=MCMCOptimizerConfig(num_selected=num_selected, num_steps=num_steps),
+        config=MCMCOptimizerConfig(num_results=num_results, num_steps=num_steps),
     )
 
 
-def create_beamsearch_optimizer(construct, segment, beam_width=3, beam_length=10, prompt="ATCG"):
+def create_beamsearch_optimizer(construct, segment, num_results=3, beam_length=10, prompt="ATCG"):
     """Create a BeamSearch optimizer with mock generator."""
     generator = MockAutoregressiveGenerator(use_kv_caching=True)
     generator._assigned_segment = segment
@@ -158,15 +158,15 @@ def create_beamsearch_optimizer(construct, segment, beam_width=3, beam_length=10
         config=BeamSearchOptimizerConfig(
             prompt=prompt,
             beam_length=beam_length,
-            beam_width=beam_width,
-            candidates_per_beam=3,
+            num_results=num_results,
+            candidates_per_result=3,
             use_kv_caching=True,
         ),
         target_segment=segment,
     )
 
 
-def create_cycling_optimizer(construct, segment, num_candidates=3, num_steps=5):
+def create_cycling_optimizer(construct, segment, num_results=3, num_steps=5):
     """Create a CyclingOptimizer with mock generator."""
     generator = MockCyclingGenerator()
     generator.assign(segment)
@@ -187,7 +187,7 @@ def create_cycling_optimizer(construct, segment, num_candidates=3, num_steps=5):
         constraints=[constraint],
         config=CyclingOptimizerConfig(
             num_steps=num_steps,
-            num_candidates=num_candidates,
+            num_results=num_results,
             conditioning_param_name="structure_inputs",
         ),
         conditioning_fn=mock_conditioning_fn,
@@ -206,10 +206,10 @@ class TestTopKTransitions:
         segment = Segment(length=30, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_topk_optimizer(construct, segment, num_samples=15, k=3, batch_size=5)
-        opt2 = create_topk_optimizer(construct, segment, num_samples=10, k=2, batch_size=5)
+        opt1 = create_topk_optimizer(construct, segment, num_samples=15, num_results=3, batch_size=5)
+        opt2 = create_topk_optimizer(construct, segment, num_samples=10, num_results=2, batch_size=5)
 
-        program = Program(optimizers=[opt1, opt2])
+        program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
         opt1_seqs = [s.sequence for s in segment.selected_sequences]
@@ -225,10 +225,10 @@ class TestTopKTransitions:
         segment = Segment(length=30, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_topk_optimizer(construct, segment, num_samples=15, k=3, batch_size=5)
-        opt2 = create_mcmc_optimizer(construct, segment, num_selected=2, num_steps=5)
+        opt1 = create_topk_optimizer(construct, segment, num_samples=15, num_results=3, batch_size=5)
+        opt2 = create_mcmc_optimizer(construct, segment, num_results=2, num_steps=5)
 
-        program = Program(optimizers=[opt1, opt2])
+        program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
         assert opt1.energy_scores == sorted(opt1.energy_scores)
@@ -241,10 +241,10 @@ class TestTopKTransitions:
         segment = Segment(length=50, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_topk_optimizer(construct, segment, num_samples=10, k=3, batch_size=5)
-        opt2 = create_beamsearch_optimizer(construct, segment, beam_width=2, beam_length=10, prompt="GGGG")
+        opt1 = create_topk_optimizer(construct, segment, num_samples=10, num_results=3, batch_size=5)
+        opt2 = create_beamsearch_optimizer(construct, segment, num_results=2, beam_length=10, prompt="GGGG")
 
-        program = Program(optimizers=[opt1, opt2])
+        program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
 
@@ -261,10 +261,10 @@ class TestTopKTransitions:
         segment = Segment(length=30, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_topk_optimizer(construct, segment, num_samples=10, k=3, batch_size=5)
-        opt2 = create_cycling_optimizer(construct, segment, num_candidates=2, num_steps=3)
+        opt1 = create_topk_optimizer(construct, segment, num_samples=10, num_results=3, batch_size=5)
+        opt2 = create_cycling_optimizer(construct, segment, num_results=2, num_steps=3)
 
-        program = Program(optimizers=[opt1, opt2])
+        program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
         topk_seqs = [s.sequence for s in segment.selected_sequences]
@@ -283,10 +283,10 @@ class TestMCMCTransitions:
         segment = Segment(length=30, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_mcmc_optimizer(construct, segment, num_selected=3, num_steps=10)
-        opt2 = create_topk_optimizer(construct, segment, num_samples=10, k=2, batch_size=5)
+        opt1 = create_mcmc_optimizer(construct, segment, num_results=3, num_steps=10)
+        opt2 = create_topk_optimizer(construct, segment, num_samples=10, num_results=2, batch_size=5)
 
-        program = Program(optimizers=[opt1, opt2])
+        program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
 
@@ -299,10 +299,10 @@ class TestMCMCTransitions:
         segment = Segment(length=30, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_mcmc_optimizer(construct, segment, num_selected=3, num_steps=10)
-        opt2 = create_mcmc_optimizer(construct, segment, num_selected=2, num_steps=5)
+        opt1 = create_mcmc_optimizer(construct, segment, num_results=3, num_steps=10)
+        opt2 = create_mcmc_optimizer(construct, segment, num_results=2, num_steps=5)
 
-        program = Program(optimizers=[opt1, opt2])
+        program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
         mcmc1_seqs = [s.sequence for s in segment.selected_sequences]
@@ -317,10 +317,10 @@ class TestMCMCTransitions:
         segment = Segment(length=50, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_mcmc_optimizer(construct, segment, num_selected=3, num_steps=10)
-        opt2 = create_beamsearch_optimizer(construct, segment, beam_width=2, beam_length=10, prompt="CCCC")
+        opt1 = create_mcmc_optimizer(construct, segment, num_results=3, num_steps=10)
+        opt2 = create_beamsearch_optimizer(construct, segment, num_results=2, beam_length=10, prompt="CCCC")
 
-        program = Program(optimizers=[opt1, opt2])
+        program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
         program.run_stage(1)
@@ -333,10 +333,10 @@ class TestMCMCTransitions:
         segment = Segment(length=30, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_mcmc_optimizer(construct, segment, num_selected=3, num_steps=10)
-        opt2 = create_cycling_optimizer(construct, segment, num_candidates=2, num_steps=3)
+        opt1 = create_mcmc_optimizer(construct, segment, num_results=3, num_steps=10)
+        opt2 = create_cycling_optimizer(construct, segment, num_results=2, num_steps=3)
 
-        program = Program(optimizers=[opt1, opt2])
+        program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
         mcmc_seqs = [s.sequence for s in segment.selected_sequences]
@@ -354,10 +354,10 @@ class TestBeamSearchTransitions:
         segment = Segment(length=50, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_beamsearch_optimizer(construct, segment, beam_width=3, beam_length=10, prompt="AAAA")
-        opt2 = create_topk_optimizer(construct, segment, num_samples=10, k=2, batch_size=5)
+        opt1 = create_beamsearch_optimizer(construct, segment, num_results=3, beam_length=10, prompt="AAAA")
+        opt2 = create_topk_optimizer(construct, segment, num_samples=10, num_results=2, batch_size=5)
 
-        program = Program(optimizers=[opt1, opt2])
+        program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
         beam_seqs = [s.sequence for s in segment.selected_sequences]
@@ -372,10 +372,10 @@ class TestBeamSearchTransitions:
         segment = Segment(length=50, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_beamsearch_optimizer(construct, segment, beam_width=3, beam_length=10, prompt="TTTT")
-        opt2 = create_mcmc_optimizer(construct, segment, num_selected=2, num_steps=5)
+        opt1 = create_beamsearch_optimizer(construct, segment, num_results=3, beam_length=10, prompt="TTTT")
+        opt2 = create_mcmc_optimizer(construct, segment, num_results=2, num_steps=5)
 
-        program = Program(optimizers=[opt1, opt2])
+        program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
         beam_seqs = [s.sequence for s in segment.selected_sequences]
@@ -389,10 +389,10 @@ class TestBeamSearchTransitions:
         segment = Segment(length=50, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_beamsearch_optimizer(construct, segment, beam_width=2, beam_length=10, prompt="AAAA")
-        opt2 = create_beamsearch_optimizer(construct, segment, beam_width=2, beam_length=10, prompt="TTTT")
+        opt1 = create_beamsearch_optimizer(construct, segment, num_results=2, beam_length=10, prompt="AAAA")
+        opt2 = create_beamsearch_optimizer(construct, segment, num_results=2, beam_length=10, prompt="TTTT")
 
-        program = Program(optimizers=[opt1, opt2])
+        program = Program(optimizers=[opt1, opt2], num_results=2)
 
         program.run_stage(0)
         beam1_seqs = [s.sequence for s in segment.selected_sequences]
@@ -408,10 +408,10 @@ class TestBeamSearchTransitions:
         segment = Segment(length=50, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_beamsearch_optimizer(construct, segment, beam_width=3, beam_length=10, prompt="GGGG")
-        opt2 = create_cycling_optimizer(construct, segment, num_candidates=2, num_steps=3)
+        opt1 = create_beamsearch_optimizer(construct, segment, num_results=3, beam_length=10, prompt="GGGG")
+        opt2 = create_cycling_optimizer(construct, segment, num_results=2, num_steps=3)
 
-        program = Program(optimizers=[opt1, opt2])
+        program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
         beam_seqs = [s.sequence for s in segment.selected_sequences]
@@ -429,10 +429,10 @@ class TestCyclingOptimizerTransitions:
         segment = Segment(length=30, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_cycling_optimizer(construct, segment, num_candidates=3, num_steps=5)
-        opt2 = create_topk_optimizer(construct, segment, num_samples=10, k=2, batch_size=5)
+        opt1 = create_cycling_optimizer(construct, segment, num_results=3, num_steps=5)
+        opt2 = create_topk_optimizer(construct, segment, num_samples=10, num_results=2, batch_size=5)
 
-        program = Program(optimizers=[opt1, opt2])
+        program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
         cycling_seqs = [s.sequence for s in segment.selected_sequences]
@@ -446,10 +446,10 @@ class TestCyclingOptimizerTransitions:
         segment = Segment(length=30, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_cycling_optimizer(construct, segment, num_candidates=3, num_steps=5)
-        opt2 = create_mcmc_optimizer(construct, segment, num_selected=2, num_steps=5)
+        opt1 = create_cycling_optimizer(construct, segment, num_results=3, num_steps=5)
+        opt2 = create_mcmc_optimizer(construct, segment, num_results=2, num_steps=5)
 
-        program = Program(optimizers=[opt1, opt2])
+        program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
         program.run_stage(1)
@@ -461,10 +461,10 @@ class TestCyclingOptimizerTransitions:
         segment = Segment(length=50, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_cycling_optimizer(construct, segment, num_candidates=3, num_steps=3)
-        opt2 = create_beamsearch_optimizer(construct, segment, beam_width=2, beam_length=10, prompt="ACGT")
+        opt1 = create_cycling_optimizer(construct, segment, num_results=3, num_steps=3)
+        opt2 = create_beamsearch_optimizer(construct, segment, num_results=2, beam_length=10, prompt="ACGT")
 
-        program = Program(optimizers=[opt1, opt2])
+        program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
         program.run_stage(1)
@@ -477,10 +477,10 @@ class TestCyclingOptimizerTransitions:
         segment = Segment(length=30, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_cycling_optimizer(construct, segment, num_candidates=3, num_steps=3)
-        opt2 = create_cycling_optimizer(construct, segment, num_candidates=2, num_steps=3)
+        opt1 = create_cycling_optimizer(construct, segment, num_results=3, num_steps=3)
+        opt2 = create_cycling_optimizer(construct, segment, num_results=2, num_steps=3)
 
-        program = Program(optimizers=[opt1, opt2])
+        program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
         cycling1_seqs = [s.sequence for s in segment.selected_sequences]
@@ -503,8 +503,8 @@ class TestSortingContent:
         segment = Segment(length=30, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_mcmc_optimizer(construct, segment, num_selected=5, num_steps=20)
-        program = Program(optimizers=[opt1])
+        opt1 = create_mcmc_optimizer(construct, segment, num_results=5, num_steps=20)
+        program = Program(optimizers=[opt1], num_results=5)
         program.run_stage(0)
 
         # MCMC doesn't sort — just verify we have valid energy scores
@@ -516,8 +516,8 @@ class TestSortingContent:
         segment = Segment(length=30, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_topk_optimizer(construct, segment, num_samples=30, k=5, batch_size=10)
-        program = Program(optimizers=[opt1])
+        opt1 = create_topk_optimizer(construct, segment, num_samples=30, num_results=5, batch_size=10)
+        program = Program(optimizers=[opt1], num_results=5)
         program.run_stage(0)
 
         assert opt1.energy_scores == sorted(opt1.energy_scores)
@@ -531,10 +531,10 @@ class TestCyclingContent:
         segment = Segment(length=30, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_topk_optimizer(construct, segment, num_samples=10, k=2, batch_size=5)
-        opt2 = create_mcmc_optimizer(construct, segment, num_selected=5, num_steps=1)
+        opt1 = create_topk_optimizer(construct, segment, num_samples=10, num_results=2, batch_size=5)
+        opt2 = create_mcmc_optimizer(construct, segment, num_results=5, num_steps=1)
 
-        program = Program(optimizers=[opt1, opt2])
+        program = Program(optimizers=[opt1, opt2], num_results=2)
 
         program.run_stage(0)
         source_seqs = [s.sequence for s in segment.selected_sequences]

@@ -54,7 +54,7 @@ Every optimizer manages two sequence pools per segment:
 
 ```
 selected_sequences    Persistent top-K results across iterations
-                      Size: num_selected (from config)
+                      Size: num_results (from config or program-level default)
 
 candidate_sequences   Temporary proposals generated each step
                       Size: num_candidates (computed from config)
@@ -101,8 +101,8 @@ self.score_energy(operation="multiply") # Multiplicative scoring
 Sets up `candidate_sequences` from `selected_sequences` with cycling:
 
 ```python
-# If num_candidates > num_selected, cycles through selected to fill
-# If num_candidates < num_selected, takes first N
+# If num_candidates > num_results, cycles through selected to fill
+# If num_candidates < num_results, takes first N
 # Preserves diversity by round-robin assignment
 ```
 
@@ -160,10 +160,10 @@ class MyOptimizerConfig(BaseConfig):
     Detailed description of the optimization algorithm and its parameters.
     """
 
-    num_selected: int = ConfigField(
-        default=10,
-        title="Number Selected",
-        description="Number of top sequences to maintain",
+    num_results: Optional[int] = ConfigField(
+        default=None,
+        title="Number of Results",
+        description="Number of top sequences to maintain. Overrides program-level num_results if set.",
         ge=1,
     )
 
@@ -210,7 +210,7 @@ class MyOptimizer(Optimizer):
     ) -> None:
         # Store config BEFORE calling super().__init__
         # (super validates, which may need config values)
-        self._num_selected = config.num_selected
+        num_results = config.num_results
         self._num_steps = config.num_steps
         self._verbose = config.verbose
 
@@ -219,16 +219,9 @@ class MyOptimizer(Optimizer):
             generators=generators,
             constraints=constraints,
             config=config,
+            num_results=num_results,
+            num_candidates=num_results,  # Override as needed
         )
-
-    @property
-    def num_selected(self) -> int:
-        return self._num_selected
-
-    @property
-    def num_candidates(self) -> int:
-        """Number of candidate sequences per step."""
-        return self._num_selected  # Override as needed
 
     def run(self) -> None:
         """Execute the optimization loop."""
@@ -268,10 +261,10 @@ class MyOptimizer(Optimizer):
         scored = list(zip(self.energy_scores, range(len(self.energy_scores))))
         scored.sort(key=lambda x: x[0])
 
-        # Take top num_selected
+        # Take top num_results
         for seg in self.segments:
             new_selected = []
-            for _, idx in scored[:self.num_selected]:
+            for _, idx in scored[:self.num_results]:
                 new_selected.append(copy.deepcopy(seg.candidate_sequences[idx]))
             seg.selected_sequences = new_selected
 ```
@@ -330,7 +323,7 @@ from proto_language.language.generator import UniformMutationGenerator, UniformM
 
 def _setup_components(
     seq_length=10,
-    num_selected=5,
+    num_results=5,
     num_steps=10,
 ):
     segment = Segment(sequence="A" * seq_length, sequence_type="dna")
@@ -342,7 +335,7 @@ def _setup_components(
         function=gc_content_constraint,
         function_config=GCContentConfig(min_gc=40, max_gc=60),
     )
-    config = MyOptimizerConfig(num_selected=num_selected, num_steps=num_steps)
+    config = MyOptimizerConfig(num_results=num_results, num_steps=num_steps)
     opt = MyOptimizer(
         constructs=[construct],
         generators=[gen],

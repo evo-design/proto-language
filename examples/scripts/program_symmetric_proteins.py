@@ -213,7 +213,6 @@ def run_optimization(
         #############
 
         mcmc_optimizer_config = MCMCOptimizerConfig(
-            num_selected=1,
             num_steps=n_steps,
             max_temperature=1.,
             min_temperature=0.0001,
@@ -235,9 +234,7 @@ def run_optimization(
         )
 
         # Create program with optimizer
-        program = Program(
-            optimizers=[optimizer],
-        )
+        program = Program(optimizers=[optimizer], num_results=1)
 
         program.run()
 

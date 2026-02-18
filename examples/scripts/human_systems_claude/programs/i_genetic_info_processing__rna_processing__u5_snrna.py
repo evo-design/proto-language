@@ -1,11 +1,23 @@
 """
 Define a program for diversification of the U5 snRNA.
 """
-from Bio import Align, SeqIO
 from itertools import islice
-from typing import List, Callable
+from typing import Callable, List
+
+from Bio import Align, SeqIO
 
 from proto_language.base_config import BaseConfig, ConfigField
+from proto_language.language.constraint.constraint_registry import ConstraintRegistry
+from proto_language.language.constraint.rna_secondary_structure import (
+    RNABasePairSimilarityConfig,
+    RNAFeatureSimilarityConfig,
+    RNAMotifSimilarityConfig,
+    RNAPropertySimilarityConfig,
+    rna_basepair_similarity_constraint,
+    rna_feature_similarity_constraint,
+    rna_motif_similarity_constraint,
+    rna_property_similarity_constraint,
+)
 from proto_language.language.core import (
     Constraint,
     Construct,
@@ -13,28 +25,8 @@ from proto_language.language.core import (
     Segment,
     Sequence,
 )
-from proto_language.language.constraint.constraint_registry import (
-    ConstraintRegistry,
-)
-from proto_language.language.constraint.rna_secondary_structure import (
-    rna_basepair_similarity_constraint,
-    rna_feature_similarity_constraint,
-    rna_motif_similarity_constraint,
-    rna_property_similarity_constraint,
-    RNABasePairSimilarityConfig,
-    RNAFeatureSimilarityConfig,
-    RNAMotifSimilarityConfig,
-    RNAPropertySimilarityConfig,
-)
-from proto_language.language.generator import (
-    Evo2Generator,
-    Evo2GeneratorConfig,
-)
-from proto_language.language.optimizer import (
-    TopKOptimizer,
-    TopKOptimizerConfig,
-)
-
+from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
+from proto_language.language.optimizer import TopKOptimizer, TopKOptimizerConfig
 
 # Design constants.
 U5_SNRNA = "AUACUCUGGUUUCUCUUCAGAUCGCAUAAAUCUUUCGCCUUUUACUAAAGAUUUCCGUGGAGAGGAACAACUCUGAGUCUUAACCCAAUUUUUUGAGGCCUUGCUUUGGCAAGGCUA"
@@ -277,7 +269,7 @@ def create_u5_snrna_program() -> Program:
 
     top_k_optimizer_config = TopKOptimizerConfig(
         num_samples=N_SAMPLES,
-        k=1,
+        num_results=1,
         batch_size=N_SAMPLES,
         verbose=True,
     )
@@ -288,7 +280,7 @@ def create_u5_snrna_program() -> Program:
         config=top_k_optimizer_config,
     )
 
-    u5_snrna_program = Program(optimizers=[u5_snrna_optimizer])
+    u5_snrna_program = Program(optimizers=[u5_snrna_optimizer], num_results=1)
 
     return u5_snrna_program
 

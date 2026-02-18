@@ -31,8 +31,8 @@ class EmptyConfig(BaseModel):
 
 def _setup_mcmc_components(
     seq_length: int = 10,
-    num_selected: int = 1,
-    mcmc_width: int = None,
+    num_results: int = 1,
+    candidates_per_result: int = None,
     gc_target_range: Tuple[float, float] = (40.0, 60.0),
     num_mcmc_steps: int = 10,
 ):
@@ -55,14 +55,14 @@ def _setup_mcmc_components(
         ),
     )
 
-    # 3. Create the MCMC Optimizer config (mcmc_width defaults to 1)
+    # 3. Create the MCMC Optimizer config (candidates_per_result defaults to 1)
     config_kwargs = {
-        "num_selected": num_selected,
+        "num_results": num_results,
         "num_steps": num_mcmc_steps,
         "verbose": False,
     }
-    if mcmc_width is not None:
-        config_kwargs["mcmc_width"] = mcmc_width
+    if candidates_per_result is not None:
+        config_kwargs["candidates_per_result"] = candidates_per_result
     config = MCMCOptimizerConfig(**config_kwargs)
 
     optimizer = MCMCOptimizer(
@@ -81,8 +81,8 @@ class TestMCMCOptimizer:
 
         assert optimizer.generators == [proposal_gen]
         assert optimizer.constraints == [constraint]
-        assert optimizer.num_selected == 1
-        assert optimizer.num_candidates == 1  # Defaults to num_selected
+        assert optimizer.num_results == 1
+        assert optimizer.num_candidates == 1  # Defaults to num_trajectories
 
         # Test validation errors - unassigned generator
         test_segment = Segment(sequence="A" * 10, sequence_type="dna")
@@ -106,7 +106,7 @@ class TestMCMCOptimizer:
                 constructs=[Construct([test_segment])],
                 generators=[unassigned_gen],
                 constraints=[dummy_constraint],
-                config=MCMCOptimizerConfig(num_selected=1, num_steps=1),
+                config=MCMCOptimizerConfig(num_results=1, num_steps=1),
             )
 
     def test_config_validation(self):
@@ -114,17 +114,17 @@ class TestMCMCOptimizer:
         from pydantic import ValidationError
 
         # Valid configs
-        config = MCMCOptimizerConfig(num_selected=5, mcmc_width=10, num_steps=1)
-        assert config.num_selected == 5
-        assert config.mcmc_width == 10
+        config = MCMCOptimizerConfig(num_results=5, candidates_per_result=10, num_steps=1)
+        assert config.num_results == 5
+        assert config.candidates_per_result == 10
 
         # min_temperature >= max_temperature should fail
         with pytest.raises(ValidationError):
-            MCMCOptimizerConfig(num_selected=1, num_steps=1, max_temperature=1.0, min_temperature=1.0)
+            MCMCOptimizerConfig(num_results=1, num_steps=1, max_temperature=1.0, min_temperature=1.0)
 
         # Negative values should fail
         with pytest.raises(ValidationError):
-            MCMCOptimizerConfig(num_selected=-1, num_steps=1)
+            MCMCOptimizerConfig(num_results=-1, num_steps=1)
 
     def test_score_energy(self):
         """Tests the score_energy method."""
@@ -159,8 +159,8 @@ class TestMCMCOptimizer:
         """Tests that inf and nan energy proposals are always rejected."""
         optimizer, _, _, segment = _setup_mcmc_components(
             seq_length=10,
-            num_selected=1,
-            mcmc_width=3,
+            num_results=1,
+            candidates_per_result=3,
             num_mcmc_steps=1,
         )
 
@@ -210,7 +210,7 @@ class TestMCMCOptimizer:
             seq.sequence = initial_seq
 
         # Score initial state
-        for i in range(optimizer.num_selected):
+        for i in range(optimizer.num_results):
             optimizer.segments[0].candidate_sequences[i] = copy.deepcopy(
                 optimizer.segments[0].selected_sequences[i]
             )
@@ -247,7 +247,7 @@ class TestMCMCOptimizer:
             constructs=[construct],
             generators=[proposal_gen],
             constraints=[gc_con, len_con],
-            config=MCMCOptimizerConfig(num_selected=1, num_steps=1, verbose=False),
+            config=MCMCOptimizerConfig(num_results=1, num_steps=1, verbose=False),
         )
 
         assert optimizer.constraint_weights == [1.0, 2.0]
@@ -298,7 +298,7 @@ class TestMCMCOptimizer:
             constructs=[construct],
             generators=[mut_gen, inv_gen],
             constraints=[constraint1, constraint2],
-            config=MCMCOptimizerConfig(num_selected=1, num_steps=20, verbose=False),
+            config=MCMCOptimizerConfig(num_results=1, num_steps=20, verbose=False),
         )
 
         initial_seq1 = segment1[0].sequence
@@ -313,20 +313,20 @@ class TestMCMCOptimizer:
         assert initial_seq1 != final_seq1 or initial_seq2 != final_seq2
 
     def test_topk_initialization(self):
-        """Tests initialization of top-k MCMC with num_selected > 1."""
+        """Tests initialization of top-k MCMC with num_trajectories > 1."""
         optimizer, _, _, _ = _setup_mcmc_components(
-            num_selected=3, mcmc_width=10
+            num_results=3, candidates_per_result=10
         )
 
-        assert optimizer.num_selected == 3
-        # mcmc_width is the number of proposals per selected sequence
-        assert optimizer.mcmc_width == 10
-        # num_candidates is the total pool size (num_selected * mcmc_width)
+        assert optimizer.num_results == 3
+        # _candidates_per_result is the number of proposals per selected sequence
+        assert optimizer._candidates_per_result == 10
+        # num_candidates is the total pool size (num_results * _candidates_per_result)
         assert optimizer.num_candidates == 30
 
     def test_topk_maintains_k_sequences(self):
         """Tests that top-k MCMC maintains exactly k sequences."""
-        num_selected = 3
+        num_trajectories = 3
         num_candidates = 4
 
         proposal_gen = UniformMutationGenerator(
@@ -347,8 +347,8 @@ class TestMCMCOptimizer:
             generators=[proposal_gen],
             constraints=[constraint],
             config=MCMCOptimizerConfig(
-                num_selected=num_selected,
-                mcmc_width=num_candidates,
+                num_results=num_trajectories,
+                candidates_per_result=num_candidates,
                 num_steps=20,
                 max_temperature=1.0,
                 min_temperature=0.01,
@@ -358,20 +358,20 @@ class TestMCMCOptimizer:
 
         optimizer.run()
 
-        # Should maintain num_selected sequences
-        # energy_scores is truncated to num_selected after each selection step
-        assert len(optimizer.energy_scores) == num_selected
-        assert len(segment.selected_sequences) == num_selected
+        # Should maintain num_trajectories sequences
+        # energy_scores is truncated to num_trajectories after each selection step
+        assert len(optimizer.energy_scores) == num_trajectories
+        assert len(segment.selected_sequences) == num_trajectories
 
     def test_history_tracking(self):
         """Tests that history is properly tracked during MCMC — every step saved."""
-        num_selected = 2
+        num_trajectories = 2
         num_steps = 10
         seq_length = 10
 
         optimizer, _, _, _ = _setup_mcmc_components(
             seq_length=seq_length,
-            num_selected=num_selected,
+            num_results=num_trajectories,
             num_mcmc_steps=num_steps,
         )
 
@@ -385,15 +385,15 @@ class TestMCMCOptimizer:
         for entry in optimizer.history:
             assert "time_step" in entry
             assert "batch_results" in entry
-            assert len(entry["batch_results"]) == num_selected
+            assert len(entry["batch_results"]) == num_trajectories
 
     def test_history_timesteps_validation(self):
         """Tests that time_step values in history entries are correctly tracked."""
-        num_selected = 2
+        num_trajectories = 2
         num_steps = 5
 
         optimizer, _, _, _ = _setup_mcmc_components(
-            num_selected=num_selected, num_mcmc_steps=num_steps
+            num_results=num_trajectories, num_mcmc_steps=num_steps
         )
 
         optimizer.run()
@@ -492,7 +492,7 @@ class TestMCMCOptimizer:
 
     def test_convergence_to_optimal(self):
         """Tests that MCMC converges toward optimal solution with enough steps."""
-        num_selected = 3
+        num_trajectories = 3
         seq_length = 15
 
         proposal_gen = UniformMutationGenerator(
@@ -521,7 +521,7 @@ class TestMCMCOptimizer:
             generators=[proposal_gen],
             constraints=[constraint],
             config=MCMCOptimizerConfig(
-                num_selected=num_selected,
+                num_results=num_trajectories,
                 num_steps=200,
                 max_temperature=2.0,
                 min_temperature=0.01,
@@ -530,12 +530,12 @@ class TestMCMCOptimizer:
         )
 
         # Score initial state
-        for i in range(optimizer.num_selected):
+        for i in range(optimizer.num_results):
             optimizer.segments[0].candidate_sequences[i] = copy.deepcopy(
                 optimizer.segments[0].selected_sequences[i]
             )
         optimizer.score_energy()
-        initial_best_energy = min(optimizer.energy_scores[:num_selected])
+        initial_best_energy = min(optimizer.energy_scores[:num_trajectories])
 
         optimizer.run()
         final_best_energy = min(optimizer.energy_scores)
@@ -570,7 +570,7 @@ class TestMCMCOptimizer:
             generators=[proposal_gen],
             constraints=[constraint],
             config=MCMCOptimizerConfig(
-                num_selected=1,
+                num_results=1,
                 num_steps=num_steps,
                 verbose=True,
             ),
@@ -585,12 +585,12 @@ class TestMCMCOptimizer:
         assert actual_steps == expected_steps
 
     def test_verbose_output_formats(self, caplog):
-        """Test logging output for num_selected=1 vs >1."""
+        """Test logging output for num_trajectories=1 vs >1."""
         import logging
 
         seq_length = 15
 
-        # Test num_selected=1 (should show "energy:")
+        # Test num_trajectories=1 (should show "energy:")
         proposal_gen1 = UniformMutationGenerator(
             UniformMutationGeneratorConfig(num_mutations=1)
         )
@@ -608,7 +608,7 @@ class TestMCMCOptimizer:
             generators=[proposal_gen1],
             constraints=[constraint1],
             config=MCMCOptimizerConfig(
-                num_selected=1, num_steps=3, verbose=True
+                num_results=1, num_steps=3, verbose=True
             ),
         )
 
@@ -621,7 +621,7 @@ class TestMCMCOptimizer:
 
         caplog.clear()
 
-        # Test num_selected>1 (should show "best:", "mean:", etc.)
+        # Test num_trajectories>1 (should show "best:", "mean:", etc.)
         proposal_gen2 = UniformMutationGenerator(
             UniformMutationGeneratorConfig(num_mutations=1)
         )
@@ -639,7 +639,7 @@ class TestMCMCOptimizer:
             generators=[proposal_gen2],
             constraints=[constraint2],
             config=MCMCOptimizerConfig(
-                num_selected=3, num_steps=3, verbose=True
+                num_results=3, num_steps=3, verbose=True
             ),
         )
 
@@ -652,7 +652,7 @@ class TestMCMCOptimizer:
 
     def test_deepcopy_independence(self):
         """Tests that deepcopy ensures independent Sequence objects."""
-        num_selected = 2
+        num_trajectories = 2
         seq_length = 20
 
         proposal_gen = UniformMutationGenerator(
@@ -684,7 +684,7 @@ class TestMCMCOptimizer:
             generators=[proposal_gen],
             constraints=[constraint],
             config=MCMCOptimizerConfig(
-                num_selected=num_selected,
+                num_results=num_trajectories,
                 num_steps=1,
                 verbose=False,
             ),
@@ -698,9 +698,9 @@ class TestMCMCOptimizer:
                 assert segment.selected_sequences[i] is not segment.selected_sequences[j]
 
     def test_comprehensive_integration(self):
-        """Comprehensive integration test with num_selected>1."""
+        """Comprehensive integration test with num_trajectories>1."""
         seq_length = 30
-        num_selected = 5
+        num_trajectories = 5
         num_steps = 50
 
         gen1 = UniformMutationGenerator(
@@ -735,7 +735,7 @@ class TestMCMCOptimizer:
             generators=[gen1, gen2],
             constraints=[gc_constraint1, gc_constraint2],
             config=MCMCOptimizerConfig(
-                num_selected=num_selected,
+                num_results=num_trajectories,
                 num_steps=num_steps,
                 verbose=False,
             ),
@@ -743,10 +743,10 @@ class TestMCMCOptimizer:
 
         optimizer.run()
 
-        # energy_scores is truncated to num_selected after each selection step
-        assert len(optimizer.energy_scores) == num_selected
-        assert len(segment1.selected_sequences) == num_selected
-        assert len(segment2.selected_sequences) == num_selected
+        # energy_scores is truncated to num_trajectories after each selection step
+        assert len(optimizer.energy_scores) == num_trajectories
+        assert len(segment1.selected_sequences) == num_trajectories
+        assert len(segment2.selected_sequences) == num_trajectories
 
     def test_run_restarts_from_initial_state(self):
         """Tests that calling run() twice restarts from initial state."""
@@ -796,8 +796,8 @@ class TestMCMCOptimizer:
         Each trajectory should only select from its own proposal pool, not mix with
         proposals from other trajectories.
         """
-        num_selected = 3
-        mcmc_width = 4
+        num_trajectories = 3
+        candidates_per_result = 4
         seq_length = 10
 
         proposal_gen = UniformMutationGenerator(
@@ -824,8 +824,8 @@ class TestMCMCOptimizer:
             generators=[proposal_gen],
             constraints=[constraint],
             config=MCMCOptimizerConfig(
-                num_selected=num_selected,
-                mcmc_width=mcmc_width,
+                num_results=num_trajectories,
+                candidates_per_result=candidates_per_result,
                 num_steps=1,
                 max_temperature=0.002,  # Very low temp = greedy
                 min_temperature=0.001,
@@ -842,7 +842,7 @@ class TestMCMCOptimizer:
         segment.selected_sequences[2].sequence = "G" * 5 + "A" * 5  # energy=5
 
         # Set the energy_scores for selected sequences (indices 0, 1, 2)
-        # This mimics the state after previous iteration where only first num_selected
+        # This mimics the state after previous iteration where only first num_trajectories
         # entries are the selected energies
         optimizer.energy_scores[0] = 0   # Trajectory 0
         optimizer.energy_scores[1] = 10  # Trajectory 1
@@ -859,9 +859,9 @@ class TestMCMCOptimizer:
 
         # Verify the layout: each trajectory's proposals are in its own range
         # Trajectory 0: indices [0, 4), Trajectory 1: indices [4, 8), Trajectory 2: indices [8, 12)
-        for traj_idx in range(num_selected):
-            start_idx = traj_idx * mcmc_width
-            end_idx = (traj_idx + 1) * mcmc_width
+        for traj_idx in range(num_trajectories):
+            start_idx = traj_idx * candidates_per_result
+            end_idx = (traj_idx + 1) * candidates_per_result
             for cand_idx in range(start_idx, end_idx):
                 assert segment.candidate_sequences[cand_idx].sequence == segment.selected_sequences[traj_idx].sequence
 
@@ -902,8 +902,8 @@ class TestMCMCOptimizer:
 
     def test_trajectory_isolation_with_different_starting_points(self):
         """Tests that trajectories starting from different sequences remain isolated."""
-        num_selected = 2
-        mcmc_width = 5
+        num_trajectories = 2
+        candidates_per_result = 5
         seq_length = 20
         num_steps = 10
 
@@ -925,8 +925,8 @@ class TestMCMCOptimizer:
             generators=[proposal_gen],
             constraints=[constraint],
             config=MCMCOptimizerConfig(
-                num_selected=num_selected,
-                mcmc_width=mcmc_width,
+                num_results=num_trajectories,
+                candidates_per_result=candidates_per_result,
                 num_steps=num_steps,
                 max_temperature=1.0,
                 min_temperature=0.01,
@@ -943,7 +943,7 @@ class TestMCMCOptimizer:
         # Each trajectory's energy should be tracked independently
         # Check that history shows each trajectory improving independently
         for entry in optimizer.history:
-            assert len(entry["batch_results"]) == num_selected
+            assert len(entry["batch_results"]) == num_trajectories
 
         # Final sequences should be different (each evolved from different start)
         # With high probability, they won't converge to identical sequences
@@ -968,8 +968,8 @@ class TestMCMCOptimizer:
         2. Apply MH acceptance to that single best proposal
         3. If rejected, keep old state
         """
-        num_selected = 1
-        mcmc_width = 3
+        num_trajectories = 1
+        candidates_per_result = 3
         seq_length = 10
 
         proposal_gen = UniformMutationGenerator(
@@ -997,8 +997,8 @@ class TestMCMCOptimizer:
             generators=[proposal_gen],
             constraints=[constraint],
             config=MCMCOptimizerConfig(
-                num_selected=num_selected,
-                mcmc_width=mcmc_width,
+                num_results=num_trajectories,
+                candidates_per_result=candidates_per_result,
                 num_steps=1,
                 max_temperature=0.002,  # Very low temp = greedy
                 min_temperature=0.001,
@@ -1037,8 +1037,8 @@ class TestMCMCOptimizer:
             generators=[proposal_gen],
             constraints=[constraint],
             config=MCMCOptimizerConfig(
-                num_selected=num_selected,
-                mcmc_width=mcmc_width,
+                num_results=num_trajectories,
+                candidates_per_result=candidates_per_result,
                 num_steps=1,
                 max_temperature=0.002,  # Very low temp
                 min_temperature=0.001,
@@ -1091,8 +1091,8 @@ class TestMCMCOptimizer:
             generators=[proposal_gen],
             constraints=[gc_filter],
             config=MCMCOptimizerConfig(
-                num_selected=2,
-                mcmc_width=3,
+                num_results=2,
+                candidates_per_result=3,
                 num_steps=10,
                 verbose=False,
             ),

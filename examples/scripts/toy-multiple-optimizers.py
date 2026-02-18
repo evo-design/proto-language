@@ -57,7 +57,7 @@ def topk_custom_logger(round_idx, segments):
 # Optimizer 1: TopK optimizer (standard mode)
 topk_config = TopKOptimizerConfig(
     num_samples=10,
-    k=3,
+    num_results=3,
     batch_size=2,
     verbose=True,
 )
@@ -98,8 +98,8 @@ def mcmc_custom_logger(round_idx, segments):
             print(seq._metadata)
 
 mcmc_config = MCMCOptimizerConfig(
-    num_selected=1,
-    mcmc_width=20,
+    num_results=1,
+    candidates_per_result=20,
     num_steps=10,
     max_temperature=2.0,
 )
@@ -130,6 +130,7 @@ print("=" * 70)
 
 program = Program(
     optimizers=[optimizer_1, optimizer_2],
+    num_results=3,
 )
 
 program.run()
@@ -189,5 +190,6 @@ optimizer_2_inc = MCMCOptimizer(
 
 program_incremental = Program(
     optimizers=[optimizer_1_inc, optimizer_2_inc],
+    num_results=3,
     verbose=True,
 )

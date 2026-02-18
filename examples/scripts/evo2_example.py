@@ -1,16 +1,17 @@
 from __future__ import annotations
+
 from typing import Tuple
 
-from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
-from proto_language.language.optimizer import TopKOptimizer, TopKOptimizerConfig
+from proto_language.language.constraint import gc_content_constraint
 from proto_language.language.core import (
     Constraint,
     Construct,
+    Program,
     Segment,
     Sequence,
 )
-from proto_language.language.core import Program
-from proto_language.language.constraint import gc_content_constraint
+from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
+from proto_language.language.optimizer import TopKOptimizer, TopKOptimizerConfig
 
 # ============================================================================
 # CONFIGURATION
@@ -50,7 +51,6 @@ gc_constraint = Constraint(
 config = TopKOptimizerConfig(
     num_samples=BATCH_SIZE * 2,
     energy_threshold=0.0,
-    k=2,
     batch_size=BATCH_SIZE,
     verbose=True,
 )
@@ -66,6 +66,7 @@ optimizer = TopKOptimizer(
 # Create program with optimizer
 program = Program(
     optimizers=[optimizer],
+    num_results=2,
 )
 
 program.run()

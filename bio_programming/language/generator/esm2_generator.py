@@ -6,11 +6,7 @@ from __future__ import annotations
 
 from typing import Literal, Optional, final
 
-from proto_tools import (
-    ESM2SampleConfig,
-    ESM2SampleInput,
-    run_esm2_sample,
-)
+from proto_tools import ESM2SampleConfig, ESM2SampleInput, run_esm2_sample
 from proto_tools.tools.masked_models.esm2.standalone.inference import (
     ESM2_MODEL_CHECKPOINTS,
 )
@@ -152,6 +148,7 @@ class ESM2Generator(Generator):
             config: Configuration object containing all generator parameters.
         """
         super().__init__()
+        self.config = config
         self.model_checkpoint = config.model_checkpoint
         self.temperature = config.temperature
         self.decoding_method = config.decoding_method

@@ -24,8 +24,8 @@ class ConcreteOptimizer(Optimizer):
         constructs: List[Construct],
         generators: List[Generator],
         constraints: List[Constraint],
-        num_candidates: int,
-        num_selected: int,
+        num_candidates: int | None,
+        num_results: int | None,
         clear_tool_cache: int | bool | List[str] = 100 * 1024 * 1024,
         verbose: bool = False,
     ) -> None:
@@ -34,13 +34,14 @@ class ConcreteOptimizer(Optimizer):
             generators=generators,
             constraints=constraints,
             num_candidates=num_candidates,
-            num_selected=num_selected,
+            num_results=num_results,
             clear_tool_cache=clear_tool_cache,
             verbose=verbose
         )
 
     def run(self) -> None:
         """Dummy run implementation."""
+        self._prepare_run()
         pass
 
 
@@ -96,6 +97,21 @@ class TestOptimizerValidation:
         construct, generator, _, _ = _setup_optimizer_components()
         with pytest.raises(ValueError, match="Constraints list cannot be empty"):
             ConcreteOptimizer([construct], [generator], [], 4, 2)
+
+    # num_results / num_candidates validation
+    @pytest.mark.parametrize("num_results", [0, -1, -100])
+    def test_invalid_num_results_raises(self, num_results):
+        """Tests that num_results < 1 raises ValueError."""
+        construct, generator, constraint, _ = _setup_optimizer_components()
+        with pytest.raises(ValueError, match="num_results must be >= 1"):
+            ConcreteOptimizer([construct], [generator], [constraint], 4, num_results)
+
+    @pytest.mark.parametrize("num_candidates", [0, -1, -100])
+    def test_invalid_num_candidates_raises(self, num_candidates):
+        """Tests that num_candidates < 1 raises ValueError."""
+        construct, generator, constraint, _ = _setup_optimizer_components()
+        with pytest.raises(ValueError, match="num_candidates must be >= 1"):
+            ConcreteOptimizer([construct], [generator], [constraint], num_candidates, 2)
 
     # 2. Type validation
     def test_invalid_generator_type_raises(self):
@@ -422,10 +438,10 @@ class TestOptimizerInitialization:
             generators=[generator],
             constraints=[constraint],
             num_candidates=4,
-            num_selected=2,
+            num_results=2,
         )
         assert optimizer.num_candidates == 4
-        assert optimizer.num_selected == 2
+        assert optimizer.num_results == 2
 
 
 class TestSequencePoolInitialization:
@@ -452,7 +468,7 @@ class TestSequencePoolInitialization:
             generators=[generator],
             constraints=[constraint],
             num_candidates=5,
-            num_selected=2,
+            num_results=2,
         )
         assert optimizer.constructs == [construct]
 
@@ -482,7 +498,7 @@ class TestSequencePoolInitialization:
             generators=[generator],
             constraints=[constraint],
             num_candidates=5,
-            num_selected=3,  # Requesting 3, but only 2 available
+            num_results=3,  # Requesting 3, but only 2 available
         )
         assert optimizer.constructs == [construct]
 
@@ -522,7 +538,7 @@ class TestScoreEnergy:
             generators=[generator],
             constraints=[constraint1, constraint2],
             num_candidates=2,
-            num_selected=2,
+            num_results=2,
         )
         segment.candidate_sequences = [Sequence("A"), Sequence("C")]
         optimizer.score_energy(operation="add")
@@ -549,7 +565,7 @@ class TestScoreEnergy:
             generators=[generator],
             constraints=[constraint1, constraint2],
             num_candidates=2,
-            num_selected=2,
+            num_results=2,
         )
         segment.candidate_sequences = [Sequence("A"), Sequence("C")]
         optimizer.score_energy(operation="multiply")
@@ -592,7 +608,7 @@ class TestFilterConstraints:
             generators=[generator],
             constraints=[filter_constraint, scoring_constraint],
             num_candidates=3,
-            num_selected=2,
+            num_results=2,
         )
 
         optimizer.score_energy(operation="add", filter_penalty=999.0)
@@ -623,7 +639,7 @@ class TestFilterConstraints:
             generators=[generator],
             constraints=[filter_constraint, scoring_constraint],
             num_candidates=3,
-            num_selected=2,
+            num_results=2,
         )
 
         optimizer.score_energy()
@@ -646,7 +662,7 @@ class TestFilterConstraints:
             generators=[generator],
             constraints=[filter_constraint],
             num_candidates=2,
-            num_selected=2,
+            num_results=2,
         )
 
         with caplog.at_level(logging.WARNING, logger="proto_language.language.core.optimizer"):
@@ -672,7 +688,7 @@ class TestFilterConstraints:
             generators=[generator],
             constraints=[constraint],
             num_candidates=3,
-            num_selected=2,
+            num_results=2,
         )
 
         with pytest.raises(RuntimeError, match="Inconsistent state: candidate 1 passed all filters but has NaN score"):
@@ -708,7 +724,7 @@ class TestFilterConstraints:
             generators=[generator],
             constraints=[filter1, filter2],
             num_candidates=3,
-            num_selected=2,
+            num_results=2,
             verbose=True,
         )
 
@@ -766,7 +782,7 @@ class TestProgressSnapshot:
         construct, generator, constraint, _ = _setup_optimizer_components(num_candidates=2)
         optimizer = ConcreteOptimizer([construct], [generator], [constraint], 2, 1)
 
-        # energy_scores must have length num_selected before snapshot
+        # energy_scores must have length num_results before snapshot
         optimizer.energy_scores = [0.1]
         optimizer._save_progress_snapshot(time_step=5)
 
@@ -949,3 +965,83 @@ class TestCandidateTracking:
         assert optimizer._candidate_outcomes == []
         assert optimizer._candidate_energy_scores == []
         assert optimizer.history == []
+
+
+class TestDeferredNumResults:
+    """Tests for deferred num_results resolution."""
+
+    def test_deferred_num_results_skips_pool_init(self):
+        """Optimizer with num_results=None constructs without error."""
+        construct, generator, constraint, segment = _setup_optimizer_components()
+
+        # Segment starts with 1 sequence in each pool from its constructor
+        pre_selected_len = len(segment.selected_sequences)
+        pre_candidate_len = len(segment.candidate_sequences)
+
+        optimizer = ConcreteOptimizer(
+            constructs=[construct],
+            generators=[generator],
+            constraints=[constraint],
+            num_candidates=None,
+            num_results=None,
+        )
+
+        assert optimizer.num_results is None
+        assert optimizer.num_candidates is None
+        assert optimizer.energy_scores == []
+        # Pools should NOT have been resized by _initialize_sequence_pools
+        assert len(segment.selected_sequences) == pre_selected_len
+        assert len(segment.candidate_sequences) == pre_candidate_len
+
+    def test_deferred_run_raises_runtime_error(self):
+        """Calling run() on deferred optimizer raises RuntimeError."""
+        construct, generator, constraint, _ = _setup_optimizer_components()
+
+        optimizer = ConcreteOptimizer(
+            constructs=[construct],
+            generators=[generator],
+            constraints=[constraint],
+            num_candidates=None,
+            num_results=None,
+        )
+
+        with pytest.raises(RuntimeError, match="num_results must be set"):
+            optimizer.run()
+
+    def test_resolve_num_results_initializes_pools(self):
+        """_resolve_num_results sets num_results and initializes pools."""
+        construct, generator, constraint, segment = _setup_optimizer_components()
+
+        optimizer = ConcreteOptimizer(
+            constructs=[construct],
+            generators=[generator],
+            constraints=[constraint],
+            num_candidates=None,
+            num_results=None,
+        )
+
+        # Manually set num_candidates before resolving (subclasses do this in override)
+        optimizer.num_candidates = 4
+        optimizer._resolve_num_results(2)
+
+        assert optimizer.num_results == 2
+        assert optimizer.num_candidates == 4
+        assert len(optimizer.energy_scores) == 4
+        assert len(segment.selected_sequences) == 2
+        assert len(segment.candidate_sequences) == 4
+
+    def test_resolve_num_results_validates_value(self):
+        """_resolve_num_results raises ValueError for invalid values."""
+        construct, generator, constraint, _ = _setup_optimizer_components()
+
+        optimizer = ConcreteOptimizer(
+            constructs=[construct],
+            generators=[generator],
+            constraints=[constraint],
+            num_candidates=None,
+            num_results=None,
+        )
+        optimizer.num_candidates = 4
+
+        with pytest.raises(ValueError, match="num_results must be >= 1"):
+            optimizer._resolve_num_results(0)

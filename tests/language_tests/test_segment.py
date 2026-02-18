@@ -11,7 +11,7 @@ class TestSegment:
         segment = Segment(sequence="ATCG", sequence_type="dna")
         assert isinstance(segment, Segment)
         assert len(segment.selected_sequences) == 1
-        assert segment.num_selected == 1
+        assert segment.num_results == 1
         assert segment[0].sequence == "ATCG"
         assert segment.sequence_type == "dna"
         assert segment.sequence_length == 4

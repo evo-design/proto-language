@@ -2,6 +2,7 @@
   "name": "multiple_segments_test",
   "description": "Test program with multiple constructs each having multiple segments to validate segment separation",
   "version": "1.0",
+  "num_results": 1,
   "constructs": [
     {
       "id": "construct1",
@@ -180,7 +181,7 @@
       "optimizer": {
         "method": "mcmc",
         "config": {
-          "num_selected": 1,
+          "num_results": 1,
           "num_steps": 5,
           "max_temperature": 1.5,
           "min_temperature": 0.5

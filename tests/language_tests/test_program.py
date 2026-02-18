@@ -30,7 +30,7 @@ def _create_simple_program(num_stages: int = 1, sequence: str = "ATGCATGCATGCATG
             config_dict={"min_gc": 0, "max_gc": 100},  # Always passes
         )
 
-        opt_config = TopKOptimizerConfig(num_samples=3, k=2, batch_size=2)
+        opt_config = TopKOptimizerConfig(num_samples=3, num_results=2, batch_size=2)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[generator],
@@ -39,7 +39,7 @@ def _create_simple_program(num_stages: int = 1, sequence: str = "ATGCATGCATGCATG
         )
         optimizers.append(optimizer)
 
-    return Program(optimizers=optimizers)
+    return Program(optimizers=optimizers, num_results=2)
 
 
 class TestProgramRestart:
@@ -134,8 +134,8 @@ class TestProgramRestart:
         captured_selected = captured_state['selected']
         captured_candidates = captured_state['candidates']
 
-        # Verify captured sequences match original (cycled to num_selected=2)
-        assert len(captured_selected) == 2  # Cycled from single source to k=2
+        # Verify captured sequences match original (cycled to num_results=2)
+        assert len(captured_selected) == 2  # Cycled from single source to num_results=2
         assert all(s['sequence'] == original_seq for s in captured_selected)
         assert len(captured_candidates) > 0
         assert all(c['sequence'] == original_seq for c in captured_candidates)
@@ -160,6 +160,85 @@ class TestProgramRestart:
             seq.sequence for seq in segment.candidate_sequences
         ]
         assert any(seq != "G" * 20 for seq in candidate_sequences)
+
+
+def _make_topk(segment, construct, num_results=None):
+    """Create a TopK optimizer with optional num_results."""
+    gen = UniformMutationGenerator(UniformMutationGeneratorConfig(num_mutations=1))
+    gen.assign(segment)
+    constraint = ConstraintRegistry.create(
+        key="gc-content", segments=[segment], config_dict={"min_gc": 0, "max_gc": 100},
+    )
+    return TopKOptimizer(
+        constructs=[construct], generators=[gen], constraints=[constraint],
+        config=TopKOptimizerConfig(num_samples=6, num_results=num_results, batch_size=2),
+    )
+
+
+class TestProgramNumResults:
+    """Tests for num_results resolution: config field > Program fallback > error."""
+
+    def test_config_num_results_sets_num_results(self):
+        """Config num_results=2 sets num_results directly."""
+        segment = Segment(sequence="ATGCATGCATGCATGCATGC", sequence_type="dna")
+        construct = Construct([segment])
+        opt = _make_topk(segment, construct, num_results=2)
+        opt.run()
+        assert opt.num_results == 2
+        assert len(segment.selected_sequences) == 2
+
+    def test_deferred_topk_construction_succeeds(self):
+        """TopK with neither config.num_results nor num_results constructs successfully (deferred)."""
+        segment = Segment(sequence="ATGCATGCATGCATGCATGC", sequence_type="dna")
+        construct = Construct([segment])
+        opt = _make_topk(segment, construct)
+        assert opt.num_results is None
+
+    def test_program_num_results_flows_to_deferred_optimizer(self):
+        """Program(num_results=5) pushes to TopK with num_results=None."""
+        segment = Segment(sequence="ATGCATGCATGCATGCATGC", sequence_type="dna")
+        construct = Construct([segment])
+        opt = _make_topk(segment, construct)  # num_results=None
+        assert opt.num_results is None
+
+        program = Program(optimizers=[opt], num_results=3)
+
+        assert opt.num_results == 3
+
+        # Should be runnable
+        program.run()
+        assert len(segment.selected_sequences) <= 3
+
+    def test_program_num_results_does_not_override_config(self):
+        """config.num_results=2 wins over Program(num_results=5)."""
+        segment = Segment(sequence="ATGCATGCATGCATGCATGC", sequence_type="dna")
+        construct = Construct([segment])
+        opt = _make_topk(segment, construct, num_results=2)  # num_results=2 set in config
+        assert opt.num_results == 2
+
+        Program(optimizers=[opt], num_results=5)
+
+        # Config should not be overridden
+        assert opt.num_results == 2
+
+    def test_program_mixed_resolved_and_deferred(self):
+        """Program with some resolved and some deferred optimizers works."""
+        segment = Segment(sequence="ATGCATGCATGCATGCATGC", sequence_type="dna")
+        construct = Construct([segment])
+
+        # First optimizer: resolved (num_results=2)
+        opt1 = _make_topk(segment, construct, num_results=2)
+        assert opt1.num_results == 2
+
+        # Second optimizer: deferred (num_results=None)
+        opt2 = _make_topk(segment, construct)
+        assert opt2.num_results is None
+
+        Program(optimizers=[opt1, opt2], num_results=3)
+
+        # opt1 should keep num_results=2, opt2 should get 3 from Program
+        assert opt1.num_results == 2
+        assert opt2.num_results == 3
 
 
 class TestRunStageRestart:
@@ -276,7 +355,7 @@ class TestRunStageRestart:
             constructs=[construct],
             generators=[gen1],
             constraints=[constraint1],
-            config=TopKOptimizerConfig(num_samples=2, k=2, batch_size=2),
+            config=TopKOptimizerConfig(num_samples=2, num_results=2, batch_size=2),
         )
 
         # Stage 2: uses gc-content constraint with label "gc_stage_2"
@@ -292,10 +371,10 @@ class TestRunStageRestart:
             constructs=[construct],
             generators=[gen2],
             constraints=[constraint2],
-            config=TopKOptimizerConfig(num_samples=2, k=2, batch_size=2),
+            config=TopKOptimizerConfig(num_samples=2, num_results=2, batch_size=2),
         )
 
-        program = Program(optimizers=[opt1, opt2])
+        program = Program(optimizers=[opt1, opt2], num_results=2)
 
         # Run stage 1
         program.run_stage(0)
@@ -355,7 +434,7 @@ class TestProgramValidation:
     def test_empty_optimizers_raises(self):
         """Test that empty optimizer list raises ValueError."""
         with pytest.raises(ValueError, match="optimizers list cannot be empty"):
-            Program(optimizers=[])
+            Program(optimizers=[], num_results=1)
 
     def test_mismatched_construct_count_raises(self):
         """Test that optimizers with different construct counts raise error."""
@@ -373,7 +452,7 @@ class TestProgramValidation:
             constructs=[construct1, construct2],
             generators=[gen1],
             constraints=[constraint1],
-            config=TopKOptimizerConfig(num_samples=3, k=2, batch_size=2),
+            config=TopKOptimizerConfig(num_samples=3, num_results=2, batch_size=2),
         )
 
         gen2 = UniformMutationGenerator(UniformMutationGeneratorConfig(num_mutations=1))
@@ -385,11 +464,11 @@ class TestProgramValidation:
             constructs=[construct1],  # Different count!
             generators=[gen2],
             constraints=[constraint2],
-            config=TopKOptimizerConfig(num_samples=3, k=2, batch_size=2),
+            config=TopKOptimizerConfig(num_samples=3, num_results=2, batch_size=2),
         )
 
         with pytest.raises(ValueError, match="has 1 constructs.*has 2"):
-            Program(optimizers=[opt1, opt2])
+            Program(optimizers=[opt1, opt2], num_results=2)
 
     def test_mismatched_construct_identity_raises(self):
         """Test that optimizers with different construct objects raise error."""
@@ -408,7 +487,7 @@ class TestProgramValidation:
             constructs=[construct1],
             generators=[gen1],
             constraints=[constraint1],
-            config=TopKOptimizerConfig(num_samples=3, k=2, batch_size=2),
+            config=TopKOptimizerConfig(num_samples=3, num_results=2, batch_size=2),
         )
 
         gen2 = UniformMutationGenerator(UniformMutationGeneratorConfig(num_mutations=1))
@@ -420,11 +499,11 @@ class TestProgramValidation:
             constructs=[construct2],  # Different construct object!
             generators=[gen2],
             constraints=[constraint2],
-            config=TopKOptimizerConfig(num_samples=3, k=2, batch_size=2),
+            config=TopKOptimizerConfig(num_samples=3, num_results=2, batch_size=2),
         )
 
         with pytest.raises(ValueError, match="not the same object"):
-            Program(optimizers=[opt1, opt2])
+            Program(optimizers=[opt1, opt2], num_results=2)
 
     def test_duplicate_construct_labels_raises(self):
         """Test that duplicate construct labels raise error."""
@@ -447,11 +526,11 @@ class TestProgramValidation:
             constructs=[construct1, construct2],
             generators=[gen1, gen2],
             constraints=[constraint1, constraint2],
-            config=TopKOptimizerConfig(num_samples=3, k=2, batch_size=2),
+            config=TopKOptimizerConfig(num_samples=3, num_results=2, batch_size=2),
         )
 
         with pytest.raises(ValueError, match="Construct labels must be unique.*same_label"):
-            Program(optimizers=[opt])
+            Program(optimizers=[opt], num_results=2)
 
     def test_segment_reuse_across_constructs_raises(self):
         """Test that reusing segment instance across constructs raises error."""
@@ -468,11 +547,11 @@ class TestProgramValidation:
             constructs=[construct1, construct2],
             generators=[gen1],
             constraints=[constraint],
-            config=TopKOptimizerConfig(num_samples=3, k=2, batch_size=2),
+            config=TopKOptimizerConfig(num_samples=3, num_results=2, batch_size=2),
         )
 
         with pytest.raises(ValueError, match="Segment.*used in multiple constructs"):
-            Program(optimizers=[opt])
+            Program(optimizers=[opt], num_results=2)
 
     def test_dangling_segment_raises(self):
         """Test that segment with no input and no generator raises error."""
@@ -489,11 +568,11 @@ class TestProgramValidation:
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
-            config=TopKOptimizerConfig(num_samples=3, k=2, batch_size=2),
+            config=TopKOptimizerConfig(num_samples=3, num_results=2, batch_size=2),
         )
 
         with pytest.raises(ValueError, match="never populated.*no input sequence and no generator"):
-            Program(optimizers=[opt])
+            Program(optimizers=[opt], num_results=2)
 
     def test_generator_reuse_across_optimizers_raises(self):
         """Test that reusing generator instance across optimizers raises error."""
@@ -513,17 +592,17 @@ class TestProgramValidation:
             constructs=[construct],
             generators=[shared_gen],  # Same generator instance
             constraints=[constraint1],
-            config=TopKOptimizerConfig(num_samples=3, k=2, batch_size=2),
+            config=TopKOptimizerConfig(num_samples=3, num_results=2, batch_size=2),
         )
         opt2 = TopKOptimizer(
             constructs=[construct],
             generators=[shared_gen],  # Same generator instance!
             constraints=[constraint2],
-            config=TopKOptimizerConfig(num_samples=3, k=2, batch_size=2),
+            config=TopKOptimizerConfig(num_samples=3, num_results=2, batch_size=2),
         )
 
         with pytest.raises(ValueError, match="Generator.*reused across optimizer"):
-            Program(optimizers=[opt1, opt2])
+            Program(optimizers=[opt1, opt2], num_results=2)
 
     def test_constraint_reuse_across_optimizers_raises(self):
         """Test that reusing constraint instance across optimizers raises error."""
@@ -542,17 +621,17 @@ class TestProgramValidation:
             constructs=[construct],
             generators=[gen1],
             constraints=[shared_constraint],  # Same constraint instance
-            config=TopKOptimizerConfig(num_samples=3, k=2, batch_size=2),
+            config=TopKOptimizerConfig(num_samples=3, num_results=2, batch_size=2),
         )
         opt2 = TopKOptimizer(
             constructs=[construct],
             generators=[gen2],
             constraints=[shared_constraint],  # Same constraint instance!
-            config=TopKOptimizerConfig(num_samples=3, k=2, batch_size=2),
+            config=TopKOptimizerConfig(num_samples=3, num_results=2, batch_size=2),
         )
 
         with pytest.raises(ValueError, match="Constraint.*reused across optimizer"):
-            Program(optimizers=[opt1, opt2])
+            Program(optimizers=[opt1, opt2], num_results=2)
 
 
 class TestSerializeRestoreState:
@@ -579,7 +658,7 @@ class TestSerializeRestoreState:
         # Check segment state structure
         seg_state = state["segments"][0]
         assert "selected_sequences" in seg_state
-        assert len(seg_state["selected_sequences"]) == 2  # k=2 from config
+        assert len(seg_state["selected_sequences"]) == 2  # num_results=2 from config
 
         # Check sequence data structure (minimal: sequence, sequence_type, valid_chars)
         for seq_data in seg_state["selected_sequences"]:

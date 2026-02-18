@@ -2,14 +2,13 @@
 Simple example demonstrating the TopK Optimizer.
 """
 
-from proto_language.language.generator import UniformMutationGenerator, UniformMutationGeneratorConfig
-from proto_language.language.optimizer import TopKOptimizer, TopKOptimizerConfig
-from proto_language.language.core import (
-    Constraint,
-    Construct,
-    Segment,
-)
 from proto_language.language.constraint import gc_content_constraint
+from proto_language.language.core import Constraint, Construct, Segment
+from proto_language.language.generator import (
+    UniformMutationGenerator,
+    UniformMutationGeneratorConfig,
+)
+from proto_language.language.optimizer import TopKOptimizer, TopKOptimizerConfig
 
 # Create a DNA segment
 dna_segment = Segment(length=100, sequence_type="dna")
@@ -19,7 +18,7 @@ construct = Construct([dna_segment])
 
 # Configure generator
 mutation_config = UniformMutationGeneratorConfig(
-    num_mutations=100,    
+    num_mutations=100,
 )
 mutation_generator = UniformMutationGenerator(mutation_config)
 
@@ -45,10 +44,10 @@ def custom_logger(round_idx, segments):
 
 # Configure TopK optimizer (standard mode)
 topk_config = TopKOptimizerConfig(
-    num_samples=100, 
-    k=3,            
+    num_samples=100,
+    num_results=3,
     batch_size=20,
-    verbose=True, 
+    verbose=True,
 )
 
 # Create and run optimizer
@@ -66,7 +65,7 @@ optimizer.run()
 
 # Access results
 print("\nTop 10 sequences found:")
-for i in range(optimizer.k):
+for i in range(optimizer.num_results):
     sequence = dna_segment.selected_sequences[i]
     energy = optimizer.energy_scores[i]
 

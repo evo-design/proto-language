@@ -7,11 +7,8 @@ import pandas as pd
 from Bio import SeqIO
 from proto_tools import BORZOI_CONTEXT  # 524,288 bp.
 from proto_tools import BORZOI_OUTPUT  # 6,144 dimensions.
-from proto_tools import (
-    BorzoiConfig,
-    BorzoiInput,
-    run_borzoi,
-)
+from proto_tools import BorzoiConfig, BorzoiInput, run_borzoi
+
 try:
     from proto_tools.tools.causal_models.evo2 import clear_evo2_cache
 except ImportError:
@@ -20,9 +17,7 @@ except ImportError:
     )
 
 from proto_language.base_config import BaseConfig, ConfigField
-from proto_language.language.constraint.constraint_registry import (
-    ConstraintRegistry,
-)
+from proto_language.language.constraint.constraint_registry import ConstraintRegistry
 from proto_language.language.core import (
     Constraint,
     Construct,
@@ -30,14 +25,8 @@ from proto_language.language.core import (
     Segment,
     Sequence,
 )
-from proto_language.language.generator import (
-    Evo2Generator,
-    Evo2GeneratorConfig,
-)
-from proto_language.language.optimizer import (
-    TopKOptimizer,
-    TopKOptimizerConfig,
-)
+from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
+from proto_language.language.optimizer import TopKOptimizer, TopKOptimizerConfig
 
 # Other Borzoi constants.
 BORZOI_OUTPUT_RESOLUTION = 32
@@ -276,7 +265,7 @@ def create_creb_dna_program() -> Program:
 
     top_k_optimizer_config = TopKOptimizerConfig(
         num_samples=N_SAMPLES,
-        k=1,
+        num_results=1,
         batch_size=N_SAMPLES,
         verbose=True,
     )
@@ -287,7 +276,7 @@ def create_creb_dna_program() -> Program:
         config=top_k_optimizer_config,
     )
 
-    creb_dna_program = Program(optimizers=[creb_dna_optimizer])
+    creb_dna_program = Program(optimizers=[creb_dna_optimizer], num_results=1)
 
     return creb_dna_program
 

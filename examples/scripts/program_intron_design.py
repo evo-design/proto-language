@@ -527,7 +527,7 @@ if __name__ == '__main__':
     if args.intron_generator == "evo2":
         optimizer_config = TopKOptimizerConfig(
             num_samples=args.n_steps,
-            k=args.n_steps,
+            num_results=args.n_steps,
             batch_size=1,
             verbose=True,
         )
@@ -541,7 +541,6 @@ if __name__ == '__main__':
         )
     else:
         optimizer_config = MCMCOptimizerConfig(
-            num_selected=1,
             num_steps=args.n_steps,
             max_temperature=args.temperature,
             min_temperature=args.temperature_min,
@@ -556,6 +555,6 @@ if __name__ == '__main__':
             clear_tool_cache=True,
         )
 
-    program = Program(optimizers=[optimizer])
+    program = Program(optimizers=[optimizer], num_results=1)
 
     program.run()

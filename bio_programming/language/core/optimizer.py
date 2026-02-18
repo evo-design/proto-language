@@ -55,6 +55,7 @@ class Optimizer(ABC):
     """
 
     _require_non_empty_constraints: bool = True
+    _candidates_per_result: int = 1
 
     @abstractmethod
     def __init__(
@@ -62,8 +63,8 @@ class Optimizer(ABC):
         constructs: List[Construct],
         generators: List[Generator],
         constraints: List[Constraint],
-        num_candidates: int,
-        num_selected: int,
+        num_candidates: int | None,
+        num_results: int | None,
         clear_tool_cache: int | bool | List[str] = 100 * 1024 * 1024,
         custom_logging: Optional[Callable] = None,
         verbose: bool = False,
@@ -76,7 +77,9 @@ class Optimizer(ABC):
             generators: List of Generator objects for sequence modification.
             constraints: List of Constraint objects for evaluation.
             num_candidates: Number of candidate proposals to generate per iteration.
-            num_selected: Number of sequences to select and maintain as results.
+                May be None when num_results is deferred (resolved later by Program).
+            num_results: Number of sequences to select and maintain as results.
+                May be None to defer resolution to Program(num_results=N).
             clear_tool_cache: (int) Maximum size of cache in bytes, defaults to 100 MB.
                               (bool) Whether to clear the tool cache on each iteration.
                               (List[str]) Restrict clearing cache to a list of tool names.
@@ -87,12 +90,12 @@ class Optimizer(ABC):
         self.constructs = constructs
         self.generators = generators
         self.constraints = constraints
+        self.num_results = num_results
         self.num_candidates = num_candidates
-        self.num_selected = num_selected
+        self.energy_scores: List[float] = []
         self.clear_tool_cache = clear_tool_cache
         self.custom_logging = custom_logging
         self.verbose = verbose
-        self.energy_scores: List[float] = [float("inf")] * num_candidates  # Initialized to inf (unscored)
         self.history: List[Dict[str, Any]] = []
         self._initial_state: Optional[Dict] = None  # Captured on first run() for restart
         self._labels_deduplicated: bool = False
@@ -109,8 +112,11 @@ class Optimizer(ABC):
         _program_tool_cache.set(self.tool_cache)
 
         self._validate_optimizer()
-        self._initialize_sequence_pools()
-        logger.debug(f"Optimizer initialized: {self.__class__.__name__}, candidates={num_candidates}, selected={num_selected}")
+
+        if self.num_results is not None:
+            self._resolve_num_results(self.num_results)
+
+        logger.debug(f"Optimizer initialized: {self.__class__.__name__}, candidates={num_candidates}, results={num_results}")
 
     @property
     def segments(self):
@@ -402,22 +408,22 @@ class Optimizer(ABC):
         Both ``selected_sequences`` and ``candidate_sequences`` are initialized by cycling
         through source to preserve diversity when pool sizes differ.
 
-        Example: source=[A,B,C], num_selected=5 → [A,B,C,A,B]
+        Example: source=[A,B,C], num_results=5 → [A,B,C,A,B]
         """
         # Determine source length from first segment (all segments have same length)
         source_len = len(self.segments[0].selected_sequences or [self.segments[0].original_sequence])
 
         # Log truncation or expansion with optimizer name for context
         optimizer_name = self.__class__.__name__
-        if source_len > self.num_selected:
+        if source_len > self.num_results:
             logger.info(
-                f"Handoff to {optimizer_name}: Truncating {source_len} sequences from result of previous optimizer to {self.num_selected} "
-                f"sequences as starting sequences for current optimizer (keeping first {self.num_selected})"
+                f"Handoff to {optimizer_name}: Truncating {source_len} sequences from result of previous optimizer to {self.num_results} "
+                f"sequences as starting sequences for current optimizer (keeping first {self.num_results})"
             )
-        elif source_len < self.num_selected:
+        elif source_len < self.num_results:
             logger.info(
-                f"Handoff to {optimizer_name}: Expanding sequences from {source_len} sequences from previous optimizer to {self.num_selected} "
-                f"sequences by cycling through the existing {source_len} sequences and duplicating until {self.num_selected} starting sequences for this optimizer are populated."
+                f"Handoff to {optimizer_name}: Expanding sequences from {source_len} sequences from previous optimizer to {self.num_results} "
+                f"sequences by cycling through the existing {source_len} sequences and duplicating until {self.num_results} starting sequences for this optimizer are populated."
             )
         else:
             logger.info(f"Handoff to {optimizer_name}: Starting sequences for current optimizer are populated by {source_len} sequences from previous optimizer.")
@@ -429,7 +435,7 @@ class Optimizer(ABC):
             # Selected pool: cycle through source to preserve diversity
             segment.selected_sequences = [
                 copy.deepcopy(source[i % len(source)])
-                for i in range(self.num_selected)
+                for i in range(self.num_results)
             ]
 
             # Candidate pool: cycle through source to preserve diversity
@@ -438,8 +444,30 @@ class Optimizer(ABC):
                 for i in range(self.num_candidates)
             ]
 
+    def _resolve_num_results(self, num_results: int) -> None:
+        """Resolve num_results and initialize sequence pools.
+
+        Called in two cases:
+        1. During __init__ when config.num_results is set directly.
+        2. By Program.__init__ to flow program-level num_results to optimizers
+           whose config.num_results was left as None.
+        """
+        if num_results < 1:
+            raise ValueError(f"num_results must be >= 1, got {num_results}")
+        self.num_results = num_results
+        if hasattr(self, "config"):
+            self.config.num_results = num_results
+        if self.num_candidates is None:
+            self.num_candidates = num_results * self._candidates_per_result
+        if self.num_candidates < 1:
+            raise ValueError(f"num_candidates must be >= 1, got {self.num_candidates}")
+        self.energy_scores = [float("inf")] * self.num_candidates
+        self._initialize_sequence_pools()
+
     def _prepare_run(self) -> None:
-        """Call at start of run(). Captures state on first run, restores on subsequent."""
+        """Call at start of run(). Validates state, captures on first run, restores on subsequent."""
+        if self.num_results is None:
+            raise RuntimeError("num_results must be set. Set it via the optimizer config or use Program(num_results=...).")
         if self._initial_state is None:
             self._capture_initial_state()
         else:

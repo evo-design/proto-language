@@ -51,7 +51,7 @@ def make_mock_conditioning_fn(num_candidates: int):
 
 def _setup_cycling_components(
     num_steps: int = 2,
-    num_candidates: int = 2,
+    num_results: int = 2,
     include_constraint: bool = False,
     constraint_passes: bool = True,
 ):
@@ -86,11 +86,11 @@ def _setup_cycling_components(
 
     config = CyclingOptimizerConfig(
         num_steps=num_steps,
-        num_candidates=num_candidates,
+        num_results=num_results,
         conditioning_param_name="structure_inputs",
     )
 
-    conditioning_fn, _ = make_mock_conditioning_fn(num_candidates)
+    conditioning_fn, _ = make_mock_conditioning_fn(num_results)
 
     return {
         "target_segment": target_segment,
@@ -114,11 +114,11 @@ class TestCyclingOptimizerConfig:
         """Test valid configuration and defaults."""
         config = CyclingOptimizerConfig(
             num_steps=5,
-            num_candidates=4,
+            num_results=4,
             conditioning_param_name="structure_inputs",
         )
         assert config.num_steps == 5
-        assert config.num_candidates == 4
+        assert config.num_results == 4
         assert config.conditioning_param_name == "structure_inputs"
         assert config.verbose is False
 
@@ -126,17 +126,17 @@ class TestCyclingOptimizerConfig:
         """Test that invalid config values are rejected."""
         with pytest.raises(ValidationError):
             CyclingOptimizerConfig(
-                num_steps=0, num_candidates=1, conditioning_param_name="structure_inputs"
+                num_steps=0, num_results=1, conditioning_param_name="structure_inputs"
             )
         with pytest.raises(ValidationError):
             CyclingOptimizerConfig(
-                num_steps=1, num_candidates=0, conditioning_param_name="structure_inputs"
+                num_steps=1, num_results=0, conditioning_param_name="structure_inputs"
             )
 
     def test_conditioning_field_required(self):
         """Test that conditioning_field is required."""
         with pytest.raises(ValidationError):
-            CyclingOptimizerConfig(num_steps=1, num_candidates=1)
+            CyclingOptimizerConfig(num_steps=1, num_results=1)
 
 
 # =============================================================================
@@ -273,7 +273,7 @@ class TestCyclingOptimizerRun:
         """Test run completes, calls conditioning_fn, and tracks history."""
         num_steps, num_candidates = 3, 2
         components = _setup_cycling_components(
-            num_steps=num_steps, num_candidates=num_candidates
+            num_steps=num_steps, num_results=num_candidates
         )
 
         # Track conditioning function calls
@@ -310,7 +310,7 @@ class TestCyclingOptimizerRun:
         """Test that selected_sequences stay unchanged when all candidates fail."""
         components = _setup_cycling_components(
             num_steps=1,
-            num_candidates=2,
+            num_results=2,
             include_constraint=True,
             constraint_passes=False,
         )
@@ -382,7 +382,7 @@ class TestCyclingOptimizerRun:
 
         config = CyclingOptimizerConfig(
             num_steps=1,
-            num_candidates=3,
+            num_results=3,
             conditioning_param_name="structure_inputs",
         )
 
@@ -412,7 +412,7 @@ class TestCyclingOptimizerRun:
         This is a regression test for a bug where a mismatched conditioning_fn return
         length could cause silent failures or unexpected behavior in the generator.
         """
-        components = _setup_cycling_components(num_steps=1, num_candidates=3)
+        components = _setup_cycling_components(num_steps=1, num_results=3)
 
         # Create a conditioning function that returns wrong number of items
         def wrong_length_conditioning_fn(sequences: List[Sequence]):
@@ -441,7 +441,7 @@ class TestCyclingOptimizerRun:
 
     def test_conditioning_fn_too_many_items_raises(self):
         """Test that conditioning_fn returning too many items also raises ValueError."""
-        components = _setup_cycling_components(num_steps=1, num_candidates=2)
+        components = _setup_cycling_components(num_steps=1, num_results=2)
 
         # Create a conditioning function that returns too many items
         def too_many_conditioning_fn(sequences: List[Sequence]):
@@ -515,7 +515,7 @@ class TestAcceptPatternBehavior:
 
         config = CyclingOptimizerConfig(
             num_steps=1,
-            num_candidates=2,
+            num_results=2,
             conditioning_param_name="structure_inputs",
         )
 
@@ -582,7 +582,7 @@ class TestAcceptPatternBehavior:
 
         config = CyclingOptimizerConfig(
             num_steps=1,
-            num_candidates=2,
+            num_results=2,
             conditioning_param_name="structure_inputs",
         )
 
@@ -635,7 +635,7 @@ class TestAcceptPatternBehavior:
 
         config = CyclingOptimizerConfig(
             num_steps=2,
-            num_candidates=2,
+            num_results=2,
             conditioning_param_name="structure_inputs",
         )
 
@@ -706,7 +706,7 @@ class TestAcceptPatternBehavior:
 
         config = CyclingOptimizerConfig(
             num_steps=2,
-            num_candidates=2,
+            num_results=2,
             conditioning_param_name="structure_inputs",
         )
 
@@ -775,7 +775,7 @@ class TestCyclingOptimizerGPU:
 
         config = CyclingOptimizerConfig(
             num_steps=2,
-            num_candidates=2,
+            num_results=2,
             conditioning_param_name="structure_inputs",
             verbose=True,
         )
@@ -839,7 +839,7 @@ class TestCyclingOptimizerGPU:
 
         config = CyclingOptimizerConfig(
             num_steps=2,
-            num_candidates=2,
+            num_results=2,
             conditioning_param_name="structure_inputs",
             verbose=True,
         )
@@ -869,7 +869,7 @@ class TestCyclingOptimizerRestart:
 
     def test_run_restarts_from_initial_state(self):
         """Test that calling run() twice restarts from initial state."""
-        components = _setup_cycling_components(num_steps=2, num_candidates=2)
+        components = _setup_cycling_components(num_steps=2, num_results=2)
 
         # Mock the generator.sample to track calls and modify sequences
         call_count = [0]
@@ -912,7 +912,7 @@ class TestCyclingOptimizerRestart:
 
     def test_initial_state_captured_correctly(self):
         """Test that initial state captures segment state with actual sequence content."""
-        components = _setup_cycling_components(num_steps=1, num_candidates=2)
+        components = _setup_cycling_components(num_steps=1, num_results=2)
 
         def mock_sample(structure_inputs=None):
             pass  # Don't modify sequences
@@ -971,7 +971,7 @@ class TestCyclingOptimizerPipelineResolution:
 
         config = CyclingOptimizerConfig(
             num_steps=2,
-            num_candidates=2,
+            num_results=2,
             conditioning_param_name="structure_inputs",
             pipeline="protein-hunter",
         )
@@ -994,7 +994,7 @@ class TestCyclingOptimizerPipelineResolution:
 
         config = CyclingOptimizerConfig(
             num_steps=2,
-            num_candidates=2,
+            num_results=2,
             conditioning_param_name="structure_inputs",
             # No pipeline specified
         )
@@ -1018,7 +1018,7 @@ class TestCyclingOptimizerPipelineResolution:
         # Manually set invalid pipeline (bypassing Literal validation)
         config = CyclingOptimizerConfig(
             num_steps=2,
-            num_candidates=2,
+            num_results=2,
             conditioning_param_name="structure_inputs",
         )
         object.__setattr__(config, 'pipeline', 'nonexistent-pipeline')
@@ -1045,7 +1045,7 @@ class TestCyclingOptimizerPipelineResolution:
 
         config = CyclingOptimizerConfig(
             num_steps=2,
-            num_candidates=2,
+            num_results=2,
             conditioning_param_name="prompts",
             pipeline="protein-hunter",
         )
@@ -1067,7 +1067,7 @@ class TestCyclingOptimizerPipelineResolution:
 
         config = CyclingOptimizerConfig(
             num_steps=2,
-            num_candidates=2,
+            num_results=2,
             conditioning_param_name="structure_inputs",
             pipeline="protein-hunter",
         )
@@ -1090,7 +1090,7 @@ class TestCyclingOptimizerPipelineResolution:
 
         config = CyclingOptimizerConfig(
             num_steps=2,
-            num_candidates=2,
+            num_results=2,
             conditioning_param_name="structure_inputs",
             pipeline="protein-hunter",
         )
@@ -1112,7 +1112,7 @@ class TestCyclingCandidateTracking:
     def test_candidate_tracking(self):
         """History has candidate_results — all accepted when no filter rejects."""
         components = _setup_cycling_components(
-            num_steps=3, num_candidates=2, include_constraint=True, constraint_passes=True
+            num_steps=3, num_results=2, include_constraint=True, constraint_passes=True
         )
         optimizer = CyclingOptimizer(
             target_segment=components["target_segment"],

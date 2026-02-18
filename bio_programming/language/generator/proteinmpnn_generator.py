@@ -242,6 +242,7 @@ class ProteinMPNNGenerator(Generator):
             config: Configuration object containing all generator parameters.
         """
         super().__init__()
+        self.config = config
 
         self.structure_inputs = config.structure_inputs
         self.temperature = config.temperature

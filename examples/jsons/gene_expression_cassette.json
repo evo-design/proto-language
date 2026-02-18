@@ -113,7 +113,7 @@
       "optimizer": {
         "method": "mcmc",
         "config": {
-          "num_selected": 1,
+          "num_results": 1,
           "num_steps": 200,
           "max_temperature": 2.0,
           "min_temperature": 0.001

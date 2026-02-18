@@ -106,7 +106,7 @@ class ProGen2GeneratorConfig(BaseConfig):
         description="ProGen2 model checkpoint to use",
     )
 
-    # Advanced parameters.
+    # Advanced parameters
     local_path: Optional[str] = ConfigField(
         default=None,
         title="Local Model Path",
@@ -118,6 +118,7 @@ class ProGen2GeneratorConfig(BaseConfig):
         gt=0.0,
         title="Temperature",
         description="Scales the randomness of sampling.",
+        advanced=True,
     )
     top_p: float = ConfigField(
         default=0.95,
@@ -125,6 +126,7 @@ class ProGen2GeneratorConfig(BaseConfig):
         le=1.0,
         title="Top-p",
         description="Nucleus sampling parameter.",
+        advanced=True,
     )
     top_k: int = ConfigField(
         default=0,
@@ -181,6 +183,7 @@ class ProGen2Generator(Generator):
 
     def __init__(self, config: ProGen2GeneratorConfig) -> None:
         super().__init__()
+        self.config = config
         self.prompts = config.prompts
         self.model_checkpoint = config.model_checkpoint
         self.local_path = config.local_path

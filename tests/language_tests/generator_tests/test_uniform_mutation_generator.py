@@ -28,7 +28,7 @@ class TestUniformMutationGenerator:
         gen.assign(segment)
 
         assert gen._assigned_segment is segment
-        assert segment.num_selected == 1  # assign() initializes one selected sequence
+        assert segment.num_results == 1  # assign() initializes one selected sequence
         assert len(segment.candidate_sequences[0].sequence) == 0
         assert all(c in "ACGU" for c in segment.candidate_sequences[0].sequence)
 

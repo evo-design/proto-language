@@ -6,11 +6,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, final
 
-from proto_tools import (
-    Evo2SampleConfig,
-    Evo2SampleInput,
-    run_evo2_sample,
-)
+from proto_tools import Evo2SampleConfig, Evo2SampleInput, run_evo2_sample
 from proto_tools.tools.causal_models.evo2.standalone.inference import (
     EVO2_MODEL_CHECKPOINTS,
 )
@@ -120,6 +116,7 @@ class Evo2GeneratorConfig(BaseConfig):
         ge=1,
         title="Top-k",
         description="Limits sampling to the top-k most probable tokens at each generation step.",
+        advanced=True,
     )
     top_p: float = ConfigField(
         title="Top-p",
@@ -127,12 +124,14 @@ class Evo2GeneratorConfig(BaseConfig):
         gt=0.0,
         le=1.0,
         description="Chooses the smallest set of tokens whose cumulative probability mass ≥ top-p.",
+        advanced=True,
     )
     temperature: float = ConfigField(
         default=1.0,
         gt=0.0,
         title="Temperature",
         description="Scales the randomness of sampling by adjusting probability distribution sharpness.",
+        advanced=True,
     )
     force_prompt_threshold: Optional[int] = ConfigField(
         default=None,
@@ -262,6 +261,7 @@ class Evo2Generator(Generator):
             config: Configuration object containing all generator parameters.
         """
         super().__init__()
+        self.config = config
         self.prompts = config.prompts
         self.model_checkpoint = config.model_checkpoint
         self.local_path = config.local_path

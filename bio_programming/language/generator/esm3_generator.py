@@ -6,11 +6,7 @@ from __future__ import annotations
 
 from typing import Literal, Optional, final
 
-from proto_tools import (
-    ESM3SampleConfig,
-    ESM3SampleInput,
-    run_esm3_sample,
-)
+from proto_tools import ESM3SampleConfig, ESM3SampleInput, run_esm3_sample
 from proto_tools.tools.masked_models.esm3.standalone.inference import (
     ESM3_MODEL_CHECKPOINTS,
 )
@@ -65,13 +61,13 @@ class ESM3GeneratorConfig(BaseConfig):
         ESM3 is the open-source version of EvolutionaryScale's protein language model.
     """
 
-    # Advanced parameters
     model_checkpoint: ESM3_MODEL_CHECKPOINTS = ConfigField(
         default="esm3_sm_open_v1",
         title="Model Checkpoint",
         description="ESM3 model checkpoint to use",
-        advanced=True,
     )
+
+    # Advanced parameters
     temperature: float = ConfigField(
         default=1.0,
         gt=0.0,
@@ -151,6 +147,7 @@ class ESM3Generator(Generator):
             config: Configuration object containing all generator parameters.
         """
         super().__init__()
+        self.config = config
         self.model_checkpoint = config.model_checkpoint
         self.temperature = config.temperature
         self.decoding_method = config.decoding_method

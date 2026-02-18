@@ -84,13 +84,15 @@ optimizer = MCMCOptimizer(
     generators=[gen],
     constraints=[gc],
     config=MCMCOptimizerConfig(
-        num_selected=1,
+        num_results=1,
         num_steps=100,
     ),
 )
 
 # === Step 6: Program ===
-program = Program(optimizers=[optimizer])
+# num_results sets the default number of output sequences for all optimizers.
+# Individual optimizers can override via their config's num_results field.
+program = Program(optimizers=[optimizer], num_results=1)
 program.run()
 
 # === Results ===
@@ -209,7 +211,7 @@ gen1.assign(segment)
 c1 = Constraint(inputs=[segment], function=gc_content_constraint,
                 function_config={"min_gc": 50, "max_gc": 100})
 opt1 = TopKOptimizer(constructs=[construct], generators=[gen1], constraints=[c1],
-                     config=TopKOptimizerConfig(num_samples=100, k=5))
+                     config=TopKOptimizerConfig(num_samples=100, num_results=5))
 
 # Stage 2: Fine-tune
 gen2 = UniformMutationGenerator(UniformMutationGeneratorConfig(num_mutations=1))
@@ -217,10 +219,21 @@ gen2.assign(segment)
 c2 = Constraint(inputs=[segment], function=gc_content_constraint,
                 function_config={"min_gc": 70, "max_gc": 80})
 opt2 = MCMCOptimizer(constructs=[construct], generators=[gen2], constraints=[c2],
-                     config=MCMCOptimizerConfig(num_selected=1, num_steps=200))
+                     config=MCMCOptimizerConfig(num_results=1, num_steps=200))
 
-program = Program(optimizers=[opt1, opt2])
+program = Program(optimizers=[opt1, opt2], num_results=5)
 program.run()
+```
+
+### Program-Level `num_results`
+Set `num_results` on Program to provide a default for all optimizers. Each optimizer resolves its result count as: **config num_results > program num_results > error**.
+
+```python
+# All optimizers default to 5 results unless overridden
+program = Program(optimizers=[opt1, opt2], num_results=5)
+
+# opt1 uses config.num_results=20 (overrides program default, logs warning)
+# opt2 uses num_results=5 (from program default, since config.num_results is None)
 ```
 
 ### Multi-Segment: Fixed Flanks + Variable Region
@@ -260,15 +273,15 @@ optimizer = MCMCOptimizer(
     constructs=[construct],
     generators=[gen],
     constraints=[plddt, ptm, symmetry],
-    config=MCMCOptimizerConfig(num_selected=1, num_steps=5000),
+    config=MCMCOptimizerConfig(num_results=1, num_steps=5000),
 )
-program = Program(optimizers=[optimizer])
+program = Program(optimizers=[optimizer], num_results=1)
 program.run()
 ```
 
 ### Incremental Stage Execution
 ```python
-program = Program(optimizers=[opt1, opt2])
+program = Program(optimizers=[opt1, opt2], num_results=5)
 
 # Run stage 0 and inspect
 program.run_stage(0)

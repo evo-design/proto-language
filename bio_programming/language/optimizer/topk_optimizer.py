@@ -27,29 +27,30 @@ class TopKOptimizerConfig(BaseConfig):
     """Configuration object for TopKOptimizer.
 
     The TopK optimizer generates many candidate sequences and keeps only the best
-    ``k`` by lowest energy score. It samples in batches for efficiency and maintains
-    a sorted list to track the top candidates.
+    ``num_results`` by lowest energy score. It samples in batches for efficiency and
+    maintains a sorted list to track the top candidates.
 
     Attributes:
         num_samples (int): Maximum number of samples to generate. Rounded up to the
-            nearest multiple of ``batch_size``. Must be at least ``k``.
+            nearest multiple of ``batch_size``. Must be at least ``num_results``.
 
-        k (int): Number of top sequences to keep and return (lowest energy scores).
-            Must be at least 1.
+        num_results (Optional[int]): Number of top sequences to keep and return (lowest
+            energy scores). Overrides program-level ``num_results`` if set.
 
-        batch_size (int): Number of samples to generate per round. Higher values
-            enable more efficient batched inference. Default: ``1``.
+        batch_size (int): Number of candidate sequences to generate per
+            sampling round. Higher values enable more efficient batched inference.
+            Default: ``1``.
 
         energy_threshold (Optional[float]): If set, enables early stopping. The
-            optimizer stops before reaching ``num_samples`` if all ``k`` best
-            candidates have energy below this threshold. Default: ``None`` (no
-            early stopping).
+            optimizer stops before reaching ``num_samples`` if all top-``num_results``
+            best candidates have energy below this threshold. Default: ``None``
+            (no early stopping).
 
         verbose (bool): Print progress information. Default: ``False``.
 
     Note:
         If filter constraints reject many candidates (returning inf/nan energies),
-        the optimizer may return fewer than ``k`` valid results.
+        the optimizer may return fewer than ``num_results`` valid results.
 
     """
     # Required parameters
@@ -58,24 +59,28 @@ class TopKOptimizerConfig(BaseConfig):
         title="Num Samples",
         description="Number of samples to generate. Rounded up to nearest batch_size multiple.",
     )
-    k: int = ConfigField(
+
+    # Advanced parameters
+    num_results: Optional[int] = ConfigField(
+        default=None,
         ge=1,
-        title="Top-k",
-        description="Number of top samples to keep and return.",
+        title="Num Results",
+        description="Number of top sequences to keep and return (top-K value). Overrides program Num Results.",
+        advanced=True,
     )
     batch_size: int = ConfigField(
         default=1,
         ge=1,
         title="Batch Size",
-        description="Number of samples to generate per round (enables batching for generators).",
+        description="Number of candidate sequences to generate per sampling round.",
+        advanced=True,
     )
-
-    # Threshold mode parameter (presence determines mode)
     energy_threshold: Optional[float] = ConfigField(
         default=None,
         ge=0.0,
         title="Energy Threshold",
         description="Early stop when all energy scores in top-k are below threshold.",
+        advanced=True,
     )
 
     verbose: bool = ConfigField(
@@ -88,9 +93,9 @@ class TopKOptimizerConfig(BaseConfig):
     @model_validator(mode='after')
     def validate_params(self):
         """Validate parameter relationships."""
-        # k must not exceed num_samples
-        if self.k > self.num_samples:
-            raise ValueError(f"k ({self.k}) cannot exceed num_samples ({self.num_samples}). Cannot keep more sequences than generated.")
+        # num_results must not exceed num_samples (only validate when num_results is set)
+        if self.num_results is not None and self.num_results > self.num_samples:
+            raise ValueError(f"num_results ({self.num_results}) cannot exceed num_samples ({self.num_samples}). Cannot keep more sequences than generated.")
         return self
 
 
@@ -115,21 +120,21 @@ class TopKOptimizer(Optimizer):
     3. Evaluates candidates with constraints
     4. Updates the sorted top-k list if any candidates are better than the current worst
 
-    If ``energy_threshold`` is set, the optimizer stops early once all ``k`` best
+    If ``energy_threshold`` is set, the optimizer stops early once all top-k best
     candidates have energy below the threshold.
 
     Attributes:
         num_samples (int): Maximum samples to generate (rounded up to batch_size multiple).
-        k (int): Number of top sequences to keep.
+        num_results (int): Number of top sequences to keep (k).
         batch_size (int): Samples per round.
         energy_threshold (Optional[float]): Early stopping threshold.
 
     Note:
         If filter constraints reject many candidates, the optimizer may return
-        fewer than ``k`` valid results.
+        fewer than ``num_results`` valid results.
 
     Example:
-        >>> config = TopKOptimizerConfig(num_samples=100, k=10, batch_size=10)
+        >>> config = TopKOptimizerConfig(num_samples=100, num_results=10, batch_size=10)
         >>> optimizer = TopKOptimizer(
         ...     constructs=constructs,
         ...     generators=[mutation_gen],
@@ -143,7 +148,7 @@ class TopKOptimizer(Optimizer):
 
         >>> config = TopKOptimizerConfig(
         ...     num_samples=1000,
-        ...     k=10,
+        ...     num_results=10,
         ...     batch_size=10,
         ...     energy_threshold=0.5  # Stop when all top-10 have energy < 0.5
         ... )
@@ -174,24 +179,20 @@ class TopKOptimizer(Optimizer):
                               (List[str]) Restrict clearing cache to a list of tool names.
 
         Raises:
-            ValueError: If any validation checks fail.
+            ValueError: If any validation checks fail or num_results cannot be determined.
         """
-        # Map TopK variables to base Optimizer:
-        # - batch_size → num_candidates (candidate pool size per round)
-        # - k → num_selected (top-k to keep in results)
+        self.config = config
+
         super().__init__(
             constructs=constructs,
             generators=generators,
             constraints=constraints,
             num_candidates=config.batch_size,
-            num_selected=config.k,
+            num_results=config.num_results,
             clear_tool_cache=clear_tool_cache,
             custom_logging=custom_logging,
             verbose=config.verbose,
         )
-
-        # Store parameters
-        self.k: int = config.k
         self.batch_size: int = config.batch_size
         self.energy_threshold: Optional[float] = config.energy_threshold
 
@@ -259,7 +260,7 @@ class TopKOptimizer(Optimizer):
                 continue
             energy = self.energy_scores[candidate_idx]
 
-            if len(self._selected_energies) < self.k:
+            if len(self._selected_energies) < self.num_results:
                 pos = bisect.bisect_left(self._selected_energies, energy)
                 self._insert_into_topk(pos, candidate_idx, energy)
             elif energy < self._selected_energies[-1]:
@@ -312,6 +313,13 @@ class TopKOptimizer(Optimizer):
         """
         self._prepare_run()
 
+        # Deferred validation: num_results vs num_samples (num_results may have been set via Program)
+        if self.num_results > self.num_samples:
+            raise ValueError(
+                f"num_results ({self.num_results}) cannot exceed num_samples ({self.num_samples}). "
+                "Cannot keep more sequences than generated."
+            )
+
         # t=0 initial snapshot (empty state)
         self._save_progress_snapshot(time_step=0)
 
@@ -326,28 +334,28 @@ class TopKOptimizer(Optimizer):
             # Threshold mode: Generate until threshold met or num_samples reached
             for round_idx in range(num_sampling_rounds):
                 # Check if threshold is met (only after we have k candidates)
-                if len(self._selected_energies) == self.k:
+                if len(self._selected_energies) == self.num_results:
                     worst_energy = self._selected_energies[-1]
                     if worst_energy < self.energy_threshold:
                         threshold_met = True
                         if self.verbose:
-                            logger.info(f"Threshold met! Worst in top-{self.k}: {worst_energy:.6f} < {self.energy_threshold:.6f}")
+                            logger.info(f"Threshold met! Worst in top-{self.num_results}: {worst_energy:.6f} < {self.energy_threshold:.6f}")
                         break
 
                 self._run_sampling_round(round_idx)
                 candidates_generated += self.batch_size
 
             # Log warning if list never filled to k (filter constraints too strict)
-            if not threshold_met and len(self._selected_energies) < self.k:
-                logger.warning(f"TopK optimizer completed with only {len(self._selected_energies)}/{self.k} valid candidates. Filter constraints may be too restrictive or num_samples may not be high enough.")
+            if not threshold_met and len(self._selected_energies) < self.num_results:
+                logger.warning(f"TopK optimizer completed with only {len(self._selected_energies)}/{self.num_results} valid candidates. Filter constraints may be too restrictive or num_samples may not be high enough.")
         else:
             # Standard mode: Generate exactly num_samples
             for round_idx in range(num_sampling_rounds):
                 self._run_sampling_round(round_idx)
                 candidates_generated += self.batch_size
 
-            if len(self._selected_energies) < self.k:
-                logger.warning(f"TopK optimizer completed with only {len(self._selected_energies)}/{self.k} valid candidates. Filter constraints may be too restrictive or num_samples may not be high enough.")
+            if len(self._selected_energies) < self.num_results:
+                logger.warning(f"TopK optimizer completed with only {len(self._selected_energies)}/{self.num_results} valid candidates. Filter constraints may be too restrictive or num_samples may not be high enough.")
 
         # Handoff: set energy_scores to the sorted selected energies.
         # May be fewer than k if filter constraints rejected too many candidates.
@@ -360,13 +368,13 @@ class TopKOptimizer(Optimizer):
     def _log_round_progress(self, round_idx: int) -> None:
         """Log round progress."""
         if self.verbose:
-            num_selected = len(self._selected_energies)
-            if num_selected > 0:
+            num_results = len(self._selected_energies)
+            if num_results > 0:
                 best_energy = self._selected_energies[0]
                 worst_energy = self._selected_energies[-1]
                 total_rounds = self.num_samples // self.batch_size
                 progress_pct = ((round_idx + 1) / total_rounds) * 100
-                logger.info(f"Round {round_idx+1}/{total_rounds} ({progress_pct:.0f}%): {num_selected}/{self.k} in top-k, best={best_energy:.4f}, worst={worst_energy:.4f}")
+                logger.info(f"Round {round_idx+1}/{total_rounds} ({progress_pct:.0f}%): {num_results}/{self.num_results} in top-k, best={best_energy:.4f}, worst={worst_energy:.4f}")
 
         if self.custom_logging:
             self.custom_logging(round_idx, self.segments)
@@ -381,8 +389,8 @@ class TopKOptimizer(Optimizer):
         mode_str = "threshold" if threshold_mode else "standard"
         logger.debug(f"Optimization complete ({mode_str} mode):")
         logger.debug(f"  Total samples generated: {candidates_generated}")
-        logger.debug(f"  Batch size: {self.batch_size}")
-        logger.debug(f"  Top-k kept: {self.k}")
+        logger.debug(f"  Candidates per round: {self.batch_size}")
+        logger.debug(f"  Top-k kept: {self.num_results}")
 
         if threshold_mode:
             logger.debug(f"Threshold mode:")
@@ -397,13 +405,13 @@ class TopKOptimizer(Optimizer):
             best_energy = self.energy_scores[0]
             worst_in_topk = self.energy_scores[-1]
 
-            logger.debug(f"Top-{self.k} statistics:")
+            logger.debug(f"Top-{self.num_results} statistics:")
             logger.debug(f"  Best energy:  {best_energy:.6f}")
             if len(self.energy_scores) > 1:
                 logger.debug(f"  Worst in top-k: {worst_in_topk:.6f}")
 
-            if self.k <= 20:
-                logger.debug(f"Top-{self.k} constructs:")
+            if self.num_results <= 20:
+                logger.debug(f"Top-{self.num_results} constructs:")
                 for i, energy in enumerate(self.energy_scores):
                     logger.debug(f"  Rank {i+1}: Energy={energy:.6f}")
             logger.debug(f"TopK optimization complete. Returned {len(self.energy_scores)} best constructs.")

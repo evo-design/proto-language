@@ -33,7 +33,7 @@ class Program:
            (or ``original_sequence`` if first optimizer)
         2. Both ``selected_sequences`` and ``candidate_sequences`` are initialized by
            cycling through source to preserve diversity when pool sizes differ
-           (e.g., source=[A,B,C], num_selected=5 -> [A,B,C,A,B])
+           (e.g., source=[A,B,C], num_results=5 -> [A,B,C,A,B])
 
         **Optimizer-specific behavior:**
 
@@ -56,7 +56,7 @@ class Program:
         ...     constructs=[construct],
         ...     generators=[broad_mutation_gen],
         ...     constraints=[gc_constraint_1],
-        ...     config=TopKOptimizerConfig(num_samples=100, k=3),
+        ...     config=TopKOptimizerConfig(num_samples=100, num_results=3),
         ... )
         >>>
         >>> # Second optimizer: fine-tuning with MCMC
@@ -68,7 +68,7 @@ class Program:
         ... )
         >>>
         >>> # Create program with sequential optimizers
-        >>> program = Program(optimizers=[optimizer_1, optimizer_2])
+        >>> program = Program(optimizers=[optimizer_1, optimizer_2], num_results=3)
         >>> program.run()
         >>>
         >>> # Access results from final optimizer
@@ -83,6 +83,7 @@ class Program:
     def __init__(
         self,
         optimizers: List[Optimizer],
+        num_results: int,
         verbose: bool = False,
     ) -> None:
         """
@@ -92,6 +93,9 @@ class Program:
             optimizers: List of Optimizer objects to run in sequence. Each optimizer
                        builds on the results of the previous one. All optimizers must
                        share the same construct objects (by identity).
+            num_results: Number of result sequences to produce by default. Flows down to any
+                optimizer whose config field is not set. Optimizer-level config
+                always takes priority.
             verbose: If True, print detailed energy score calculations for each constraint
                      for all optimizers.
 
@@ -103,6 +107,14 @@ class Program:
             raise ValueError("optimizers list cannot be empty")
 
         self.optimizers = optimizers
+        self.num_results = num_results
+
+        # Flow num_results to optimizers that don't have it set. Optimizers can optionally override
+        for opt in self.optimizers:
+            if opt.num_results is None:
+                opt._resolve_num_results(self.num_results)
+            elif opt.num_results != self.num_results:
+                logger.warning(f"{opt.__class__.__name__} num_results={opt.num_results} Overrides program num_results={self.num_results}")
 
         # If top level verbosity is true, force verbosity in all optimizers.
         self.verbose = verbose
@@ -145,20 +157,27 @@ class Program:
         Validate program configuration before execution.
 
         Checks:
-            1. Construct identity: All optimizers must share the same construct objects
+            1. Resolved num_results: All optimizers must have num_results set.
+            2. Construct identity: All optimizers must share the same construct objects
                (by identity, not equality) to ensure state persists across stages.
-            2. Unique labels: Construct labels must be unique for unambiguous referencing.
-            3. Segment population: Every segment must have either an input sequence or
+            3. Unique labels: Construct labels must be unique for unambiguous referencing.
+            4. Segment population: Every segment must have either an input sequence or
                a generator assigned in at least one optimizer.
-            4. Instance isolation: Generators and constraints cannot be reused across
+            5. Segment uniqueness: Segments cannot be reused across constructs.
+            6. Instance isolation: Generators and constraints cannot be reused across
                optimizers to prevent shared mutable state bugs.
 
         Raises:
             ValueError: If any validation check fails.
         """
+        # 1. Validate all optimizers have resolved num_results.
+        for i, opt in enumerate(self.optimizers):
+            if opt.num_results is None:
+                raise ValueError(f"Optimizer {i} ({opt.__class__.__name__}) has no num_results. Set it via the optimizer's config or pass num_results to Program().")
+
         reference_constructs = self.optimizers[0].constructs
 
-        # 1. Validate construct identity across optimizers
+        # 2. Validate construct identity across optimizers
         # All optimizers must reference the exact same construct objects so results
         # from one stage automatically propagate to subsequent stages.
         for i, optimizer in enumerate(self.optimizers[1:], start=1):
@@ -176,13 +195,13 @@ class Program:
                         "same construct objects (by identity) for state persistence."
                     )
 
-        # 2. Validate unique construct labels
+        # 3. Validate unique construct labels
         construct_labels = [c.label for c in self.constructs]
         if len(construct_labels) != len(set(construct_labels)):
             duplicates = [l for l in construct_labels if construct_labels.count(l) > 1]
             raise ValueError(f"Construct labels must be unique. Duplicates: {set(duplicates)}")
 
-        # 3. Validate no segment reuse across constructs
+        # 4. Validate no segment reuse across constructs
         seen_segments: dict[int, str] = {}
         for construct in self.constructs:
             for segment in construct.segments:
@@ -195,7 +214,7 @@ class Program:
                     )
                 seen_segments[id(segment)] = construct.label
 
-        # 4. Validate all segments will be populated
+        # 5. Validate all segments will be populated
         # A segment must have either an input sequence or a generator in some optimizer.
         generator_segments = {
             gen._assigned_segment
@@ -211,7 +230,7 @@ class Program:
                         "It has no input sequence and no generator assigned in any optimizer."
                     )
 
-        # 5. Validate no generator/constraint reuse across optimizers
+        # 6. Validate no generator/constraint reuse across optimizers
         # Each optimizer needs its own instances to avoid shared mutable state issues.
         if len(self.optimizers) > 1:
             seen_generators: Dict[int, int] = {}
@@ -288,7 +307,7 @@ class Program:
             RuntimeError: If attempting to skip forward (can only run current or previous stages).
 
         Example:
-            >>> program = Program(optimizers=[opt1, opt2])
+            >>> program = Program(optimizers=[opt1, opt2], num_results=3)
             >>> program.run_stage(0)  # Run first optimizer
             >>> results = program.get_stage_results(0)  # Access results
             >>> program.run_stage(1)  # Run second optimizer

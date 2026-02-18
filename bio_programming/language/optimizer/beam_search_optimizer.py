@@ -61,15 +61,15 @@ class BeamSearchOptimizerConfig(BaseConfig):
         beam_length (int): Number of tokens to generate per iteration.
             The segment is split into ceil(segment.sequence_length / beam_length) beams.
 
-        beam_width (int): Number of top sequences to maintain at each step (K in
-            beam search terminology). At each beam, the top K sequences by energy
-            score are selected to continue. Higher values explore more paths but
-            increase computation. Must be at least 1.
+        num_results (int): Number of result sequences (beam width) to maintain at each
+            step. At each beam boundary, the top ``num_results`` sequences by
+            energy score are selected to continue. Higher values explore more
+            paths but increase computation. Must be at least 1.
 
-        candidates_per_beam (int): Number of candidate sequences to generate per
-            beam at each step (N in beam search terminology). Total candidates
-            generated per beam is K x N. Higher values increase diversity but
-            also increase computation. Must be at least 1.
+        candidates_per_result (int): Number of candidate sequences to generate per
+            result sequence (beam) at each beam search step. Total candidates per step is
+            ``num_results x candidates_per_result``. Higher values increase
+            diversity but also increase computation. Must be at least 1.
 
         score_by (str): How to aggregate beam scores when selecting beams.
             - ``"mean"``: Average scores across all beams - rewards consistent trajectory
@@ -88,13 +88,13 @@ class BeamSearchOptimizerConfig(BaseConfig):
 
         max_resample_attempts (int): Maximum number of resampling attempts when
             beams produce invalid (inf/NaN) energy candidates. The optimizer will
-            resample beams until each has ``candidates_per_beam`` valid candidates,
+            resample beams until each has ``candidates_per_result`` valid candidates,
             up to this many attempts. Higher values increase robustness but may
             slow down optimization with very restrictive constraints. Must be at
             least 1. Default: ``3``.
 
         batch_size (int): Optional batch size for generation. If not specified,
-            generates all beam_width * candidates_per_beam candidates at once.
+            generates all num_results * candidates_per_result candidates at once.
             Lower values reduce memory usage but increase generation time.
             Default: None (generates all candidates at once).
 
@@ -108,15 +108,17 @@ class BeamSearchOptimizerConfig(BaseConfig):
         title="Prompt",
         description="The prompt to start the beam search (e.g. ATCG)"
     )
-    beam_width: int = ConfigField(
+    num_results: Optional[int] = ConfigField(
+        default=None,
         ge=1,
-        title="Beam Width",
-        description="Number of top sequences to maintain (K)."
+        title="Num Results",
+        description="Number of result sequences (beam width) to maintain at each step. Overrides program Num Results.",
+        advanced=True,
     )
-    candidates_per_beam: int = ConfigField(
+    candidates_per_result: int = ConfigField(
         ge=1,
-        title="Candidates Per Beam",
-        description="Number of candidates to generate per beam sequence (N).",
+        title="Candidates Per Result",
+        description="Number of candidates to generate per result sequence at each beam step.",
     )
 
     # Generation parameters
@@ -168,8 +170,8 @@ class BeamSearchOptimizerConfig(BaseConfig):
         """Validate beam search configuration."""
         if not self.prompt:
             raise ValueError("prompt must be non-empty")
-        if self.batch_size and self.batch_size > self.beam_width * self.candidates_per_beam:
-            raise ValueError(f"batch_size={self.batch_size} exceeds total candidates ({self.beam_width * self.candidates_per_beam})")
+        if self.num_results is not None and self.batch_size and self.batch_size > self.num_results * self.candidates_per_result:
+            raise ValueError(f"batch_size={self.batch_size} exceeds total candidates ({self.num_results * self.candidates_per_result})")
         return self
 
 
@@ -193,8 +195,8 @@ class BeamSearchOptimizer(Optimizer):
         generator (Generator): Single autoregressive generator for sequence generation.
         prompt (str): Initial prompt sequence starting all beams.
         beam_length (int): Tokens per beam.
-        beam_width (int): Number of beams to maintain (K).
-        candidates_per_beam (int): Candidates generated per beam (N).
+        num_results (int): Number of beams to maintain (K).
+        candidates_per_result (int): Candidates generated per result sequence (N).
         score_by (str): Score aggregation method ('mean' or 'last').
         use_kv_caching (bool): Whether KV caching is enabled.
         beams (List[BeamState]): Current beam states.
@@ -208,8 +210,8 @@ class BeamSearchOptimizer(Optimizer):
         >>> config = BeamSearchOptimizerConfig(
         ...     prompt="ATCG",
         ...     beam_length=2000,
-        ...     beam_width=5,
-        ...     candidates_per_beam=10
+        ...     num_results=5,
+        ...     candidates_per_result=10
         ... )
         >>> beam_search = BeamSearchOptimizer(
         ...     target_segment=segment,
@@ -254,34 +256,38 @@ class BeamSearchOptimizer(Optimizer):
         generator = generators[0]
         generator.assign(target_segment)
 
+        # Store config before super().__init__() so _resolve_num_results can access it
+        self.config = config
+
         # Store config values required for validation
         self.target_segment: Segment = target_segment
         self.prompt: str = config.prompt
         self.beam_length: int = config.beam_length
         self.generator: Generator = generator
         self.use_kv_caching: bool = config.use_kv_caching
+        self._candidates_per_result = config.candidates_per_result
 
         # Base class init (calls _validate_optimizer)
         super().__init__(
             constructs=constructs,
             generators=generators,
             constraints=constraints,
-            num_candidates=config.beam_width * config.candidates_per_beam,
-            num_selected=config.beam_width,
+            num_candidates=None,
+            num_results=config.num_results,
             clear_tool_cache=clear_tool_cache,
             custom_logging=custom_logging,
             verbose=config.verbose,
         )
 
         self.prepend_prompt: bool = config.prepend_prompt
-        self.beam_width: int = config.beam_width
-        self.candidates_per_beam: int = config.candidates_per_beam
         self.score_by: str = config.score_by
         self.max_resample_attempts: int = config.max_resample_attempts
         self.batch_size: Optional[int] = config.batch_size
 
-        # Initialize beam states
-        self.beams: List[BeamState] = [BeamState(running_sequence=self.prompt) for _ in range(self.beam_width)]
+        if self.num_results is not None:
+            self.beams: List[BeamState] = [BeamState(running_sequence=self.prompt) for _ in range(self.num_results)]
+        else:
+            self.beams: List[BeamState] = []
 
         # Calculate number of beams based on target segment
         self.num_beams = math.ceil(self.target_segment.sequence_length / self.beam_length)
@@ -336,12 +342,12 @@ class BeamSearchOptimizer(Optimizer):
     def _capture_initial_state(self) -> None:
         """Capture state and reset BeamSearch-specific state for fresh run."""
         super()._capture_initial_state()
-        self.beams = [BeamState(running_sequence=self.prompt) for _ in range(self.beam_width)]
+        self.beams = [BeamState(running_sequence=self.prompt) for _ in range(self.num_results)]
 
     def _restore_initial_state(self) -> None:
         """Restore to captured state and reset BeamSearch-specific state."""
         super()._restore_initial_state()
-        self.beams = [BeamState(running_sequence=self.prompt) for _ in range(self.beam_width)]
+        self.beams = [BeamState(running_sequence=self.prompt) for _ in range(self.num_results)]
 
     def run(self) -> None:
         """
@@ -356,7 +362,7 @@ class BeamSearchOptimizer(Optimizer):
         self._prepare_run()
 
         # t=0 initial snapshot (empty state before any beams run)
-        self.energy_scores = [float("inf")] * self.beam_width
+        self.energy_scores = [float("inf")] * self.num_results
         self._save_progress_snapshot(time_step=0)
 
         if self.verbose:
@@ -380,7 +386,7 @@ class BeamSearchOptimizer(Optimizer):
             # Generate and score candidates, resampling until all beams have valid candidates
             candidate_beams = self._generate_and_score_with_resampling(prepend_prompt_to_first_beam)
 
-            # Select top beam_width candidates and update beam states
+            # Select top num_results candidates and update beam states
             self._select_topk_beams(candidate_beams)
 
             # Save per-beam snapshot (selected_sequences set by _select_topk_beams)
@@ -417,17 +423,17 @@ class BeamSearchOptimizer(Optimizer):
             prepend_prompt: Whether to prepend prompt to generated sequences
 
         Returns:
-            List of BeamState candidates (length=candidates_per_beam)
+            List of BeamState candidates (length=candidates_per_result)
         """
         beam = self.beams[beam_idx]
-        batch_size = self.batch_size or self.candidates_per_beam
+        batch_size = self.batch_size or self._candidates_per_result
 
         if self.verbose:
             self._log_beam_generation_start(beam_idx, beam)
 
         candidates = []
-        for batch_start in range(0, self.candidates_per_beam, batch_size):
-            batch_count = min(batch_size, self.candidates_per_beam - batch_start)
+        for batch_start in range(0, self._candidates_per_result, batch_size):
+            batch_count = min(batch_size, self._candidates_per_result - batch_start)
 
             # Replicate prompt and KV cache for this batch
             prompts = [beam.running_sequence] * batch_count
@@ -471,11 +477,11 @@ class BeamSearchOptimizer(Optimizer):
             RuntimeError: If unable to get enough valid candidates after max attempts
         """
         # Track valid candidates per beam
-        beam_candidates: Dict[int, List[BeamState]] = {b: [] for b in range(self.beam_width)}
+        beam_candidates: Dict[int, List[BeamState]] = {b: [] for b in range(self.num_results)}
 
         # Initial generation: Generate candidates for all beams
         all_candidates = []
-        for beam_idx in range(self.beam_width):
+        for beam_idx in range(self.num_results):
             candidates = self._generate_candidates_for_beam(beam_idx, prepend_prompt)
             all_candidates.extend(candidates)
 
@@ -489,14 +495,14 @@ class BeamSearchOptimizer(Optimizer):
         # Collect valid candidates (those that passed filter constraints)
         for i, (candidate, score) in enumerate(zip(all_candidates, self.energy_scores)):
             if self._candidate_outcomes[i] == "accepted":
-                beam_idx = i // self.candidates_per_beam
+                beam_idx = i // self._candidates_per_result
                 candidate.beam_scores.append(score)
                 beam_candidates[beam_idx].append(candidate)
 
-        # Resample beams until each has candidates_per_beam valid candidates
+        # Resample beams until each has candidates_per_result valid candidates
         for attempt in range(1, self.max_resample_attempts + 1):
-            beams_to_resample = [b for b in range(self.beam_width)
-                                if len(beam_candidates[b]) < self.candidates_per_beam]
+            beams_to_resample = [b for b in range(self.num_results)
+                                if len(beam_candidates[b]) < self._candidates_per_result]
 
             if not beams_to_resample:
                 break  # All beams have enough valid candidates
@@ -520,32 +526,32 @@ class BeamSearchOptimizer(Optimizer):
                         candidate.beam_scores.append(score)
                         beam_candidates[beam_idx].append(candidate)
 
-        # Verify each beam has at least candidates_per_beam valid candidates
-        insufficient_beams = [b for b in range(self.beam_width)
-                             if len(beam_candidates[b]) < self.candidates_per_beam]
+        # Verify each beam has at least candidates_per_result valid candidates
+        insufficient_beams = [b for b in range(self.num_results)
+                             if len(beam_candidates[b]) < self._candidates_per_result]
         if insufficient_beams:
             counts = {b: len(beam_candidates[b]) for b in insufficient_beams}
             raise RuntimeError(
                 f"After {self.max_resample_attempts} attempts, {len(insufficient_beams)} beams could not produce "
-                f"{self.candidates_per_beam} valid candidates: {counts}. Constraints may be too restrictive."
+                f"{self._candidates_per_result} valid candidates: {counts}. Constraints may be too restrictive."
             )
 
         # Flatten and sort by energy to get all valid candidates
         all_valid_candidates = []
-        for beam_idx in range(self.beam_width):
-            # Sort by most recent score and take top candidates_per_beam
+        for beam_idx in range(self.num_results):
+            # Sort by most recent score and take top candidates_per_result
             sorted_candidates = sorted(
                 beam_candidates[beam_idx], key=lambda b: b.beam_scores[-1]
-            )[: self.candidates_per_beam]
+            )[: self._candidates_per_result]
             all_valid_candidates.extend(sorted_candidates)
 
         return all_valid_candidates
 
     def _select_topk_beams(self, candidate_beams: List[BeamState]) -> None:
-        """Select top beam_width candidates and update state for the next beam step.
+        """Select top num_results candidates and update state for the next beam step.
 
         1. Score each candidate beam (mean or last score, per ``score_by``).
-        2. Sort by score and keep the top ``beam_width`` beams.
+        2. Sort by score and keep the top ``num_results`` beams.
         3. Update ``_candidate_outcomes`` — selected beams get "accepted",
            pruned beams get "Beam pruned".
         4. Write all candidate beams to ``candidate_sequences`` and selected
@@ -561,11 +567,11 @@ class BeamSearchOptimizer(Optimizer):
             for i, beam in enumerate(candidate_beams)
         ]
 
-        # 2. Sort by score and keep top beam_width
+        # 2. Sort by score and keep top num_results
         sorted_candidates = sorted(scored_candidates, key=lambda x: x[2])
-        selected_indices = {orig_idx for orig_idx, _, _ in sorted_candidates[:self.beam_width]}
-        self.beams = [beam for _, beam, _ in sorted_candidates[:self.beam_width]]
-        self.energy_scores = [score for _, _, score in sorted_candidates[:self.beam_width]]
+        selected_indices = {orig_idx for orig_idx, _, _ in sorted_candidates[:self.num_results]}
+        self.beams = [beam for _, beam, _ in sorted_candidates[:self.num_results]]
+        self.energy_scores = [score for _, _, score in sorted_candidates[:self.num_results]]
 
         # 3. Update _candidate_outcomes and _candidate_energy_scores
         self._candidate_outcomes = ["Beam pruned"] * len(candidate_beams)
@@ -590,8 +596,8 @@ class BeamSearchOptimizer(Optimizer):
         ]
 
         if self.verbose:
-            logger.info(f"Selected top {self.beam_width} beams:")
-            for i, beam, score in sorted_candidates[:self.beam_width]:
+            logger.info(f"Selected top {self.num_results} beams:")
+            for i, beam, score in sorted_candidates[:self.num_results]:
                 logger.info(f"  [{i}] score={score:.4f}, prompt_len={len(beam.running_sequence)}")
 
     def _get_aggregated_score(self, beam: BeamState) -> float:
@@ -609,7 +615,7 @@ class BeamSearchOptimizer(Optimizer):
         Log progress information for a beam during beam search.
         """
         logger.debug(f"Completed beam {beam_idx + 1}/{self.num_beams}")
-        logger.debug(f"Top {self.beam_width} beams by {self.score_by} score:")
+        logger.debug(f"Top {self.num_results} beams by {self.score_by} score:")
 
         for i, beam in enumerate(self.beams):
             agg_score = self._get_aggregated_score(beam)
@@ -621,7 +627,7 @@ class BeamSearchOptimizer(Optimizer):
 
     def _log_beam_generation_start(self, beam_idx: int, beam: BeamState) -> None:
         """Log the start of candidate generation for a beam."""
-        logger.debug(f"[Beam {beam_idx}] Generating {self.candidates_per_beam} candidates")
+        logger.debug(f"[Beam {beam_idx}] Generating {self._candidates_per_result} candidates")
         logger.debug(f"  Prompt length: {len(beam.running_sequence)}")
         if self.batch_size:
             logger.debug(f"  Batch size: {self.batch_size}")
@@ -638,6 +644,6 @@ class BeamSearchOptimizer(Optimizer):
         """Log beam search configuration at the start of run()."""
         logger.debug(f"Processing segment with {self.num_beams} beams (beam_length={self.beam_length})")
         logger.debug(f"Total tokens to generate: {self.target_segment.sequence_length}")
-        logger.debug(f"Beam width: {self.beam_width}, Candidates per beam: {self.candidates_per_beam}")
+        logger.debug(f"Beam width: {self.num_results}, Candidates per beam: {self._candidates_per_result}")
         logger.debug(f"Score by: {self.score_by}")
         logger.debug(f"KV caching: {'enabled' if self.use_kv_caching else 'disabled'}")

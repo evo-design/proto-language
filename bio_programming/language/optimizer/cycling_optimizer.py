@@ -163,9 +163,10 @@ class CyclingOptimizerConfig(BaseConfig):
             Each cycle calls the conditioning function, then the generator.
             Must be >= 1.
 
-        num_candidates (int): Number of independent candidate trajectories to
-            maintain. Each candidate is processed independently through the
-            conditioning function and generator. Must be >= 1.
+        num_results (Optional[int]): Number of independent candidate trajectories
+            to maintain. Each candidate is processed independently through the
+            conditioning function and generator. Overrides program-level ``num_results``
+            if set.
 
         conditioning_param_name (str): The keyword argument name to pass conditioning
             data to in the generator's ``sample()`` method. For example:
@@ -190,22 +191,25 @@ class CyclingOptimizerConfig(BaseConfig):
     Example:
         >>> config = CyclingOptimizerConfig(
         ...     num_steps=5,
-        ...     num_candidates=4,
+        ...     num_results=4,
         ...     conditioning_param_name="structure_inputs",
         ...     pipeline="protein-hunter",
         ...     protein_hunter=ProteinHunterPipelineConfig(structure_tool="boltz2"),
         ... )
     """
 
+    # Required parameters
     num_steps: int = ConfigField(
         ge=1,
         title="Number of Steps",
         description="Number of conditioning -> generation cycles to run.",
     )
-    num_candidates: int = ConfigField(
+    num_results: Optional[int] = ConfigField(
+        default=None,
         ge=1,
-        title="Number of Candidates",
-        description="Number of independent candidate trajectories to maintain.",
+        title="Num Results",
+        description="Number of independent candidate trajectories to maintain. Overrides program Num Results.",
+        advanced=True,
     )
     conditioning_param_name: str = ConfigField(
         title="Conditioning Param Name",
@@ -266,7 +270,7 @@ class CyclingOptimizer(Optimizer):
         conditioning_fn (Callable): User-defined function that produces conditioning data.
         conditioning_param_name (str): Generator sample() parameter name for conditioning data.
         num_steps (int): Number of cycles to run.
-        num_candidates (int): Number of independent candidate trajectories.
+        num_results (int): Number of independent candidate trajectories.
 
     Example:
         >>> def my_conditioning_fn(sequences):
@@ -280,7 +284,7 @@ class CyclingOptimizer(Optimizer):
         ...     constraints=[],
         ...     config=CyclingOptimizerConfig(
         ...         num_steps=5,
-        ...         num_candidates=4,
+        ...         num_results=4,
         ...         conditioning_param_name="structure_inputs",
         ...     ),
         ...     conditioning_fn=my_conditioning_fn,
@@ -329,7 +333,8 @@ class CyclingOptimizer(Optimizer):
         Raises:
             ValueError: If generators list doesn't contain exactly one generator,
                 target_segment is not in constructs, constraints don't have thresholds set,
-                both conditioning_fn and pipeline are provided, or neither is provided.
+                both conditioning_fn and pipeline are provided, or neither is provided,
+                or num_results cannot be determined.
         """
         if len(generators) != 1:
             raise ValueError(f"CyclingOptimizer requires exactly one generator, got {len(generators)}.")
@@ -338,6 +343,8 @@ class CyclingOptimizer(Optimizer):
 
         # Resolve conditioning_fn from pipeline or direct parameter
         conditioning_fn = _resolve_conditioning_fn(config, generator, conditioning_fn)
+
+        self.config = config
 
         # Store for validation before super().__init__
         self.target_segment: Segment = target_segment
@@ -351,16 +358,14 @@ class CyclingOptimizer(Optimizer):
             constructs=constructs,
             generators=[generator],
             constraints=constraints,
-            num_candidates=config.num_candidates,
-            num_selected=config.num_candidates,
+            num_candidates=None,
+            num_results=config.num_results,
             clear_tool_cache=clear_tool_cache,
             custom_logging=custom_logging,
             verbose=config.verbose,
         )
 
-        # Store optimizer-specific parameters
         self.num_steps: int = config.num_steps
-        self.num_candidates: int = config.num_candidates
 
     def run(self) -> None:
         """Execute the cycling optimization loop."""

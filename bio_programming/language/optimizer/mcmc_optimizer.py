@@ -35,18 +35,18 @@ class MCMCOptimizerConfig(BaseConfig):
     probabilistic acceptance based on energy improvements.
 
     Attributes:
-        num_selected (int): Number of candidate sequences to maintain and optimize
-            across iterations (the top-K sequences by energy). When ``num_selected=1``
-            (standard single-chain MCMC), only one sequence is optimized. When
-            ``num_selected > 1``, maintains multiple sequences and generates proposals
-            for each.
+        num_results (Optional[int]): Number of result sequences to optimize in
+            parallel. Each result sequence is an independent MCMC trajectory.
+            When ``num_results=1`` (standard single-chain MCMC), only one
+            sequence is optimized. Overrides program-level ``num_results`` if set.
 
         num_steps (int): Number of MCMC steps to run. Each step generates proposals,
             evaluates them, and accepts/rejects based on Metropolis-Hastings criterion.
             More steps allow better exploration but increase runtime.
 
-        mcmc_width (int): Number of proposals to generate per selected sequence at
-            each step. Total proposals per step equals ``num_selected x mcmc_width``.
+        candidates_per_result (int): Number of candidate proposals to generate per
+            result sequence at each step. Total proposals per step equals
+            ``num_results x candidates_per_result``.
             The best proposal (by energy) is selected, then MH acceptance is applied.
             Higher values increase exploration but also computation. Default: 1.
 
@@ -64,28 +64,32 @@ class MCMCOptimizerConfig(BaseConfig):
             step, including energy statistics and temperature. Default: ``False``.
 
     Note:
-        - When ``num_selected=1`` (default), behaves like standard single-chain MCMC.
-        - When ``num_selected > 1``, maintains ``num_selected`` sequence trajectories and
-          generates ``mcmc_width`` (default: 1) proposals per trajectory each step.
+        - When ``num_results=1`` (default), behaves like standard single-chain MCMC.
+        - When ``num_results > 1``, maintains that many independent trajectories and
+          generates ``candidates_per_result`` (default: 1) proposals per result sequence each step.
         - Temperature annealing follows exponential decay:
           T(step) = T_max x (T_min / T_max)^(step / num_steps)
     """
     # Required parameters
-    num_selected: int = ConfigField(
-        ge=1,
-        title="Num Candidates Maintained",
-        description="Number of sequence trajectories to optimize across iterations (the top-k).",
-    )
     num_steps: int = ConfigField(
-        ge=1, title="Num Steps", description="Number of MCMC steps to run."
+        ge=1,
+        title="Num Steps",
+        description="Number of MCMC steps to run."
     )
 
     # Advanced parameters
-    mcmc_width: int = ConfigField(
+    num_results: Optional[int] = ConfigField(
+        default=None,
+        ge=1,
+        title="Num Results",
+        description="Number of result sequences to optimize in parallel. Overrides program Num Results.",
+        advanced=True,
+    )
+    candidates_per_result: int = ConfigField(
         default=1,
         ge=1,
-        title="Num Proposals",
-        description="Number of proposals per trajectory at each mcmc step",
+        title="Candidates Per Result",
+        description="Number of candidate proposals to generate per result sequence per MCMC step.",
         advanced=True,
     )
     max_temperature: float = ConfigField(
@@ -134,23 +138,23 @@ class MCMCOptimizer(Optimizer):
     generators as proposal distributions and accepts/rejects proposals based on energy
     changes and temperature.
 
-    At each step, the optimizer generates ``num_selected x mcmc_width`` proposals by
-    mutating each of the K sequences ``mcmc_width`` times. Each trajectory (batch index)
-    is independent. For each trajectory, the best proposal (lowest energy) is selected,
-    then MH acceptance is applied to decide whether to accept or reject that proposal.
-    If rejected, the trajectory keeps its previous state.
+    At each step, the optimizer generates ``num_results x candidates_per_result``
+    proposals by mutating each of the K sequences ``candidates_per_result`` times.
+    Each trajectory (batch index) is independent. For each trajectory, the best proposal
+    (lowest energy) is selected, then MH acceptance is applied to decide whether to
+    accept or reject that proposal. If rejected, the trajectory keeps its previous state.
 
     Attributes:
-        num_selected (int): Number of sequence trajectories to optimize across iterations (the top-k).
+        num_results (int): Number of result sequences to optimize in parallel.
         num_steps (int): Total number of MCMC steps to run.
-        mcmc_width (int): Number of proposals per sequence trajectory.
+        candidates_per_result (int): Number of proposals per result sequence.
         max_temperature (float): Starting temperature for annealing.
         min_temperature (float): Ending temperature for annealing.
 
     Example:
         >>> constructs = [Construct([segment1, segment2])]
         >>> config = MCMCOptimizerConfig(
-        ...     num_selected=1,
+        ...     num_results=1,
         ...     num_steps=100,
         ...     max_temperature=0.5,
         ...     min_temperature=0.001
@@ -171,8 +175,8 @@ class MCMCOptimizer(Optimizer):
         - Simulated annealing: temperature decreases exponentially from
           ``max_temperature`` to ``min_temperature``
         - Lower energy scores are better (minimization objective)
-        - When ``mcmc_width > 1``, generates multiple proposals per trajectory,
-          selects the best one, then applies a single MH accept/reject decision
+        - When ``candidates_per_result > 1``, generates multiple proposals per
+          trajectory, selects the best one, then applies a single MH accept/reject decision
     """
     # Class attribute required by OptimizerRegistry
     config_class = MCMCOptimizerConfig
@@ -200,22 +204,22 @@ class MCMCOptimizer(Optimizer):
                               (List[str]) Restrict clearing cache to a list of tool names.
 
         Raises:
-            ValueError: If any validation checks fail.
+            ValueError: If any validation checks fail or num_results cannot be determined.
         """
+        self.config = config
+        self._candidates_per_result = config.candidates_per_result
+
         super().__init__(
             constructs=constructs,
             generators=generators,
             constraints=constraints,
-            num_candidates=config.num_selected * config.mcmc_width,
-            num_selected=config.num_selected,
+            num_candidates=None,
+            num_results=config.num_results,
             clear_tool_cache=clear_tool_cache,
             custom_logging=custom_logging,
             verbose=config.verbose,
         )
 
-        # Store MCMC-specific interpretation (proposals per selected sequence)
-        # Note: self.num_candidates from parent = total_candidates (num_selected * mcmc_width)
-        self.mcmc_width: int = config.mcmc_width
         self.num_steps: int = config.num_steps
         self.max_temperature: float = config.max_temperature
         self.min_temperature: float = config.min_temperature
@@ -225,15 +229,15 @@ class MCMCOptimizer(Optimizer):
         Execute Metropolis-Hastings MCMC sampling for sequence optimization.
 
         Runs the specified number of MCMC steps, where each step:
-        1. Maintains `num_selected` independent trajectories in `selected_sequences`
-        2. Creates `candidate_sequences` by replicating each selected sequence `mcmc_width` times
+        1. Maintains `num_results` independent trajectories in `selected_sequences`
+        2. Creates `candidate_sequences` by replicating each selected sequence `candidates_per_result` times
         3. Generates proposals (mutates `candidate_sequences` in-place)
         4. For each trajectory, independently apply MH acceptance and select the best accepted proposal
 
         Note:
             - Each trajectory (batch index) is independent with no cross-trajectory mixing.
             - Simulated annealing: T(step) = T_max * (T_min / T_max) ^ (step / num_steps)
-            - Total proposals per step: num_selected x mcmc_width
+            - Total proposals per step: num_results x candidates_per_result
             - Snapshots of constructs at tracked timesteps are stored in self.history.
         """
         self._prepare_run()
@@ -244,12 +248,12 @@ class MCMCOptimizer(Optimizer):
         else:
             self.energy_scores = [float('inf')] * self.num_candidates
 
-        # Truncate to num_selected for initial snapshot (score_energy sets to num_candidates)
-        self.energy_scores = self.energy_scores[:self.num_selected]
+        # Truncate to num_results for initial snapshot (score_energy sets to num_candidates)
+        self.energy_scores = self.energy_scores[:self.num_results]
 
         if self.verbose:
             logger.info("MCMC initialization:")
-            logger.info(f"  num_selected={self.num_selected}, mcmc_width={self.mcmc_width}")
+            logger.info(f"  num_results={self.num_results}, candidates_per_result={self._candidates_per_result}")
             logger.info(f"  Initial energy: {self.energy_scores[0]:.4f}")
 
         # Track initial state
@@ -260,7 +264,7 @@ class MCMCOptimizer(Optimizer):
             # 1. Save state of selected_sequences to revert if rejected by Metropolis-Hastings acceptance criterion
             old_selected_sequences = self._save_sequence_state()
 
-            # 2. Populate candidate_sequences by replicating each selected_sequence mcmc_width times
+            # 2. Populate candidate_sequences by replicating each selected_sequence candidates_per_result times
             self._populate_candidate_sequences()
 
             # 3. Generate proposals for candidate_sequences in-place by randomly sampling a generator
@@ -287,7 +291,7 @@ class MCMCOptimizer(Optimizer):
                 - energy: float (energy_scores[selected_batch_idx])
         """
         sequence_state = []
-        for selected_batch_idx in range(self.num_selected):
+        for selected_batch_idx in range(self.num_results):
             segments_dict = {}
             for segment in self.segments:
                 seg_id = id(segment)
@@ -296,15 +300,15 @@ class MCMCOptimizer(Optimizer):
         return sequence_state
 
     def _populate_candidate_sequences(self) -> None:
-        """Populate candidate_sequences by replicating each selected_sequence mcmc_width times.
+        """Populate candidate_sequences by replicating each selected_sequence candidates_per_result times.
 
         Updates candidate_sequences in-place.
-        Layout: [sequence_0] * mcmc_width + [sequence_1] * mcmc_width + ...
+        Layout: [sequence_0] * candidates_per_result + [sequence_1] * candidates_per_result + ...
         """
         for segment in self.segments:
-            for selected_batch_idx in range(self.num_selected):
-                start_idx = selected_batch_idx * self.mcmc_width
-                for offset in range(self.mcmc_width):
+            for selected_batch_idx in range(self.num_results):
+                start_idx = selected_batch_idx * self._candidates_per_result
+                for offset in range(self._candidates_per_result):
                     segment.candidate_sequences[start_idx + offset] = copy.deepcopy(segment.selected_sequences[selected_batch_idx])
 
     def _select_topk_with_mcmc_acceptance(
@@ -321,7 +325,7 @@ class MCMCOptimizer(Optimizer):
         3. Update the trajectory state (accept new or keep old).
         4. Classify each candidate's outcome: "accepted", "Metropolis-Hastings
            rejection", "Not best in proposal pool", or unchanged (filter-rejected).
-        5. Truncate energy_scores to num_selected (discard stale proposal energies).
+        5. Truncate energy_scores to num_results (discard stale proposal energies).
 
         Args:
             step: Current MCMC step (used for temperature annealing).
@@ -329,10 +333,10 @@ class MCMCOptimizer(Optimizer):
         """
         outcomes = list(self._candidate_outcomes)
 
-        for selected_batch_idx in range(self.num_selected):
+        for selected_batch_idx in range(self.num_results):
             old_segments_dict, old_selected_energy = old_selected_sequences[selected_batch_idx]
-            proposal_pool_start = selected_batch_idx * self.mcmc_width
-            proposal_pool_end = (selected_batch_idx + 1) * self.mcmc_width
+            proposal_pool_start = selected_batch_idx * self._candidates_per_result
+            proposal_pool_end = (selected_batch_idx + 1) * self._candidates_per_result
 
             # 1. Find the best proposal by energy
             best_energy = float('inf')
@@ -372,8 +376,8 @@ class MCMCOptimizer(Optimizer):
 
         self._candidate_outcomes = outcomes
 
-        # 5. Truncate to num_selected (score_energy() resizes back each step)
-        self.energy_scores = self.energy_scores[:self.num_selected]
+        # 5. Truncate to num_results (score_energy() resizes back each step)
+        self.energy_scores = self.energy_scores[:self.num_results]
 
     def _compute_temperature(self, step: int) -> float:
         """Calculate annealed temperature: T(step) = T_max * (T_min/T_max)^((step-1)/(num_steps-1))
@@ -395,10 +399,11 @@ class MCMCOptimizer(Optimizer):
         - Always accepts improvements (proposed_energy < current_energy)
         - Accepts worse proposals with probability exp(-(ΔE / T)) where ΔE = proposed - current
 
-        Important: When mcmc_width > 1, this is applied to the BEST proposal from the pool,
-        not a randomly selected one. This "best-of-N then MH" strategy is a heuristic that
-        accelerates convergence but does not satisfy detailed balance for the true Boltzmann
-        distribution. For mathematically rigorous MCMC sampling, use mcmc_width=1.
+        Important: When candidates_per_result > 1, this is applied to the BEST proposal
+        from the pool, not a randomly selected one. This "best-of-N then MH" strategy is a
+        heuristic that accelerates convergence but does not satisfy detailed balance for the
+        true Boltzmann distribution. For mathematically rigorous MCMC sampling, use
+        candidates_per_result=1.
         """
         temperature = self._compute_temperature(step)
         log_acceptance_ratio = -(proposed_energy - current_energy) / temperature
@@ -414,8 +419,8 @@ class MCMCOptimizer(Optimizer):
         std_energy = np.std(self.energy_scores) if len(self.energy_scores) > 1 else 0.0
         current_temp = self._compute_temperature(step)
 
-        # Format output based on num_selected
-        if self.num_selected == 1:
+        # Format output based on num_results
+        if self.num_results == 1:
             logger.debug(
                 f"Iteration {step:4d} | "
                 f"energy: {best_energy:.6f}, "

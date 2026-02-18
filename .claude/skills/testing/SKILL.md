@@ -332,7 +332,7 @@ from proto_language.language.optimizer import MyOptimizer, MyOptimizerConfig
 
 def _setup_components(
     seq_length: int = 10,
-    num_selected: int = 5,
+    num_results: int = 5,
     num_steps: int = 10,
     gc_range: Tuple[float, float] = (40.0, 60.0),
 ):
@@ -348,7 +348,7 @@ def _setup_components(
         function_config=GCContentConfig(min_gc=gc_range[0], max_gc=gc_range[1]),
     )
 
-    config = MyOptimizerConfig(num_selected=num_selected, num_steps=num_steps)
+    config = MyOptimizerConfig(num_results=num_results, num_steps=num_steps)
     opt = MyOptimizer(
         constructs=[construct],
         generators=[gen],
@@ -362,7 +362,7 @@ class TestMyOptimizer:
     def test_initialization(self):
         """Optimizer initializes with correct config values."""
         opt, _, _, _ = _setup_components()
-        assert opt.num_selected == 5
+        assert opt.num_results == 5
         assert len(opt.generators) == 1
         assert len(opt.constraints) == 1
 
@@ -370,7 +370,7 @@ class TestMyOptimizer:
         """Invalid config raises ValidationError."""
         from pydantic import ValidationError
         with pytest.raises(ValidationError):
-            MyOptimizerConfig(num_selected=-1, num_steps=10)
+            MyOptimizerConfig(num_results=-1, num_steps=10)
 
     def test_run_completes(self):
         """run() completes without error."""
@@ -415,7 +415,7 @@ class TestMyOptimizer:
                 constructs=[Construct([segment])],
                 generators=[gen],
                 constraints=[constraint],
-                config=MyOptimizerConfig(num_selected=1, num_steps=1),
+                config=MyOptimizerConfig(num_results=1, num_steps=1),
             )
 
     def test_filter_constraints(self):
@@ -432,7 +432,7 @@ class TestMyOptimizer:
             threshold=0.1,  # Makes it a filter
         )
 
-        config = MyOptimizerConfig(num_selected=5, num_steps=10)
+        config = MyOptimizerConfig(num_results=5, num_steps=10)
         opt = MyOptimizer(
             constructs=[Construct([segment])],
             generators=[gen],

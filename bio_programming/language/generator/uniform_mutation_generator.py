@@ -167,6 +167,7 @@ class UniformMutationGenerator(Generator):
             config: Configuration object containing all generator parameters.
         """
         super().__init__()
+        self.config = config
         self.num_mutations = config.num_mutations
         self.debug_with_sleep_calls = config.debug_with_sleep_calls
         self.mutation_window = config.mutation_window

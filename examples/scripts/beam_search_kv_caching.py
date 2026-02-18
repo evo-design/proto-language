@@ -12,13 +12,19 @@ Usage:
 """
 
 import time
+
 import numpy as np
 
-from proto_language.language.core import Construct, Segment, Constraint
-from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
-from proto_language.language.optimizer import BeamSearchOptimizer, BeamSearchOptimizerConfig
 from proto_language.language.constraint import gc_content_constraint
-from proto_language.language.constraint.sequence_composition.gc_content_constraint import GCContentConfig
+from proto_language.language.constraint.sequence_composition.gc_content_constraint import (
+    GCContentConfig,
+)
+from proto_language.language.core import Constraint, Construct, Segment
+from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
+from proto_language.language.optimizer import (
+    BeamSearchOptimizer,
+    BeamSearchOptimizerConfig,
+)
 
 # ==============================
 # GLOBAL CONFIGURATION VARIABLES
@@ -27,8 +33,8 @@ from proto_language.language.constraint.sequence_composition.gc_content_constrai
 # Beam search parameters
 TOTAL_TOKEN_COUNT: int = 1_000
 BEAM_LENGTH: int = 100
-BEAM_WIDTH: int = 2
-N_CANDIDATES_PER_BEAM: int = 2
+NUM_RESULTS: int = 2
+N_CANDIDATES_PER_RESULT: int = 2
 
 # Score aggregation method: "mean" or "last"
 SCORE_BY: str = "mean"
@@ -51,8 +57,8 @@ NUM_TIMING_RUNS: int = 1
 
 def run_beam_search(
     use_kv_caching: bool,
-    beam_width: int,
-    candidates_per_beam: int,
+    num_results: int,
+    candidates_per_result: int,
     beam_length: int,
     total_token_count: int,
     prompt: str,
@@ -67,8 +73,8 @@ def run_beam_search(
 
     Args:
         use_kv_caching: Whether to enable KV caching
-        beam_width: Number of beams to maintain (K)
-        candidates_per_beam: Candidates to generate per beam (N)
+        num_results: Number of result sequences to return
+        candidates_per_result: Candidates to generate per result
         beam_length: Number of tokens to generate per beam
         total_token_count: Total tokens to generate
         prompt: Initial prompt for beam search
@@ -107,8 +113,8 @@ def run_beam_search(
     optimizer_config = BeamSearchOptimizerConfig(
         prompt=prompt,
         beam_length=beam_length,
-        beam_width=beam_width,
-        candidates_per_beam=candidates_per_beam,
+        num_results=num_results,
+        candidates_per_result=candidates_per_result,
         score_by=score_by,
         use_kv_caching=use_kv_caching,
         batch_size=batch_size,
@@ -157,8 +163,8 @@ def main():
     print(f"  Total tokens to generate: {TOTAL_TOKEN_COUNT:,}")
     print(f"  Tokens per beam: {BEAM_LENGTH:,}")
     print(f"  Number of beams: {num_beams}")
-    print(f"  Beam width: {BEAM_WIDTH}")
-    print(f"  Candidates per beam: {N_CANDIDATES_PER_BEAM}")
+    print(f"  Num results: {NUM_RESULTS}")
+    print(f"  Candidates per result: {N_CANDIDATES_PER_RESULT}")
     print(f"  Score aggregation: {SCORE_BY}")
     print(f"  Batch size: {BATCH_SIZE or 'None (all at once)'}")
     print(f"  Target GC content: {TARGET_GC_MIN:.1f}% - {TARGET_GC_MAX:.1f}%")
@@ -176,8 +182,8 @@ def main():
         print(f"\nRun {run + 1}/{NUM_TIMING_RUNS}...")
         elapsed, sequences = run_beam_search(
             use_kv_caching=False,
-            beam_width=BEAM_WIDTH,
-            candidates_per_beam=N_CANDIDATES_PER_BEAM,
+            num_results=NUM_RESULTS,
+            candidates_per_result=N_CANDIDATES_PER_RESULT,
             beam_length=BEAM_LENGTH,
             total_token_count=TOTAL_TOKEN_COUNT,
             prompt=INITIAL_PROMPT,
@@ -203,8 +209,8 @@ def main():
         print(f"\nRun {run + 1}/{NUM_TIMING_RUNS}...")
         elapsed, sequences = run_beam_search(
             use_kv_caching=True,
-            beam_width=BEAM_WIDTH,
-            candidates_per_beam=N_CANDIDATES_PER_BEAM,
+            num_results=NUM_RESULTS,
+            candidates_per_result=N_CANDIDATES_PER_RESULT,
             beam_length=BEAM_LENGTH,
             total_token_count=TOTAL_TOKEN_COUNT,
             prompt=INITIAL_PROMPT,

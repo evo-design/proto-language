@@ -109,7 +109,7 @@ class Segment:
         return self._original_sequence.valid_chars
 
     @property
-    def num_selected(self) -> int:
+    def num_results(self) -> int:
         """Number of sequences in selected pool (solution space)."""
         return len(self.selected_sequences)
 

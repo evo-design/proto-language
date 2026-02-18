@@ -42,7 +42,7 @@ class TestTopKOptimizerStandardMode:
 
         config = TopKOptimizerConfig(
             num_samples=10,
-            k=5,
+            num_results=5,
             batch_size=1,
             verbose=False
         )
@@ -55,9 +55,8 @@ class TestTopKOptimizerStandardMode:
 
         assert optimizer.num_samples == 10
         assert optimizer.batch_size == 1
-        assert optimizer.k == 5
         assert optimizer.energy_threshold is None  # Standard mode
-        assert optimizer.num_selected == 5
+        assert optimizer.num_results == 5
         assert len(optimizer.constraints) == 1
         assert len(optimizer.generators) == 1
 
@@ -79,7 +78,7 @@ class TestTopKOptimizerStandardMode:
 
         config = TopKOptimizerConfig(
             num_samples=20,
-            k=3,
+            num_results=3,
             batch_size=1,
             verbose=False
         )
@@ -94,7 +93,7 @@ class TestTopKOptimizerStandardMode:
 
         assert len(segment.selected_sequences) == 3
         assert len(optimizer.energy_scores) == 3
-        assert optimizer.num_selected == 3
+        assert optimizer.num_results == 3
 
         # Verify energies are sorted (best first)
         for i in range(len(optimizer.energy_scores) - 1):
@@ -118,7 +117,7 @@ class TestTopKOptimizerStandardMode:
 
         config = TopKOptimizerConfig(
             num_samples=50,
-            k=5,
+            num_results=5,
             batch_size=1,
             verbose=False
         )
@@ -158,7 +157,7 @@ class TestTopKOptimizerStandardMode:
 
         config = TopKOptimizerConfig(
             num_samples=10,
-            k=3,
+            num_results=3,
             batch_size=1,
             verbose=False
         )
@@ -194,7 +193,7 @@ class TestTopKOptimizerStandardMode:
 
         config = TopKOptimizerConfig(
             num_samples=5,
-            k=5,
+            num_results=5,
             batch_size=1,
             verbose=False
         )
@@ -230,7 +229,7 @@ class TestTopKOptimizerStandardMode:
 
         config = TopKOptimizerConfig(
             num_samples=5,
-            k=3,
+            num_results=3,
             batch_size=1,
             verbose=False
         )
@@ -241,7 +240,7 @@ class TestTopKOptimizerStandardMode:
             config=config,
         )
 
-        # Capture original state (base class initializes selected_sequences to num_selected by cycling)
+        # Capture original state (base class initializes selected_sequences to num_results by cycling)
         original_seq = segment.selected_sequences[0].sequence
         assert original_seq == "ATCGATCG"
         assert len(segment.selected_sequences) == 3  # Cycled from single source
@@ -254,7 +253,7 @@ class TestTopKOptimizerStandardMode:
         # Verify captured state contains cycled original sequences
         assert len(optimizer._initial_state['segments']) == 1
         captured_selected = optimizer._initial_state['segments'][0]['selected']
-        assert len(captured_selected) == 3  # Cycled to num_selected
+        assert len(captured_selected) == 3  # Cycled to num_results
         assert all(s['sequence'] == original_seq for s in captured_selected)
 
         # Verify energy scores captured
@@ -293,7 +292,7 @@ class TestTopKOptimizerStandardMode:
 
         config = TopKOptimizerConfig(
             num_samples=20,
-            k=3,
+            num_results=3,
             batch_size=5,
             verbose=False
         )
@@ -306,7 +305,7 @@ class TestTopKOptimizerStandardMode:
 
         assert optimizer.num_samples == 20
         assert optimizer.batch_size == 5
-        assert optimizer.k == 3
+        assert optimizer.num_results == 3
 
         optimizer.run()
 
@@ -336,7 +335,7 @@ class TestTopKOptimizerStandardMode:
         with caplog.at_level(logging.WARNING):
             config = TopKOptimizerConfig(
                 num_samples=10,
-                k=5,
+                num_results=5,
                 batch_size=3,
                 verbose=False
             )
@@ -381,7 +380,7 @@ class TestTopKOptimizerStandardMode:
 
         config = TopKOptimizerConfig(
             num_samples=100,
-            k=5,
+            num_results=5,
             batch_size=10,
             verbose=False
         )
@@ -396,7 +395,7 @@ class TestTopKOptimizerStandardMode:
         optimizer.run()
 
         assert len(optimizer.energy_scores) > 0
-        assert len(optimizer.energy_scores) <= config.k
+        assert len(optimizer.energy_scores) <= config.num_results
         for energy in optimizer.energy_scores:
             assert not math.isinf(energy)
             assert not math.isnan(energy)
@@ -424,7 +423,7 @@ class TestTopKOptimizerThresholdMode:
         config = TopKOptimizerConfig(
             num_samples=100,
             energy_threshold=0.5,
-            k=3,
+            num_results=3,
             batch_size=2,
             verbose=False
         )
@@ -437,7 +436,7 @@ class TestTopKOptimizerThresholdMode:
 
         assert optimizer.num_samples == 100
         assert optimizer.energy_threshold == 0.5  # Threshold mode
-        assert optimizer.k == 3
+        assert optimizer.num_results == 3
 
     def test_threshold_mode_stops_when_threshold_met(self):
         """Test that threshold mode stops early when threshold is met."""
@@ -459,7 +458,7 @@ class TestTopKOptimizerThresholdMode:
         config = TopKOptimizerConfig(
             num_samples=1000,
             energy_threshold=100.0,  # Very high threshold, easily met
-            k=3,
+            num_results=3,
             batch_size=2,
             verbose=False
         )
@@ -495,7 +494,7 @@ class TestTopKOptimizerThresholdMode:
         config = TopKOptimizerConfig(
             num_samples=20,
             energy_threshold=0.0,  # Impossible to meet (energy would need to be negative)
-            k=3,
+            num_results=3,
             batch_size=5,
             verbose=False
         )
@@ -516,17 +515,17 @@ class TestTopKOptimizerThresholdMode:
 class TestTopKOptimizerValidation:
     """Test TopKOptimizer config validation."""
 
-    def test_k_cannot_exceed_num_samples(self):
-        """Test that k cannot exceed num_samples."""
-        with pytest.raises(ValueError, match="k \\(100\\) cannot exceed num_samples \\(10\\)"):
+    def test_num_results_cannot_exceed_num_samples(self):
+        """Test that num_results cannot exceed num_samples."""
+        with pytest.raises(ValueError, match="num_results \\(100\\) cannot exceed num_samples \\(10\\)"):
             _ = TopKOptimizerConfig(
                 num_samples=10,
-                k=100,
+                num_results=100,
             )
 
     def test_default_is_standard_mode(self):
         """Test that default (no energy_threshold) is standard mode."""
-        config = TopKOptimizerConfig(num_samples=10, k=5)
+        config = TopKOptimizerConfig(num_samples=10, num_results=5)
         assert config.energy_threshold is None
 
 
@@ -547,7 +546,7 @@ class TestTopKOptimizerInternals:
             function_config={"min_gc": 40.0, "max_gc": 60.0},
         )
 
-        config = TopKOptimizerConfig(num_samples=30, k=5, batch_size=5)
+        config = TopKOptimizerConfig(num_samples=30, num_results=5, batch_size=5)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen],
@@ -576,7 +575,7 @@ class TestTopKOptimizerInternals:
             function_config={"target_length": 4},
         )
 
-        config = TopKOptimizerConfig(num_samples=5, k=3, batch_size=1)
+        config = TopKOptimizerConfig(num_samples=5, num_results=3, batch_size=1)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen],
@@ -620,7 +619,7 @@ class TestTopKOptimizerInternals:
 
         config = TopKOptimizerConfig(
             num_samples=20,
-            k=5,
+            num_results=5,
             batch_size=5,
             verbose=False
         )
@@ -663,7 +662,7 @@ class TestTopKOptimizerInternals:
 
         config = TopKOptimizerConfig(
             num_samples=50,
-            k=10,
+            num_results=10,
             batch_size=5,
             verbose=False
         )
@@ -713,12 +712,12 @@ class TestTopKOptimizerTrajectoryPreservation:
             function_config={"target_length": 4},
         )
 
-        # k=6 with 3 source sequences → cycling produces [A, C, G, A, C, G]
-        # num_samples must be >= k, and batch_size is the pool size
+        # num_results=6 with 3 source sequences → cycling produces [A, C, G, A, C, G]
+        # num_samples must be >= num_results, and batch_size is the pool size
         config = TopKOptimizerConfig(
-            num_samples=6,  # Generate 6 samples total
-            k=6,            # Keep top 6
-            batch_size=6,   # All at once
+            num_samples=6,              # Generate 6 samples total
+            num_results=6,                        # Keep top 6
+            batch_size=6,     # All at once
             verbose=False
         )
         optimizer = TopKOptimizer(
@@ -797,7 +796,7 @@ class TestTopKOptimizerTrajectoryPreservation:
 
         config = TopKOptimizerConfig(
             num_samples=4,
-            k=4,
+            num_results=4,
             batch_size=4,
             verbose=False
         )
@@ -856,7 +855,7 @@ class TestTopKCustomLogging:
                 function_config={"min_gc": 40.0, "max_gc": 60.0},
             )
             config = TopKOptimizerConfig(
-                num_samples=30, k=5, batch_size=1, verbose=False,
+                num_samples=30, num_results=5, batch_size=1, verbose=False,
             )
             optimizer = TopKOptimizer(
                 constructs=[construct],
@@ -901,7 +900,7 @@ class TestTopKCustomLogging:
             function_config={"target_length": 8},
         )
         config = TopKOptimizerConfig(
-            num_samples=5, k=3, batch_size=1, verbose=False,
+            num_samples=5, num_results=3, batch_size=1, verbose=False,
         )
         optimizer = TopKOptimizer(
             constructs=[construct],
@@ -943,7 +942,7 @@ class TestTopKLabelDeduplication:
         assert constraint1.label == constraint2.label
 
         config = TopKOptimizerConfig(
-            num_samples=5, k=3, batch_size=1, verbose=False
+            num_samples=5, num_results=3, batch_size=1, verbose=False
         )
         optimizer = TopKOptimizer(
             constructs=[construct],
@@ -975,7 +974,7 @@ class TestTopKLabelDeduplication:
         )
 
         config = TopKOptimizerConfig(
-            num_samples=5, k=3, batch_size=1, verbose=False
+            num_samples=5, num_results=3, batch_size=1, verbose=False
         )
         optimizer = TopKOptimizer(
             constructs=[construct],
@@ -1014,7 +1013,7 @@ class TestTopKCandidateTracking:
             generators=[gen],
             constraints=[constraint],
             config=TopKOptimizerConfig(
-                num_samples=20, k=3, batch_size=5, verbose=False
+                num_samples=20, num_results=3, batch_size=5, verbose=False
             ),
         )
         optimizer.run()

@@ -16,6 +16,7 @@ def test_parse_single_optimizer():
     """Test parsing a program with a single optimizer using nested inline format."""
     json_data = {
         "name": "single_optimizer",
+        "num_results": 3,
         "constructs": [
             {
                 "type": "DNA",
@@ -28,7 +29,7 @@ def test_parse_single_optimizer():
                     "method": "topk",
                     "config": {
                         "num_samples": 10,
-                        "k": 3,
+                        "num_results": 3,
                         "batch_size": 2
                     }
                 },
@@ -65,7 +66,7 @@ def test_parse_single_optimizer():
     # Verify optimizer config
     optimizer = program.optimizers[0]
     assert optimizer.num_samples == 10
-    assert optimizer.k == 3
+    assert optimizer.num_results == 3
     assert optimizer.batch_size == 2
 
     # Verify generators
@@ -85,6 +86,7 @@ def test_parse_multiple_optimizers():
     """Test parsing a program with multiple sequential optimizers using nested inline format."""
     json_data = {
         "name": "multi_optimizer",
+        "num_results": 3,
         "constructs": [
             {
                 "type": "DNA",
@@ -97,7 +99,7 @@ def test_parse_multiple_optimizers():
                     "method": "topk",
                     "config": {
                         "num_samples": 10,
-                        "k": 3,
+                        "num_results": 3,
                         "batch_size": 2
                     }
                 },
@@ -125,7 +127,7 @@ def test_parse_multiple_optimizers():
                 "optimizer": {
                     "method": "mcmc",
                     "config": {
-                        "num_selected": 1,
+                        "num_results": 1,
                         "num_steps": 10
                     }
                 },
@@ -163,7 +165,7 @@ def test_parse_multiple_optimizers():
     # Verify first optimizer
     opt1 = program.optimizers[0]
     assert opt1.num_samples == 10
-    assert opt1.k == 3
+    assert opt1.num_results == 3
     assert opt1.batch_size == 2
     assert len(opt1.generators) == 1
     assert opt1.generators[0].num_mutations == 10
@@ -171,7 +173,7 @@ def test_parse_multiple_optimizers():
 
     # Verify second optimizer
     opt2 = program.optimizers[1]
-    assert opt2.num_selected == 1
+    assert opt2.num_results == 1
     assert opt2.num_steps == 10
     assert len(opt2.generators) == 1
     assert opt2.generators[0].num_mutations == 1
@@ -186,6 +188,7 @@ def test_parse_missing_optimizations_field():
     """Test error handling when 'optimization_stages' field is missing."""
     json_data = {
         "name": "missing_optimizations",
+        "num_results": 1,
         "constructs": [
             {
                 "type": "DNA",
@@ -204,6 +207,7 @@ def test_parse_empty_optimizations_array():
     """Test error handling when 'optimization_stages' array is empty."""
     json_data = {
         "name": "empty_optimizations",
+        "num_results": 1,
         "constructs": [
             {
                 "type": "DNA",
@@ -223,6 +227,7 @@ def test_parse_missing_method_in_stage():
     """Test error handling when optimizer stage missing 'method' field."""
     json_data = {
         "name": "missing_method",
+        "num_results": 1,
         "constructs": [
             {
                 "type": "DNA",
@@ -250,6 +255,7 @@ def test_parse_missing_config_in_stage():
     """Test error handling when optimizer stage missing 'config' field."""
     json_data = {
         "name": "missing_config",
+        "num_results": 1,
         "constructs": [
             {
                 "type": "DNA",
@@ -277,6 +283,7 @@ def test_parse_missing_generators_in_stage():
     """Test error handling when optimizer stage missing 'generators' field."""
     json_data = {
         "name": "missing_generators",
+        "num_results": 3,
         "constructs": [
             {
                 "type": "DNA",
@@ -287,7 +294,7 @@ def test_parse_missing_generators_in_stage():
             {
                 "optimizer": {
                     "method": "topk",
-                    "config": {"num_samples": 10, "k": 3, "batch_size": 2}
+                    "config": {"num_samples": 10, "num_results": 3, "batch_size": 2}
                 },
                 "constraints": []
             }
@@ -304,6 +311,7 @@ def test_parse_missing_constraints_in_stage():
     """Test error handling when optimizer stage missing 'constraints' field."""
     json_data = {
         "name": "missing_constraints",
+        "num_results": 3,
         "constructs": [
             {
                 "type": "DNA",
@@ -314,7 +322,7 @@ def test_parse_missing_constraints_in_stage():
             {
                 "optimizer": {
                     "method": "topk",
-                    "config": {"num_samples": 10, "k": 3, "batch_size": 2}
+                    "config": {"num_samples": 10, "num_results": 3, "batch_size": 2}
                 },
                 "generators": []
             }
@@ -331,6 +339,7 @@ def test_parse_unknown_optimizer_method():
     """Test error handling for unknown optimizer method."""
     json_data = {
         "name": "unknown_method",
+        "num_results": 1,
         "constructs": [
             {
                 "type": "DNA",
@@ -359,6 +368,7 @@ def test_parse_duplicate_segment_ids_fails():
     """Segment IDs must be unique across all constructs."""
     json_data = {
         "name": "duplicate_segment_ids",
+        "num_results": 1,
         "constructs": [
             {
                 "type": "DNA",
@@ -373,7 +383,7 @@ def test_parse_duplicate_segment_ids_fails():
             {
                 "optimizer": {
                     "method": "topk",
-                    "config": {"num_samples": 4, "k": 1, "batch_size": 2},
+                    "config": {"num_samples": 4, "num_results": 1, "batch_size": 2},
                 },
                 "generators": [
                     {
@@ -403,6 +413,7 @@ def test_parse_generator_assignment_to_segments():
     """Test that generators are correctly assigned to segments."""
     json_data = {
         "name": "generator_assignment",
+        "num_results": 3,
         "constructs": [
             {
                 "type": "DNA",
@@ -418,7 +429,7 @@ def test_parse_generator_assignment_to_segments():
                     "method": "topk",
                     "config": {
                         "num_samples": 10,
-                        "k": 3,
+                        "num_results": 3,
                         "batch_size": 2
                     }
                 },
@@ -474,6 +485,7 @@ def test_parse_different_generators_per_stage():
     """Test that each optimizer stage can have different generators."""
     json_data = {
         "name": "different_generators",
+        "num_results": 3,
         "constructs": [
             {
                 "type": "DNA",
@@ -486,7 +498,7 @@ def test_parse_different_generators_per_stage():
                     "method": "topk",
                     "config": {
                         "num_samples": 10,
-                        "k": 3,
+                        "num_results": 3,
                         "batch_size": 2
                     }
                 },
@@ -511,7 +523,7 @@ def test_parse_different_generators_per_stage():
                 "optimizer": {
                     "method": "mcmc",
                     "config": {
-                        "num_selected": 1,
+                        "num_results": 1,
                         "num_steps": 10
                     }
                 },
@@ -551,6 +563,7 @@ def test_parse_different_constraints_per_stage():
     """Test that each optimizer stage can have different constraints."""
     json_data = {
         "name": "different_constraints",
+        "num_results": 3,
         "constructs": [
             {
                 "type": "DNA",
@@ -563,7 +576,7 @@ def test_parse_different_constraints_per_stage():
                     "method": "topk",
                     "config": {
                         "num_samples": 10,
-                        "k": 3,
+                        "num_results": 3,
                         "batch_size": 2
                     }
                 },
@@ -589,7 +602,7 @@ def test_parse_different_constraints_per_stage():
                 "optimizer": {
                     "method": "mcmc",
                     "config": {
-                        "num_selected": 1,
+                        "num_results": 1,
                         "num_steps": 10
                     }
                 },
@@ -629,6 +642,7 @@ def test_parse_reusable_constraints():
     """Test that constraints can be reused across multiple optimization stages (inline definition)."""
     json_data = {
         "name": "reusable_constraints",
+        "num_results": 3,
         "constructs": [
             {
                 "type": "DNA",
@@ -641,7 +655,7 @@ def test_parse_reusable_constraints():
                     "method": "topk",
                     "config": {
                         "num_samples": 10,
-                        "k": 3,
+                        "num_results": 3,
                         "batch_size": 2
                     }
                 },
@@ -669,7 +683,7 @@ def test_parse_reusable_constraints():
                 "optimizer": {
                     "method": "mcmc",
                     "config": {
-                        "num_selected": 1,
+                        "num_results": 1,
                         "num_steps": 10
                     }
                 },

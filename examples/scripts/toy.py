@@ -47,8 +47,8 @@ def custom_logging(step: int, outputs: Tuple[Segment]) -> None:
 
 # Optimizer config
 optimizer_config = MCMCOptimizerConfig(
-    num_selected=1,
-    mcmc_width=20,
+    num_results=1,
+    candidates_per_result=20,
     num_steps=10,
     max_temperature=2.0,
 )
@@ -65,6 +65,7 @@ optimizer = MCMCOptimizer(
 # Program
 program = Program(
     optimizers=[optimizer],
+    num_results=1,
 )
 
 program.run()

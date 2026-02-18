@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import List, Optional, final
 
 from proto_tools import (
-    EVO1_MODEL_NAMES,
+    EVO1_MODEL_CHECKPOINTS,
     Evo1SampleConfig,
     Evo1SampleInput,
     run_evo1_sample,
@@ -25,7 +25,7 @@ class Evo1GeneratorConfig(BaseConfig):
     Attributes:
         prompts: Prompt sequence(s) for DNA generation. All prompts must
             have the same length.
-        model_name: Evo1 model checkpoint to use.
+        model_checkpoint: Evo1 model checkpoint to use.
         top_k: Top-k sampling parameter.
         temperature: Sampling temperature.
         prepend_prompt: Whether to prepend the prompt to the output.
@@ -37,22 +37,26 @@ class Evo1GeneratorConfig(BaseConfig):
         title="Prompts",
         description="Prompt sequences for DNA generation (single prompt or multiple)",
     )
-    model_name: EVO1_MODEL_NAMES = ConfigField(
+    model_checkpoint: EVO1_MODEL_CHECKPOINTS = ConfigField(
         default="evo-1-8k-base",
-        title="Model Name",
+        title="Model Checkpoint",
         description="Evo1 model checkpoint to use",
     )
+
+    # Advanced parameters
     top_k: int = ConfigField(
         default=4,
         ge=1,
         title="Top-k",
         description="Top-k sampling parameter",
+        advanced=True,
     )
     temperature: float = ConfigField(
         default=1.0,
         gt=0.0,
         title="Temperature",
         description="Sampling temperature",
+        advanced=True,
     )
     prepend_prompt: bool = ConfigField(
         default=False,
@@ -111,7 +115,7 @@ class Evo1Generator(Generator):
     Example:
         >>> config = Evo1GeneratorConfig(
         ...     prompts="ATG",
-        ...     model_name="evo-1-8k-crispr",
+        ...     model_checkpoint="evo-1-8k-crispr",
         ...     temperature=1.0,
         ... )
         >>> gen = Evo1Generator(config)
@@ -122,8 +126,9 @@ class Evo1Generator(Generator):
 
     def __init__(self, config: Evo1GeneratorConfig) -> None:
         super().__init__()
+        self.config = config
         self.prompts = config.prompts
-        self.model_name = config.model_name
+        self.model_checkpoint = config.model_checkpoint
         self.top_k = config.top_k
         self.temperature = config.temperature
         self.prepend_prompt = config.prepend_prompt
@@ -183,7 +188,7 @@ class Evo1Generator(Generator):
         inputs = Evo1SampleInput(prompts=sampling_prompts)
         sample_config = Evo1SampleConfig(
             prepend_prompt=(prepend_prompt if prepend_prompt is not None else self.prepend_prompt),
-            model_name=self.model_name,
+            model_name=self.model_checkpoint,
             top_k=self.top_k,
             temperature=self.temperature,
             num_tokens=self.num_tokens,
