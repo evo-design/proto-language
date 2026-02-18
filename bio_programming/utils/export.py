@@ -18,7 +18,7 @@ import csv
 import json
 from io import StringIO
 from pathlib import Path
-from typing import IO, Any, Dict, List, Literal, Optional, Set, Union
+from typing import IO, Any, Callable, Dict, List, Literal, Optional, Set, Union
 
 from proto_language.utils.helpers import filter_inf_nan_scores
 
@@ -498,6 +498,53 @@ def flatten_optimization(
     return rows
 
 
+_ALL_TABLES = ("sequences", "constraints", "constructs", "optimization")
+
+
+def flatten_table(
+    table: str,
+    batch_results: BatchResults,
+    history: List[Dict[str, Any]],
+    *,
+    segments: Optional[Set[str]] = None,
+    batch_indices: Optional[Set[int]] = None,
+    constraints: Optional[Set[str]] = None,
+    include_candidates: bool = False,
+) -> List[Dict[str, Any]]:
+    """Dispatch to the appropriate flatten function for *table*.
+
+    Args:
+        table: One of ``sequences``, ``constraints``, ``constructs``,
+            or ``optimization``.
+        batch_results: Output from :func:`build_batch_results`.
+        history: Optimization history entries.
+        segments: Only include these segment labels.
+        batch_indices: Only include these batch indices.
+        constraints: Only include these constraint labels (constraints table only).
+        include_candidates: Include candidate rows (optimization table only).
+
+    Raises:
+        ValueError: If *table* is not a recognized name.
+    """
+    filters = {"segments": segments, "batch_indices": batch_indices}
+    if table == "optimization":
+        return flatten_optimization(
+            history, include_candidates=include_candidates, **filters
+        )
+    if table == "sequences":
+        return flatten_sequences(batch_results, **filters)
+    if table == "constraints":
+        return flatten_constraints(
+            batch_results, constraints=constraints, **filters
+        )
+    if table == "constructs":
+        return flatten_constructs(batch_results, **filters)
+    raise ValueError(
+        f"Unknown table '{table}'. "
+        f"Choose from: sequences, constraints, constructs, optimization"
+    )
+
+
 # =============================================================================
 # Format Writers
 # =============================================================================
@@ -711,6 +758,38 @@ def write_export(
         raise ValueError(f"Unsupported format: {format}")
 
 
+def export_tables(
+    flatten_fn: Callable[[str], List[Dict[str, Any]]],
+    path: Path | str,
+    format: Format,
+    table: str | None = None,
+) -> Path:
+    """Write one or all result tables to *path*.
+
+    Without *table*: writes all 4 tables. csv/tsv/json produce a directory
+    with one file per table; xlsx produces a single workbook with 4 sheets.
+    With *table*: writes a single file to *path*.
+
+    Args:
+        flatten_fn: Called with a table name, returns flattened rows.
+        path: Output directory (all tables) or file (single table / xlsx).
+        format: Output format.
+        table: Single table name, or ``None`` to export all.
+    """
+    path = Path(path)
+    if table is not None:
+        write_export(flatten_fn(table), format, path)
+        return path
+    all_tables = {name: flatten_fn(name) for name in _ALL_TABLES}
+    if format == "xlsx":
+        to_xlsx_workbook(all_tables, path)
+    else:
+        path.mkdir(parents=True, exist_ok=True)
+        for name, rows in all_tables.items():
+            write_export(rows, format, path / f"{name}.{format}")
+    return path
+
+
 # =============================================================================
 # FASTA export
 # =============================================================================
@@ -764,30 +843,3 @@ def to_fasta(
     else:
         output.write(fasta_str)
         return fasta_str
-
-
-# =============================================================================
-# DataFrame export
-# =============================================================================
-
-
-def to_dataframe(rows: List[Dict]) -> "pd.DataFrame":
-    """Convert flatten output to a pandas DataFrame.
-
-    Args:
-        rows: List of dicts from any flatten function.
-
-    Returns:
-        pandas DataFrame.
-
-    Raises:
-        ImportError: If pandas is not installed.
-    """
-    try:
-        import pandas as pd
-    except ImportError:
-        raise ImportError(
-            "pandas is required for DataFrame export. "
-            "Install with: pip install pandas"
-        )
-    return pd.DataFrame(rows)

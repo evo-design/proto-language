@@ -766,3 +766,73 @@ class TestSerializeRestoreState:
         restored_seq = fresh_program.constructs[0].segments[0].selected_sequences[0]
         assert restored_seq.valid_chars == original_seq.valid_chars
         assert restored_seq.sequence_type == original_seq.sequence_type
+
+
+class TestProgramExport:
+    """Tests for Program.export, to_dataframe, and to_fasta."""
+
+    @pytest.fixture(autouse=True)
+    def _run(self):
+        self.program = _create_simple_program(num_stages=1)
+        self.program.run()
+
+    def test_export_all_tables(self, tmp_path):
+        """export() without table writes all 4 table files."""
+        out = self.program.export(path=tmp_path / "results", format="csv")
+        assert out.is_dir()
+        for name in ("sequences", "constraints", "constructs", "optimization"):
+            assert (out / f"{name}.csv").stat().st_size > 0
+
+    def test_export_single_table(self, tmp_path):
+        """export() with table writes one file with expected columns."""
+        path = tmp_path / "seqs.csv"
+        self.program.export(path=path, table="sequences")
+        content = path.read_text()
+        assert "batch_idx" in content and "sequence" in content
+
+    def test_export_xlsx(self, tmp_path):
+        """export() with xlsx writes a workbook."""
+        path = tmp_path / "results.xlsx"
+        self.program.export(path=path, format="xlsx")
+        assert path.stat().st_size > 0
+
+    def test_export_stage_filter(self, tmp_path):
+        """export() with stage= filters to that stage."""
+        program = _create_simple_program(num_stages=2)
+        program.run()
+        path = tmp_path / "s0.csv"
+        program.export(path=path, table="sequences", stage=0)
+        assert path.exists()
+
+    def test_export_invalid_table_raises(self, tmp_path):
+        with pytest.raises(ValueError, match="Unknown table"):
+            self.program.export(path=tmp_path / "x.csv", table="nonexistent")
+
+    @pytest.mark.parametrize("table,expected_col", [
+        ("sequences", "sequence"),
+        ("constraints", "constraint"),
+        ("constructs", "full_sequence"),
+        ("optimization", "timepoint"),
+    ])
+    def test_to_dataframe_all_tables(self, table, expected_col):
+        """to_dataframe dispatches correctly to each table."""
+        df = self.program.to_dataframe(table=table)
+        assert len(df) > 0
+        assert expected_col in df.columns
+
+    def test_to_dataframe_invalid_table_raises(self):
+        with pytest.raises(ValueError, match="Unknown table"):
+            self.program.to_dataframe(table="nonexistent")
+
+    def test_to_fasta(self, tmp_path):
+        """to_fasta returns valid FASTA and optionally writes file."""
+        fasta = self.program.to_fasta()
+        assert fasta.startswith(">")
+        # Write to file
+        path = tmp_path / "seqs.fasta"
+        assert self.program.to_fasta(path=path) == path.read_text()
+
+    def test_to_fasta_segment_filter(self):
+        """to_fasta with segments= filters output."""
+        assert len(self.program.to_fasta(segments={"test"})) > 0
+        assert self.program.to_fasta(segments={"nonexistent"}) == ""

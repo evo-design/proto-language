@@ -49,6 +49,27 @@ Construct         Joins multiple Segments into a complete design. List[Segment].
 
 Key: `Segment(sequence="ATCG", sequence_type="dna")` or `Segment(length=100, sequence_type="protein")`.
 
+## Result Export (`proto_language/language/core/`)
+
+Both `Program` and `Optimizer` provide 3 export methods:
+
+```python
+# Export files (csv/tsv/json/xlsx). All 4 tables or a single table.
+.export(path="./results/", format="csv")
+.export(path="seqs.csv", table="sequences")
+
+# Get a pandas DataFrame
+df = .to_dataframe(table="sequences")
+
+# FASTA output (string or file)
+fasta = .to_fasta()
+.to_fasta(path="output.fasta")
+```
+
+Tables: `sequences`, `constraints`, `constructs`, `optimization`.
+`Program` also accepts `stage=` to filter by optimizer stage.
+Underlying utilities live in `proto_language/utils/export.py`.
+
 ## Config Pattern (`proto_language/base_config.py`)
 
 All configs inherit `BaseConfig` and use `ConfigField` (not Pydantic's `Field`):

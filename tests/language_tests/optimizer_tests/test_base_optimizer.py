@@ -1018,3 +1018,60 @@ class TestDeferredNumResults:
 
         with pytest.raises(ValueError, match="num_results must be >= 1"):
             optimizer._resolve_num_results(0)
+
+
+class TestOptimizerExport:
+    """Tests for Optimizer.export, to_dataframe, and to_fasta."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self):
+        from proto_language.language.constraint import ConstraintRegistry
+
+        segment = Segment(sequence="ATCGATCG", sequence_type="dna")
+        construct = Construct([segment])
+        generator = MockGenerator()
+        generator.assign(segment)
+        constraint = ConstraintRegistry.create(
+            key="gc-content",
+            segments=[segment],
+            config_dict={"min_gc": 0, "max_gc": 100},
+        )
+        self.optimizer = ConcreteOptimizer(
+            [construct], [generator], [constraint], num_candidates=2, num_results=2,
+        )
+        segment.candidate_sequences = [Sequence("ATCGATCG"), Sequence("GCTAGCTA")]
+        self.optimizer.score_energy()
+        segment.selected_sequences = list(segment.candidate_sequences)
+        self.optimizer._save_progress_snapshot(time_step=0)
+
+    def test_export_all_tables(self, tmp_path):
+        """export() without table creates directory with all table files."""
+        out = self.optimizer.export(path=tmp_path / "results", format="csv")
+        assert out.is_dir()
+        for name in ("sequences", "constraints", "constructs", "optimization"):
+            assert (out / f"{name}.csv").stat().st_size > 0
+
+    def test_export_single_table(self, tmp_path):
+        """export() with table writes one file."""
+        path = tmp_path / "seqs.csv"
+        self.optimizer.export(path=path, table="sequences")
+        content = path.read_text()
+        assert "batch_idx" in content and "sequence" in content
+
+    @pytest.mark.parametrize("table,expected_col", [
+        ("sequences", "sequence"),
+        ("constraints", "constraint"),
+        ("constructs", "full_sequence"),
+        ("optimization", "timepoint"),
+    ])
+    def test_to_dataframe(self, table, expected_col):
+        """to_dataframe dispatches correctly to each table."""
+        df = self.optimizer.to_dataframe(table=table)
+        assert len(df) > 0
+        assert expected_col in df.columns
+
+    def test_to_fasta(self):
+        """to_fasta returns valid FASTA string."""
+        fasta = self.optimizer.to_fasta()
+        assert fasta.startswith(">")
+        assert "\n" in fasta

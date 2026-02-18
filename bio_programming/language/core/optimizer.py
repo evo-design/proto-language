@@ -11,11 +11,19 @@ import copy
 import logging
 import math
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Literal, Optional
 
+import pandas as pd
 from proto_tools.utils.tool_cache import ToolCache, _program_tool_cache
 
-from proto_language.utils.export import build_batch_results, build_candidate_results
+from proto_language.utils.export import (
+    build_batch_results,
+    build_candidate_results,
+    export_tables,
+    flatten_table,
+    to_fasta,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -528,3 +536,95 @@ class Optimizer(ABC):
             result["candidate_results"] = build_candidate_results(self.constructs, self._candidate_outcomes, self._candidate_energy_scores)
 
         self.history.append(result)
+
+    # =========================================================================
+    # Export
+    # =========================================================================
+
+    def export(
+        self,
+        path: Path | str = "./results",
+        format: Literal["csv", "tsv", "json", "xlsx"] = "csv",
+        table: Literal[
+            "sequences", "constraints", "constructs", "optimization"
+        ] | None = None,
+        segments: set[str] | None = None,
+        batch_indices: set[int] | None = None,
+        constraints: set[str] | None = None,
+        include_candidates: bool = False,
+    ) -> Path:
+        """Export results to files.
+
+        Without *table*: writes all 4 tables (sequences, constraints,
+        constructs, optimization).  csv/tsv/json produce a directory with one
+        file per table; xlsx produces a single workbook with 4 sheets.
+
+        With *table*: writes a single file to *path*.
+
+        Args:
+            path: Output directory (all tables) or file path (single table / xlsx).
+            format: ``"csv"`` | ``"tsv"`` | ``"json"`` | ``"xlsx"``.
+            table: Single table name, or None for all.
+            segments: Only include these segment labels.
+            batch_indices: Only include these batch indices.
+            constraints: Only include these constraint labels (constraints table only).
+            include_candidates: Include candidate rows (optimization table only).
+        """
+        batch_results = build_batch_results(self.constructs, self.energy_scores)
+        filters = dict(
+            segments=segments,
+            batch_indices=batch_indices,
+            constraints=constraints,
+            include_candidates=include_candidates,
+        )
+        return export_tables(
+            lambda t: flatten_table(t, batch_results, self.history, **filters),
+            path, format, table,
+        )
+
+    def to_dataframe(
+        self,
+        table: Literal["sequences", "constraints", "constructs", "optimization"] = "sequences",
+        segments: set[str] | None = None,
+        constraints: set[str] | None = None,
+        batch_indices: set[int] | None = None,
+        include_candidates: bool = False,
+    ) -> pd.DataFrame:
+        """Get a result table as a pandas DataFrame.
+
+        Accepts the same filter arguments as :meth:`export`.
+        """
+        return pd.DataFrame(flatten_table(
+            table,
+            build_batch_results(self.constructs, self.energy_scores),
+            self.history,
+            segments=segments,
+            batch_indices=batch_indices,
+            constraints=constraints,
+            include_candidates=include_candidates,
+        ))
+
+    def to_fasta(
+        self,
+        path: Path | str | None = None,
+        segments: set[str] | None = None,
+        batch_indices: set[int] | None = None,
+        header_format: str = "{construct}_{segment}_batch{batch_idx}",
+    ) -> str:
+        """Export sequences in FASTA format.
+
+        Args:
+            path: Output file path. If None, returns string only.
+            header_format: Format string for headers. Available fields:
+                construct, segment, batch_idx, energy_score, sequence_type.
+
+        Returns:
+            FASTA-formatted string.
+        """
+        return to_fasta(
+            build_batch_results(self.constructs, self.energy_scores),
+            segments=segments,
+            batch_indices=batch_indices,
+            header_format=header_format,
+            output=Path(path) if path else None,
+        )
