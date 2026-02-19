@@ -83,10 +83,9 @@ class LigandMPNNGeneratorConfig(BaseConfig):
 
             Default: ``None`` (all amino acids allowed).
 
-        batch_size (int): Number of sequences to sample per forward pass.
-            Only applies when a single structure is provided. When multiple
-            structures are given, one sequence is generated per structure
-            regardless of this setting. Default: ``1``.
+        batch_size (int): Maximum number of sequences per GPU forward pass.
+            When a single structure generates many candidates, the tool chunks
+            by this value. Default: ``1``.
 
         seed (int): Random seed for reproducible sequence generation. Using the
             same seed with identical inputs produces identical outputs.
@@ -166,7 +165,7 @@ class LigandMPNNGeneratorConfig(BaseConfig):
         default=1,
         ge=1,
         title="Batch Size",
-        description="Number of sequences to sample per forward pass.",
+        description="Maximum number of sequences per GPU forward pass.",
         advanced=True,
     )
     seed: int = ConfigField(
@@ -281,8 +280,8 @@ class LigandMPNNGenerator(Generator):
                 Accepts flexible formats (same as config): single structure, list of structures,
                 ``Structure`` objects, file paths, or ``InverseFoldingStructureInput`` objects.
                 If provided, generates one sequence per structure. If None, uses
-                config structure_inputs (single structure generates batch_size sequences,
-                multiple structures generate one sequence each).
+                config structure_inputs (single structure generates num_candidates
+                sequences, multiple structures generate one sequence each).
 
         Raises:
             ValueError: If no structure_inputs provided and none configured.
@@ -305,44 +304,32 @@ class LigandMPNNGenerator(Generator):
 
         if len(sampling_structure_inputs) == 1:
             # Single structure: generate num_candidates sequences in chunks of batch_size
-            remaining = num_candidates
-            while remaining > 0:
-                chunk = min(self.batch_size, remaining)
-                tool_config = InverseFoldingConfig(
-                    batch_size=chunk,
-                    temperature=self.temperature,
-                    excluded_amino_acids=self.excluded_amino_acids,
-                    seed=self.seed,
-                    device=self.device,
-                    verbose=self.verbose,
-                )
-                result = run_ligandmpnn_sample(
-                    inputs=InverseFoldingInput(inputs=sampling_structure_inputs),
-                    config=tool_config,
-                )
-                for design in result.designed_sequences:
-                    generated_sequences.extend(design.sequences)
-                    all_metrics.extend(design.ligandmpnn_metrics)
-                remaining -= chunk
+            num_seqs = num_candidates
+            bs = self.batch_size
         else:
             # N structures: one sequence per structure
             if len(sampling_structure_inputs) != num_candidates:
-                raise ValueError(f"Number of structure_inputs({len(sampling_structure_inputs)}) must either be 1 or match number of candidates ({num_candidates})")
-            tool_config = InverseFoldingConfig(
-                batch_size=1,
-                temperature=self.temperature,
-                excluded_amino_acids=self.excluded_amino_acids,
-                seed=self.seed,
-                device=self.device,
-                verbose=self.verbose,
-            )
-            result = run_ligandmpnn_sample(
-                inputs=InverseFoldingInput(inputs=sampling_structure_inputs),
-                config=tool_config,
-            )
-            for design in result.designed_sequences:
-                generated_sequences.extend(design.sequences)
-                all_metrics.extend(design.ligandmpnn_metrics)
+                raise ValueError(f"Number of structure_inputs ({len(sampling_structure_inputs)}) must either be 1 or match num_candidates ({num_candidates})")
+            num_seqs = 1
+            bs = 1
+
+        tool_config = InverseFoldingConfig(
+            num_sequences_per_structure=num_seqs,
+            batch_size=bs,
+            temperature=self.temperature,
+            excluded_amino_acids=self.excluded_amino_acids,
+            seed=self.seed,
+            device=self.device,
+            verbose=self.verbose,
+        )
+
+        result = run_ligandmpnn_sample(
+            inputs=InverseFoldingInput(inputs=sampling_structure_inputs),
+            config=tool_config,
+        )
+        for design in result.designed_sequences:
+            generated_sequences.extend(design.sequences)
+            all_metrics.extend(design.ligandmpnn_metrics)
 
         if len(generated_sequences) != num_candidates:
             raise RuntimeError(f"Expected generator to generate {num_candidates} sequences but got {len(generated_sequences)}")

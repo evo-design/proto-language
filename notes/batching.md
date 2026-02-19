@@ -14,7 +14,7 @@ class Generator(ABC):
 The framework splits candidates into chunks of `batch_size` and processes each chunk on GPU (e.g., `BeamSearchOptimizer` reads `generator.batch_size` to chunk candidate generation). All generators default to `batch_size=1` — users increase it via config to enable batching:
 
 - **ESM2 / ESM3 / Evo2**: `batch_size` config field, default `1`. Set higher (e.g., 8-16) for throughput.
-- **ProteinMPNN / LigandMPNN**: `batch_size` config field, default `1`. Only applies in single-structure mode (sequences generated in chunks). In multi-structure mode, one sequence is generated per structure regardless of `batch_size`.
+- **ProteinMPNN / LigandMPNN**: `batch_size` config field, default `1`. Passed through to `InverseFoldingConfig.batch_size` (GPU chunking). The tool-level `num_sequences_per_structure` controls total sequences; `batch_size` controls GPU memory. In single-structure mode the generator sets `num_sequences_per_structure=num_candidates`; in multi-structure mode it uses defaults (1 sequence per structure).
 - **ProGen2**: `batch_size` config field, default `1`. Passed through to the ProGen2 tool for GPU batching.
 - **CPU generators** (UniformMutation, MSA): `batch_size = 1` (no batching needed).
 
@@ -40,6 +40,7 @@ The full `List[Tuple[Sequence, ...]]` is passed at once. GPU memory management i
 
 | Tool | Batching Strategy | User Config |
 |------|------------------|-------------|
+| **ProteinMPNN / LigandMPNN** | Chunks `num_sequences_per_structure` by `batch_size` per structure | `num_sequences_per_structure`, `batch_size` |
 | **ESMFold** | Batches by total residue count | `max_batch_residues` |
 | **BioEmu** | Fixed batch size | `batch_size` |
 | **Boltz2** | Sequential (one complex at a time) | — |
