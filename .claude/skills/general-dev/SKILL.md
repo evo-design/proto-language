@@ -139,6 +139,28 @@ Registry.get_schema(key)     # → JSON schema for client
 ConstraintRegistry.create(key, segments, config_dict, label=None, threshold=None, weight=None)
 ```
 
+## Batching Architecture
+
+`batch_size` controls GPU memory usage across the generator → tool boundary:
+
+```
+GeneratorConfig.batch_size (default=1)
+    ↓ stored as self.batch_size in __init__
+Generator.sample()
+    ↓ passes ALL sequences + batch_size to tool
+ToolConfig.batch_size (default=1)
+    ↓ tool chunks sequences into batches
+Standalone inference.py
+    ↓ processes batch_size sequences per GPU forward pass
+    returns all results concatenated
+```
+
+**Key rules:**
+- `batch_size` defaults to `1` everywhere — safe by default, users opt in to higher throughput
+- Generators NEVER implement batching loops — they pass all sequences to the tool in one call
+- The tool layer (in proto-tools) owns the actual batching loop
+- Both GeneratorConfig and ToolConfig define `batch_size: int = ConfigField(default=1, ...)`
+
 ## Export Chain
 
 Every new component must be exported through the `__init__.py` chain:

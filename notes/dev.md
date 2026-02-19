@@ -292,3 +292,12 @@ This will:
 - Parse their docstrings
 - Convert tool READMEs to MDX format
 - Update `docs.json` navigation
+
+---
+
+## Batching
+
+`batch_size` defaults to `1` everywhere (tools and generators) — safe by default.
+The tool layer owns the batching loop; generators/constraints pass all sequences
+plus `batch_size` through. See `.claude/skills/general-dev/SKILL.md` "Batching Architecture"
+for the full data flow diagram.

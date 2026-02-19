@@ -216,6 +216,12 @@ def my_tool_constraint(input_sequences, config):
     return scores
 ```
 
+### Batching Note
+
+Constraints that call GPU tools should include `batch_size` in their config and pass it
+through to the tool config. The tool layer handles the actual batching loop — constraints
+should NOT implement their own sequence chunking. Default `batch_size = 1` for safety.
+
 ## Export Chain
 
 1. **Category `__init__.py`**: `proto_language/language/constraint/{category}/__init__.py`

@@ -248,6 +248,33 @@ def sample(self) -> None:
         self._assigned_segment.candidate_sequences[i].sequence = sequence
 ```
 
+## Batching Architecture
+
+Generators do NOT implement batching loops. The tool layer owns all batching logic.
+
+### Data flow
+
+```
+Generator.sample()
+    → Collects ALL candidate sequences from segment
+    → Creates ToolInput with all sequences
+    → Creates ToolConfig with batch_size=self.batch_size
+    → Calls run_tool(inputs, config)
+         → Tool chunks sequences into batches of batch_size
+         → Processes each batch on GPU
+         → Returns concatenated results
+    → Updates candidate_sequences in-place from results
+```
+
+### Rules
+
+1. **Default `batch_size = 1`** — safe by default, prevents OOM. Users opt in to higher throughput.
+2. **Generator config stores `batch_size`** — passed through to tool config unchanged.
+3. **Never write a batching loop in a generator** — the tool handles chunking internally.
+4. **Inverse folding special case** (e.g., ProteinMPNN): When one structure generates N sequences,
+   `batch_size` controls sequences per forward pass. When N structures each generate 1 sequence,
+   `batch_size` is forced to 1 by the generator.
+
 ## Autoregressive Generator Special Patterns
 
 Autoregressive generators often support:
