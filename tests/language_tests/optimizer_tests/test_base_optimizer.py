@@ -847,6 +847,40 @@ class TestStateRestartBehavior:
         captured_seq = optimizer._initial_state['segments'][0]['candidates'][0]['sequence']
         assert captured_seq == "ATCG"
 
+    def test_labels_deduplicated_resets_on_restore(self):
+        """Tests that _labels_deduplicated flag resets on _restore_initial_state."""
+        construct, generator, _, segment = _setup_optimizer_components(num_candidates=2)
+
+        constraint1 = MagicMock(spec=Constraint)
+        constraint1.inputs = [segment]
+        constraint1.label = "my_label"
+        constraint1.threshold = None
+        constraint1.weight = 1.0
+        constraint1.evaluate.return_value = [1.0, 1.0]
+
+        constraint2 = MagicMock(spec=Constraint)
+        constraint2.inputs = [segment]
+        constraint2.label = "my_label"
+        constraint2.threshold = None
+        constraint2.weight = 1.0
+        constraint2.evaluate.return_value = [1.0, 1.0]
+
+        optimizer = ConcreteOptimizer(
+            [construct], [generator], [constraint1, constraint2], 2, 2
+        )
+
+        # After init, labels deduplicated and flag is set
+        assert optimizer._labels_deduplicated is True
+        assert constraint1.label == "my_label"
+        assert constraint2.label == "my_label_1"
+
+        # Capture state, then restore
+        optimizer._capture_initial_state()
+        optimizer._restore_initial_state()
+
+        # Flag should be reset
+        assert optimizer._labels_deduplicated is False
+
 
 class TestCandidateTracking:
     """Tests for _candidate_outcomes and candidate_results in snapshots."""

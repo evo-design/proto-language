@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import math
 import random
 from typing import Callable, Dict, List, Optional, Tuple, final
 
@@ -399,6 +400,12 @@ class MCMCOptimizer(Optimizer):
         true Boltzmann distribution. For mathematically rigorous MCMC sampling, use
         candidates_per_result=1.
         """
+        # Non-finite energies: guard against inf - inf = NaN.
+        if math.isinf(proposed_energy):
+            return 0.0  # Reject infinite proposals (covers inf/inf implicitly)
+        if math.isinf(current_energy):
+            return 1.0  # Any finite proposal beats infinite current
+
         temperature = self._compute_temperature(step)
         log_acceptance_ratio = -(proposed_energy - current_energy) / temperature
         # Cap to prevent overflow in exp()

@@ -342,6 +342,14 @@ class BeamSearchOptimizer(Optimizer):
         """
         self._prepare_run()
 
+        # BeamSearch always starts from its configured prompt.
+        if any(
+            seq.sequence
+            for seg in self.segments
+            for seq in seg.selected_sequences
+        ):
+            logger.warning("BeamSearchOptimizer starts from its configured prompt and overwrites existing sequences/prompts")
+
         # t=0 initial snapshot (empty state before any beams run)
         self.energy_scores = [float("inf")] * self.num_results
         self._save_progress_snapshot(time_step=0)

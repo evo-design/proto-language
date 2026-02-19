@@ -439,7 +439,7 @@ class Optimizer(ABC):
                 f"sequences as starting sequences for current optimizer (keeping first {self.num_results})"
             )
         elif source_len < self.num_results:
-            logger.info(
+            logger.warning(
                 f"Handoff to {optimizer_name}: Expanding sequences from {source_len} sequences from previous optimizer to {self.num_results} "
                 f"sequences by cycling through the existing {source_len} sequences and duplicating until {self.num_results} starting sequences for this optimizer are populated."
             )
@@ -513,6 +513,7 @@ class Optimizer(ABC):
         self.energy_scores = self._initial_state['energy_scores'].copy()
         self._candidate_outcomes = []
         self._candidate_energy_scores = []
+        self._labels_deduplicated = False
         self.history = []
 
     def _save_progress_snapshot(self, time_step: int) -> None:

@@ -611,6 +611,22 @@ class TestBeamSearchOptimizer:
         assert len(segment.selected_sequences) == 3
 
     # --- Verbose ---
+    def test_warning_when_previous_results_discarded(self, caplog):
+        """BeamSearch warns when existing sequences will be overwritten."""
+        import logging
+
+        optimizer, _, _, segment = _setup_beam_search(
+            segment_length=40, beam_length=20, num_results=2, prompt="ATCG"
+        )
+        # Simulate previous optimizer results
+        segment.selected_sequences[0].sequence = "GCTAGCTA"
+        segment.selected_sequences[1].sequence = "TTTTTTTT"
+
+        with caplog.at_level(logging.WARNING):
+            optimizer.run()
+
+        assert any("overwrites existing sequences" in msg for msg in caplog.messages)
+
     def test_verbose_output(self, caplog):
         import logging
 

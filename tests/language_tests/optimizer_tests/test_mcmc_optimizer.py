@@ -1147,3 +1147,37 @@ class TestMCMCOptimizer:
 
         for entry in optimizer.history:
             assert "candidate_results" not in entry
+
+    def test_mcmc_alpha_inf_inf_returns_zero(self):
+        """inf vs inf should return 0.0 (reject, no improvement) instead of NaN."""
+        optimizer, _, _, _ = _setup_mcmc_components()
+        alpha = optimizer._compute_mcmc_alpha(float('inf'), float('inf'), 1)
+        assert alpha == 0.0
+
+    def test_mcmc_alpha_inf_current_accepts_finite(self):
+        """inf current with finite proposed should return 1.0 (always accept)."""
+        optimizer, _, _, _ = _setup_mcmc_components()
+        alpha = optimizer._compute_mcmc_alpha(float('inf'), 0.5, 1)
+        assert alpha == 1.0
+        alpha = optimizer._compute_mcmc_alpha(float('inf'), 100.0, 1)
+        assert alpha == 1.0
+
+    def test_mcmc_alpha_finite_current_rejects_inf_proposed(self):
+        """Finite current with inf proposed should return 0.0 (always reject)."""
+        optimizer, _, _, _ = _setup_mcmc_components()
+        alpha = optimizer._compute_mcmc_alpha(0.5, float('inf'), 1)
+        assert alpha == 0.0
+        alpha = optimizer._compute_mcmc_alpha(0.0, float('inf'), 1)
+        assert alpha == 0.0
+
+    def test_mcmc_alpha_negative_inf_proposed(self):
+        """Negative inf proposed should be rejected (non-finite)."""
+        optimizer, _, _, _ = _setup_mcmc_components()
+        alpha = optimizer._compute_mcmc_alpha(0.5, float('-inf'), 1)
+        assert alpha == 0.0
+
+    def test_mcmc_alpha_negative_inf_current(self):
+        """Negative inf current with finite proposed should accept."""
+        optimizer, _, _, _ = _setup_mcmc_components()
+        alpha = optimizer._compute_mcmc_alpha(float('-inf'), 0.5, 1)
+        assert alpha == 1.0
