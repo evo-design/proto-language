@@ -1107,17 +1107,6 @@ def main():
                 f"all filters"
             )
 
-    # Release Evo1 model from GPU memory
-    try:
-        from proto_tools.tools.causal_models.evo1._in_process_mode import (
-            clear_evo1_cache,
-        )
-
-        clear_evo1_cache()
-        logger.info("Released Evo1 model from GPU memory")
-    except Exception:
-        pass
-
     logger.info("\n" + "=" * 60)
     logger.info("PIPELINE SUMMARY")
     logger.info("=" * 60)

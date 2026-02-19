@@ -194,7 +194,6 @@ class Evo1Generator(Generator):
             num_tokens=self.num_tokens,
             batch_size=self.batch_size,
             verbose=self.verbose,
-            keep_on_gpu=True,
         )
 
         evo1_output = run_evo1_sample(inputs=inputs, config=sample_config)
