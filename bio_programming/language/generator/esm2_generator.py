@@ -57,9 +57,9 @@ class ESM2GeneratorConfig(BaseConfig):
             Higher values explore more of sequence space but may reduce biological
             plausibility. Must be at least 1. Default: 1.
 
-        batch_size (int): Number of sequences to process per batch during inference.
-            Larger batches are faster but use more GPU memory. Reduce if encountering
-            out-of-memory errors. Default: ``1``.
+        batch_size (int): Number of sequences to process simultaneously on GPU.
+            Larger batches improve throughput but use more GPU memory; reduce
+            if encountering out-of-memory errors. Default: ``1``.
     """
 
     model_checkpoint: ESM2_MODEL_CHECKPOINTS = ConfigField(
@@ -93,7 +93,7 @@ class ESM2GeneratorConfig(BaseConfig):
         default=1,
         ge=1,
         title="Batch Size",
-        description="Number of sequences to process per batch.",
+        description="Number of sequences to process simultaneously on GPU",
         advanced=True,
     )
 
@@ -125,7 +125,7 @@ class ESM2Generator(Generator):
         temperature (float): Sampling temperature for diversity control.
         decoding_method (str): Position selection strategy (entropy/max_logit/random).
         num_mutations (int): Number of positions to mutate per iteration.
-        batch_size (int): Batch size for processing sequences during inference.
+        batch_size (int): Number of sequences to process simultaneously on GPU.
 
     Example:
         >>> from proto_language.language.generator import ESM2Generator, ESM2GeneratorConfig

@@ -83,9 +83,9 @@ class LigandMPNNGeneratorConfig(BaseConfig):
 
             Default: ``None`` (all amino acids allowed).
 
-        batch_size (int): Maximum number of sequences per GPU forward pass.
-            When a single structure generates many candidates, the tool chunks
-            by this value. Default: ``1``.
+        batch_size (int): Number of sequences to process simultaneously on GPU.
+            Larger batches improve throughput but use more GPU memory; reduce
+            if encountering out-of-memory errors. Default: ``1``.
 
         seed (int): Random seed for reproducible sequence generation. Using the
             same seed with identical inputs produces identical outputs.
@@ -165,7 +165,7 @@ class LigandMPNNGeneratorConfig(BaseConfig):
         default=1,
         ge=1,
         title="Batch Size",
-        description="Maximum number of sequences per GPU forward pass.",
+        description="Number of sequences to process simultaneously on GPU",
         advanced=True,
     )
     seed: int = ConfigField(

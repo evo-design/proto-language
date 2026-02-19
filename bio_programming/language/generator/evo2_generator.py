@@ -68,8 +68,9 @@ class Evo2GeneratorConfig(BaseConfig):
             are provided. Batched generation is faster but requires all prompts
             to have the same length. Default: ``True``.
 
-        batch_size (int): Number of sequences to sample at once on the GPU.
-            ``batched`` must be True. Default: ``1``.
+        batch_size (int): Number of sequences to process simultaneously on GPU.
+            Larger batches improve throughput but use more GPU memory; reduce
+            if encountering out-of-memory errors. Default: ``1``.
 
         cached_generation (bool): Whether to use KV caching for faster generation.
             Caching stores intermediate states to avoid recomputation.
@@ -161,7 +162,7 @@ class Evo2GeneratorConfig(BaseConfig):
         title="Batch Size",
         default=1,
         ge=1,
-        description="Max number of samples on the GPU at once",
+        description="Number of sequences to process simultaneously on GPU",
         advanced=True,
     )
     cached_generation: bool = ConfigField(

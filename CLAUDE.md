@@ -65,6 +65,7 @@ The `proto-tools/` submodule has its own `notes/` directory.
 - CPU tests need no marker (auto-applied). External deps (the task queue, a cache, DB) auto-mocked in `tests/conftest.py`.
 - Mock generators in conftest.py for testing optimizers/programs without real models.
 - Structure: `tests/language_tests/`, `tests/api_tests/`, `tests/agent_tests/`, `tests/tool_tests/`
+- **Before running GPU tests**, check if a GPU is available. If no GPU is detected, run CPU tests by default (`pytest --cpu`).
 
 ## Sub-Agent Parallelization
 

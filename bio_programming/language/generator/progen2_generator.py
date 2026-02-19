@@ -85,8 +85,9 @@ class ProGen2GeneratorConfig(BaseConfig):
             sequence. If ``False``, only newly generated tokens are returned.
             Default: ``True``.
 
-        batch_size (int): Number of sequences to sample per forward pass on the GPU.
-            Default: ``1``.
+        batch_size (int): Number of sequences to process simultaneously on GPU.
+            Larger batches improve throughput but use more GPU memory; reduce
+            if encountering out-of-memory errors. Default: ``1``.
 
         verbose (bool): Whether to print detailed generation progress and timing.
             Default: ``False``.
@@ -160,7 +161,7 @@ class ProGen2GeneratorConfig(BaseConfig):
         default=1,
         ge=1,
         title="Batch Size",
-        description="Number of sequences to sample per forward pass on the GPU.",
+        description="Number of sequences to process simultaneously on GPU",
         advanced=True,
     )
     verbose: bool = ConfigField(

@@ -29,7 +29,9 @@ class Evo1GeneratorConfig(BaseConfig):
         top_k: Top-k sampling parameter.
         temperature: Sampling temperature.
         prepend_prompt: Whether to prepend the prompt to the output.
-        batch_size: Number of sequences to sample at once on the GPU.
+        batch_size: Number of sequences to process simultaneously on GPU.
+            Larger batches improve throughput but use more GPU memory; reduce
+            if encountering out-of-memory errors.
         verbose: Whether to print generation progress.
     """
 
@@ -68,7 +70,7 @@ class Evo1GeneratorConfig(BaseConfig):
         title="Batch Size",
         default=1,
         ge=1,
-        description="Max number of samples on the GPU at once",
+        description="Number of sequences to process simultaneously on GPU",
         advanced=True,
     )
     verbose: bool = ConfigField(
