@@ -117,11 +117,6 @@ class BoltzBindingStrengthConfig(BaseConfig):
             - "raise": Raise exception and halt execution
             Use "penalize" for robust pipelines, "raise" for debugging. Default: "penalize".
 
-        batch_size (Optional[int]): Number of complexes to fold simultaneously.
-            If None, processes all complexes together (fastest but highest memory).
-            Use smaller batches (e.g., 2-5) to control GPU memory usage with large
-            complexes or limited GPU memory. Default: None.
-
         return_component (Literal[...]): Which component to return as the constraint
             score. Options:
             - "total_penalty": Weighted combination of all metrics (default)
@@ -180,11 +175,6 @@ class BoltzBindingStrengthConfig(BaseConfig):
         default="penalize",
         title="Behavior on Error",
         description="How to handle prediction errors: 'penalize' (return 1.0) or 'raise' (raise exception)",
-    )
-    batch_size: Optional[int] = ConfigField(
-        default=None,
-        title="Batch Size",
-        description="Number of complexes to fold at once (None = process all together)",
     )
     return_component: Literal[
         "total_penalty",
