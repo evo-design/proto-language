@@ -11,10 +11,11 @@ class Generator(ABC):
     batch_size: int = 1
 ```
 
-The framework splits candidates into chunks of `batch_size` and processes each chunk on GPU. All generators default to `batch_size=1` — users increase it via config to enable batching:
+The framework splits candidates into chunks of `batch_size` and processes each chunk on GPU (e.g., `BeamSearchOptimizer` reads `generator.batch_size` to chunk candidate generation). All generators default to `batch_size=1` — users increase it via config to enable batching:
 
-- **ESM2 / ESM3 / Evo1 / Evo2**: `batch_size` config field, default `1`. Set higher (e.g., 8-16) for throughput.
-- **ProteinMPNN / LigandMPNN**: No `batch_size` config field. Batch size is computed dynamically in `sample()` based on the number of input structures.
+- **ESM2 / ESM3 / Evo2**: `batch_size` config field, default `1`. Set higher (e.g., 8-16) for throughput.
+- **ProteinMPNN / LigandMPNN**: `batch_size` config field, default `1`. Only applies in single-structure mode (sequences generated in chunks). In multi-structure mode, one sequence is generated per structure regardless of `batch_size`.
+- **ProGen2**: `batch_size` config field, default `1`. Passed through to the ProGen2 tool for GPU batching.
 - **CPU generators** (UniformMutation, MSA): `batch_size = 1` (no batching needed).
 
 ## Constraint Evaluation (No Framework-Level Batching)

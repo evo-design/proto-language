@@ -85,6 +85,9 @@ class ProGen2GeneratorConfig(BaseConfig):
             sequence. If ``False``, only newly generated tokens are returned.
             Default: ``True``.
 
+        batch_size (int): Number of sequences to sample per forward pass on the GPU.
+            Default: ``1``.
+
         verbose (bool): Whether to print detailed generation progress and timing.
             Default: ``False``.
     Note:
@@ -153,6 +156,13 @@ class ProGen2GeneratorConfig(BaseConfig):
         description="Whether to prepend prompt to generation",
         hidden=True,
     )
+    batch_size: int = ConfigField(
+        default=1,
+        ge=1,
+        title="Batch Size",
+        description="Number of sequences to sample per forward pass on the GPU.",
+        advanced=True,
+    )
     verbose: bool = ConfigField(
         default=False,
         title="Verbose",
@@ -193,6 +203,7 @@ class ProGen2Generator(Generator):
         self.truncate_at_stop = config.truncate_at_stop
         self.strip_special_tokens = config.strip_special_tokens
         self.prepend_prompt = config.prepend_prompt
+        self.batch_size = config.batch_size
         self.verbose = config.verbose
 
         # This should get assigned during `self.assign()`.
@@ -240,6 +251,7 @@ class ProGen2Generator(Generator):
             truncate_at_stop=self.truncate_at_stop,
             strip_special_tokens=self.strip_special_tokens,
             prepend_prompt=self.prepend_prompt,
+            batch_size=self.batch_size,
             verbose=self.verbose,
         )
 
