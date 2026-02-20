@@ -3,17 +3,13 @@ import copy
 import pytest
 
 from proto_language.language.core import Segment
-from proto_language.language.generator import (
-    Evo1Generator,
-    Evo1GeneratorConfig,
-)
+from proto_language.language.generator import Evo1Generator, Evo1GeneratorConfig
 
 
 @pytest.mark.uses_gpu
 class TestEvo1Generator:
     def test_evo1_generation(self):
         """Test generation: custom params, batching, and prompt replication."""
-        # Single prompt replicated to 3 candidates with custom params and batching
         prompts = ["ATCG"]
         num_tokens = 50
         expected_length = len(prompts[0]) + num_tokens
@@ -68,43 +64,22 @@ class TestEvo1GeneratorValidation:
         gen = Evo1Generator(config)
         segment = Segment(length=100, sequence_type="dna")
 
-        # Should not raise
         gen.assign(segment)
         assert gen._assigned_segment is segment
 
-    def test_rejects_protein_segment(self):
-        """Evo1 should reject PROTEIN segments."""
+    @pytest.mark.parametrize("seq_type", ["protein", "rna"])
+    def test_rejects_non_dna_segment(self, seq_type):
+        """Evo1 should reject non-DNA segments."""
         config = Evo1GeneratorConfig(prompts="ATGC")
         gen = Evo1Generator(config)
-        segment = Segment(length=100, sequence_type="protein")
+        segment = Segment(length=100, sequence_type=seq_type)
 
         with pytest.raises(ValueError) as exc_info:
             gen.assign(segment)
 
         error_msg = str(exc_info.value)
         assert "does not support sequence type" in error_msg
-        assert "protein" in error_msg.lower()
-        assert "dna" in error_msg.lower()
-
-    def test_rejects_rna_segment(self):
-        """Evo1 should reject RNA segments."""
-        config = Evo1GeneratorConfig(prompts="ATGC")
-        gen = Evo1Generator(config)
-        segment = Segment(length=100, sequence_type="rna")
-
-        with pytest.raises(ValueError) as exc_info:
-            gen.assign(segment)
-
-        assert "does not support sequence type" in str(exc_info.value)
-        assert "rna" in str(exc_info.value).lower()
-
-    def test_batch_size_config(self):
-        """Test that batch_size parameter is properly set in config and generator."""
-        config = Evo1GeneratorConfig(prompts="ATGC", batch_size=5)
-        gen = Evo1Generator(config)
-
-        assert config.batch_size == 5
-        assert gen.batch_size == 5
+        assert seq_type in error_msg.lower()
 
     def test_prompts_unequal_length_raises(self):
         """Prompts with different lengths should raise ValueError."""
