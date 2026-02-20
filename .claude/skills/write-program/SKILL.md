@@ -190,6 +190,7 @@ Constraints are organized by category subdirectory:
 - `rna_secondary_structure/` — property/motif/feature/basepair similarity
 - `rna_splicing/` — intron boundary, tissue specificity
 - `sequence_annotation/` — sequence similarity, promoter strength, motifs
+- `sequence_alignment/` — sequence alignment similarity scoring
 
 Generators are organized by category:
 - **mutation** — refine existing sequences (UniformMutation, ESM2, MSA)

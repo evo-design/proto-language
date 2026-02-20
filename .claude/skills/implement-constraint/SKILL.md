@@ -164,8 +164,8 @@ def my_constraint(
 - Import from: `from proto_language.utils import MAX_ENERGY, MIN_ENERGY`
 
 Common scoring utilities (in `proto_language/utils/`):
-- `calculate_percentage_range_deviation(value, min_val, max_val)` — returns 0.0 if in range, fractional deviation otherwise
-- `sigmoid_score(x, inflection_point, slope)` — smooth 0-1 scoring via sigmoid
+- `calculate_percentage_range_deviation(actual, min_val, max_val)` — returns 0.0 if in range, fractional deviation otherwise
+- `sigmoid_score(metric, inflection, slope=3.0)` — smooth 0-1 scoring via sigmoid
 
 ## Metadata Pattern
 
@@ -178,7 +178,9 @@ seq._metadata["my_detail"] = {"sub_key": sub_value}
 
 After constraint evaluation, metadata is accessible via:
 ```python
-segment.candidate_sequences[i]._metadata["constraints"]["my_constraint"]["data"]["my_metric"]
+segment.candidate_sequences[i]._constraints_metadata["my_constraint"]["data"]["my_metric"]
+# Or via the computed .metadata property:
+segment.candidate_sequences[i].metadata["constraints"]["my_constraint"]["data"]["my_metric"]
 ```
 
 ## Tool Integration Pattern
@@ -186,7 +188,7 @@ segment.candidate_sequences[i]._metadata["constraints"]["my_constraint"]["data"]
 For constraints that call external bioinformatics tools:
 
 ```python
-from proto_tools.tools.{category}.{tool} import run_{tool}, {Tool}Input, {Tool}Config
+from proto_tools import run_{tool}, {Tool}Input, {Tool}Config
 
 @constraint(tools_called=["{tool}"], ...)
 def my_tool_constraint(input_sequences, config):

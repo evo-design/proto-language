@@ -37,16 +37,29 @@ class Optimizer(ABC):
         constructs: List[Construct],
         generators: List[Generator],
         constraints: List[Constraint],
-        config: BaseModel,
+        num_results: int | None,
+        tracking_interval: int,
+        track_candidates: bool,
+        verbose: bool,
+        candidates_per_result: int = 1,
+        num_candidates: int | None = None,
+        clear_tool_cache: int | bool | List[str] = 100 * 1024 * 1024,
+        custom_logging: Optional[Callable] = None,
     ) -> None:
-        # Stores constructs, generators, constraints, config
+        # Stores all parameters as instance attributes
         # Calls _validate_optimizer()
+        # Key attributes after init:
+        #   self.segments (property) — all segments from all constructs
+        #   self.energy_scores — populated by score_energy()
+        #   self.history — populated by _save_progress_snapshot()
 
     @abstractmethod
     def run(self) -> None:
         # Executes the optimization loop
         # Modifies segments' selected_sequences and candidate_sequences
 ```
+
+**Note**: Subclass `__init__` signatures take `config` as a single parameter and unpack it into the ABC's individual parameters via `super().__init__()`. See template below.
 
 ## Dual-Pool Architecture
 
@@ -143,9 +156,9 @@ from __future__ import annotations
 
 import copy
 import logging
-from typing import List, Optional
+from typing import Callable, List, Optional, final
 
-from pydantic import field_validator, model_validator
+from pydantic import model_validator
 
 from proto_language.base_config import BaseOptimizerConfig, ConfigField
 from proto_language.language.core import Construct, Constraint, Generator, Optimizer
@@ -158,20 +171,23 @@ class MyOptimizerConfig(BaseOptimizerConfig):
     """Configuration for MyOptimizer.
 
     Detailed description of the optimization algorithm and its parameters.
+
+    Note: tracking_interval, track_candidates, and verbose are inherited
+    from BaseOptimizerConfig — do NOT redeclare them here.
     """
+
+    num_steps: int = ConfigField(
+        ge=1,
+        title="Num Steps",
+        description="Total optimization iterations",
+    )
 
     num_results: Optional[int] = ConfigField(
         default=None,
-        title="Number of Results",
+        ge=1,
+        title="Num Results",
         description="Number of top sequences to maintain. Overrides program-level num_results if set.",
-        ge=1,
-    )
-
-    num_steps: int = ConfigField(
-        default=100,
-        title="Number of Steps",
-        description="Total optimization iterations",
-        ge=1,
+        advanced=True,
     )
 
     @model_validator(mode="after")
@@ -188,6 +204,7 @@ class MyOptimizerConfig(BaseOptimizerConfig):
     config=MyOptimizerConfig,                   # Config class
     description="Optimizes sequences using ...",# UI description
 )
+@final
 class MyOptimizer(Optimizer):
     """Optimize sequences using MyAlgorithm.
 
@@ -200,20 +217,24 @@ class MyOptimizer(Optimizer):
         generators: List[Generator],
         constraints: List[Constraint],
         config: MyOptimizerConfig,
+        custom_logging: Optional[Callable] = None,
+        clear_tool_cache: int | bool | List[str] = 100 * 1024 * 1024,
     ) -> None:
-        # Store config BEFORE calling super().__init__
-        # (super validates, which may need config values)
-        self._num_steps = config.num_steps
+        self.config = config
 
         super().__init__(
             constructs=constructs,
             generators=generators,
             constraints=constraints,
             num_results=config.num_results,
+            clear_tool_cache=clear_tool_cache,
+            custom_logging=custom_logging,
+            verbose=config.verbose,
             tracking_interval=config.tracking_interval,
             track_candidates=config.track_candidates,
-            verbose=config.verbose,
         )
+
+        self.num_steps: int = config.num_steps
 
     def run(self) -> None:
         """Execute the optimization loop."""
@@ -226,7 +247,7 @@ class MyOptimizer(Optimizer):
         self.score_energy()
         self._save_progress_snapshot(0)
 
-        for step in range(1, self._num_steps + 1):
+        for step in range(1, self.num_steps + 1):
             # 1. Prepare candidates from selected
             self._initialize_sequence_pools()
 
@@ -237,23 +258,27 @@ class MyOptimizer(Optimizer):
             # 3. Score candidates
             self.score_energy()
 
-            # 4. Select top candidates → update selected_sequences
-            self._select_top_candidates()
+            # 4. Update selected_sequences with best candidates
+            # NOTE: Each optimizer implements its own selection logic.
+            # See MCMCOptimizer for MH acceptance, TopKOptimizer for sorted insertion.
+            self._update_selected(step)
 
             # 5. Track progress (gated by tracking_interval)
-            if step % self.tracking_interval == 0 or step == self._num_steps:
+            if step % self.tracking_interval == 0 or step == self.num_steps:
                 self._save_progress_snapshot(step)
                 if self.verbose:
                     best_score = min(self.energy_scores)
-                    logger.info(f"Step {step}/{self._num_steps}: best={best_score:.4f}")
+                    logger.info(f"Step {step}/{self.num_steps}: best={best_score:.4f}")
 
-    def _select_top_candidates(self) -> None:
-        """Select top-scoring candidates into selected_sequences."""
-        # Sort by energy score (lower = better)
+    def _update_selected(self, step: int) -> None:
+        """Update selected_sequences with top candidates.
+
+        This is optimizer-specific. Common patterns:
+        - Greedy: sort by energy, take top num_results (see TopKOptimizer._insert_into_topk)
+        - MCMC: MH acceptance criterion (see MCMCOptimizer._select_topk_with_mcmc_acceptance)
+        """
         scored = list(zip(self.energy_scores, range(len(self.energy_scores))))
         scored.sort(key=lambda x: x[0])
-
-        # Take top num_results
         for seg in self.segments:
             new_selected = []
             for _, idx in scored[:self.num_results]:
@@ -272,11 +297,25 @@ class MyOptimizer(Optimizer):
 
 ## Single-Segment Optimizers
 
-If your optimizer only works with one segment (like BeamSearch):
+If your optimizer only works with one segment (like BeamSearch or Cycling):
+
+1. Add the key to `OPTIMIZERS_WITH_TARGET_SEGMENT` in `optimizer_registry.py`
+2. Add `target_segment: Segment` as the first parameter in `__init__` (before constructs)
 
 ```python
-# Add to OPTIMIZERS_WITH_TARGET_SEGMENT in optimizer_registry.py
+# In optimizer_registry.py:
 OPTIMIZERS_WITH_TARGET_SEGMENT = frozenset({"beam-search", "cycling", "my-optimizer"})
+
+# In your optimizer:
+def __init__(
+    self,
+    target_segment: Segment,      # First parameter for single-segment optimizers
+    constructs: List[Construct],
+    generators: List[Generator],
+    constraints: List[Constraint],
+    config: MyOptimizerConfig,
+    ...
+) -> None:
 ```
 
 This enables the `target_segment` field in the API parser for single-segment selection.

@@ -47,6 +47,7 @@ python deployment/deploy_cloud_functions.py  # Deploy cloud services
 Dynamic development notes that evolve as the repo grows. **Read these at the start of relevant tasks. Actively update them** when you discover new gotchas, resolve issues, or learn something future sessions should know — don't ask, just update and mention what you added.
 
 - `dev.md` — Setup, submodule sync, pre-commit hooks, CI checks, docs generation.
+- `batching.md` — Batching architecture across generator → tool → GPU boundary.
 
 The `proto-tools/` submodule has its own `notes/` directory.
 

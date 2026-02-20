@@ -149,7 +149,8 @@ class MyGenerator(Generator):
 
     def __init__(self, config: MyGeneratorConfig) -> None:
         super().__init__()
-        # Store config values as instance attributes
+        self.config = config  # Always store the full config object
+        # Store frequently-accessed config values as instance attributes
         self.model_name = config.model_name
         self.temperature = config.temperature
         self.batch_size = config.batch_size
@@ -195,7 +196,7 @@ class MyGenerator(Generator):
 | `config` | `Type[BaseModel]` | Yes | Pydantic config class |
 | `description` | `str` | Yes | What this generator does |
 | `category` | `str` | Yes | `"mutation"`, `"autoregressive"`, or `"inverse_folding"` |
-| `requires_gpu` | `bool` | No | Default `False` |
+| `requires_gpu` | `bool` | Yes | Whether generator requires GPU |
 | `tools_called` | `List[str]` | No | Default `[]` |
 | `supported_sequence_types` | `List[str]` | No | Default `[]` (= all types). Options: `"dna"`, `"rna"`, `"protein"` |
 
@@ -220,7 +221,7 @@ __all__ = [
 For generators that call external tools deployed on cloud:
 
 ```python
-from proto_tools.tools.{category}.{tool} import (
+from proto_tools import (
     run_{tool},
     {Tool}Input,
     {Tool}Config,
@@ -283,8 +284,12 @@ Autoregressive generators often support:
 - **`sample()` overrides**: Extra parameters like `prompts`, `old_kv_cache`
 
 ```python
-def sample(self, prompts: Optional[List[str]] = None,
-           old_kv_cache: Optional[Dict] = None) -> None:
+def sample(
+    self,
+    prompts: Optional[List[str]] = None,
+    prepend_prompt: Optional[bool] = None,
+    old_kv_cache: Optional[Dict] = None,
+) -> None:
     self._validate_generator()
     # Use provided prompts or defaults
     sampling_prompts = prompts if prompts is not None else self.prompts
