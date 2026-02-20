@@ -1095,3 +1095,40 @@ class TestTopKTrackingInterval:
         assert last_saved > 0
         # If threshold was met on a non-interval round, we still get a snapshot
         # (the fix ensures this)
+
+
+class TestTopKMetadata:
+    """Test metadata preservation through TopK optimization."""
+
+    def test_topk_preserves_initial_metadata_on_selected(self):
+        """Initial user metadata should survive through TopK rounds to selected_sequences."""
+        segment = Segment(sequence="ATCGATCG", sequence_type="dna", metadata={"user_key": "user_value"})
+        construct = Construct([segment])
+
+        gen = UniformMutationGenerator(
+            UniformMutationGeneratorConfig(num_mutations=1)
+        )
+        gen.assign(segment)
+
+        constraint = Constraint(
+            inputs=[segment],
+            function=sequence_length_constraint,
+            function_config={"target_length": 8},
+        )
+
+        config = TopKOptimizerConfig(
+            num_samples=5,
+            num_results=3,
+            verbose=False,
+        )
+        optimizer = TopKOptimizer(
+            constructs=[construct],
+            generators=[gen],
+            constraints=[constraint],
+            config=config,
+        )
+
+        optimizer.run()
+
+        for seq in segment.selected_sequences:
+            assert seq._metadata.get("user_key") == "user_value"

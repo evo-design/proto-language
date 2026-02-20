@@ -230,11 +230,7 @@ class TopKOptimizer(Optimizer):
         for seg_idx, segment in enumerate(self.segments):
             candidates = self._initial_state['segments'][seg_idx]['candidates']
             segment.candidate_sequences = [
-                Sequence(
-                    sequence=candidates[i]['sequence'],
-                    sequence_type=segment.sequence_type,
-                    valid_chars=segment.valid_chars
-                )
+                Sequence.from_dict(candidates[i])
                 for i in range(self.num_candidates)
             ]
 
