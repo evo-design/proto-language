@@ -425,6 +425,12 @@ class BeamSearchOptimizer(Optimizer):
                 else None
             )
 
+            # Resize candidate pool to match batch for zip(strict=True) compatibility
+            self.target_segment.candidate_sequences = [
+                Sequence(sequence="", sequence_type=self.target_segment.sequence_type)
+                for _ in range(batch_count)
+            ]
+
             if self.verbose and batch_start == 0:
                 self._log_cache_state(kv_cache)
 

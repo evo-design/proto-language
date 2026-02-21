@@ -13,13 +13,7 @@ from proto_language.language.constraint import gc_content_constraint
 from proto_language.language.constraint.sequence_composition.gc_content_constraint import (
     GCContentConfig,
 )
-from proto_language.language.core import (
-    Constraint,
-    Construct,
-    Generator,
-    Segment,
-    Sequence,
-)
+from proto_language.language.core import Constraint, Construct, Generator, Segment
 from proto_language.language.optimizer import (
     BeamSearchOptimizer,
     BeamSearchOptimizerConfig,
@@ -53,9 +47,10 @@ class MockAutoregressiveGenerator(Generator):
         for prompt in prompts:
             new_seq = "".join(random.choice("ATCG") for _ in range(num_tokens))
             sequences.append(prompt + new_seq if prepend_prompt else new_seq)
-        self._assigned_segment.candidate_sequences = [
-            Sequence(sequence=seq, sequence_type="dna") for seq in sequences
-        ]
+        for candidate, sequence in zip(
+            self._assigned_segment.candidate_sequences, sequences, strict=True
+        ):
+            candidate.sequence = sequence
         if self.use_kv_caching and getattr(self, "store_kv_cache", False):
             mock_mha = Mock()
             mock_mha.key_value_memory_dict = {0: Mock(shape=(1, 2, 3))}
@@ -112,9 +107,10 @@ class MockAutoregressiveGeneratorNoKVCache(Generator):
         for prompt in prompts:
             new_seq = "".join(random.choice("ATCG") for _ in range(num_tokens))
             sequences.append(prompt + new_seq if prepend_prompt else new_seq)
-        self._assigned_segment.candidate_sequences = [
-            Sequence(sequence=seq, sequence_type="dna") for seq in sequences
-        ]
+        for candidate, sequence in zip(
+            self._assigned_segment.candidate_sequences, sequences, strict=True
+        ):
+            candidate.sequence = sequence
 
 
 def _setup_beam_search(

@@ -267,5 +267,7 @@ class ProGen2Generator(Generator):
         """Compute max_length for ProGen2 based on segment length and prompt settings."""
         segment_length = self._assigned_segment.sequence_length
         if prepend_prompt:
+            if prompt_length >= segment_length:
+                raise ValueError(f"Prompt length ({prompt_length}) must be less than segment length ({segment_length}) when prepend_prompt=True")
             return segment_length
         return segment_length + prompt_length

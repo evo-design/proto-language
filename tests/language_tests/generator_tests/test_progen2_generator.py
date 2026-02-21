@@ -136,6 +136,28 @@ class TestProGen2GeneratorValidation:
         generator.assign(segment)
         assert generator._assigned_segment is segment
 
+    def test_prompt_exceeds_segment_length_with_prepend(self):
+        """Prompt >= segment length with prepend_prompt=True should raise ValueError."""
+        config = ProGen2GeneratorConfig(prompts="1MKTLAAAA", prepend_prompt=True)
+        generator = ProGen2Generator(config)
+        # Segment length shorter than prompt
+        segment = Segment(length=5, sequence_type="protein")
+        generator.assign(segment)
+
+        with pytest.raises(ValueError, match="Prompt length.*must be less than.*segment length"):
+            generator.sample()
+
+    def test_prompt_equal_segment_length_with_prepend(self):
+        """Prompt == segment length with prepend_prompt=True should raise ValueError."""
+        prompt = "1MKTL"
+        config = ProGen2GeneratorConfig(prompts=prompt, prepend_prompt=True)
+        generator = ProGen2Generator(config)
+        segment = Segment(length=len(prompt), sequence_type="protein")
+        generator.assign(segment)
+
+        with pytest.raises(ValueError, match="Prompt length.*must be less than.*segment length"):
+            generator.sample()
+
     @pytest.mark.parametrize("seq_type", ["dna", "rna"])
     def test_rejects_non_protein_segment(self, seq_type):
         """ProGen2 should reject non-protein segments."""
