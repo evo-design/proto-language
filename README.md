@@ -25,8 +25,8 @@ bash install.sh
 conda activate proto-language
 ```
 
-```
->[!NOTE] Evo2 is no longer included in the base environment. If you want to use
+> [!NOTE]
+> Evo2 is no longer included in the base environment. If you want to use
 > a version of the base environment that supports Evo2, clone from Brian's env
 > on Chimera (instructions below). This is required for Beam Search:
 
@@ -59,6 +59,7 @@ uv pip install -e ./proto-tools
 
 # 5. Install pre-commit hooks
 pre-commit install
+```
 
 ## Running the API
 
@@ -130,11 +131,3 @@ Commands (invoked with `/command-name`):
 - **`/fix-issue <number>`** — full GitHub issue fix lifecycle (read issue, explore, reproduce, fix, test, verify)
 
 The `proto-tools/` submodule has its own skills and commands — see its [README](./proto-tools/README.md#using-with-claude-code).
-
-## Running the Toy Example
-
-```bash
-jupyter notebook
-```
-
-Open and run `notebooks/toy_example.ipynb`

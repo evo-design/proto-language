@@ -128,7 +128,7 @@ pre-commit install
 
 ### What the Hooks Do
 
-1. **Code formatting** - Runs `black` and `isort` to format Python code
+1. **Import sorting** - Runs `isort` to sort imports
 2. **Basic checks** - Removes trailing whitespace, fixes end-of-file issues, validates YAML, checks for large files
 
 ### Running Hooks Manually
@@ -141,7 +141,7 @@ pre-commit run --all-files
 pre-commit run --files path/to/file.py
 
 # Run a specific hook
-pre-commit run black --all-files
+pre-commit run isort --all-files
 ```
 
 ### Bypassing Hooks (Not Recommended)
@@ -166,14 +166,14 @@ The following CIs run automatically on pull requests that are in `ready_for_revi
 
 **Run locally:**
 ```bash
-# Run all CPU tests (including skip_ci tests)
+# Mimic exact CI behavior
 pytest --cpu
 
-# Mimic exact CI behavior (skip tests marked with skip_ci)
+# Additionally skip tests marked with skip_ci (stricter than CI)
 pytest --cpu --skip-ci
 ```
 
-**Note:** Tests marked with `@pytest.mark.skip_ci` are automatically skipped in CI (e.g., remote API tests that may hit rate limits). Use `--skip-ci` locally to test exactly what CI will run.
+**Note:** Tests marked with `@pytest.mark.skip_ci` are skipped when `--skip-ci` is passed. CI does NOT use `--skip-ci` — it runs `pytest --cpu` directly. Use `--skip-ci` locally if you want to skip tests that depend on remote APIs or rate-limited services.
 
 **Chimera-only tests:** Tests marked with `@pytest.mark.only_chimera` only run on the Chimera cluster (where `SLURM_CLUSTER_NAME=arc-slurm`). These tests are automatically skipped on other machines.
 
@@ -232,6 +232,16 @@ The following CIs run manually when requested by the user:
 python docs/generate_docs.py
 
 ```
+
+#### Deploy to Staging
+**File:** `.github/workflows/release-to-staging.yml`
+**Triggers:** Manual dispatch
+**What it does:** Deploys the application to the staging environment
+
+#### Release and Deploy to Production
+**File:** `.github/workflows/release-to-prod.yml`
+**Triggers:** Manual dispatch
+**What it does:** Creates a release and deploys the application to production
 
 ---
 
