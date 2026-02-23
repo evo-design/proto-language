@@ -76,8 +76,7 @@ api = [
     "asyncpg>=0.29.0",
     "psycopg2>=2.9.0",
 
-    # Task queue
-    "worker>=5.3.0",
+    # a cache (SSE pub/sub, cancellation flags)
     "cache>=5.0.0",
 
     # AI agents
@@ -198,9 +197,6 @@ module = [
     "biotite.*",
     # Visualization
     "py3Dmol.*",
-    # Task queue
-    "worker.*",
-    "kombu.*",
     # Cloud & storage
     "cloud.*",
     "google.cloud.*",

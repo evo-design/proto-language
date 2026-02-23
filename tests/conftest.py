@@ -427,63 +427,13 @@ def gpu_available():
 
 
 @pytest.fixture(autouse=True)
-def mock_celery():
-    """Mock the task queue and a cache dependencies for all tests."""
+def mock_background_tasks():
+    """Mock background task dispatch for all tests.
 
-    # Mock the task queue task
-    mock_task = Mock()
-    mock_task.delay.return_value = Mock(id=str(uuid4()))
-
-    # Mock the task queue app
-    mock_celery_app = Mock()
-    mock_celery_app.control.inspect.return_value.active.return_value = {"worker1": []}
-    mock_celery_app.AsyncResult.return_value = Mock(status="PENDING")
-
-    # Check if API modules are available before patching
-    patches = []
-
-    try:
-        import api.main
-
-        patches.extend(
-            [
-                patch("api.main.celery_app", mock_celery_app),
-                patch("api.main.execute_stage_task", mock_task),
-            ]
-        )
-    except ImportError:
-        pass
-
-    try:
-        import api.workers.celery_config  # noqa
-
-        patches.append(patch("api.workers.celery_config.celery_app", mock_celery_app))
-    except ImportError:
-        pass
-
-    try:
-        import api.workers.tasks  # noqa
-
-        patches.extend(
-            [
-                patch("api.workers.tasks.celery_app", mock_celery_app),
-                patch("api.workers.tasks.execute_stage_task", mock_task),
-            ]
-        )
-    except ImportError:
-        pass
-
-    # Apply patches if any are available
-    if patches:
-        # Use contextlib.ExitStack to handle multiple patches
-        from contextlib import ExitStack
-
-        with ExitStack() as stack:
-            for p in patches:
-                stack.enter_context(p)
-            yield {"celery_app": mock_celery_app, "task": mock_task}
-    else:
-        yield {"celery_app": mock_celery_app, "task": mock_task}
+    Prevents tests from dispatching to cloud or spawning background threads.
+    """
+    with patch("api.main._dispatch_stage"):
+        yield
 
 
 @pytest.fixture(autouse=True)
@@ -543,7 +493,7 @@ def mock_database():
     mock_run.started_at = None
     mock_run.completed_at = None
     mock_run.gpl_request = {}
-    mock_run.celery_task_id = None
+    mock_run.task_id = None
     mock_run.stage_task_ids = []
     mock_run.num_steps = None
     mock_run.current_stage = 0

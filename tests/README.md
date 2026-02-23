@@ -28,4 +28,4 @@ def test_cpu_function():
 
 ## External Dependencies
 
-The test suite automatically mocks external dependencies (the task queue, a cache, databases) so you can run tests without setting up these services. cloud credentials are loaded from `~/.cloud.toml` if available.
+The test suite automatically mocks external dependencies (a cache, databases) so you can run tests without setting up these services. cloud credentials are loaded from `~/.cloud.toml` if available.
