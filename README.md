@@ -27,15 +27,18 @@ conda create --name proto-language python=3.12 -y
 conda activate proto-language
 
 # 3. Install dependencies
-pip install -e .                      # Core language only
-pip install -e ./proto-tools
+pip install uv
+uv pip install -e .                      # Users: core language
+uv pip install -e ./proto-tools
 ```
 
 **For developers** (API server, AI agent, testing, linting):
 
 ```bash
-pip install -e ".[all]"               # Core + API + dev tools
-pip install -e ./proto-tools
+uv pip install -e ".[all]"               # Developers: + API, agent, testing, linting
+uv pip install -e ./proto-tools
+
+# 4. (Optional) Install pre-commit hooks
 pre-commit install
 ```
 
