@@ -29,6 +29,7 @@ dependencies = [
     "biopython>=1.81",
     "biotite>=0.38.0",
     "rdkit",
+    "pymol-open-source",
 
     # Utilities
     "tqdm",
