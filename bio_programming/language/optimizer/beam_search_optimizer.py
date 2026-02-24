@@ -273,6 +273,9 @@ class BeamSearchOptimizer(Optimizer):
         # Calculate number of beams based on target segment
         self.num_beams = math.ceil(self.target_segment.sequence_length / self.beam_length)
 
+        # Override base class num_steps for progress tracking
+        self.num_steps = self.num_beams
+
         # Set up generator for beam search
         # Pre-allocate max_seqlen for the full optimization - vortex doesn't support
         self.generator.max_seqlen = len(self.prompt) + self.target_segment.sequence_length

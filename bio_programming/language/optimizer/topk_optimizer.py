@@ -195,6 +195,9 @@ class TopKOptimizer(Optimizer):
         if self.num_samples % self.samples_per_round != 0:
             self.num_samples = math.ceil(self.num_samples / self.samples_per_round) * self.samples_per_round
             logger.warning(f"num_samples rounded up to {self.num_samples} (nearest multiple of samples_per_round={self.samples_per_round}).")
+
+        # Override base class num_steps for progress tracking
+        self.num_steps = self.num_samples // self.samples_per_round
         # Sorted list of energies for selected_sequences (ascending order,
         # parallel to selected_sequences — index i matches segment.selected_sequences[i])
         self._selected_energies: list[float] = []
