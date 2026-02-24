@@ -34,16 +34,14 @@ from .helpers import (  # Constraint scoring; Tool utilities
     validate_range,
 )
 
-# Infrastructure utilities (compute and file resolution)
-from .infra import (  # Compute; File resolution
+# Infrastructure utilities (file resolution and cloud storage)
+from .infra import (
     VOLUME_PATH,
     download_gcs_file,
     get_cache_path,
-    is_gpu_available,
     resolve_file,
     resolve_paths,
     upload_to_gcs,
-    use_cloud_gpu,
 )
 
 __all__ = [
@@ -61,9 +59,6 @@ __all__ = [
     "calculate_normalized_deviation",
     "sigmoid_score",
     "inverse_sigmoid_score",
-    # Compute
-    "use_cloud_gpu",
-    "is_gpu_available",
     # File resolution
     "resolve_file",
     "resolve_paths",

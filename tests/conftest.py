@@ -419,9 +419,9 @@ def temp_pdb_file():
 def gpu_available():
     """Check if GPU is available for tests."""
     try:
-        from proto_language.utils import is_gpu_available
+        import torch
 
-        return is_gpu_available()
+        return torch.cuda.is_available()
     except ImportError:
         return False
 
