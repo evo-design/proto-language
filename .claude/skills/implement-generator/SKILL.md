@@ -1,10 +1,12 @@
 ---
 name: implement-generator
 description: >
-  Use this skill when the user asks to create, modify, or debug a generator
-  in the proto-language language core. This covers the full lifecycle:
-  config class, Generator subclass with __init__/assign/sample, decorator
-  registration, export chain, and tests.
+  Implements, modifies, or debugs generators in the proto-language DSL.
+  Covers the full lifecycle: config class, Generator subclass with __init__/assign/sample,
+  category-specific patterns (mutation, autoregressive, inverse folding),
+  decorator registration, export chain, and tests. Use when working with
+  generators, sequence sampling, Evo2, ESM2, ESM3, ProteinMPNN, LigandMPNN,
+  or mutation strategies.
 allowed-tools:
   - Read
   - Write
@@ -37,7 +39,7 @@ class Generator(ABC):
 
     def assign(self, assigned_segment: Segment) -> None:
         # Validates: not ligand, sequence type compatible
-        # Category-specific init: mutation→random, autoregressive→none, inverse_folding→"X"
+        # Category-specific init: mutation->random, autoregressive->none, inverse_folding->"X"
 
     @abstractmethod
     def sample(self) -> None:
@@ -62,130 +64,16 @@ class Generator(ABC):
 | `"autoregressive"` | No initialization | Generates from scratch (left-to-right) |
 | `"inverse_folding"` | `"X" * length` if empty | Structure-conditioned design |
 
-The category determines what `_validate_generator()` does at the start of `sample()`:
-- **mutation**: If candidate has no sequence, initializes random from `valid_chars`
-- **autoregressive**: No random init (generates entirely new sequences)
-- **inverse_folding**: If candidate has no sequence, initializes with `"X"` (unknown)
+## Implementation Steps
 
-## Complete Implementation Template
+For complete config class and generator class templates, use the `Read` tool to load:
+- **Templates**: `.claude/skills/implement-generator/TEMPLATES.md`
 
-### Step 1: Config Class
-
-File: `proto_language/language/generator/{name}_generator.py`
-
-```python
-from __future__ import annotations
-
-import logging
-from typing import List, Optional, final
-
-from pydantic import field_validator, model_validator
-
-from proto_language.base_config import BaseConfig, ConfigField
-from proto_language.language.core import Generator, Segment
-from proto_language.language.generator.generator_registry import generator
-
-logger = logging.getLogger(__name__)
-
-
-class MyGeneratorConfig(BaseConfig):
-    """Configuration for MyGenerator.
-
-    Detailed description of what this generator does and its parameters.
-    """
-
-    # Required parameter
-    model_name: str = ConfigField(
-        title="Model Name",
-        description="Which model checkpoint to use",
-    )
-
-    # Optional with default
-    temperature: float = ConfigField(
-        default=1.0,
-        title="Temperature",
-        description="Sampling temperature (higher = more random)",
-        gt=0.0,
-        le=2.0,
-        advanced=True,
-    )
-
-    batch_size: int = ConfigField(
-        default=1,
-        title="Batch Size",
-        description="Number of sequences to process per batch on the GPU",
-        ge=1,
-        advanced=True,
-    )
-
-    @field_validator("model_name", mode="before")
-    @classmethod
-    def validate_model(cls, v):
-        valid = ["model_a", "model_b"]
-        if v not in valid:
-            raise ValueError(f"Must be one of {valid}")
-        return v
-```
-
-### Step 2: Generator Class
-
-```python
-@generator(
-    key="my-generator",                           # Unique, kebab-case
-    label="My Generator",                         # Human-readable display name
-    config=MyGeneratorConfig,                     # Config class from Step 1
-    description="Generates sequences using ...",  # UI description
-    category="mutation",                          # "mutation" | "autoregressive" | "inverse_folding"
-    requires_gpu=True,                            # True if calls GPU tools
-    tools_called=["my-tool"],                     # Tool names this generator invokes
-    supported_sequence_types=["protein"],          # Empty list [] = all types supported
-)
-@final
-class MyGenerator(Generator):
-    """Generate sequences using MyModel.
-
-    Detailed description of the generation approach.
-    """
-
-    def __init__(self, config: MyGeneratorConfig) -> None:
-        super().__init__()
-        self.config = config  # Always store the full config object
-        # Store frequently-accessed config values as instance attributes
-        self.model_name = config.model_name
-        self.temperature = config.temperature
-        self.batch_size = config.batch_size
-
-    def assign(self, assigned_segment: Segment) -> None:
-        super().assign(assigned_segment)
-        # Custom validation after base class validation
-        if assigned_segment.sequence_length < 10:
-            raise ValueError("Sequence must be at least 10 residues")
-
-    def sample(self) -> None:
-        self._validate_generator()
-
-        # Get current candidates
-        candidates = self._assigned_segment.candidate_sequences
-        sequences = [seq.sequence for seq in candidates]
-
-        # Call external tool or compute locally
-        result = run_my_tool(
-            sequences=sequences,
-            model=self.model_name,
-            temperature=self.temperature,
-        )
-
-        # Update sequences IN PLACE
-        for candidate, new_seq in zip(candidates, result.sequences):
-            candidate.sequence = new_seq
-
-        # Optionally store metadata
-        for candidate, score in zip(candidates, result.scores):
-            candidate._metadata.update({
-                "my_generator_score": score,
-                "my_generator_model": self.model_name,
-            })
-```
+Summary of the workflow:
+1. **Config class** — inherit `BaseConfig`, use `ConfigField`, declare model params
+2. **Generator class** — `@generator` decorator, `@final`, implement `__init__`, `assign`, `sample`
+3. **Export chain** — add to `generator/__init__.py`
+4. **Tests** — init, assign, sample, batch, type validation, config validation
 
 ## Decorator Argument Reference
 
@@ -221,31 +109,15 @@ __all__ = [
 For generators that call external tools deployed on cloud:
 
 ```python
-from proto_tools import (
-    run_{tool},
-    {Tool}Input,
-    {Tool}Config,
-)
+from proto_tools import run_{tool}, {Tool}Input, {Tool}Config
 
 def sample(self) -> None:
     self._validate_generator()
-
     sequences = [seq.sequence for seq in self._assigned_segment.candidate_sequences]
-
-    # Build tool input/config
     tool_input = ToolInput(sequences=sequences)
-    tool_config = ToolConfig(
-        model=self.model_name,
-        temperature=self.temperature,
-        batch_size=self.batch_size,
-    )
-
-    # Call tool
+    tool_config = ToolConfig(model=self.model_name, temperature=self.temperature, batch_size=self.batch_size)
     result = run_tool(inputs=tool_input, config=tool_config)
-    generated = result.sequences
-
-    # Update candidates in-place
-    for i, sequence in enumerate(generated):
+    for i, sequence in enumerate(result.sequences):
         self._assigned_segment.candidate_sequences[i].sequence = sequence
 ```
 
@@ -253,61 +125,11 @@ def sample(self) -> None:
 
 Generators do NOT implement batching loops. The tool layer owns all batching logic.
 
-### Data flow
-
-```
-Generator.sample()
-    → Collects ALL candidate sequences from segment
-    → Creates ToolInput with all sequences
-    → Creates ToolConfig with batch_size=self.batch_size
-    → Calls run_tool(inputs, config)
-         → Tool chunks sequences into batches of batch_size
-         → Processes each batch on GPU
-         → Returns concatenated results
-    → Updates candidate_sequences in-place from results
-```
-
-### Rules
-
-1. **Default `batch_size = 1`** — safe by default, prevents OOM. Users opt in to higher throughput.
-2. **Generator config stores `batch_size`** — passed through to tool config unchanged.
-3. **Never write a batching loop in a generator** — the tool handles chunking internally.
-4. **Inverse folding special case** (e.g., ProteinMPNN): When one structure generates N sequences,
-   `batch_size` controls sequences per forward pass. When N structures each generate 1 sequence,
-   `batch_size` is forced to 1 by the generator.
-
-## Autoregressive Generator Special Patterns
-
-Autoregressive generators often support:
-- **Prompts**: Initial prefix sequences for generation
-- **KV caching**: Store/reuse attention caches across beam search steps
-- **`sample()` overrides**: Extra parameters like `prompts`, `old_kv_cache`
-
-```python
-def sample(
-    self,
-    prompts: Optional[List[str]] = None,
-    prepend_prompt: Optional[bool] = None,
-    old_kv_cache: Optional[Dict] = None,
-) -> None:
-    self._validate_generator()
-    # Use provided prompts or defaults
-    sampling_prompts = prompts if prompts is not None else self.prompts
-    ...
-```
-
-## Inverse Folding Generator Special Patterns
-
-Inverse folding generators take structure inputs:
-
-```python
-def sample(self, structure_inputs: Optional[List[...]] = None) -> None:
-    self._validate_generator()
-    sampling_inputs = structure_inputs or self.structure_inputs
-    if sampling_inputs is None:
-        raise ValueError("No structure_inputs provided")
-    ...
-```
+**Key rules:**
+1. Default `batch_size = 1` — safe by default, prevents OOM
+2. Generator config stores `batch_size` — passed through to tool config unchanged
+3. Never write a batching loop in a generator — the tool handles chunking internally
+4. Inverse folding special case: when one structure generates N sequences, `batch_size` controls sequences per forward pass
 
 ## Documentation
 
@@ -330,3 +152,22 @@ For GPU generators, mark tests with `@pytest.mark.uses_gpu`.
 For CPU generators, no marker needed (auto-applied).
 
 See the testing skill for complete test templates.
+
+## Validation Checklist
+
+Copy this and check off as you go:
+
+- [ ] Config class inherits `BaseConfig` with `ConfigField`
+- [ ] `@generator` decorator with unique kebab-case key and correct category
+- [ ] `@final` decorator on class
+- [ ] `__init__` calls `super().__init__()`
+- [ ] `assign()` calls `super().assign(assigned_segment)` first
+- [ ] `sample()` calls `self._validate_generator()` first
+- [ ] `sample()` modifies `candidate_sequences` in-place (returns nothing)
+- [ ] No batching loop in generator (tool handles batching)
+- [ ] Export chain updated: `generator/__init__.py` (class + config)
+- [ ] Tests cover: init, assign, sample, batch, type validation, config validation
+- [ ] Tests pass: `pytest tests/language_tests/generator_tests/ --cpu -x`
+- [ ] Lint passes: `flake8 proto_language/language/generator/`
+
+If any check fails, fix before proceeding.

@@ -1,10 +1,11 @@
 ---
 name: general-dev
 description: >
-  Use this skill for general development tasks in proto-language: understanding
-  architecture, coding conventions, config patterns, data models, and the registry
-  system. Invoke when modifying existing code, adding utilities, or needing
-  project-wide conventions.
+  General development conventions for proto-language: architecture overview,
+  coding conventions, Pydantic config patterns (BaseConfig, ConfigField),
+  data models (Sequence, Segment, Construct), registry system, export chains,
+  batching architecture, naming conventions. Use for general development,
+  code review, refactoring, adding utilities, or understanding project structure.
 allowed-tools:
   - Read
   - Write

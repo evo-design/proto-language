@@ -1,9 +1,12 @@
 ---
 name: implement-constraint
 description: >
-  Use this skill when the user asks to create, modify, or debug a constraint
-  in the proto-language language core. This covers the full lifecycle:
-  config class, scoring function, decorator registration, export chain, and tests.
+  Implements, modifies, or debugs constraints in the proto-language DSL.
+  Covers the full lifecycle: BaseConfig class with ConfigField, scoring function
+  returning List[float], @constraint decorator registration, 3-level export chain,
+  and pytest test coverage. Use when working with constraints, scoring functions,
+  GC content, structure prediction scores (pLDDT, pTM, pAE), protein quality,
+  sequence motifs, RNA structure, or splicing predictions.
 allowed-tools:
   - Read
   - Write
@@ -271,3 +274,20 @@ Every constraint needs these tests:
 5. **Edge cases** — empty sequences, boundary values
 
 See the testing skill for complete test templates.
+
+## Validation Checklist
+
+Copy this and check off as you go:
+
+- [ ] Config class inherits `BaseConfig` with `ConfigField`
+- [ ] `@constraint` decorator with unique kebab-case key
+- [ ] `supported_sequence_types` is non-empty
+- [ ] Scoring function returns `List[float]` with scores in [0.0, 1.0]
+- [ ] Metadata stored on `seq._metadata` for downstream visibility
+- [ ] Edge cases handled (empty sequences, boundary values)
+- [ ] Export chain updated at all 3 levels (category `__init__`, constraint `__init__`, `__all__`)
+- [ ] Tests cover: parametrized scoring, wrong type, invalid config, metadata, edge cases
+- [ ] Tests pass: `pytest tests/language_tests/constraint_tests/ --cpu -x`
+- [ ] Lint passes: `flake8 proto_language/language/constraint/`
+
+If any check fails, fix before proceeding.
