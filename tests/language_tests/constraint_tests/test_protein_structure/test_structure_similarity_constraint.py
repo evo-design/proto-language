@@ -160,10 +160,13 @@ class TestESMFoldTMscoreConstraint:
 
     @pytest.fixture
     def mock_tmalign(self):
-        """Mocks the TMalign binary wrapper."""
-        with patch("proto_language.language.constraint.protein_structure.structure_similarity_constraint._compute_tmalign_score_from_pdb") as m:
-            # Default return: (score_norm_by_struct1, score_norm_by_struct2)
-            m.return_value = (0.5, 0.5)
+        """Mocks the TMalign tool wrapper."""
+        with patch("proto_language.language.constraint.protein_structure.structure_similarity_constraint.run_tmalign") as m:
+            from proto_tools import TMalignOutput
+            m.return_value = TMalignOutput(
+                tm_score_chain_1=0.5,
+                tm_score_chain_2=0.5,
+            )
             yield m
 
     @pytest.mark.uses_gpu
@@ -264,7 +267,11 @@ class TestESMFoldTMscoreConstraint:
         # Setup the mock to return distinct scores
         # Structure 1 (Candidate) Norm = 0.8  (Good match)
         # Structure 2 (Target) Norm    = 0.4  (Bad match, maybe target is huge)
-        mock_tmalign.return_value = (0.8, 0.4)
+        from proto_tools import TMalignOutput
+        mock_tmalign.return_value = TMalignOutput(
+            tm_score_chain_1=0.8,
+            tm_score_chain_2=0.4,
+        )
 
         cases = [
             ("structure1", 0.8), # Score = 1.0 - 0.8 = 0.2

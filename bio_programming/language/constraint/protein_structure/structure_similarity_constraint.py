@@ -8,9 +8,6 @@ supporting multiple structure prediction tools (ESMFold, AlphaFold3, Boltz, Chai
 from __future__ import annotations
 
 import os
-import re
-import shutil
-import subprocess
 import tempfile
 from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple
@@ -18,7 +15,13 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 from proto_tools import (
     Structure,
     StructurePredictionComplex,
+    TMalignConfig,
+    TMalignInput,
+    USalignConfig,
+    USalignInput,
     predict_structures,
+    run_tmalign,
+    run_usalign,
 )
 from pydantic import model_validator
 
@@ -114,188 +117,6 @@ def _filter_pdb_by_plddt(pdb_text: str, threshold: float) -> str:
             filtered_lines.append(line)
 
     return "\n".join(filtered_lines)
-
-
-def _compute_tmalign_score_from_pdb(
-    target_pdb_text: str,
-    candidate_pdb_text: str,
-    plddt_threshold: Optional[float] = None,
-) -> Tuple[float, float]:
-    """
-    Compute TM-score using the 'TMalign' binary.
-
-    Returns a tuple of two floats with, respectively:
-        - 'tm_score_1': TM-score normalized by length of structure 1 (candidate)
-        - 'tm_score_2': TM-score normalized by length of structure 2 (target)
-    """
-    tmalign_path = shutil.which("TMalign")
-    if not tmalign_path:
-        raise ImportError(
-            "The 'TMalign' binary is required for TM-score constraints. "
-            "Please install it (e.g., via Conda):\n\n"
-            "  conda install -c bioconda tmalign\n"
-        )
-
-    if plddt_threshold is not None:
-        candidate_pdb_text = _filter_pdb_by_plddt(
-            candidate_pdb_text,
-            plddt_threshold
-        )
-        if not any(
-            line.startswith("ATOM") for line in candidate_pdb_text.splitlines()
-        ):
-            return (0., 0.)
-
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.pdb', delete=False) as f_target:
-        f_target.write(target_pdb_text)
-        target_path = f_target.name
-
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.pdb', delete=False) as f_candidate:
-        f_candidate.write(candidate_pdb_text)
-        candidate_path = f_candidate.name
-
-    try:
-        cmd = [tmalign_path, candidate_path, target_path]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        output = result.stdout
-
-        # Parse both TM-scores from output
-        # TMalign outputs:
-        #   TM-score= X.XXXX (if normalized by length of Chain_1, i.e., the first structure)
-        #   TM-score= X.XXXX (if normalized by length of Chain_2, i.e., the second structure)
-
-        tm_score_1 = None
-        tm_score_2 = None
-
-        match_chain1 = re.search(
-            r"TM-score=\s*([0-9.]+)\s+\(if normalized by length of Chain_1", output
-        )
-        match_chain2 = re.search(
-            r"TM-score=\s*([0-9.]+)\s+\(if normalized by length of Chain_2", output
-        )
-
-        if match_chain1:
-            tm_score_1 = float(match_chain1.group(1))
-        if match_chain2:
-            tm_score_2 = float(match_chain2.group(1))
-
-        # Fallback: parse all TM-scores in order if specific patterns not found
-        if tm_score_1 is None or tm_score_2 is None:
-            matches = re.findall(r"TM-score=\s*([0-9.]+)", output)
-            if len(matches) >= 2:
-                tm_score_1 = tm_score_1 \
-                    if tm_score_1 is not None else float(matches[0])
-                tm_score_2 = tm_score_2 \
-                    if tm_score_2 is not None else float(matches[1])
-            elif len(matches) == 1:
-                # Only one score found, use it for both
-                tm_score_1 = tm_score_2 = float(matches[0])
-            else:
-                logger.warning(
-                    "Could not find TMscore in TMalign output, "
-                    "returning worst value"
-                )
-                tm_score_1 = tm_score_2 = 0.0
-
-        return (tm_score_1, tm_score_2)
-
-    except subprocess.CalledProcessError as e:
-        logger.warning(f"TMalign execution failed: {e}, returning worst value")
-        return (0., 0.)
-    finally:
-        if os.path.exists(target_path):
-            os.unlink(target_path)
-        if os.path.exists(candidate_path):
-            os.unlink(candidate_path)
-
-
-def _compute_usalign_score_from_pdb(
-    target_pdb_text: str,
-    candidate_pdb_text: str,
-    plddt_threshold: Optional[float] = None,
-) -> Tuple[float, float]:
-    """
-    Compute TM-score using 'USalign' for multimers.
-
-    Returns a tuple of two floats with, respectively:
-        - 'tm_score_1': TM-score normalized by length of structure 1 (candidate)
-        - 'tm_score_2': TM-score normalized by length of structure 2 (target)
-    """
-    usalign_path = shutil.which("USalign")
-    if not usalign_path:
-        raise ImportError(
-            "The 'USalign' binary is required for multimer structural alignment. "
-            "Please install it (e.g., via Conda):\n\n"
-            "  conda install -c bioconda usalign\n"
-        )
-
-    if plddt_threshold is not None:
-        candidate_pdb_text = _filter_pdb_by_plddt(
-            candidate_pdb_text,
-            plddt_threshold
-        )
-        if not any(
-            line.startswith("ATOM") for line in candidate_pdb_text.splitlines()
-        ):
-            return (0., 0.)
-
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.pdb', delete=False) as f_target:
-        f_target.write(target_pdb_text)
-        target_path = f_target.name
-
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.pdb', delete=False) as f_candidate:
-        f_candidate.write(candidate_pdb_text)
-        candidate_path = f_candidate.name
-
-    try:
-        cmd = [usalign_path, candidate_path, target_path, "-mm", "1", "-ter", "1"]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        output = result.stdout
-
-        # Parse both TM-scores
-        # USalign outputs:
-        #   TM-score= X.XXXX (normalized by length of Structure_1: ...)
-        #   TM-score= X.XXXX (normalized by length of Structure_2: ...)
-
-        tm_score_1 = None
-        tm_score_2 = None
-
-        match_struct1 = re.search(
-            r"TM-score=\s*([0-9.]+)\s+\(normalized by length of Structure_1", output
-        )
-        match_struct2 = re.search(
-            r"TM-score=\s*([0-9.]+)\s+\(normalized by length of Structure_2", output
-        )
-
-        if match_struct1:
-            tm_score_1 = float(match_struct1.group(1))
-        if match_struct2:
-            tm_score_2 = float(match_struct2.group(1))
-
-        # Fallback
-        if tm_score_1 is None or tm_score_2 is None:
-            matches = re.findall(r"TM-score=\s*([0-9.]+)", output)
-            if len(matches) >= 2:
-                tm_score_1 = tm_score_1 \
-                    if tm_score_1 is not None else float(matches[0])
-                tm_score_2 = tm_score_2 \
-                    if tm_score_2 is not None else float(matches[1])
-            elif len(matches) == 1:
-                tm_score_1 = tm_score_2 = float(matches[0])
-            else:
-                logger.warning("Could not find TM-score in USalign output")
-                tm_score_1 = tm_score_2 = 0.0
-
-        return (tm_score_1, tm_score_2)
-
-    except subprocess.CalledProcessError as e:
-        logger.warning(f"USalign execution failed: {e}, returning worst value")
-        return (0., 0.)
-    finally:
-        if os.path.exists(target_path):
-            os.unlink(target_path)
-        if os.path.exists(candidate_path):
-            os.unlink(candidate_path)
 
 
 # ============================================================================
@@ -664,7 +485,7 @@ def _count_pdb_chains(pdb_text: str) -> int:
     config=StructureTMScoreConfig,
     description="Compare structure TM-score against a target. Returns 1 - TMscore.",
     gpu_required=True,
-    tools_called=["esmfold-prediction", "alphafold3-prediction", "boltz2-prediction", "chai1-prediction", "tmalign", "usalign"],
+    tools_called=["esmfold-prediction", "alphafold3-prediction", "boltz2-prediction", "chai1-prediction", "tmalign-alignment", "usalign-alignment"],
     category="protein_structure",
     supported_sequence_types=["protein", "rna", "dna", "ligand"],
     num_input_sequences_per_tuple=None,
@@ -715,20 +536,44 @@ def structure_tmscore_constraint(
     for candidate_structure, candidate_tuple in zip(results.structures, input_sequences):
         n_cand_chains = len(candidate_tuple)
 
+        # Apply pLDDT filtering at the constraint level before alignment.
+        candidate_pdb = candidate_structure.structure_pdb
+        if config.plddt_threshold is not None:
+            candidate_pdb = _filter_pdb_by_plddt(
+                candidate_pdb, config.plddt_threshold
+            )
+            if not any(
+                line.startswith("ATOM") for line in candidate_pdb.splitlines()
+            ):
+                scores.append(1.0)
+                continue
+
         if n_target_chains == 1 and n_cand_chains == 1:
-            # Monomer vs monomer uses standard TMalign.
-            s1, s2 = _compute_tmalign_score_from_pdb(
-                target_pdb,
-                candidate_structure.structure_pdb,
-                plddt_threshold=config.plddt_threshold,
+            _tmalign_out = run_tmalign(
+                TMalignInput(
+                    pdb_text_1=candidate_pdb,
+                    pdb_text_2=target_pdb,
+                ),
+                TMalignConfig(),
             )
+            if _tmalign_out.success is False:
+                logger.warning(f"TMalign failed: {_tmalign_out.errors}")
+                scores.append(1.0)
+                continue
+            s1, s2 = _tmalign_out.tm_score_chain_1, _tmalign_out.tm_score_chain_2
         else:
-            # USalign is needed for multimer comparison.
-            s1, s2 = _compute_usalign_score_from_pdb(
-                target_pdb,
-                candidate_structure.structure_pdb,
-                plddt_threshold=config.plddt_threshold
+            _usalign_out = run_usalign(
+                USalignInput(
+                    pdb_text_1=candidate_pdb,
+                    pdb_text_2=target_pdb,
+                ),
+                USalignConfig(),
             )
+            if _usalign_out.success is False:
+                logger.warning(f"USalign failed: {_usalign_out.errors}")
+                scores.append(1.0)
+                continue
+            s1, s2 = _usalign_out.tm_score_structure_1, _usalign_out.tm_score_structure_2
 
         if config.tm_score_normalization == "structure1":
             tm_val = s1
