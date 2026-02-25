@@ -47,9 +47,8 @@ pre-commit install
 ```
 
 > [!NOTE]
-> Evo2 is no longer included in the base environment. If you want to use
-> a version of the base environment that supports Evo2, clone from Brian's env
-> on Chimera (instructions below). This is required for Beam Search:
+> Beam search with Evo2 does not work in the main environment. To fix this issue, clone from Brian's env
+> on Chimera (instructions below) and use Evo2 `_in_process_mode`:
 
 ```bash
 conda create --name proto-language --clone /home/brianhie/miniconda/envs/gpro/
