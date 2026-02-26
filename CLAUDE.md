@@ -51,6 +51,23 @@ Dynamic development notes that evolve as the repo grows. **Read these at the sta
 
 The `proto-tools/` submodule has its own `notes/` directory.
 
+## Keeping Docs in Sync
+
+When a code change alters behavior documented in this file or any `SKILL.md`, update the docs in the same change. Key mappings:
+
+| Code area | Update in |
+|---|---|
+| `proto_language/language/constraint/` | CLAUDE.md Architecture, `implement-constraint` SKILL.md |
+| `proto_language/language/generator/` | CLAUDE.md Architecture, `implement-generator` SKILL.md |
+| `proto_language/language/optimizer/` | CLAUDE.md Architecture, `implement-optimizer` SKILL.md |
+| `proto_language/language/core/` | `general-dev` SKILL.md (Data Model, Result Export) |
+| `proto_language/base_config.py` | `general-dev` SKILL.md (Config Pattern) |
+| `tests/conftest.py`, pytest markers | CLAUDE.md Test Conventions, `testing` SKILL.md |
+| `api/`, `agent/`, `deployment/` | CLAUDE.md Architecture |
+| New skills or commands added | CLAUDE.md Skills & Commands section |
+
+The `proto-tools/` submodule has its own CLAUDE.md with its own mappings.
+
 ## Coding Conventions
 
 - `from __future__ import annotations` at top of every file
