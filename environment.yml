@@ -1,0 +1,33 @@
+name: proto-language
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+
+  # Compilers — needed by tool envs that compile from source (TMalign, USalign, flash-attn)
+  - gcc
+  - gxx
+  - binutils
+
+  # Build tools
+  - cmake
+  - make
+  - pkg-config
+
+  # Used by tool setup scripts (git clone, curl downloads)
+  - git
+  - curl
+
+  # System libs that pip packages link against
+  - libffi
+  - openssl
+  - zlib
+  - hdf5
+
+  # Python package manager
+  - pip
+
+  # Install core Python deps from pyproject.toml
+  - pip:
+      - -e "."
+      - -e "./proto-tools"
