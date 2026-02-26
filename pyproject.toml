@@ -112,7 +112,7 @@ Documentation = "https://github.com/evo-design/proto-language#readme"
 
 
 [tool.setuptools.packages.find]
-include = ["proto_language*", "api*", "agent*"]
+include = ["proto_language*", "api*", "agent*", "deployment*"]
 exclude = ["tests*", "examples*", "*.tests*", "*.tests", "proto-tools*"]
 
 [tool.pytest.ini_options]
@@ -145,7 +145,7 @@ target-version = ['py310']
 
 [tool.isort]
 profile = "black"
-known_first_party = ["proto_language", "api", "agent"]
+known_first_party = ["proto_language", "api", "agent", "deployment"]
 
 [tool.mypy]
 python_version = "3.10"

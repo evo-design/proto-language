@@ -34,9 +34,9 @@ pytest                                # Fast tests (skips slow)
 pytest --cpu --skip-ci                # Mimic CI
 pytest --gpu --all                    # GPU + slow tests
 pytest -k "name"                      # Filter by name
-flake8 proto_language api agent tests  # Lint (F401, F841 only)
-black proto_language api agent tests   # Format
-isort proto_language api agent tests   # Sort imports
+flake8 proto_language api agent deployment tests  # Lint (F401, F841 only)
+black proto_language api agent deployment tests   # Format
+isort proto_language api agent deployment tests   # Sort imports
 pre-commit run --all-files              # All checks
 python api/start_dev.py                 # API dev server
 python deployment/deploy_cloud_functions.py  # Deploy cloud services
