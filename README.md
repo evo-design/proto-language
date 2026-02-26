@@ -19,28 +19,39 @@ A framework for designing biological sequences (DNA, RNA, proteins) with constra
 
 ## Installation
 
+### With conda (recommended)
+
+Includes compilers and system libraries needed by tool environments.
+
 ```bash
 # 1. Clone and initialize submodules
 git clone https://github.com/evo-design/proto-language.git
 cd proto-language
 git submodule update --init --recursive
 
-# 2. Create and activate conda environment
-conda create --name proto-language python=3.12 -y
+# 2. Create conda environment (compilers, system libs, core Python deps, and tools)
+conda env create -f environment.yml
 conda activate proto-language
-
-# 3. Install dependencies
-pip install uv
-uv pip install -e .                      # Users: core language
-uv pip install -e ./proto-tools
 ```
 
-**For developers** (API server, AI agent, testing, linting):
+### With pip only
+
+If you already have compilers (`gcc`, `g++`, `cmake`) installed system-wide:
 
 ```bash
-pip install uv
-uv pip install -e ".[all]"               # Developers: + API, agent, testing, linting
-uv pip install -e ./proto-tools
+git clone https://github.com/evo-design/proto-language.git
+cd proto-language
+git submodule update --init --recursive
+pip install -e .
+pip install -e ./proto-tools
+```
+
+### Developers
+
+```bash
+# 3. (Optional) Install full dev dependencies (API, agent, testing, linting)
+pip install -e ".[all]"
+pip install -e "./proto-tools[dev]"
 
 # 4. (Optional) Install pre-commit hooks
 pre-commit install
