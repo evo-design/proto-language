@@ -42,14 +42,37 @@ python api/start_dev.py                 # API dev server
 python deployment/deploy_cloud_functions.py  # Deploy cloud services
 ```
 
-## Notes (`notes/`)
+## Knowledge Management
 
-Dynamic development notes that evolve as the repo grows. **Read these at the start of relevant tasks. Actively update them** when you discover new gotchas, resolve issues, or learn something future sessions should know — don't ask, just update and mention what you added.
+Three layers for persistent knowledge — put information in the right one:
 
-- `dev.md` — Setup, submodule sync, pre-commit hooks, CI checks, docs generation.
-- `batching.md` — Batching architecture across generator → tool → GPU boundary.
+| Layer | Location | Shared? | Best For |
+|-------|----------|---------|----------|
+| **CLAUDE.md** | Repo root (git) | Team | Conventions, architecture, commands, standards |
+| **notes/** | `notes/` (git) | Team | Setup guides, CI procedures, architecture decisions, platform reports |
+| **Auto-memory** | `~/.claude/.../memory/` | Personal | Debugging patterns, tool/model quirks, non-obvious discoveries |
+
+### notes/
+
+Team-shared development docs. Read at the start of relevant tasks.
+
+- `dev.md` — Setup, submodule sync, pre-commit hooks, CI checks, docs generation
+- `batching.md` — Batching architecture across generator → tool → GPU boundary
+
+Update notes/ when you discover something **every developer needs to know** (CI changes, new setup steps, architecture decisions).
 
 The `proto-tools/` submodule has its own `notes/` directory.
+
+### Auto-memory
+
+Claude's personal memory across sessions. Save to auto-memory when you discover something **non-obvious during a session**:
+
+- Debugging that took multiple attempts → save root cause + fix
+- Undocumented tool/model behavior → save the quirk + workaround
+- Non-obvious architectural coupling → save the discovery
+- Platform-specific issues (cloud cold starts, GPU memory limits, etc.)
+
+Do NOT save to auto-memory: anything already in CLAUDE.md or notes/ (avoid duplication), temporary task context, or information other developers need (use notes/ instead).
 
 ## Keeping Docs in Sync
 

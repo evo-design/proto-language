@@ -1,5 +1,5 @@
 # Notes
 
-Dynamic development notes for proto-language. These files capture setup guides, architecture decisions, platform issues, and other context that evolves as the repo grows.
+Team-shared development docs for proto-language. These files capture setup guides, architecture decisions, platform quirks, and CI procedures — knowledge that **every developer** needs.
 
-Claude: consult these notes when working in this repo and update them when you discover new information worth preserving.
+For personal discoveries (debugging patterns, tool quirks found during a session), use Claude's auto-memory instead of adding to these files. Only add to notes/ when the knowledge benefits the whole team.
