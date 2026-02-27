@@ -204,8 +204,8 @@ class TestCyclingOptimizerValidation:
                 conditioning_fn=components["conditioning_fn"],
             )
 
-    def test_constraints_must_target_target_segment(self):
-        """Cycling constraints must target the configured target segment."""
+    def test_constraints_on_non_target_segment_accepted(self):
+        """Constraints referencing non-target segments are accepted."""
         components = _setup_cycling_components()
         context_segment = Segment(sequence="M" * 20, sequence_type="protein")
         construct = Construct([components["target_segment"], context_segment])
@@ -216,22 +216,22 @@ class TestCyclingOptimizerValidation:
         filter_func._constraint_config_class = EmptyConfig
         filter_func._constraint_supported_sequence_types = ["protein"]
 
-        invalid_constraint = Constraint(
+        non_target_constraint = Constraint(
             inputs=[context_segment],
             function=filter_func,
             function_config=EmptyConfig(),
             threshold=0.5,
         )
 
-        with pytest.raises(ValueError, match="only supports constraints targeting the target_segment"):
-            CyclingOptimizer(
-                target_segment=components["target_segment"],
-                constructs=[construct],
-                generators=[components["generator"]],
-                constraints=[invalid_constraint],
-                config=components["config"],
-                conditioning_fn=components["conditioning_fn"],
-            )
+        optimizer = CyclingOptimizer(
+            target_segment=components["target_segment"],
+            constructs=[construct],
+            generators=[components["generator"]],
+            constraints=[non_target_constraint],
+            config=components["config"],
+            conditioning_fn=components["conditioning_fn"],
+        )
+        assert optimizer.target_segment is components["target_segment"]
 
     def test_duplicate_constraint_instance_fails(self):
         """Same constraint instance cannot be passed twice."""

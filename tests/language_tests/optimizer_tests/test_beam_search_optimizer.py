@@ -236,15 +236,15 @@ class TestBeamSearchOptimizer:
         )
         assert optimizer.target_segment == segments[0]
 
-    def test_non_target_constraint_input_fails(self):
-        """BeamSearch constraints must target only the target segment."""
+    def test_non_target_constraint_input_accepted(self):
+        """BeamSearch accepts constraints referencing non-target segments."""
         target_segment = Segment(length=20, sequence_type="dna")
         context_segment = Segment(sequence="ATCGATCGATCGATCGATCG", sequence_type="dna")
         construct = Construct([target_segment, context_segment])
         generator = MockAutoregressiveGenerator()
         generator._assigned_segment = target_segment
 
-        invalid_constraint = Constraint(
+        non_target_constraint = Constraint(
             inputs=[context_segment],
             function=gc_content_constraint,
             function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
@@ -253,14 +253,14 @@ class TestBeamSearchOptimizer:
             prompt="ATCG", beam_length=10, num_results=2, candidates_per_result=3
         )
 
-        with pytest.raises(ValueError, match="only supports constraints targeting the target_segment"):
-            BeamSearchOptimizer(
-                target_segment=target_segment,
-                constructs=[construct],
-                generators=[generator],
-                constraints=[invalid_constraint],
-                config=config,
-            )
+        optimizer = BeamSearchOptimizer(
+            target_segment=target_segment,
+            constructs=[construct],
+            generators=[generator],
+            constraints=[non_target_constraint],
+            config=config,
+        )
+        assert optimizer.target_segment is target_segment
 
     def test_duplicate_constraint_instance_fails(self):
         """Same constraint instance cannot be passed twice."""

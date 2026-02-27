@@ -400,21 +400,12 @@ class Optimizer(ABC):
             self._labels_deduplicated = True
 
     def _validate_target_segment(self, target_segment) -> None:
-        """Validate target_segment is in constructs and all constraints reference only it."""
+        """Validate target_segment is in constructs."""
         if target_segment not in self.segments:
             raise ValueError(
                 f"target_segment '{target_segment.label or 'unlabeled'}' "
                 "is not in any of the provided constructs"
             )
-        for constraint in self.constraints:
-            for input_segment in constraint.inputs:
-                if input_segment is not target_segment:
-                    raise ValueError(
-                        f"{self.__class__.__name__} only supports constraints targeting "
-                        f"the target_segment ('{target_segment.label or 'unlabeled'}'). "
-                        f"Constraint '{constraint.label}' references "
-                        f"'{input_segment.label or 'unlabeled'}'."
-                    )
 
     def _initialize_sequence_pools(self) -> None:
         """Initialize sequence pools from previous optimizer's results or original sequence.
