@@ -10,12 +10,12 @@ A framework for designing biological sequences (DNA, RNA, proteins) with constra
 
 ### Backend
 
-- `[proto-tools](https://github.com/evo-design/proto-tools/tree/main)` – Standalone tool layer for biological models.
+- [`proto-tools`](https://github.com/evo-design/proto-tools/tree/main) – Standalone tool layer for biological models.
 
 ### Client
 
-- `[proto-tools-ui](https://github.com/evo-design/proto-tools-ui)` – Mock UI for demonstrating tool usage.
-- `[proto-language-lang](https://github.com/evo-design/proto-language-lang)` – Primary client interface for the biological programming language.
+- [`proto-tools-ui`](https://github.com/evo-design/proto-tools-ui) – Mock UI for demonstrating tool usage.
+- [`proto-language-lang`](https://github.com/evo-design/proto-language-lang) – Primary client interface for the biological programming language.
 
 ## Installation
 
