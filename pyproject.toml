@@ -27,7 +27,7 @@ dependencies = [
 
     # Bioinformatics
     "biopython>=1.81",
-    "biotite>=0.38.0",
+    "biotite>=0.38.0,<1.2.0",
     "rdkit",
     "pymol-open-source",
 
