@@ -287,9 +287,8 @@ def validate_all_consistency(
 
 
 def validate_registry_exports(
-    pkg_dir: Path,
-    decorator_names: Set[str],
     parsed: Dict[Path, Tuple[ast.Module, Optional[List[str]]]],
+    decorated_by_file: Dict[Path, Dict[str, str]],
     exceptions: Set[str],
 ) -> List[ValidationError]:
     """
@@ -297,13 +296,7 @@ def validate_registry_exports(
     by its immediate parent __init__.py's __all__.
     """
     errors = []
-    for py_file in pkg_dir.rglob("*.py"):
-        if py_file.name == "__init__.py":
-            continue
-        decorated = extract_decorated_names(py_file, decorator_names)
-        if not decorated:
-            continue
-
+    for py_file, decorated in sorted(decorated_by_file.items()):
         # Look up the immediate parent __init__.py's __all__
         parent_init = py_file.parent / "__init__.py"
         if parent_init in parsed:
@@ -330,9 +323,8 @@ def validate_registry_exports(
 
 
 def validate_package_root_exports(
-    pkg_dir: Path,
     package_root: Path,
-    decorator_names: Set[str],
+    decorated_by_file: Dict[Path, Dict[str, str]],
     exceptions: Set[str],
 ) -> List[ValidationError]:
     """
@@ -347,8 +339,6 @@ def validate_package_root_exports(
     pkg_root_init = package_root / "__init__.py"
 
     if not pkg_root_init.exists():
-        # If the package root __init__.py doesn't exist, flag all decorated symbols
-        tree = None
         root_all: Set[str] = set()
     else:
         tree = parse_init(pkg_root_init)
@@ -357,11 +347,7 @@ def validate_package_root_exports(
         all_list = extract_all_list(tree)
         root_all = set(all_list) if all_list is not None else set()
 
-    # Scan domain for decorated symbols
-    for py_file in pkg_dir.rglob("*.py"):
-        if py_file.name == "__init__.py":
-            continue
-        decorated = extract_decorated_names(py_file, decorator_names)
+    for py_file, decorated in sorted(decorated_by_file.items()):
         for name, dec_name in decorated.items():
             if name in exceptions:
                 continue
@@ -472,24 +458,27 @@ def validate_domain(
                 print(f"      OK: {_rel(init)} ({len(all_list)} exports)")
             domain_errors.extend(errors)
 
+    # Scan decorated names once (shared by checks 2 + 3 + zero-count warning)
+    decorated_by_file: Dict[Path, Dict[str, str]] = {}
+    if "registry_exports" in checks and decorator_names:
+        for py_file in sorted(root_dir.rglob("*.py")):
+            if py_file.name == "__init__.py":
+                continue
+            decorated = extract_decorated_names(py_file, decorator_names)
+            if decorated:
+                decorated_by_file[py_file] = decorated
+
     # Check 2: Registry decorator exports
     if "registry_exports" in checks and decorator_names:
         if verbose:
             print(f"    Checking registry decorators: {decorator_names}")
         errors = validate_registry_exports(
-            root_dir, decorator_names, parsed, exceptions
+            parsed, decorated_by_file, exceptions
         )
         domain_errors.extend(errors)
 
         # Safety: warn if zero decorated functions found (possible stale config)
-        total_decorated = 0
-        for py_file in root_dir.rglob("*.py"):
-            if py_file.name == "__init__.py":
-                continue
-            total_decorated += len(
-                extract_decorated_names(py_file, decorator_names)
-            )
-        if total_decorated == 0:
+        if not decorated_by_file:
             msg = (
                 f"[{name}] WARNING: found 0 functions decorated with "
                 f"{decorator_names} under {_rel(root_dir)}. "
@@ -504,7 +493,7 @@ def validate_domain(
         if verbose:
             print(f"    Checking package root exports: {_rel(pkg_root_dir)}")
         errors = validate_package_root_exports(
-            root_dir, pkg_root_dir, decorator_names, exceptions
+            pkg_root_dir, decorated_by_file, exceptions
         )
         domain_errors.extend(errors)
 

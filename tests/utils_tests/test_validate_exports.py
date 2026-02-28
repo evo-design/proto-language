@@ -287,6 +287,17 @@ class TestValidateRegistryExports:
                 parsed[init] = (tree, all_list)
         return parsed
 
+    def _scan_decorated(self, pkg: Path, decorator_names):
+        """Helper to scan decorated names once for a package dir."""
+        result = {}
+        for py_file in sorted(pkg.rglob("*.py")):
+            if py_file.name == "__init__.py":
+                continue
+            decorated = extract_decorated_names(py_file, decorator_names)
+            if decorated:
+                result[py_file] = decorated
+        return result
+
     def test_decorated_and_exported(self, tmp_path):
         pkg = tmp_path / "pkg"
         pkg.mkdir()
@@ -303,7 +314,8 @@ class TestValidateRegistryExports:
         '''))
 
         parsed = self._build_parsed(pkg)
-        errors = validate_registry_exports(pkg, {"tool"}, parsed, set())
+        decorated_by_file = self._scan_decorated(pkg, {"tool"})
+        errors = validate_registry_exports(parsed, decorated_by_file, set())
         assert len(errors) == 0
 
     def test_decorated_but_not_exported(self, tmp_path):
@@ -320,7 +332,8 @@ class TestValidateRegistryExports:
         '''))
 
         parsed = self._build_parsed(pkg)
-        errors = validate_registry_exports(pkg, {"tool"}, parsed, set())
+        decorated_by_file = self._scan_decorated(pkg, {"tool"})
+        errors = validate_registry_exports(parsed, decorated_by_file, set())
         assert len(errors) == 1
         assert errors[0].symbol == "run_my_tool"
 
@@ -355,7 +368,8 @@ class TestValidateRegistryExports:
         ''')
 
         parsed = self._build_parsed(root)
-        errors = validate_registry_exports(root, {"tool"}, parsed, set())
+        decorated_by_file = self._scan_decorated(root, {"tool"})
+        errors = validate_registry_exports(parsed, decorated_by_file, set())
         # pkg_a/my_tool.py has @tool run_foo but pkg_a/__init__.py has __all__ = []
         assert len(errors) == 1
         assert errors[0].symbol == "run_foo"
@@ -686,6 +700,17 @@ class TestValidateDomain:
 
 
 class TestValidatePackageRootExports:
+    def _scan_decorated(self, pkg: Path, decorator_names):
+        """Helper to scan decorated names once for a package dir."""
+        result = {}
+        for py_file in sorted(pkg.rglob("*.py")):
+            if py_file.name == "__init__.py":
+                continue
+            decorated = extract_decorated_names(py_file, decorator_names)
+            if decorated:
+                result[py_file] = decorated
+        return result
+
     def test_symbol_in_both_domain_and_package_root(self, tmp_path):
         """Decorated symbol present in package root __all__ → no error."""
         domain_pkg = tmp_path / "domain"
@@ -702,9 +727,8 @@ class TestValidatePackageRootExports:
             __all__ = ["gc_constraint"]
         ''')
 
-        errors = validate_package_root_exports(
-            domain_pkg, pkg_root, {"constraint"}, set()
-        )
+        decorated_by_file = self._scan_decorated(domain_pkg, {"constraint"})
+        errors = validate_package_root_exports(pkg_root, decorated_by_file, set())
         assert len(errors) == 0
 
     def test_symbol_missing_from_package_root(self, tmp_path):
@@ -723,9 +747,8 @@ class TestValidatePackageRootExports:
             __all__ = ["something_else"]
         ''')
 
-        errors = validate_package_root_exports(
-            domain_pkg, pkg_root, {"constraint"}, set()
-        )
+        decorated_by_file = self._scan_decorated(domain_pkg, {"constraint"})
+        errors = validate_package_root_exports(pkg_root, decorated_by_file, set())
         assert len(errors) == 1
         assert errors[0].symbol == "gc_constraint"
 
@@ -750,9 +773,8 @@ class TestValidatePackageRootExports:
             __all__ = []
         ''')
 
-        errors = validate_package_root_exports(
-            domain_pkg, pkg_root, {"constraint"}, set()
-        )
+        decorated_by_file = self._scan_decorated(domain_pkg, {"constraint"})
+        errors = validate_package_root_exports(pkg_root, decorated_by_file, set())
         assert len(errors) == 2
         symbols = {e.symbol for e in errors}
         assert symbols == {"constraint_a", "constraint_b"}
@@ -773,9 +795,8 @@ class TestValidatePackageRootExports:
             __all__ = []
         ''')
 
-        errors = validate_package_root_exports(
-            domain_pkg, pkg_root, {"constraint"}, {"gc_constraint"}
-        )
+        decorated_by_file = self._scan_decorated(domain_pkg, {"constraint"})
+        errors = validate_package_root_exports(pkg_root, decorated_by_file, {"gc_constraint"})
         assert len(errors) == 0
 
     def test_package_root_no_all(self, tmp_path):
@@ -794,9 +815,8 @@ class TestValidatePackageRootExports:
             from .sub import something
         ''')
 
-        errors = validate_package_root_exports(
-            domain_pkg, pkg_root, {"constraint"}, set()
-        )
+        decorated_by_file = self._scan_decorated(domain_pkg, {"constraint"})
+        errors = validate_package_root_exports(pkg_root, decorated_by_file, set())
         assert len(errors) == 1
         assert errors[0].symbol == "gc_constraint"
 
@@ -814,9 +834,8 @@ class TestValidatePackageRootExports:
         pkg_root.mkdir()
         # No __init__.py
 
-        errors = validate_package_root_exports(
-            domain_pkg, pkg_root, {"constraint"}, set()
-        )
+        decorated_by_file = self._scan_decorated(domain_pkg, {"constraint"})
+        errors = validate_package_root_exports(pkg_root, decorated_by_file, set())
         assert len(errors) == 1
         assert errors[0].symbol == "gc_constraint"
 
@@ -835,9 +854,8 @@ class TestValidatePackageRootExports:
             __all__ = []
         ''')
 
-        errors = validate_package_root_exports(
-            domain_pkg, pkg_root, {"constraint"}, set()
-        )
+        decorated_by_file = self._scan_decorated(domain_pkg, {"constraint"})
+        errors = validate_package_root_exports(pkg_root, decorated_by_file, set())
         assert len(errors) == 0
 
     def test_subdirectory_decorated_symbols(self, tmp_path):
@@ -860,8 +878,7 @@ class TestValidatePackageRootExports:
             __all__ = []
         ''')
 
-        errors = validate_package_root_exports(
-            domain_pkg, pkg_root, {"constraint"}, set()
-        )
+        decorated_by_file = self._scan_decorated(domain_pkg, {"constraint"})
+        errors = validate_package_root_exports(pkg_root, decorated_by_file, set())
         assert len(errors) == 1
         assert errors[0].symbol == "nested_constraint"
