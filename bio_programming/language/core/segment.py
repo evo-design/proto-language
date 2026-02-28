@@ -17,21 +17,21 @@ logger = logging.getLogger(__name__)
 
 class Segment:
     """
-    Building block for biological constructs with two sequence pools: candidate (work space) and selected (results space):
+    Building block for biological constructs with two sequence pools: candidate (work space) and result (results space):
     - candidate_sequences: Working space for optimizer proposals (mutations, offspring, rollouts)
-    - selected_sequences: Results space containing current best sequences (user-facing)
+    - result_sequences: Results space containing current best sequences (user-facing)
 
     Examples:
         Creating a Segment with a sequence:
         >>> promoter = Segment(sequence="TATA", sequence_type="dna", label="promoter")
         >>> promoter.label  # "promoter"
         >>> promoter.sequence_length  # 4 (inferred from sequence)
-        >>> promoter.selected_sequences  # [Sequence("TATA")]
+        >>> promoter.result_sequences  # [Sequence("TATA")]
 
         Creating a Segment with just a length:
         >>> variable_region = Segment(length=100, sequence_type="dna", label="variable")
         >>> variable_region.sequence_length  # 100
-        >>> variable_region.selected_sequences  # [Sequence("")]
+        >>> variable_region.result_sequences  # [Sequence("")]
     """
 
     def __init__(
@@ -89,10 +89,10 @@ class Segment:
             metadata=metadata,
             valid_chars=valid_chars,
         )
-        # Dual pools: candidates (work space) and selected (results space)
+        # Dual pools: candidates (work space) and result (results space)
         # These are deep copies so modifications don't affect original_sequence
         self.candidate_sequences: List[Sequence] = [copy.deepcopy(self._original_sequence)]
-        self.selected_sequences: List[Sequence] = [copy.deepcopy(self._original_sequence)]
+        self.result_sequences: List[Sequence] = [copy.deepcopy(self._original_sequence)]
 
         self.label: Optional[str] = label
         self.construct_label: Optional[str] = None  # Set by Program for metadata tracking
@@ -110,8 +110,8 @@ class Segment:
 
     @property
     def num_results(self) -> int:
-        """Number of sequences in selected pool (solution space)."""
-        return len(self.selected_sequences)
+        """Number of sequences in result pool (solution space)."""
+        return len(self.result_sequences)
 
     @property
     def num_candidates(self) -> int:
@@ -132,12 +132,12 @@ class Segment:
     def populated_sequences(self) -> bool:
         """
         Whether segment has sequences from original input or previous optimization.
-        Only checks original sequence (original user input) and selected sequences (previous optimization results).
+        Only checks original sequence (original user input) and result sequences (previous optimization results).
         Candidate sequences are not considered because they the staging area for optimizations.
         """
         return bool(
             self._original_sequence.sequence or
-            (self.selected_sequences and self.selected_sequences[0].sequence)
+            (self.result_sequences and self.result_sequences[0].sequence)
         )
 
     @property
@@ -151,12 +151,12 @@ class Segment:
         return self.sequence_type == "ligand"
 
     def __iter__(self) -> Iterator[Sequence]:
-        """Iterate over selected sequences (user-facing results)."""
-        return iter(self.selected_sequences)
+        """Iterate over result sequences (user-facing results)."""
+        return iter(self.result_sequences)
 
     def __getitem__(self, index: int) -> Sequence:
-        """Index into selected sequences (user-facing results)."""
-        return self.selected_sequences[index]
+        """Index into result sequences (user-facing results)."""
+        return self.result_sequences[index]
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize Segment to dictionary for cloud/API communication."""
@@ -164,7 +164,7 @@ class Segment:
             "original_sequence": self.original_sequence.to_dict(),
             "sequence_length": self.sequence_length,
             "candidate_sequences": [seq.to_dict() for seq in self.candidate_sequences],
-            "selected_sequences": [seq.to_dict() for seq in self.selected_sequences],
+            "result_sequences": [seq.to_dict() for seq in self.result_sequences],
             "sequence_type": self.sequence_type,
             "valid_chars": list(self.valid_chars) if self.valid_chars else None,
             "label": self.label,
@@ -188,6 +188,6 @@ class Segment:
 
         # Restore sequence pools
         segment.candidate_sequences = [Sequence.from_dict(seq_data) for seq_data in data["candidate_sequences"]]
-        segment.selected_sequences = [Sequence.from_dict(seq_data) for seq_data in data["selected_sequences"]]
+        segment.result_sequences = [Sequence.from_dict(seq_data) for seq_data in data["result_sequences"]]
 
         return segment

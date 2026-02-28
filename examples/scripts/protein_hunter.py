@@ -175,7 +175,7 @@ def run_protein_hunter(
         def step_logging(cycle: int, segments: Tuple[Segment, ...]) -> None:
             """Log progress for the best candidate after each cycle."""
             # Just grab the first candidate to show progress
-            best_seq = segments[0].selected_sequences[0]
+            best_seq = segments[0].result_sequences[0]
             print(f"Cycle {cycle}/{num_cycles}: {best_seq.sequence}... (len={len(best_seq)})")
 
         optimizer_config = CyclingOptimizerConfig(
@@ -208,7 +208,7 @@ def run_protein_hunter(
             f.write(f"# Protein Hunter Design Results\n")
             f.write(f"# Timestamp: {datetime.now().isoformat()}\n\n")
 
-            for i, seq in enumerate(protein.selected_sequences):
+            for i, seq in enumerate(protein.result_sequences):
                 candidate_id = i + 1
 
                 # Save PDB if available.

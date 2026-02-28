@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Literal, Optional
 import pandas as pd
 
 from proto_language.utils.export import (
-    build_batch_results,
+    build_results,
     export_tables,
     flatten_table,
     to_fasta,
@@ -33,22 +33,22 @@ class Program:
         **After each optimizer completes:**
 
         Optimizers are responsible for their own sorting. TopK keeps
-        ``selected_sequences`` sorted by energy throughout its run. Other
+        ``result_sequences`` sorted by energy throughout its run. Other
         optimizers' natural ordering is preserved as-is.
 
         **Before the next optimizer runs:**
 
-        1. ``_initialize_sequence_pools()`` reads from ``selected_sequences``
+        1. ``_initialize_sequence_pools()`` reads from ``result_sequences``
            (or ``original_sequence`` if first optimizer)
-        2. Both ``selected_sequences`` and ``candidate_sequences`` are initialized by
+        2. Both ``result_sequences`` and ``candidate_sequences`` are initialized by
            cycling through source to preserve diversity when pool sizes differ
            (e.g., source=[A,B,C], num_results=5 -> [A,B,C,A,B])
 
         **Optimizer-specific behavior:**
 
-        - **TopK**: Clears ``selected_sequences`` and repopulates dynamically during run
+        - **TopK**: Clears ``result_sequences`` and repopulates dynamically during run
           (always sorted by energy)
-        - **MCMC**: Uses ``selected_sequences`` as parallel trajectories, overwrites
+        - **MCMC**: Uses ``result_sequences`` as parallel trajectories, overwrites
           ``candidate_sequences`` each step via ``_populate_candidate_sequences()``
         - **CyclingOptimizer**: Works directly on ``candidate_sequences``
         - **BeamSearch**: Ignores previous state entirely, starts fresh from configured prompt
@@ -262,13 +262,13 @@ class Program:
                         )
                     seen_constraints[id(con)] = opt_idx
 
-    def _log_stage_results(self, stage_index: int, batch_results: list) -> None:
+    def _log_stage_results(self, stage_index: int, results: list) -> None:
         """Log results for a completed optimization stage."""
         logger.debug(f"Final state for optimizer {stage_index + 1}:")
-        for result in batch_results:
+        for result in results:
             energy = result['energy_score']
             energy_str = f"{energy:.4f}" if energy is not None else "None"
-            logger.debug(f"  [{result['batch_idx']}] energy={energy_str}")
+            logger.debug(f"  [{result['result_idx']}] energy={energy_str}")
             for construct in result["constructs"]:
                 seqs = [seg["sequence"] for seg in construct["segments"]]
                 logger.debug(f"    {construct['label']}: {' | '.join(seqs)}")
@@ -345,10 +345,10 @@ class Program:
 
         optimizer.run()
 
-        stage_result = self.extract_batch_results(optimizer.energy_scores)
+        stage_result = self.extract_results(optimizer.energy_scores)
 
         if self.verbose:
-            self._log_stage_results(stage_index, stage_result["batch_results"])
+            self._log_stage_results(stage_index, stage_result["results"])
 
         self._stage_results.append(stage_result)
         self.current_stage = stage_index + 1
@@ -367,14 +367,14 @@ class Program:
         """
         for construct in self.constructs:
             for segment in construct.segments:
-                for seq in segment.selected_sequences:
+                for seq in segment.result_sequences:
                     seq._constraints_metadata = {}
                 for seq in segment.candidate_sequences:
                     seq._constraints_metadata = {}
 
-    def extract_batch_results(self, energy_scores: List[float]) -> Dict[str, Any]:
-        """Extract batch results from constructs."""
-        return build_batch_results(self.constructs, energy_scores)
+    def extract_results(self, energy_scores: List[float]) -> Dict[str, Any]:
+        """Extract results from constructs."""
+        return build_results(self.constructs, energy_scores)
 
     def serialize_state(self) -> Dict:
         """
@@ -388,13 +388,13 @@ class Program:
         for construct in self.constructs:
             for segment in construct.segments:
                 segment_state = {
-                    "selected_sequences": [
+                    "result_sequences": [
                         {
                             "sequence": seq.sequence,
                             "sequence_type": seq.sequence_type,
                             "valid_chars": list(seq.valid_chars) if seq.valid_chars else None,
                         }
-                        for seq in segment.selected_sequences
+                        for seq in segment.result_sequences
                     ],
                 }
                 segment_states.append(segment_state)
@@ -423,13 +423,13 @@ class Program:
             )
 
         for segment, segment_state in zip(all_segments, state["segments"]):
-            segment.selected_sequences = [
+            segment.result_sequences = [
                 Sequence(
                     sequence=seq_data["sequence"],
                     sequence_type=seq_data["sequence_type"],
                     valid_chars=set(seq_data["valid_chars"]) if seq_data.get("valid_chars") else None,
                 )
-                for seq_data in segment_state["selected_sequences"]
+                for seq_data in segment_state["result_sequences"]
             ]
 
         # Update current_stage if specified (for resuming multi-stage optimization)
@@ -456,11 +456,11 @@ class Program:
                 history.append(annotated)
         return history
 
-    def _batch_results_for_stage(self, stage: int | None = None) -> dict[str, Any]:
-        """Return batch_results for the given stage (or current final state)."""
+    def _results_for_stage(self, stage: int | None = None) -> dict[str, Any]:
+        """Return results for the given stage (or current final state)."""
         if stage is not None:
             return self.get_stage_results(stage)
-        return self.extract_batch_results(self.energy_scores)
+        return self.extract_results(self.energy_scores)
 
     def export(
         self,
@@ -469,7 +469,7 @@ class Program:
         table: Literal["sequences", "constraints", "constructs", "optimization"] | None = None,
         stage: int | None = None,
         segments: set[str] | None = None,
-        batch_indices: set[int] | None = None,
+        result_indices: set[int] | None = None,
         constraints: set[str] | None = None,
         include_candidates: bool = False,
     ) -> Path:
@@ -487,20 +487,20 @@ class Program:
             table: Single table name, or None for all.
             stage: Filter to this optimizer stage index.
             segments: Only include these segment labels.
-            batch_indices: Only include these batch indices.
+            result_indices: Only include these result indices.
             constraints: Only include these constraint labels (constraints table only).
             include_candidates: Include candidate rows (optimization table only).
         """
-        batch_results = self._batch_results_for_stage(stage)
+        results = self._results_for_stage(stage)
         history = self._collect_history(stage)
         filters = dict(
             segments=segments,
-            batch_indices=batch_indices,
+            result_indices=result_indices,
             constraints=constraints,
             include_candidates=include_candidates,
         )
         return export_tables(
-            lambda t: flatten_table(t, batch_results, history, **filters),
+            lambda t: flatten_table(t, results, history, **filters),
             path, format, table,
         )
 
@@ -512,7 +512,7 @@ class Program:
         stage: int | None = None,
         segments: set[str] | None = None,
         constraints: set[str] | None = None,
-        batch_indices: set[int] | None = None,
+        result_indices: set[int] | None = None,
         include_candidates: bool = False,
     ) -> pd.DataFrame:
         """Get a result table as a pandas DataFrame.
@@ -521,10 +521,10 @@ class Program:
         """
         return pd.DataFrame(flatten_table(
             table,
-            self._batch_results_for_stage(stage),
+            self._results_for_stage(stage),
             self._collect_history(stage),
             segments=segments,
-            batch_indices=batch_indices,
+            result_indices=result_indices,
             constraints=constraints,
             include_candidates=include_candidates,
         ))
@@ -534,23 +534,23 @@ class Program:
         path: Path | str | None = None,
         stage: int | None = None,
         segments: set[str] | None = None,
-        batch_indices: set[int] | None = None,
-        header_format: str = "{construct}_{segment}_batch{batch_idx}",
+        result_indices: set[int] | None = None,
+        header_format: str = "{construct}_{segment}_result{result_idx}",
     ) -> str:
         """Export sequences in FASTA format.
 
         Args:
             path: Output file path. If None, returns string only.
             header_format: Format string for headers. Available fields:
-                construct, segment, batch_idx, energy_score, sequence_type.
+                construct, segment, result_idx, energy_score, sequence_type.
 
         Returns:
             FASTA-formatted string.
         """
         return to_fasta(
-            self._batch_results_for_stage(stage),
+            self._results_for_stage(stage),
             segments=segments,
-            batch_indices=batch_indices,
+            result_indices=result_indices,
             header_format=header_format,
             output=Path(path) if path else None,
         )

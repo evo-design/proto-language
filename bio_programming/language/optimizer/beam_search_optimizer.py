@@ -94,7 +94,7 @@ class BeamSearchOptimizerConfig(BaseOptimizerConfig):
             least 1. Default: ``3``.
 
         verbose (bool): Whether to print detailed progress information including
-            beam energies, selected sequences, and generation statistics at each
+            beam energies, result sequences, and generation statistics at each
             iteration. Default: ``False``.
     """
 
@@ -201,7 +201,7 @@ class BeamSearchOptimizer(Optimizer):
         ...     config=config,
         ... )
         >>> beam_search.run()
-        >>> top_sequences = beam_search.target_segment.selected_sequences
+        >>> top_sequences = beam_search.target_segment.result_sequences
     """
 
     # Class attribute required by OptimizerRegistry
@@ -349,7 +349,7 @@ class BeamSearchOptimizer(Optimizer):
         if any(
             seq.sequence
             for seg in self.segments
-            for seq in seg.selected_sequences
+            for seq in seg.result_sequences
         ):
             logger.warning("BeamSearchOptimizer starts from its configured prompt and overwrites existing sequences/prompts")
 
@@ -376,7 +376,7 @@ class BeamSearchOptimizer(Optimizer):
             # Select top num_results candidates and update beam states
             self._select_topk_beams(candidate_beams)
 
-            # Save per-beam snapshot (selected_sequences set by _select_topk_beams)
+            # Save per-beam snapshot (result_sequences set by _select_topk_beams)
             if beam_num % self.tracking_interval == 0 or beam_num == self.num_beams:
                 self._save_progress_snapshot(time_step=beam_num)
                 self._log_beamsearch_progress(beam_num, beam_tokens)
@@ -385,7 +385,7 @@ class BeamSearchOptimizer(Optimizer):
 
         # Write final sequences to segment (same content as last _select_topk_beams
         # snapshot, so no additional snapshot needed)
-        self.target_segment.selected_sequences = [
+        self.target_segment.result_sequences = [
             Sequence(
                 sequence=beam.running_sequence if self.prepend_prompt else beam.running_sequence[len(self.prompt):],
                 sequence_type=self.target_segment.sequence_type
@@ -551,10 +551,10 @@ class BeamSearchOptimizer(Optimizer):
 
         1. Score each candidate beam (mean or last score, per ``score_by``).
         2. Sort by score and keep the top ``num_results`` beams.
-        3. Update ``_candidate_outcomes`` — selected beams get "accepted",
+        3. Update ``_candidate_outcomes`` — result beams get "accepted",
            pruned beams get "Beam pruned".
-        4. Write all candidate beams to ``candidate_sequences`` and selected
-           beams to ``selected_sequences`` so ``_save_progress_snapshot``
+        4. Write all candidate beams to ``candidate_sequences`` and result
+           beams to ``result_sequences`` so ``_save_progress_snapshot``
            captures the current state.
 
         Args:
@@ -568,17 +568,17 @@ class BeamSearchOptimizer(Optimizer):
 
         # 2. Sort by score and keep top num_results
         sorted_candidates = sorted(scored_candidates, key=lambda x: x[2])
-        selected_indices = {orig_idx for orig_idx, _, _ in sorted_candidates[:self.num_results]}
+        result_indices = {orig_idx for orig_idx, _, _ in sorted_candidates[:self.num_results]}
         self.beams = [beam for _, beam, _ in sorted_candidates[:self.num_results]]
         self.energy_scores = [score for _, _, score in sorted_candidates[:self.num_results]]
 
         # 3. Update _candidate_outcomes and _candidate_energy_scores
         self._candidate_outcomes = ["Beam pruned"] * len(candidate_beams)
         self._candidate_energy_scores = [sc for _, _, sc in scored_candidates]
-        for idx in selected_indices:
+        for idx in result_indices:
             self._candidate_outcomes[idx] = "accepted"
 
-        # 4. Write candidate_sequences and selected_sequences for snapshot
+        # 4. Write candidate_sequences and result_sequences for snapshot
         self.target_segment.candidate_sequences = [
             Sequence(
                 sequence=beam.running_sequence if self.prepend_prompt else beam.running_sequence[len(self.prompt):],
@@ -587,7 +587,7 @@ class BeamSearchOptimizer(Optimizer):
             for beam in candidate_beams
         ]
         self._sync_candidate_pools(self.target_segment)
-        self.target_segment.selected_sequences = [
+        self.target_segment.result_sequences = [
             Sequence(
                 sequence=beam.running_sequence if self.prepend_prompt else beam.running_sequence[len(self.prompt):],
                 sequence_type=self.target_segment.sequence_type,

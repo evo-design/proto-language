@@ -89,7 +89,7 @@ class TestSegmentSerialization:
         assert seg_restored.has_original_sequence == seg.has_original_sequence
 
     def test_segment_with_pools_roundtrip(self):
-        """Test segment with candidate and selected pools."""
+        """Test segment with candidate and result pools."""
         seg = Segment(sequence="ATCGATCG", sequence_type="dna", label="cds")
 
         # Modify pools
@@ -97,7 +97,7 @@ class TestSegmentSerialization:
             Sequence("AAAAAAAA", sequence_type="dna"),
             Sequence("TTTTTTTT", sequence_type="dna"),
         ]
-        seg.selected_sequences = [
+        seg.result_sequences = [
             Sequence("GGGGGGGG", sequence_type="dna"),
         ]
 
@@ -107,10 +107,10 @@ class TestSegmentSerialization:
 
         # Verify pools
         assert len(seg_restored.candidate_sequences) == 2
-        assert len(seg_restored.selected_sequences) == 1
+        assert len(seg_restored.result_sequences) == 1
         assert str(seg_restored.candidate_sequences[0]) == "AAAAAAAA"
         assert str(seg_restored.candidate_sequences[1]) == "TTTTTTTT"
-        assert str(seg_restored.selected_sequences[0]) == "GGGGGGGG"
+        assert str(seg_restored.result_sequences[0]) == "GGGGGGGG"
 
     def test_segment_with_sequence_roundtrip(self):
         """Test segment with sequence has has_sequence=True after roundtrip."""
@@ -164,7 +164,7 @@ class TestSegmentSerialization:
         assert seg_restored.valid_chars is None
         assert seg_restored.label == "ethanol"
         assert len(seg_restored.candidate_sequences) == 1
-        assert len(seg_restored.selected_sequences) == 1
+        assert len(seg_restored.result_sequences) == 1
 
     def test_ligand_sequence_roundtrip(self):
         """Test ligand Sequence roundtrip at the Sequence level (B1)."""

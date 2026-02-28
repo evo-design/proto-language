@@ -31,7 +31,7 @@ class Optimizer(ABC):
     @abstractmethod
     def run(self) -> None:
         # Executes the optimization loop
-        # Modifies segments' selected_sequences and candidate_sequences
+        # Modifies segments' result_sequences and candidate_sequences
 ```
 
 ## Key Base Class Methods
@@ -51,10 +51,10 @@ self.score_energy(operation="multiply") # Multiplicative scoring
 
 ### `_initialize_sequence_pools()`
 
-Sets up `candidate_sequences` from `selected_sequences` with cycling:
+Sets up `candidate_sequences` from `result_sequences` with cycling:
 
 ```python
-# If num_candidates > num_results, cycles through selected to fill
+# If num_candidates > num_results, cycles through results to fill
 # If num_candidates < num_results, takes first N
 # Preserves diversity by round-robin assignment
 ```
@@ -208,7 +208,7 @@ class MyOptimizer(Optimizer):
         self._save_progress_snapshot(0)
 
         for step in range(1, self.num_steps + 1):
-            # 1. Prepare candidates from selected
+            # 1. Prepare candidates from results
             self._initialize_sequence_pools()
 
             # 2. Apply generators (mutate candidates)
@@ -218,10 +218,10 @@ class MyOptimizer(Optimizer):
             # 3. Score candidates
             self.score_energy()
 
-            # 4. Update selected_sequences with best candidates
+            # 4. Update result_sequences with best candidates
             # NOTE: Each optimizer implements its own selection logic.
             # See MCMCOptimizer for MH acceptance, TopKOptimizer for sorted insertion.
-            self._update_selected(step)
+            self._update_results(step)
 
             # 5. Track progress (gated by tracking_interval)
             if step % self.tracking_interval == 0 or step == self.num_steps:
@@ -230,8 +230,8 @@ class MyOptimizer(Optimizer):
                     best_score = min(self.energy_scores)
                     logger.info(f"Step {step}/{self.num_steps}: best={best_score:.4f}")
 
-    def _update_selected(self, step: int) -> None:
-        """Update selected_sequences with top candidates.
+    def _update_results(self, step: int) -> None:
+        """Update result_sequences with top candidates.
 
         This is optimizer-specific. Common patterns:
         - Greedy: sort by energy, take top num_results (see TopKOptimizer._insert_into_topk)
@@ -240,38 +240,38 @@ class MyOptimizer(Optimizer):
         scored = list(zip(self.energy_scores, range(len(self.energy_scores))))
         scored.sort(key=lambda x: x[0])
         for seg in self.segments:
-            new_selected = []
+            new_results = []
             for _, idx in scored[:self.num_results]:
-                new_selected.append(copy.deepcopy(seg.candidate_sequences[idx]))
-            seg.selected_sequences = new_selected
+                new_results.append(copy.deepcopy(seg.candidate_sequences[idx]))
+            seg.result_sequences = new_results
 ```
 
-## `_update_selected` Patterns
+## `_update_results` Patterns
 
 ### Greedy (TopK-style)
 ```python
-def _update_selected(self, step):
+def _update_results(self, step):
     scored = list(zip(self.energy_scores, range(len(self.energy_scores))))
     scored.sort(key=lambda x: x[0])
     for seg in self.segments:
-        new_selected = []
+        new_results = []
         for _, idx in scored[:self.num_results]:
-            new_selected.append(copy.deepcopy(seg.candidate_sequences[idx]))
-        seg.selected_sequences = new_selected
+            new_results.append(copy.deepcopy(seg.candidate_sequences[idx]))
+        seg.result_sequences = new_results
 ```
 
 ### MCMC (Metropolis-Hastings acceptance)
 ```python
-def _update_selected(self, step):
-    # Compare each candidate to its corresponding selected sequence
+def _update_results(self, step):
+    # Compare each candidate to its corresponding result sequence
     for i, (new_score, old_score) in enumerate(
         zip(self.energy_scores, self._previous_scores)
     ):
         delta = new_score - old_score
         if delta <= 0 or random.random() < math.exp(-delta / self.temperature):
-            # Accept: copy candidate into selected
+            # Accept: copy candidate into results
             for seg in self.segments:
-                seg.selected_sequences[i] = copy.deepcopy(seg.candidate_sequences[i])
+                seg.result_sequences[i] = copy.deepcopy(seg.candidate_sequences[i])
 ```
 
 ### Setup Helper for Tests

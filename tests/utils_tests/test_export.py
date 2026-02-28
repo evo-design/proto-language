@@ -28,16 +28,16 @@ from proto_language.utils.export import (
 
 
 @pytest.fixture
-def sample_batch_results():
-    """Sample batch_results with 2 batches, 1 construct, 2 segments.
+def sample_results():
+    """Sample results with 2 results, 1 construct, 2 segments.
 
     - promoter: gc_content_constraint + length_constraint
     - cds: gc_content_constraint only
     """
     return {
-        "batch_results": [
+        "results": [
             {
-                "batch_idx": 0,
+                "result_idx": 0,
                 "energy_score": 0.5,
                 "constructs": [
                     {
@@ -81,7 +81,7 @@ def sample_batch_results():
                 ],
             },
             {
-                "batch_idx": 1,
+                "result_idx": 1,
                 "energy_score": 0.3,
                 "constructs": [
                     {
@@ -125,19 +125,19 @@ def sample_batch_results():
                 ],
             },
         ],
-        "best_batch_idx": 1,
+        "best_result_idx": 1,
     }
 
 
 @pytest.fixture
 def sample_history():
-    """Sample optimizer history using standardized batch_results format."""
+    """Sample optimizer history using standardized results format."""
     return [
         {
             "time_step": 0,
-            "batch_results": [
+            "results": [
                 {
-                    "batch_idx": 0,
+                    "result_idx": 0,
                     "energy_score": 0.8,
                     "constructs": [
                         {
@@ -162,7 +162,7 @@ def sample_history():
                     ],
                 },
                 {
-                    "batch_idx": 1,
+                    "result_idx": 1,
                     "energy_score": 0.9,
                     "constructs": [
                         {
@@ -187,13 +187,13 @@ def sample_history():
                     ],
                 },
             ],
-            "best_batch_idx": 0,
+            "best_result_idx": 0,
         },
         {
             "time_step": 10,
-            "batch_results": [
+            "results": [
                 {
-                    "batch_idx": 0,
+                    "result_idx": 0,
                     "energy_score": 0.5,
                     "constructs": [
                         {
@@ -218,7 +218,7 @@ def sample_history():
                     ],
                 },
                 {
-                    "batch_idx": 1,
+                    "result_idx": 1,
                     "energy_score": 0.6,
                     "constructs": [
                         {
@@ -243,7 +243,7 @@ def sample_history():
                     ],
                 },
             ],
-            "best_batch_idx": 0,
+            "best_result_idx": 0,
         },
     ]
 
@@ -254,27 +254,27 @@ def sample_history():
 
 
 class TestFlattenSequences:
-    """Tests for flatten_sequences: one row per (batch_idx, construct, segment)."""
+    """Tests for flatten_sequences: one row per (result_idx, construct, segment)."""
 
-    def test_row_count(self, sample_batch_results):
-        """2 batches x 1 construct x 2 segments = 4 rows."""
-        rows = flatten_sequences(sample_batch_results)
+    def test_row_count(self, sample_results):
+        """2 results x 1 construct x 2 segments = 4 rows."""
+        rows = flatten_sequences(sample_results)
         assert len(rows) == 4
 
-    def test_fixed_columns(self, sample_batch_results):
-        """Every row has batch_idx, energy_score, construct, segment, sequence."""
-        rows = flatten_sequences(sample_batch_results)
+    def test_fixed_columns(self, sample_results):
+        """Every row has result_idx, energy_score, construct, segment, sequence."""
+        rows = flatten_sequences(sample_results)
         for row in rows:
-            assert "batch_idx" in row
+            assert "result_idx" in row
             assert "energy_score" in row
             assert "construct" in row
             assert "segment" in row
             assert "sequence" in row
 
-    def test_constraint_columns_present(self, sample_batch_results):
+    def test_constraint_columns_present(self, sample_results):
         """Constraint fields use {label}.{field} namespacing."""
-        rows = flatten_sequences(sample_batch_results)
-        promoter_row = [r for r in rows if r["segment"] == "promoter" and r["batch_idx"] == 0][0]
+        rows = flatten_sequences(sample_results)
+        promoter_row = [r for r in rows if r["segment"] == "promoter" and r["result_idx"] == 0][0]
 
         # All constraint fields present
         assert promoter_row["gc_content_constraint.score"] == 0.1
@@ -284,23 +284,23 @@ class TestFlattenSequences:
         assert promoter_row["length_constraint.score"] == 0.0
         assert promoter_row["length_constraint.length"] == 8
 
-    def test_metadata_prefix(self, sample_batch_results):
+    def test_metadata_prefix(self, sample_results):
         """User metadata uses metadata.{key} prefix."""
-        rows = flatten_sequences(sample_batch_results)
-        promoter_row = [r for r in rows if r["segment"] == "promoter" and r["batch_idx"] == 0][0]
+        rows = flatten_sequences(sample_results)
+        promoter_row = [r for r in rows if r["segment"] == "promoter" and r["result_idx"] == 0][0]
         assert promoter_row["metadata.source"] == "synthetic"
 
-    def test_correct_values(self, sample_batch_results):
+    def test_correct_values(self, sample_results):
         """Spot-check specific values."""
-        rows = flatten_sequences(sample_batch_results)
-        cds_batch1 = [r for r in rows if r["segment"] == "cds" and r["batch_idx"] == 1][0]
-        assert cds_batch1["sequence"] == "CCGGCCGG"
-        assert cds_batch1["energy_score"] == 0.3
-        assert cds_batch1["gc_content_constraint.gc_content"] == 75.0
+        rows = flatten_sequences(sample_results)
+        cds_result1 = [r for r in rows if r["segment"] == "cds" and r["result_idx"] == 1][0]
+        assert cds_result1["sequence"] == "CCGGCCGG"
+        assert cds_result1["energy_score"] == 0.3
+        assert cds_result1["gc_content_constraint.gc_content"] == 75.0
 
     def test_empty_results(self):
-        """Handles empty batch_results."""
-        assert flatten_sequences({"batch_results": []}) == []
+        """Handles empty results."""
+        assert flatten_sequences({"results": []}) == []
 
 
 # =============================================================================
@@ -309,18 +309,18 @@ class TestFlattenSequences:
 
 
 class TestFlattenConstraints:
-    """Tests for flatten_constraints: one row per (batch, construct, segment, constraint)."""
+    """Tests for flatten_constraints: one row per (result, construct, segment, constraint)."""
 
-    def test_row_count(self, sample_batch_results):
-        """batch0: promoter(2) + cds(1) = 3; batch1: same = 3; total = 6."""
-        rows = flatten_constraints(sample_batch_results)
+    def test_row_count(self, sample_results):
+        """result0: promoter(2) + cds(1) = 3; result1: same = 3; total = 6."""
+        rows = flatten_constraints(sample_results)
         assert len(rows) == 6
 
-    def test_fixed_columns(self, sample_batch_results):
+    def test_fixed_columns(self, sample_results):
         """Every row has constraint identifier columns + standard metrics."""
-        rows = flatten_constraints(sample_batch_results)
+        rows = flatten_constraints(sample_results)
         for row in rows:
-            assert "batch_idx" in row
+            assert "result_idx" in row
             assert "construct" in row
             assert "segment" in row
             assert "constraint" in row
@@ -328,19 +328,19 @@ class TestFlattenConstraints:
             assert "weight" in row
             assert "weighted_score" in row
 
-    def test_custom_data_unprefixed(self, sample_batch_results):
+    def test_custom_data_unprefixed(self, sample_results):
         """Custom data fields are un-prefixed (one constraint per row)."""
-        rows = flatten_constraints(sample_batch_results)
-        gc_row = [r for r in rows if r["constraint"] == "gc_content_constraint" and r["batch_idx"] == 0 and r["segment"] == "promoter"][0]
+        rows = flatten_constraints(sample_results)
+        gc_row = [r for r in rows if r["constraint"] == "gc_content_constraint" and r["result_idx"] == 0 and r["segment"] == "promoter"][0]
         assert gc_row["gc_content"] == 50.0
         assert gc_row["score"] == 0.1
 
     def test_multi_segment_info(self):
         """Multi-segment constraints include input_segments and position_in_inputs."""
-        batch_results = {
-            "batch_results": [
+        results = {
+            "results": [
                 {
-                    "batch_idx": 0,
+                    "result_idx": 0,
                     "energy_score": 0.5,
                     "constructs": [
                         {
@@ -367,17 +367,17 @@ class TestFlattenConstraints:
                     ],
                 },
             ],
-            "best_batch_idx": 0,
+            "best_result_idx": 0,
         }
-        rows = flatten_constraints(batch_results)
+        rows = flatten_constraints(results)
         assert len(rows) == 1
         assert json.loads(rows[0]["input_segments"]) == ["c0.protein_a", "c0.protein_b"]
         assert rows[0]["position_in_inputs"] == 0
         assert rows[0]["binding_energy"] == -5.0
 
     def test_empty_results(self):
-        """Handles empty batch_results."""
-        assert flatten_constraints({"batch_results": []}) == []
+        """Handles empty results."""
+        assert flatten_constraints({"results": []}) == []
 
 
 # =============================================================================
@@ -386,22 +386,22 @@ class TestFlattenConstraints:
 
 
 class TestFlattenConstructs:
-    """Tests for flatten_constructs: one row per (batch_idx, construct)."""
+    """Tests for flatten_constructs: one row per (result_idx, construct)."""
 
-    def test_row_count(self, sample_batch_results):
-        """2 batches x 1 construct = 2 rows."""
-        rows = flatten_constructs(sample_batch_results)
+    def test_row_count(self, sample_results):
+        """2 results x 1 construct = 2 rows."""
+        rows = flatten_constructs(sample_results)
         assert len(rows) == 2
 
-    def test_full_sequence(self, sample_batch_results):
+    def test_full_sequence(self, sample_results):
         """full_sequence is concatenation of all segment sequences."""
-        rows = flatten_constructs(sample_batch_results)
+        rows = flatten_constructs(sample_results)
         assert rows[0]["full_sequence"] == "ATCGATCGGCTAGCTA"
         assert rows[1]["full_sequence"] == "TTAATTAACCGGCCGG"
 
-    def test_per_segment_columns(self, sample_batch_results):
+    def test_per_segment_columns(self, sample_results):
         """Per-segment data uses {segment}.{field} prefix."""
-        rows = flatten_constructs(sample_batch_results)
+        rows = flatten_constructs(sample_results)
         row = rows[0]
         assert row["promoter.sequence"] == "ATCGATCG"
         assert row["cds.sequence"] == "GCTAGCTA"
@@ -409,14 +409,14 @@ class TestFlattenConstructs:
         assert row["promoter.gc_content_constraint.gc_content"] == 50.0
         assert row["cds.gc_content_constraint.gc_content"] == 52.0
 
-    def test_per_segment_metadata(self, sample_batch_results):
+    def test_per_segment_metadata(self, sample_results):
         """Per-segment metadata uses {segment}.metadata.{key} prefix."""
-        rows = flatten_constructs(sample_batch_results)
+        rows = flatten_constructs(sample_results)
         assert rows[0]["promoter.metadata.source"] == "synthetic"
 
     def test_empty_results(self):
-        """Handles empty batch_results."""
-        assert flatten_constructs({"batch_results": []}) == []
+        """Handles empty results."""
+        assert flatten_constructs({"results": []}) == []
 
 
 # =============================================================================
@@ -425,40 +425,40 @@ class TestFlattenConstructs:
 
 
 class TestFlattenOptimization:
-    """Tests for flatten_optimization: one row per (timepoint, batch_idx)."""
+    """Tests for flatten_optimization: one row per (timepoint, result_idx)."""
 
     def test_row_count(self, sample_history):
-        """2 timepoints x 2 batches = 4 rows."""
+        """2 timepoints x 2 results = 4 rows."""
         rows = flatten_optimization(sample_history)
         assert len(rows) == 4
 
     def test_fixed_columns(self, sample_history):
-        """Every row has timepoint, batch_idx, energy_score."""
+        """Every row has timepoint, result_idx, energy_score."""
         rows = flatten_optimization(sample_history)
         for row in rows:
             assert "timepoint" in row
-            assert "batch_idx" in row
+            assert "result_idx" in row
             assert "energy_score" in row
 
     def test_per_segment_sequences(self, sample_history):
         """Per-segment data uses {segment}.sequence columns."""
         rows = flatten_optimization(sample_history)
-        # First timepoint, batch 0
-        t0_b0 = [r for r in rows if r["timepoint"] == 0 and r["batch_idx"] == 0][0]
+        # First timepoint, result 0
+        t0_b0 = [r for r in rows if r["timepoint"] == 0 and r["result_idx"] == 0][0]
         assert t0_b0["promoter.sequence"] == "AAAA"
         assert t0_b0["energy_score"] == 0.8
 
     def test_per_segment_constraint_scores(self, sample_history):
         """Constraint scores use {segment}.{constraint}.{field} prefix."""
         rows = flatten_optimization(sample_history)
-        t10_b0 = [r for r in rows if r["timepoint"] == 10 and r["batch_idx"] == 0][0]
+        t10_b0 = [r for r in rows if r["timepoint"] == 10 and r["result_idx"] == 0][0]
         assert t10_b0["promoter.gc_constraint.score"] == 0.2
         assert t10_b0["promoter.gc_constraint.gc_content"] == 50.0
 
-    def test_batch_energy_scores(self, sample_history):
-        """Each batch member has its own energy score."""
+    def test_result_energy_scores(self, sample_history):
+        """Each result member has its own energy score."""
         rows = flatten_optimization(sample_history)
-        t0_b1 = [r for r in rows if r["timepoint"] == 0 and r["batch_idx"] == 1][0]
+        t0_b1 = [r for r in rows if r["timepoint"] == 0 and r["result_idx"] == 1][0]
         assert t0_b1["energy_score"] == 0.9
 
     def test_empty_history(self):
@@ -579,10 +579,10 @@ class TestEdgeCases:
 
     def test_missing_constraints(self):
         """Segments with no constraints produce rows with only fixed columns."""
-        batch_results = {
-            "batch_results": [
+        results = {
+            "results": [
                 {
-                    "batch_idx": 0,
+                    "result_idx": 0,
                     "energy_score": 0.0,
                     "constructs": [
                         {
@@ -595,22 +595,22 @@ class TestEdgeCases:
                     ],
                 },
             ],
-            "best_batch_idx": 0,
+            "best_result_idx": 0,
         }
 
-        seq_rows = flatten_sequences(batch_results)
+        seq_rows = flatten_sequences(results)
         assert len(seq_rows) == 1
         assert seq_rows[0]["sequence"] == "ATCG"
 
-        constraint_rows = flatten_constraints(batch_results)
+        constraint_rows = flatten_constraints(results)
         assert len(constraint_rows) == 0  # No constraints = no rows
 
     def test_heterogeneous_constraints(self):
         """Segments with different constraints produce union of columns in CSV."""
-        batch_results = {
-            "batch_results": [
+        results = {
+            "results": [
                 {
-                    "batch_idx": 0,
+                    "result_idx": 0,
                     "energy_score": 0.5,
                     "constructs": [
                         {
@@ -648,10 +648,10 @@ class TestEdgeCases:
                     ],
                 },
             ],
-            "best_batch_idx": 0,
+            "best_result_idx": 0,
         }
 
-        rows = flatten_sequences(batch_results)
+        rows = flatten_sequences(results)
         csv_output = to_csv(rows)
 
         # CSV should have columns from both constraints
@@ -660,10 +660,10 @@ class TestEdgeCases:
 
     def test_multi_segment_constraint_in_sequences(self):
         """Multi-segment constraints include input_segments in sequences table."""
-        batch_results = {
-            "batch_results": [
+        results = {
+            "results": [
                 {
-                    "batch_idx": 0,
+                    "result_idx": 0,
                     "energy_score": 0.5,
                     "constructs": [
                         {
@@ -705,10 +705,10 @@ class TestEdgeCases:
                     ],
                 },
             ],
-            "best_batch_idx": 0,
+            "best_result_idx": 0,
         }
 
-        rows = flatten_sequences(batch_results)
+        rows = flatten_sequences(results)
         assert len(rows) == 2
 
         csv_output = to_csv(rows)
@@ -717,10 +717,10 @@ class TestEdgeCases:
 
     def test_constructs_multi_segment_constraint(self):
         """Constructs table with multi-segment constraint uses full prefix."""
-        batch_results = {
-            "batch_results": [
+        results = {
+            "results": [
                 {
-                    "batch_idx": 0,
+                    "result_idx": 0,
                     "energy_score": 0.5,
                     "constructs": [
                         {
@@ -747,17 +747,17 @@ class TestEdgeCases:
                     ],
                 },
             ],
-            "best_batch_idx": 0,
+            "best_result_idx": 0,
         }
 
-        rows = flatten_constructs(batch_results)
+        rows = flatten_constructs(results)
         assert len(rows) == 1
         assert rows[0]["protein_a.interaction.score"] == 0.1
         assert rows[0]["protein_a.interaction.binding_energy"] == -5.0
 
-    def test_csv_round_trip(self, sample_batch_results):
+    def test_csv_round_trip(self, sample_results):
         """Flatten → CSV → parse produces correct data."""
-        rows = flatten_sequences(sample_batch_results)
+        rows = flatten_sequences(sample_results)
         csv_str = to_csv(rows)
 
         # Parse CSV back
@@ -778,50 +778,50 @@ class TestEdgeCases:
 class TestFiltering:
     """Tests for segment/constraint filtering on flatten functions."""
 
-    def test_sequences_filter_segment(self, sample_batch_results):
+    def test_sequences_filter_segment(self, sample_results):
         """Only include rows for the specified segment."""
-        rows = flatten_sequences(sample_batch_results, segments={"promoter"})
-        assert len(rows) == 2  # 2 batches x 1 segment
+        rows = flatten_sequences(sample_results, segments={"promoter"})
+        assert len(rows) == 2  # 2 results x 1 segment
         assert all(r["segment"] == "promoter" for r in rows)
 
-    def test_sequences_filter_segment_multiple(self, sample_batch_results):
+    def test_sequences_filter_segment_multiple(self, sample_results):
         """Filter by multiple segments returns rows for all specified."""
         rows = flatten_sequences(
-            sample_batch_results, segments={"promoter", "cds"}
+            sample_results, segments={"promoter", "cds"}
         )
         assert len(rows) == 4  # All segments included
 
-    def test_constraints_filter_segment(self, sample_batch_results):
+    def test_constraints_filter_segment(self, sample_results):
         """Only include constraint rows for the specified segment."""
-        rows = flatten_constraints(sample_batch_results, segments={"cds"})
-        # cds has 1 constraint x 2 batches = 2 rows
+        rows = flatten_constraints(sample_results, segments={"cds"})
+        # cds has 1 constraint x 2 results = 2 rows
         assert len(rows) == 2
         assert all(r["segment"] == "cds" for r in rows)
 
-    def test_constraints_filter_constraint(self, sample_batch_results):
+    def test_constraints_filter_constraint(self, sample_results):
         """Only include rows for the specified constraint label."""
         rows = flatten_constraints(
-            sample_batch_results, constraints={"length_constraint"}
+            sample_results, constraints={"length_constraint"}
         )
-        # Only promoter has length_constraint, 2 batches = 2 rows
+        # Only promoter has length_constraint, 2 results = 2 rows
         assert len(rows) == 2
         assert all(r["constraint"] == "length_constraint" for r in rows)
 
-    def test_constraints_filter_both(self, sample_batch_results):
+    def test_constraints_filter_both(self, sample_results):
         """Filter by both segment and constraint simultaneously."""
         rows = flatten_constraints(
-            sample_batch_results,
+            sample_results,
             segments={"promoter"},
             constraints={"gc_content_constraint"},
         )
-        # promoter's gc_content_constraint x 2 batches = 2 rows
+        # promoter's gc_content_constraint x 2 results = 2 rows
         assert len(rows) == 2
         assert all(r["segment"] == "promoter" for r in rows)
         assert all(r["constraint"] == "gc_content_constraint" for r in rows)
 
-    def test_constructs_filter_segment(self, sample_batch_results):
+    def test_constructs_filter_segment(self, sample_results):
         """Only include per-segment columns for the specified segment."""
-        rows = flatten_constructs(sample_batch_results, segments={"promoter"})
+        rows = flatten_constructs(sample_results, segments={"promoter"})
         assert len(rows) == 2  # Row count unchanged (one row per construct)
         row = rows[0]
         assert "promoter.sequence" in row
@@ -836,59 +836,59 @@ class TestFiltering:
         assert "promoter.sequence" in rows[0]
         # No other segment columns should appear
         non_fixed_keys = {
-            k for r in rows for k in r if not k.startswith(("timepoint", "batch_idx", "energy_score", "sequence_type", "stage"))
+            k for r in rows for k in r if not k.startswith(("timepoint", "result_idx", "energy_score", "sequence_type", "stage"))
         }
         assert all(k.startswith("promoter.") for k in non_fixed_keys)
 
-    def test_filter_nonexistent_segment(self, sample_batch_results):
+    def test_filter_nonexistent_segment(self, sample_results):
         """Filtering by a segment that doesn't exist returns no segment rows."""
         rows = flatten_sequences(
-            sample_batch_results, segments={"nonexistent"}
+            sample_results, segments={"nonexistent"}
         )
         assert len(rows) == 0
 
-    def test_filter_nonexistent_constraint(self, sample_batch_results):
+    def test_filter_nonexistent_constraint(self, sample_results):
         """Filtering by a constraint that doesn't exist returns no rows."""
         rows = flatten_constraints(
-            sample_batch_results, constraints={"nonexistent"}
+            sample_results, constraints={"nonexistent"}
         )
         assert len(rows) == 0
 
-    def test_sequences_filter_batch_idx(self, sample_batch_results):
-        """Only include rows for specified batch indices."""
-        rows = flatten_sequences(sample_batch_results, batch_indices={0})
-        assert len(rows) == 2  # 1 batch x 2 segments
-        assert all(r["batch_idx"] == 0 for r in rows)
+    def test_sequences_filter_result_idx(self, sample_results):
+        """Only include rows for specified result indices."""
+        rows = flatten_sequences(sample_results, result_indices={0})
+        assert len(rows) == 2  # 1 result x 2 segments
+        assert all(r["result_idx"] == 0 for r in rows)
 
-    def test_constraints_filter_batch_idx(self, sample_batch_results):
-        """Only include constraint rows for specified batch indices."""
-        rows = flatten_constraints(sample_batch_results, batch_indices={1})
-        # batch 1: promoter(2 constraints) + cds(1) = 3 rows
+    def test_constraints_filter_result_idx(self, sample_results):
+        """Only include constraint rows for specified result indices."""
+        rows = flatten_constraints(sample_results, result_indices={1})
+        # result 1: promoter(2 constraints) + cds(1) = 3 rows
         assert len(rows) == 3
-        assert all(r["batch_idx"] == 1 for r in rows)
+        assert all(r["result_idx"] == 1 for r in rows)
 
-    def test_constructs_filter_batch_idx(self, sample_batch_results):
-        """Only include construct rows for specified batch indices."""
-        rows = flatten_constructs(sample_batch_results, batch_indices={0})
+    def test_constructs_filter_result_idx(self, sample_results):
+        """Only include construct rows for specified result indices."""
+        rows = flatten_constructs(sample_results, result_indices={0})
         assert len(rows) == 1
-        assert rows[0]["batch_idx"] == 0
+        assert rows[0]["result_idx"] == 0
 
-    def test_optimization_filter_batch_idx(self, sample_history):
-        """Only include optimization rows for specified batch indices."""
-        rows = flatten_optimization(sample_history, batch_indices={0})
-        assert len(rows) == 2  # 2 timepoints x 1 batch
-        assert all(r["batch_idx"] == 0 for r in rows)
+    def test_optimization_filter_result_idx(self, sample_history):
+        """Only include optimization rows for specified result indices."""
+        rows = flatten_optimization(sample_history, result_indices={0})
+        assert len(rows) == 2  # 2 timepoints x 1 result
+        assert all(r["result_idx"] == 0 for r in rows)
 
-    def test_combined_segment_and_batch_filter(self, sample_batch_results):
-        """Filter by both segment and batch index."""
+    def test_combined_segment_and_result_filter(self, sample_results):
+        """Filter by both segment and result index."""
         rows = flatten_sequences(
-            sample_batch_results,
+            sample_results,
             segments={"promoter"},
-            batch_indices={1},
+            result_indices={1},
         )
         assert len(rows) == 1
         assert rows[0]["segment"] == "promoter"
-        assert rows[0]["batch_idx"] == 1
+        assert rows[0]["result_idx"] == 1
         assert rows[0]["sequence"] == "TTAATTAA"
 
 
@@ -948,10 +948,10 @@ class TestComplexValueSerialization:
 
     def test_file_ref_in_constraint_data(self):
         """FileReference in constraint data → URL in flattened output."""
-        batch_results = {
-            "batch_results": [
+        results = {
+            "results": [
                 {
-                    "batch_idx": 0,
+                    "result_idx": 0,
                     "energy_score": 0.5,
                     "constructs": [
                         {
@@ -983,29 +983,29 @@ class TestComplexValueSerialization:
                     ],
                 },
             ],
-            "best_batch_idx": 0,
+            "best_result_idx": 0,
         }
 
         # flatten_sequences
-        rows = flatten_sequences(batch_results)
+        rows = flatten_sequences(results)
         assert rows[0]["structure.pdb_output"] == "gs://bucket/out.pdb"
         assert json.loads(rows[0]["structure.per_residue"]) == [0.9, 0.8, 0.7, 0.6]
 
         # flatten_constraints
-        rows = flatten_constraints(batch_results)
+        rows = flatten_constraints(results)
         assert rows[0]["pdb_output"] == "gs://bucket/out.pdb"
         assert json.loads(rows[0]["per_residue"]) == [0.9, 0.8, 0.7, 0.6]
 
         # flatten_constructs
-        rows = flatten_constructs(batch_results)
+        rows = flatten_constructs(results)
         assert rows[0]["seg.structure.pdb_output"] == "gs://bucket/out.pdb"
 
     def test_complex_metadata_serialized(self):
         """Complex metadata values serialize to JSON strings."""
-        batch_results = {
-            "batch_results": [
+        results = {
+            "results": [
                 {
-                    "batch_idx": 0,
+                    "result_idx": 0,
                     "energy_score": 0.5,
                     "constructs": [
                         {
@@ -1027,17 +1027,17 @@ class TestComplexValueSerialization:
                     ],
                 },
             ],
-            "best_batch_idx": 0,
+            "best_result_idx": 0,
         }
 
         # flatten_sequences
-        rows = flatten_sequences(batch_results)
+        rows = flatten_sequences(results)
         assert json.loads(rows[0]["metadata.scores"]) == [1, 2, 3]
         assert json.loads(rows[0]["metadata.nested"]) == {"a": {"b": 1}}
         assert rows[0]["metadata.simple"] == "text"  # Scalar unchanged
 
         # flatten_constructs
-        rows = flatten_constructs(batch_results)
+        rows = flatten_constructs(results)
         assert json.loads(rows[0]["seg.metadata.scores"]) == [1, 2, 3]
 
 
@@ -1055,9 +1055,9 @@ class TestStageColumn:
             {
                 "time_step": 0,
                 "stage": 0,
-                "batch_results": [
+                "results": [
                     {
-                        "batch_idx": 0,
+                        "result_idx": 0,
                         "energy_score": 0.8,
                         "constructs": [
                             {
@@ -1079,9 +1079,9 @@ class TestStageColumn:
             {
                 "time_step": 0,
                 "stage": 1,
-                "batch_results": [
+                "results": [
                     {
-                        "batch_idx": 0,
+                        "result_idx": 0,
                         "energy_score": 0.5,
                         "constructs": [
                             {
@@ -1124,16 +1124,16 @@ class TestStageColumn:
 class TestSequenceTypeColumn:
     """Tests for sequence_type column in all flatten functions."""
 
-    def test_sequences_has_sequence_type(self, sample_batch_results):
-        rows = flatten_sequences(sample_batch_results)
+    def test_sequences_has_sequence_type(self, sample_results):
+        rows = flatten_sequences(sample_results)
         assert all(r["sequence_type"] == "dna" for r in rows)
 
-    def test_constraints_has_sequence_type(self, sample_batch_results):
-        rows = flatten_constraints(sample_batch_results)
+    def test_constraints_has_sequence_type(self, sample_results):
+        rows = flatten_constraints(sample_results)
         assert all(r["sequence_type"] == "dna" for r in rows)
 
-    def test_constructs_has_sequence_type(self, sample_batch_results):
-        rows = flatten_constructs(sample_batch_results)
+    def test_constructs_has_sequence_type(self, sample_results):
+        rows = flatten_constructs(sample_results)
         assert all(r["sequence_type"] == "dna" for r in rows)
 
     def test_optimization_has_sequence_type(self, sample_history):
@@ -1142,10 +1142,10 @@ class TestSequenceTypeColumn:
 
     def test_protein_sequence_type(self):
         """sequence_type reflects actual construct type."""
-        batch_results = {
-            "batch_results": [
+        results = {
+            "results": [
                 {
-                    "batch_idx": 0,
+                    "result_idx": 0,
                     "energy_score": 0.1,
                     "constructs": [
                         {
@@ -1163,9 +1163,9 @@ class TestSequenceTypeColumn:
                     ],
                 },
             ],
-            "best_batch_idx": 0,
+            "best_result_idx": 0,
         }
-        rows = flatten_sequences(batch_results)
+        rows = flatten_sequences(results)
         assert rows[0]["sequence_type"] == "protein"
 
 
@@ -1177,58 +1177,58 @@ class TestSequenceTypeColumn:
 class TestFastaExport:
     """Tests for to_fasta export."""
 
-    def test_basic_fasta_output(self, sample_batch_results):
+    def test_basic_fasta_output(self, sample_results):
         """FASTA output has correct header/sequence pairs."""
-        result = to_fasta(sample_batch_results)
+        result = to_fasta(sample_results)
         lines = result.strip().split("\n")
-        # 2 batches x 2 segments = 4 entries, each with header + sequence = 8 lines
+        # 2 results x 2 segments = 4 entries, each with header + sequence = 8 lines
         assert len(lines) == 8
         assert lines[0].startswith(">")
         assert lines[1] == "ATCGATCG"
 
-    def test_fasta_default_header(self, sample_batch_results):
-        """Default header format: {construct}_{segment}_batch{batch_idx}."""
-        result = to_fasta(sample_batch_results)
-        assert ">construct_0_promoter_batch0" in result
-        assert ">construct_0_cds_batch1" in result
+    def test_fasta_default_header(self, sample_results):
+        """Default header format: {construct}_{segment}_result{result_idx}."""
+        result = to_fasta(sample_results)
+        assert ">construct_0_promoter_result0" in result
+        assert ">construct_0_cds_result1" in result
 
-    def test_fasta_custom_header(self, sample_batch_results):
+    def test_fasta_custom_header(self, sample_results):
         """Custom header format works."""
         result = to_fasta(
-            sample_batch_results,
-            header_format="batch{batch_idx}|{segment}",
+            sample_results,
+            header_format="result{result_idx}|{segment}",
         )
-        assert ">batch0|promoter" in result
+        assert ">result0|promoter" in result
 
-    def test_fasta_segment_filter(self, sample_batch_results):
+    def test_fasta_segment_filter(self, sample_results):
         """Segment filter limits output."""
-        result = to_fasta(sample_batch_results, segments={"promoter"})
+        result = to_fasta(sample_results, segments={"promoter"})
         lines = [l for l in result.strip().split("\n") if l.startswith(">")]
         assert len(lines) == 2
         assert all("promoter" in l for l in lines)
 
-    def test_fasta_batch_filter(self, sample_batch_results):
-        """Batch index filter limits output."""
-        result = to_fasta(sample_batch_results, batch_indices={0})
+    def test_fasta_result_filter(self, sample_results):
+        """Result index filter limits output."""
+        result = to_fasta(sample_results, result_indices={0})
         lines = [l for l in result.strip().split("\n") if l.startswith(">")]
         assert len(lines) == 2
-        assert all("batch0" in l for l in lines)
+        assert all("result0" in l for l in lines)
 
     def test_fasta_empty(self):
         """Empty results produce empty string."""
-        result = to_fasta({"batch_results": []})
+        result = to_fasta({"results": []})
         assert result == ""
 
-    def test_fasta_writes_to_path(self, sample_batch_results):
+    def test_fasta_writes_to_path(self, sample_results):
         """to_fasta writes to file path."""
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "test.fasta"
-            to_fasta(sample_batch_results, output=path)
+            to_fasta(sample_results, output=path)
             assert path.exists()
             content = path.read_text()
-            assert ">construct_0_promoter_batch0" in content
+            assert ">construct_0_promoter_result0" in content
 
 
 # =============================================================================
@@ -1239,18 +1239,18 @@ class TestFastaExport:
 class TestSegmentBoundaries:
     """Tests for segment boundary columns in flatten_constructs."""
 
-    def test_boundaries_present(self, sample_batch_results):
+    def test_boundaries_present(self, sample_results):
         """Segment start/end columns are present."""
-        rows = flatten_constructs(sample_batch_results)
+        rows = flatten_constructs(sample_results)
         row = rows[0]
         assert "promoter.start" in row
         assert "promoter.end" in row
         assert "cds.start" in row
         assert "cds.end" in row
 
-    def test_boundaries_correct(self, sample_batch_results):
+    def test_boundaries_correct(self, sample_results):
         """Boundaries match segment positions in full_sequence."""
-        rows = flatten_constructs(sample_batch_results)
+        rows = flatten_constructs(sample_results)
         row = rows[0]
         full = row["full_sequence"]
 
@@ -1264,9 +1264,9 @@ class TestSegmentBoundaries:
         assert row["cds.end"] == 16
         assert full[row["cds.start"]:row["cds.end"]] == row["cds.sequence"]
 
-    def test_boundaries_with_segment_filter(self, sample_batch_results):
+    def test_boundaries_with_segment_filter(self, sample_results):
         """Boundaries are still correct when filtering segments."""
-        rows = flatten_constructs(sample_batch_results, segments={"cds"})
+        rows = flatten_constructs(sample_results, segments={"cds"})
         row = rows[0]
         # cds should still be at offset 8 (promoter contributes 8 chars)
         assert row["cds.start"] == 8
@@ -1414,13 +1414,13 @@ class TestFlattenOptimizationCandidates:
 
     @pytest.fixture
     def history_with_candidates(self):
-        """History with candidate_results alongside batch_results."""
+        """History with candidate_results alongside results."""
         return [
             {
                 "time_step": 0,
-                "batch_results": [
+                "results": [
                     {
-                        "batch_idx": 0,
+                        "result_idx": 0,
                         "energy_score": 0.5,
                         "constructs": [{
                             "label": "c0", "type": "dna",
@@ -1452,7 +1452,7 @@ class TestFlattenOptimizationCandidates:
                         }],
                     },
                 ],
-                "best_batch_idx": 0,
+                "best_result_idx": 0,
             },
         ]
 
@@ -1464,11 +1464,11 @@ class TestFlattenOptimizationCandidates:
         assert all("pool" not in r for r in rows_default)
 
     def test_include_candidates_adds_pool_column(self, history_with_candidates):
-        """include_candidates=True adds pool column to selected rows."""
+        """include_candidates=True adds pool column to result rows."""
         rows = flatten_optimization(history_with_candidates, include_candidates=True)
-        selected = [r for r in rows if r.get("pool") == "selected"]
+        result_rows = [r for r in rows if r.get("pool") == "result"]
         candidates = [r for r in rows if r.get("pool") == "candidate"]
-        assert len(selected) == 1
+        assert len(result_rows) == 1
         assert len(candidates) == 2
 
     def test_candidate_rows_have_tracking_columns(self, history_with_candidates):
@@ -1496,8 +1496,8 @@ class TestFlattenOptimizationCandidates:
     def test_backward_compat_no_candidate_results_key(self, sample_history):
         """History without candidate_results key works with include_candidates=True."""
         rows = flatten_optimization(sample_history, include_candidates=True)
-        selected = [r for r in rows if r.get("pool") == "selected"]
+        result_rows = [r for r in rows if r.get("pool") == "result"]
         candidates = [r for r in rows if r.get("pool") == "candidate"]
-        # All rows are selected, no candidates
-        assert len(selected) == 4
+        # All rows are result, no candidates
+        assert len(result_rows) == 4
         assert len(candidates) == 0

@@ -7,10 +7,10 @@ class TestSegment:
     """Tests for the Segment class."""
 
     def test_initialization(self):
-        """Tests that a segment is initialized with a single selected sequence."""
+        """Tests that a segment is initialized with a single result sequence."""
         segment = Segment(sequence="ATCG", sequence_type="dna")
         assert isinstance(segment, Segment)
-        assert len(segment.selected_sequences) == 1
+        assert len(segment.result_sequences) == 1
         assert segment.num_results == 1
         assert segment[0].sequence == "ATCG"
         assert segment.sequence_type == "dna"
@@ -42,11 +42,11 @@ class TestSegment:
         assert segment.candidate_sequences[1]._metadata["source"] == "modified"
 
     def test_iteration(self):
-        """Tests iteration over the selected sequences in a segment."""
+        """Tests iteration over the result sequences in a segment."""
         segment = Segment(sequence="A")
-        # Iteration is over selected_sequences, not candidates
-        segment.selected_sequences.append(Sequence(sequence="T", sequence_type="dna"))
-        segment.selected_sequences.append(Sequence(sequence="C", sequence_type="dna"))
+        # Iteration is over result_sequences, not candidates
+        segment.result_sequences.append(Sequence(sequence="T", sequence_type="dna"))
+        segment.result_sequences.append(Sequence(sequence="C", sequence_type="dna"))
         sequences = [s.sequence for s in segment]
         assert sequences == ["A", "T", "C"]
 

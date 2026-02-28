@@ -166,12 +166,12 @@ class TestMCMCOptimizer:
 
         # Set up initial state
         initial_seq = "GCGCGAATTA"  # 50% GC, energy = 0
-        segment.selected_sequences[0].sequence = initial_seq
+        segment.result_sequences[0].sequence = initial_seq
         for i in range(optimizer.num_candidates):
-            segment.candidate_sequences[i] = copy.deepcopy(segment.selected_sequences[0])
+            segment.candidate_sequences[i] = copy.deepcopy(segment.result_sequences[0])
 
         optimizer.score_energy()
-        old_selected_sequences = optimizer._save_sequence_state()
+        old_result_sequences = optimizer._save_sequence_state()
 
         # Manually set ALL energy scores to inf and nan (so no valid proposals)
         optimizer.energy_scores[0] = float('inf')
@@ -185,12 +185,12 @@ class TestMCMCOptimizer:
 
         # All candidates are "rejected" since energies are inf/nan
         optimizer._candidate_outcomes = ["inf/nan energy"] * optimizer.num_candidates
-        optimizer._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences)
+        optimizer._select_topk_with_mcmc_acceptance(step=1, old_result_sequences=old_result_sequences)
 
-        # After rejection of all inf/nan proposals, selected_sequences should be restored
+        # After rejection of all inf/nan proposals, result_sequences should be restored
         # to the initial sequence (trajectory keeps old state when all proposals rejected)
-        assert segment.selected_sequences[0].sequence == initial_seq, (
-            f"selected_sequences[0] was not restored: got {segment.selected_sequences[0].sequence}, expected {initial_seq}"
+        assert segment.result_sequences[0].sequence == initial_seq, (
+            f"result_sequences[0] was not restored: got {segment.result_sequences[0].sequence}, expected {initial_seq}"
         )
 
         # Energy for the trajectory should be the old energy (0.0)
@@ -206,13 +206,13 @@ class TestMCMCOptimizer:
 
         # Start with a bad sequence
         initial_seq = "A" * 50
-        for seq in segment.selected_sequences:
+        for seq in segment.result_sequences:
             seq.sequence = initial_seq
 
         # Score initial state
         for i in range(optimizer.num_results):
             optimizer.segments[0].candidate_sequences[i] = copy.deepcopy(
-                optimizer.segments[0].selected_sequences[i]
+                optimizer.segments[0].result_sequences[i]
             )
         optimizer.score_energy()
         initial_energy = optimizer.energy_scores[0]
@@ -319,7 +319,7 @@ class TestMCMCOptimizer:
         )
 
         assert optimizer.num_results == 3
-        # _candidates_per_result is the number of proposals per selected sequence
+        # _candidates_per_result is the number of proposals per result sequence
         assert optimizer._candidates_per_result == 10
         # num_candidates is the total pool size (num_results * _candidates_per_result)
         assert optimizer.num_candidates == 30
@@ -361,7 +361,7 @@ class TestMCMCOptimizer:
         # Should maintain num_trajectories sequences
         # energy_scores is truncated to num_trajectories after each selection step
         assert len(optimizer.energy_scores) == num_trajectories
-        assert len(segment.selected_sequences) == num_trajectories
+        assert len(segment.result_sequences) == num_trajectories
 
     def test_history_tracking(self):
         """Tests that history is properly tracked during MCMC — every step saved."""
@@ -384,8 +384,8 @@ class TestMCMCOptimizer:
         # Each history entry should have proper structure
         for entry in optimizer.history:
             assert "time_step" in entry
-            assert "batch_results" in entry
-            assert len(entry["batch_results"]) == num_trajectories
+            assert "results" in entry
+            assert len(entry["results"]) == num_trajectories
 
     def test_history_timesteps_validation(self):
         """Tests that time_step values in history entries are correctly tracked."""
@@ -532,7 +532,7 @@ class TestMCMCOptimizer:
         # Score initial state
         for i in range(optimizer.num_results):
             optimizer.segments[0].candidate_sequences[i] = copy.deepcopy(
-                optimizer.segments[0].selected_sequences[i]
+                optimizer.segments[0].result_sequences[i]
             )
         optimizer.score_energy()
         initial_best_energy = min(optimizer.energy_scores[:num_trajectories])
@@ -662,7 +662,7 @@ class TestMCMCOptimizer:
         proposal_gen.assign(segment)
 
         # Add metadata to test deep copy
-        for i, seq in enumerate(segment.selected_sequences):
+        for i, seq in enumerate(segment.result_sequences):
             seq._metadata["seq_id"] = f"seq_{i}"
             seq._metadata["nested"] = {"count": i, "tags": [f"tag_{i}"]}
 
@@ -693,9 +693,9 @@ class TestMCMCOptimizer:
         optimizer.run()
 
         # Verify sequences are independent objects
-        for i in range(len(segment.selected_sequences)):
-            for j in range(i + 1, len(segment.selected_sequences)):
-                assert segment.selected_sequences[i] is not segment.selected_sequences[j]
+        for i in range(len(segment.result_sequences)):
+            for j in range(i + 1, len(segment.result_sequences)):
+                assert segment.result_sequences[i] is not segment.result_sequences[j]
 
     def test_comprehensive_integration(self):
         """Comprehensive integration test with num_trajectories>1."""
@@ -745,8 +745,8 @@ class TestMCMCOptimizer:
 
         # energy_scores is truncated to num_trajectories after each selection step
         assert len(optimizer.energy_scores) == num_trajectories
-        assert len(segment1.selected_sequences) == num_trajectories
-        assert len(segment2.selected_sequences) == num_trajectories
+        assert len(segment1.result_sequences) == num_trajectories
+        assert len(segment2.result_sequences) == num_trajectories
 
     def test_run_restarts_from_initial_state(self):
         """Tests that calling run() twice restarts from initial state."""
@@ -755,7 +755,7 @@ class TestMCMCOptimizer:
         )
 
         # Capture original state before any run
-        original_seq = segment.selected_sequences[0].sequence
+        original_seq = segment.result_sequences[0].sequence
         assert original_seq == "A" * 20  # Initial sequence
 
         # First run
@@ -766,21 +766,21 @@ class TestMCMCOptimizer:
         assert len(optimizer._initial_state['segments']) == 1
 
         # Verify captured state contains original sequence
-        captured_selected = optimizer._initial_state['segments'][0]['selected']
-        assert len(captured_selected) == 1
-        assert captured_selected[0]['sequence'] == original_seq
+        captured_result = optimizer._initial_state['segments'][0]['result']
+        assert len(captured_result) == 1
+        assert captured_result[0]['sequence'] == original_seq
 
         # Verify energy scores were captured (initial state captures full num_candidates before first run)
         assert 'energy_scores' in optimizer._initial_state
         assert len(optimizer._initial_state['energy_scores']) == optimizer.num_candidates
 
         # Manually modify the sequence to verify restore works
-        segment.selected_sequences[0].sequence = "G" * 20
+        segment.result_sequences[0].sequence = "G" * 20
         segment.candidate_sequences[0].sequence = "G" * 20
 
         # Second run should restore from initial state (original "AAAA...")
         optimizer.run()
-        second_run_final_seq = segment.selected_sequences[0].sequence
+        second_run_final_seq = segment.result_sequences[0].sequence
 
         # Verify sequences were restored (not all G's, optimization ran from restored state)
         # The restored state was "A" * 20, then mutations were applied
@@ -791,7 +791,7 @@ class TestMCMCOptimizer:
         assert len(optimizer.history) > 0
 
     def test_independent_trajectories_no_crossover(self):
-        """Tests that each batch index is an independent trajectory with no crossover.
+        """Tests that each result index is an independent trajectory with no crossover.
 
         Each trajectory should only select from its own proposal pool, not mix with
         proposals from other trajectories.
@@ -837,21 +837,21 @@ class TestMCMCOptimizer:
         # Trajectory 0: starts with "AAAAAAAAAA" (energy=0, best)
         # Trajectory 1: starts with "GGGGGGGGGG" (energy=10, worst)
         # Trajectory 2: starts with "GGGGGAAAAA" (energy=5, middle)
-        segment.selected_sequences[0].sequence = "A" * seq_length  # energy=0
-        segment.selected_sequences[1].sequence = "G" * seq_length  # energy=10
-        segment.selected_sequences[2].sequence = "G" * 5 + "A" * 5  # energy=5
+        segment.result_sequences[0].sequence = "A" * seq_length  # energy=0
+        segment.result_sequences[1].sequence = "G" * seq_length  # energy=10
+        segment.result_sequences[2].sequence = "G" * 5 + "A" * 5  # energy=5
 
-        # Set the energy_scores for selected sequences (indices 0, 1, 2)
+        # Set the energy_scores for result sequences (indices 0, 1, 2)
         # This mimics the state after previous iteration where only first num_trajectories
-        # entries are the selected energies
+        # entries are the result energies
         optimizer.energy_scores[0] = 0   # Trajectory 0
         optimizer.energy_scores[1] = 10  # Trajectory 1
         optimizer.energy_scores[2] = 5   # Trajectory 2
 
         # Save state BEFORE populating candidates (this is how the real loop works)
-        old_selected_sequences = optimizer._save_sequence_state()
+        old_result_sequences = optimizer._save_sequence_state()
 
-        # Populate candidate_sequences by replicating each selected_sequence
+        # Populate candidate_sequences by replicating each result_sequence
         optimizer._populate_candidate_sequences()
 
         # Score all candidates
@@ -863,7 +863,7 @@ class TestMCMCOptimizer:
             start_idx = traj_idx * candidates_per_result
             end_idx = (traj_idx + 1) * candidates_per_result
             for cand_idx in range(start_idx, end_idx):
-                assert segment.candidate_sequences[cand_idx].sequence == segment.selected_sequences[traj_idx].sequence
+                assert segment.candidate_sequences[cand_idx].sequence == segment.result_sequences[traj_idx].sequence
 
         # Now manually set up a scenario where crossover would be visible:
         # Give trajectory 1's candidates very good energies (better than trajectory 0's old energy)
@@ -878,7 +878,7 @@ class TestMCMCOptimizer:
 
         # Run acceptance step
         optimizer._candidate_outcomes = ["accepted"] * optimizer.num_candidates
-        optimizer._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences)
+        optimizer._select_topk_with_mcmc_acceptance(step=1, old_result_sequences=old_result_sequences)
 
         # Verify NO CROSSOVER with the new "best first, then MH" logic:
         # - Trajectory 1 finds its best proposal (energy=0 at index 4)
@@ -886,15 +886,15 @@ class TestMCMCOptimizer:
         # - Trajectory 1 should now have "AAAAAAAAAA"
         # - Trajectory 0 should NOT have stolen from trajectory 1's pool
 
-        # The key test: trajectory 1's selected sequence should now be "AAAAAAAAAA"
-        assert segment.selected_sequences[1].sequence == "A" * seq_length, (
-            f"Trajectory 1 should have selected from its own pool. "
-            f"Got: {segment.selected_sequences[1].sequence}"
+        # The key test: trajectory 1's result sequence should now be "AAAAAAAAAA"
+        assert segment.result_sequences[1].sequence == "A" * seq_length, (
+            f"Trajectory 1 should have accepted from its own pool. "
+            f"Got: {segment.result_sequences[1].sequence}"
         )
 
         # Trajectory 0 should still be "AAAAAAAAAA" (no change since its proposals
         # were deepcopies of the same sequence)
-        assert segment.selected_sequences[0].sequence == "A" * seq_length
+        assert segment.result_sequences[0].sequence == "A" * seq_length
 
         # Verify energies are updated correctly per trajectory
         assert optimizer.energy_scores[0] == 0.0  # Trajectory 0's energy
@@ -935,21 +935,21 @@ class TestMCMCOptimizer:
         )
 
         # Give each trajectory a very different starting sequence
-        segment.selected_sequences[0].sequence = "A" * seq_length  # 0% GC
-        segment.selected_sequences[1].sequence = "G" * seq_length  # 100% GC
+        segment.result_sequences[0].sequence = "A" * seq_length  # 0% GC
+        segment.result_sequences[1].sequence = "G" * seq_length  # 100% GC
 
         optimizer.run()
 
         # Each trajectory's energy should be tracked independently
         # Check that history shows each trajectory improving independently
         for entry in optimizer.history:
-            assert len(entry["batch_results"]) == num_trajectories
+            assert len(entry["results"]) == num_trajectories
 
         # Final sequences should be different (each evolved from different start)
         # With high probability, they won't converge to identical sequences
         # in just 10 steps with such different starting points
-        final_seq_0 = segment.selected_sequences[0].sequence
-        final_seq_1 = segment.selected_sequences[1].sequence
+        final_seq_0 = segment.result_sequences[0].sequence
+        final_seq_1 = segment.result_sequences[1].sequence
 
         # Both should have improved from initial (moved toward 50% GC)
         gc_0 = (final_seq_0.count("G") + final_seq_0.count("C")) / seq_length * 100
@@ -1007,10 +1007,10 @@ class TestMCMCOptimizer:
         )
 
         # Set initial sequence with energy=5
-        segment.selected_sequences[0].sequence = "AAAAAGGGGG"  # 5 non-A = energy 5
+        segment.result_sequences[0].sequence = "AAAAAGGGGG"  # 5 non-A = energy 5
         optimizer.energy_scores[0] = 5.0
 
-        old_selected_sequences = optimizer._save_sequence_state()
+        old_result_sequences = optimizer._save_sequence_state()
         optimizer._populate_candidate_sequences()
 
         # Set up proposals with different energies: [0.8, 0.3, 0.9]
@@ -1021,12 +1021,12 @@ class TestMCMCOptimizer:
         optimizer.energy_scores = [3.0, 1.0, 4.0]
 
         optimizer._candidate_outcomes = ["accepted"] * optimizer.num_candidates
-        optimizer._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences)
+        optimizer._select_topk_with_mcmc_acceptance(step=1, old_result_sequences=old_result_sequences)
 
         # With low temperature, the best proposal (energy=1.0) should be accepted
         # because it improves from energy=5.0
-        assert segment.selected_sequences[0].sequence == "AAAAAAAAAT", (
-            f"Expected best proposal to be accepted. Got: {segment.selected_sequences[0].sequence}"
+        assert segment.result_sequences[0].sequence == "AAAAAAAAAT", (
+            f"Expected best proposal to be accepted. Got: {segment.result_sequences[0].sequence}"
         )
         assert optimizer.energy_scores[0] == 1.0
 
@@ -1047,10 +1047,10 @@ class TestMCMCOptimizer:
         )
 
         # Start with a very good sequence (energy=0)
-        segment.selected_sequences[0].sequence = "A" * seq_length  # 0 non-A = energy 0
+        segment.result_sequences[0].sequence = "A" * seq_length  # 0 non-A = energy 0
         optimizer2.energy_scores[0] = 0.0
 
-        old_selected_sequences2 = optimizer2._save_sequence_state()
+        old_result_sequences2 = optimizer2._save_sequence_state()
         optimizer2._populate_candidate_sequences()
 
         # All proposals are worse than current (energy 0)
@@ -1060,12 +1060,12 @@ class TestMCMCOptimizer:
         optimizer2.energy_scores = [1.0, 4.0, 1.0]
 
         optimizer2._candidate_outcomes = ["accepted"] * optimizer2.num_candidates
-        optimizer2._select_topk_with_mcmc_acceptance(step=1, old_selected_sequences=old_selected_sequences2)
+        optimizer2._select_topk_with_mcmc_acceptance(step=1, old_result_sequences=old_result_sequences2)
 
         # At very low temperature, worse proposals should be rejected
         # The old state should be kept
-        assert segment.selected_sequences[0].sequence == "A" * seq_length, (
-            f"Expected rejection - old state should be kept. Got: {segment.selected_sequences[0].sequence}"
+        assert segment.result_sequences[0].sequence == "A" * seq_length, (
+            f"Expected rejection - old state should be kept. Got: {segment.result_sequences[0].sequence}"
         )
         assert optimizer2.energy_scores[0] == 0.0
 

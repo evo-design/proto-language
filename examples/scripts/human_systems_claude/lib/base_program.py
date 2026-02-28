@@ -318,7 +318,7 @@ def gene_ids_to_program(
         """Print intermediate sequences."""
         assert len(outputs) == len(gene_ids)
         for gene_id, output in zip(gene_ids, outputs):
-            print(f'\t{gene_id}: {str(output.selected_sequences[0])}')
+            print(f'\t{gene_id}: {str(output.result_sequences[0])}')
 
     optimizer = MCMCOptimizer(
         constructs=constructs,

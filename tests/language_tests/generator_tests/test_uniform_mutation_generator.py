@@ -28,7 +28,7 @@ class TestUniformMutationGenerator:
         gen.assign(segment)
 
         assert gen._assigned_segment is segment
-        assert segment.num_results == 1  # assign() initializes one selected sequence
+        assert segment.num_results == 1  # assign() initializes one result sequence
         assert len(segment.candidate_sequences[0].sequence) == 0
         assert all(c in "ACGU" for c in segment.candidate_sequences[0].sequence)
 
@@ -40,7 +40,7 @@ class TestUniformMutationGenerator:
         predefined_seq = "A" * seq_len
         segment_pre = Segment(sequence=predefined_seq, sequence_type="rna")
         gen.assign(segment_pre)
-        assert segment_pre.selected_sequences[0].sequence == predefined_seq
+        assert segment_pre.result_sequences[0].sequence == predefined_seq
 
     def test_sample_mutates_sequence(self):
         """Tests the sample method introduces a single valid mutation."""

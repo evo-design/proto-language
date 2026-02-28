@@ -20,18 +20,13 @@ from typing import Dict, List
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from lib import (
-    load_config,
-    gene_ids_to_program,
-    score_complexes_in_program_with_af3,
-)
-from proto_language.language.core import Constraint, Construct, Segment
-
 from i_genetic_info_processing__rna_processing__u5_snrna import (
     SEP_SEQUENCE,
     create_u5_snrna_program,
 )
+from lib import gene_ids_to_program, load_config, score_complexes_in_program_with_af3
 
+from proto_language.language.core import Constraint, Construct, Segment
 
 # =============================================================================
 # CUSTOMIZE HERE: Add row-specific constraints
@@ -125,7 +120,7 @@ def main():
     gene_ids.append('U5_snRNA')
     config['complexes'][0]['gene_ids'].append('U5_snRNA')
     config['complexes'][0]['stoichiometry']['U5_snRNA'] = 1
-    evo2_seq = str(u5_snrna_program.optimizers[0].constructs[0].segments[0].selected_sequences[0])
+    evo2_seq = str(u5_snrna_program.optimizers[0].constructs[0].segments[0].result_sequences[0])
     rna_seq = evo2_seq.split(SEP_SEQUENCE)[0].replace('T', 'U')
     program.constructs.append(
         Construct([

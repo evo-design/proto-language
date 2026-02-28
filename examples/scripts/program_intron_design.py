@@ -499,16 +499,16 @@ if __name__ == '__main__':
     #############
 
     def custom_logging(step: int, outputs: Tuple[Segment]) -> None:
-        left_flank_sequence: Sequence = outputs[0].selected_sequences[0]._sequence
-        intron_sequence: Sequence = outputs[1].selected_sequences[0]._sequence
-        right_flank_sequence: Sequence = outputs[2].selected_sequences[0]._sequence
+        left_flank_sequence: Sequence = outputs[0].result_sequences[0]._sequence
+        intron_sequence: Sequence = outputs[1].result_sequences[0]._sequence
+        right_flank_sequence: Sequence = outputs[2].result_sequences[0]._sequence
         print(
             f"\tsequence (left_flank): {left_flank_sequence}\n"
             f"\tsequence (intron): {intron_sequence}\n"
             f"\tsequence (right_flank): {right_flank_sequence}"
         )
 
-        constraints = _get_constraints_metadata(outputs[1].selected_sequences[0])
+        constraints = _get_constraints_metadata(outputs[1].result_sequences[0])
         for constraint_label in sorted(constraints):
             constraint_data = constraints[constraint_label]
             metric_data = constraint_data.get("data", {})

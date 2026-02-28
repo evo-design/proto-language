@@ -131,7 +131,7 @@ def run_beam_search(
         elapsed_time = time.time() - start_time
 
         # Get generated sequences
-        sequences = [seq.sequence for seq in segment.selected_sequences]
+        sequences = [seq.sequence for seq in segment.result_sequences]
         return elapsed_time, sequences
 
     except Exception as e:

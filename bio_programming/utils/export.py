@@ -2,10 +2,10 @@
 Export utilities for optimization results at different granularities.
 
 Five tables, each with a single natural format:
-- sequences:    One row per (batch_idx, construct, segment)
-- constraints:  One row per (batch_idx, construct, segment, constraint)
-- constructs:   One row per (batch_idx, construct)
-- optimization: One row per (timepoint, batch_idx)
+- sequences:    One row per (result_idx, construct, segment)
+- constraints:  One row per (result_idx, construct, segment, constraint)
+- constructs:   One row per (result_idx, construct)
+- optimization: One row per (timepoint, result_idx)
 - fasta:        Standard FASTA format for bioinformatics pipelines
 
 Supports CSV, TSV, JSON, FASTA, and Excel output formats.
@@ -24,33 +24,33 @@ from proto_language.utils.helpers import filter_inf_nan_scores
 
 # Type aliases
 Format = Literal["csv", "tsv", "json", "xlsx"]
-BatchResults = Dict[str, Any]  # Output from build_batch_results()
+Results = Dict[str, Any]  # Output from build_results()
 
 
 # =============================================================================
-# Build batch results
+# Build results
 # =============================================================================
 
 
-def build_batch_results(
+def build_results(
     constructs: list,
     energy_scores: List[float],
-) -> BatchResults:
-    """Build standardized batch-first results from live Construct objects.
+) -> Results:
+    """Build standardized results from live Construct objects.
 
     Produces the canonical format consumed by all flatten/export functions.
     Infinite/NaN energy scores are converted to None for JSON compatibility.
 
     Args:
         constructs: List of Construct objects.
-        energy_scores: List of energy scores (one per batch member).
+        energy_scores: List of energy scores (one per result).
 
     Returns:
-        Dict with "batch_results" (list of batch dicts) and "best_batch_idx"::
+        Dict with "results" (list of result dicts) and "best_result_idx"::
 
             {
-                "batch_results": [{
-                    "batch_idx": 0,
+                "results": [{
+                    "result_idx": 0,
                     "energy_score": 0.5,
                     "constructs": [{
                         "label": "construct_0",
@@ -70,21 +70,21 @@ def build_batch_results(
                         }]
                     }]
                 }],
-                "best_batch_idx": 0
+                "best_result_idx": 0
             }
     """
     if not constructs or not constructs[0].segments:
-        return {"batch_results": [], "best_batch_idx": 0}
+        return {"results": [], "best_result_idx": 0}
 
-    num_results = len(constructs[0].segments[0].selected_sequences)
-    batch_results = []
+    num_results = len(constructs[0].segments[0].result_sequences)
+    results = []
 
-    for batch_idx in range(num_results):
+    for result_idx in range(num_results):
         structured_constructs = []
         for construct in constructs:
             structured_segments = []
             for seg_idx, segment in enumerate(construct.segments):
-                seq = segment.selected_sequences[batch_idx]
+                seq = segment.result_sequences[result_idx]
                 structured_segments.append({
                     "label": segment.label or f"segment_{seg_idx}",
                     "sequence": seq.sequence,
@@ -96,20 +96,20 @@ def build_batch_results(
                 "type": construct.sequence_type,
                 "segments": structured_segments,
             })
-        batch_results.append({
-            "batch_idx": batch_idx,
-            "energy_score": filter_inf_nan_scores(energy_scores[batch_idx]),
+        results.append({
+            "result_idx": result_idx,
+            "energy_score": filter_inf_nan_scores(energy_scores[result_idx]),
             "constructs": structured_constructs,
         })
 
     def get_score(i: int) -> float:
-        score = batch_results[i]["energy_score"]
+        score = results[i]["energy_score"]
         return float("inf") if score is None else score
 
     best_idx = (
-        min(range(len(batch_results)), key=get_score) if batch_results else 0
+        min(range(len(results)), key=get_score) if results else 0
     )
-    return {"batch_results": batch_results, "best_batch_idx": best_idx}
+    return {"results": results, "best_result_idx": best_idx}
 
 
 def build_candidate_results(
@@ -257,35 +257,35 @@ def _flatten_constraint_columns(
 
 
 def flatten_sequences(
-    batch_results: BatchResults,
+    results: Results,
     segments: Optional[Set[str]] = None,
-    batch_indices: Optional[Set[int]] = None,
+    result_indices: Optional[Set[int]] = None,
 ) -> List[Dict[str, Any]]:
-    """One row per (batch_idx, construct, segment). All constraint fields inline.
+    """One row per (result_idx, construct, segment). All constraint fields inline.
 
     Args:
-        batch_results: Output from build_batch_results().
+        results: Output from build_results().
         segments: If set, only include these segment labels.
-        batch_indices: If set, only include these batch indices.
+        result_indices: If set, only include these result indices.
 
     Columns:
-        Fixed: batch_idx, energy_score, construct, segment, sequence
+        Fixed: result_idx, energy_score, construct, segment, sequence
         Per constraint: {label}.score, {label}.weight, {label}.weighted_score,
             {label}.{data_key}, and optionally {label}.input_segments,
             {label}.position_in_inputs
         Metadata: metadata.{key}
     """
     rows = []
-    for batch in batch_results.get("batch_results", []):
-        if batch_indices is not None and batch["batch_idx"] not in batch_indices:
+    for result_entry in results.get("results", []):
+        if result_indices is not None and result_entry["result_idx"] not in result_indices:
             continue
-        for construct in batch["constructs"]:
+        for construct in result_entry["constructs"]:
             for segment in construct["segments"]:
                 if segments is not None and segment["label"] not in segments:
                     continue
                 row = {
-                    "batch_idx": batch["batch_idx"],
-                    "energy_score": batch["energy_score"],
+                    "result_idx": result_entry["result_idx"],
+                    "energy_score": result_entry["energy_score"],
                     "construct": construct["label"],
                     "sequence_type": construct["type"],
                     "segment": segment["label"],
@@ -303,30 +303,30 @@ def flatten_sequences(
 
 
 def flatten_constraints(
-    batch_results: BatchResults,
+    results: Results,
     segments: Optional[Set[str]] = None,
     constraints: Optional[Set[str]] = None,
-    batch_indices: Optional[Set[int]] = None,
+    result_indices: Optional[Set[int]] = None,
 ) -> List[Dict[str, Any]]:
-    """One row per (batch_idx, construct, segment, constraint). All metrics.
+    """One row per (result_idx, construct, segment, constraint). All metrics.
 
     Args:
-        batch_results: Output from build_batch_results().
+        results: Output from build_results().
         segments: If set, only include these segment labels.
         constraints: If set, only include these constraint labels.
-        batch_indices: If set, only include these batch indices.
+        result_indices: If set, only include these result indices.
 
     Columns:
-        Fixed: batch_idx, energy_score, construct, segment, constraint
+        Fixed: result_idx, energy_score, construct, segment, constraint
         Standard: score, weight, weighted_score
         Multi-segment (when applicable): input_segments, position_in_inputs
         Custom data: {key} un-prefixed (one constraint per row)
     """
     rows = []
-    for batch in batch_results.get("batch_results", []):
-        if batch_indices is not None and batch["batch_idx"] not in batch_indices:
+    for result_entry in results.get("results", []):
+        if result_indices is not None and result_entry["result_idx"] not in result_indices:
             continue
-        for construct in batch["constructs"]:
+        for construct in result_entry["constructs"]:
             for segment in construct["segments"]:
                 if segments is not None and segment["label"] not in segments:
                     continue
@@ -334,8 +334,8 @@ def flatten_constraints(
                     if constraints is not None and label not in constraints:
                         continue
                     row = {
-                        "batch_idx": batch["batch_idx"],
-                        "energy_score": batch["energy_score"],
+                        "result_idx": result_entry["result_idx"],
+                        "energy_score": result_entry["energy_score"],
                         "construct": construct["label"],
                         "sequence_type": construct["type"],
                         "segment": segment["label"],
@@ -354,32 +354,32 @@ def flatten_constraints(
 
 
 def flatten_constructs(
-    batch_results: BatchResults,
+    results: Results,
     segments: Optional[Set[str]] = None,
-    batch_indices: Optional[Set[int]] = None,
+    result_indices: Optional[Set[int]] = None,
 ) -> List[Dict[str, Any]]:
-    """One row per (batch_idx, construct). Per-segment data as prefixed columns.
+    """One row per (result_idx, construct). Per-segment data as prefixed columns.
 
     Args:
-        batch_results: Output from build_batch_results().
+        results: Output from build_results().
         segments: If set, only include these segment labels in per-segment columns.
             full_sequence still reflects all segments for construct integrity.
-        batch_indices: If set, only include these batch indices.
+        result_indices: If set, only include these result indices.
 
     Columns:
-        Fixed: batch_idx, energy_score, construct, full_sequence
+        Fixed: result_idx, energy_score, construct, full_sequence
         Per segment: {segment}.sequence
         Per segment x constraint: {segment}.{constraint}.score, etc.
         Per segment metadata: {segment}.metadata.{key}
     """
     rows = []
-    for batch in batch_results.get("batch_results", []):
-        if batch_indices is not None and batch["batch_idx"] not in batch_indices:
+    for result_entry in results.get("results", []):
+        if result_indices is not None and result_entry["result_idx"] not in result_indices:
             continue
-        for construct in batch["constructs"]:
+        for construct in result_entry["constructs"]:
             row = {
-                "batch_idx": batch["batch_idx"],
-                "energy_score": batch["energy_score"],
+                "result_idx": result_entry["result_idx"],
+                "energy_score": result_entry["energy_score"],
                 "construct": construct["label"],
                 "sequence_type": construct["type"],
                 "full_sequence": "".join(
@@ -412,26 +412,26 @@ def flatten_constructs(
 def flatten_optimization(
     history: List[Dict[str, Any]],
     segments: Optional[Set[str]] = None,
-    batch_indices: Optional[Set[int]] = None,
+    result_indices: Optional[Set[int]] = None,
     include_candidates: bool = False,
 ) -> List[Dict[str, Any]]:
-    """One row per (timepoint, batch_idx). Sequences + constraint scores.
+    """One row per (timepoint, result_idx). Sequences + constraint scores.
 
-    History entries use the same batch_results format as extract_batch_results(),
+    History entries use the same results format as extract_results(),
     so traversal is identical to the other flatten functions.
 
     Args:
         history: List of history entries from optimizer(s).
         segments: If set, only include these segment labels.
-        batch_indices: If set, only include these batch indices.
-        include_candidates: If True, add candidate rows alongside selected rows.
-            Selected rows get ``pool="selected"``, candidate rows get
+        result_indices: If set, only include these result indices.
+        include_candidates: If True, add candidate rows alongside result rows.
+            Result rows get ``pool="result"``, candidate rows get
             ``pool="candidate"`` with ``candidate_idx``, ``accepted``,
             ``rejected_by`` columns. When False, output is identical to
             previous behavior (no new columns).
 
     Columns:
-        Fixed: timepoint, batch_idx, energy_score
+        Fixed: timepoint, result_idx, energy_score
         Per segment: {segment}.sequence
         Per segment x constraint: {segment}.{constraint}.score, etc.
         When include_candidates=True:
@@ -440,19 +440,19 @@ def flatten_optimization(
     rows = []
     for entry in history:
         timepoint = entry["time_step"]
-        for batch in entry.get("batch_results", []):
-            if batch_indices is not None and batch["batch_idx"] not in batch_indices:
+        for result_entry in entry.get("results", []):
+            if result_indices is not None and result_entry["result_idx"] not in result_indices:
                 continue
             row = {
                 "timepoint": timepoint,
-                "batch_idx": batch["batch_idx"],
-                "energy_score": batch["energy_score"],
+                "result_idx": result_entry["result_idx"],
+                "energy_score": result_entry["energy_score"],
             }
             if "stage" in entry:
                 row["stage"] = entry["stage"]
             if include_candidates:
-                row["pool"] = "selected"
-            for construct in batch["constructs"]:
+                row["pool"] = "result"
+            for construct in result_entry["constructs"]:
                 row["sequence_type"] = construct.get("type", "")
                 for segment in construct["segments"]:
                     if segments is not None and segment["label"] not in segments:
@@ -503,11 +503,11 @@ _ALL_TABLES = ("sequences", "constraints", "constructs", "optimization")
 
 def flatten_table(
     table: str,
-    batch_results: BatchResults,
+    results: Results,
     history: List[Dict[str, Any]],
     *,
     segments: Optional[Set[str]] = None,
-    batch_indices: Optional[Set[int]] = None,
+    result_indices: Optional[Set[int]] = None,
     constraints: Optional[Set[str]] = None,
     include_candidates: bool = False,
 ) -> List[Dict[str, Any]]:
@@ -516,29 +516,29 @@ def flatten_table(
     Args:
         table: One of ``sequences``, ``constraints``, ``constructs``,
             or ``optimization``.
-        batch_results: Output from :func:`build_batch_results`.
+        results: Output from :func:`build_results`.
         history: Optimization history entries.
         segments: Only include these segment labels.
-        batch_indices: Only include these batch indices.
+        result_indices: Only include these result indices.
         constraints: Only include these constraint labels (constraints table only).
         include_candidates: Include candidate rows (optimization table only).
 
     Raises:
         ValueError: If *table* is not a recognized name.
     """
-    filters = {"segments": segments, "batch_indices": batch_indices}
+    filters = {"segments": segments, "result_indices": result_indices}
     if table == "optimization":
         return flatten_optimization(
             history, include_candidates=include_candidates, **filters
         )
     if table == "sequences":
-        return flatten_sequences(batch_results, **filters)
+        return flatten_sequences(results, **filters)
     if table == "constraints":
         return flatten_constraints(
-            batch_results, constraints=constraints, **filters
+            results, constraints=constraints, **filters
         )
     if table == "constructs":
-        return flatten_constructs(batch_results, **filters)
+        return flatten_constructs(results, **filters)
     raise ValueError(
         f"Unknown table '{table}'. "
         f"Choose from: sequences, constraints, constructs, optimization"
@@ -780,38 +780,38 @@ def export_tables(
 
 
 def to_fasta(
-    batch_results: BatchResults,
+    results: Results,
     segments: Optional[Set[str]] = None,
-    batch_indices: Optional[Set[int]] = None,
-    header_format: str = "{construct}_{segment}_batch{batch_idx}",
+    result_indices: Optional[Set[int]] = None,
+    header_format: str = "{construct}_{segment}_result{result_idx}",
     output: Union[Path, IO, None] = None,
 ) -> str:
     """Export sequences in FASTA format for bioinformatics pipelines.
 
     Args:
-        batch_results: Output from build_batch_results().
+        results: Output from build_results().
         segments: If set, only include these segment labels.
-        batch_indices: If set, only include these batch indices.
+        result_indices: If set, only include these result indices.
         header_format: Python format string for FASTA headers. Available
-            fields: construct, segment, batch_idx, energy_score, sequence_type.
+            fields: construct, segment, result_idx, energy_score, sequence_type.
         output: Path or file-like object. If None, returns string.
 
     Returns:
         FASTA string if output is None.
     """
     lines: List[str] = []
-    for batch in batch_results.get("batch_results", []):
-        if batch_indices is not None and batch["batch_idx"] not in batch_indices:
+    for result_entry in results.get("results", []):
+        if result_indices is not None and result_entry["result_idx"] not in result_indices:
             continue
-        for construct in batch["constructs"]:
+        for construct in result_entry["constructs"]:
             for segment in construct["segments"]:
                 if segments is not None and segment["label"] not in segments:
                     continue
                 header = header_format.format(
                     construct=construct["label"],
                     segment=segment["label"],
-                    batch_idx=batch["batch_idx"],
-                    energy_score=batch["energy_score"],
+                    result_idx=result_entry["result_idx"],
+                    energy_score=result_entry["energy_score"],
                     sequence_type=construct.get("type", ""),
                 )
                 lines.append(f">{header}")

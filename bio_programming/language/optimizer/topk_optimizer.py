@@ -135,7 +135,7 @@ class TopKOptimizer(Optimizer):
         ...     config=config
         ... )
         >>> optimizer.run()
-        >>> best_sequences = optimizer.constructs[0].segments[0].selected_sequences
+        >>> best_sequences = optimizer.constructs[0].segments[0].result_sequences
 
         With early stopping:
 
@@ -198,23 +198,23 @@ class TopKOptimizer(Optimizer):
 
         # Override base class num_steps for progress tracking
         self.num_steps = self.num_samples // self.samples_per_round
-        # Sorted list of energies for selected_sequences (ascending order,
-        # parallel to selected_sequences — index i matches segment.selected_sequences[i])
-        self._selected_energies: list[float] = []
+        # Sorted list of energies for result_sequences (ascending order,
+        # parallel to result_sequences — index i matches segment.result_sequences[i])
+        self._result_energies: list[float] = []
 
     def _insert_into_topk(self, pos: int, candidate_idx: int, energy: float) -> None:
         """Insert a candidate into the sorted top-k at the given position."""
-        self._selected_energies.insert(pos, energy)
+        self._result_energies.insert(pos, energy)
         for segment in self.segments:
-            segment.selected_sequences.insert(
+            segment.result_sequences.insert(
                 pos, copy.deepcopy(segment.candidate_sequences[candidate_idx])
             )
 
     def _remove_worst_from_topk(self) -> None:
         """Remove the worst (last) entry from the sorted top-k."""
-        self._selected_energies.pop()
+        self._result_energies.pop()
         for segment in self.segments:
-            segment.selected_sequences.pop()
+            segment.result_sequences.pop()
 
     def _run_sampling_round(self, round_num: int, save_snapshot: bool = True) -> None:
         """Execute a single sampling round.
@@ -250,12 +250,12 @@ class TopKOptimizer(Optimizer):
                 continue
             energy = self.energy_scores[candidate_idx]
 
-            if len(self._selected_energies) < self.num_results:
-                pos = bisect.bisect_left(self._selected_energies, energy)
+            if len(self._result_energies) < self.num_results:
+                pos = bisect.bisect_left(self._result_energies, energy)
                 self._insert_into_topk(pos, candidate_idx, energy)
-            elif energy < self._selected_energies[-1]:
+            elif energy < self._result_energies[-1]:
                 self._remove_worst_from_topk()
-                pos = bisect.bisect_left(self._selected_energies, energy)
+                pos = bisect.bisect_left(self._result_energies, energy)
                 self._insert_into_topk(pos, candidate_idx, energy)
             else:
                 self._candidate_outcomes[candidate_idx] = "Not in top-k"
@@ -267,20 +267,20 @@ class TopKOptimizer(Optimizer):
     def _capture_initial_state(self) -> None:
         """Capture state and clear TopK-specific state for fresh run."""
         super()._capture_initial_state()
-        self._selected_energies = []
+        self._result_energies = []
         self.energy_scores = []
-        # TopK builds selected_sequences dynamically via sorted insertion
+        # TopK builds result_sequences dynamically via sorted insertion
         for segment in self.segments:
-            segment.selected_sequences = []
+            segment.result_sequences = []
 
     def _restore_initial_state(self) -> None:
         """Restore to captured state and reset TopK-specific state."""
         super()._restore_initial_state()
-        self._selected_energies = []
+        self._result_energies = []
         self.energy_scores = []
-        # TopK builds selected_sequences dynamically via sorted insertion
+        # TopK builds result_sequences dynamically via sorted insertion
         for segment in self.segments:
-            segment.selected_sequences = []
+            segment.result_sequences = []
 
     def run(self) -> None:
         """
@@ -295,7 +295,7 @@ class TopKOptimizer(Optimizer):
         - Resets all candidate_sequences to original_sequence
         - Runs each generator sequentially across segments (generators batch across candidates)
         - Evaluates all candidates with constraints
-        - Updates the top-k in selected_sequences (in-place)
+        - Updates the top-k in result_sequences (in-place)
         """
         self._prepare_run()
 
@@ -320,30 +320,30 @@ class TopKOptimizer(Optimizer):
             candidates_generated += self.samples_per_round
 
             # Threshold mode: stop early when all top-k are below threshold
-            if threshold_mode and len(self._selected_energies) == self.num_results:
-                if self._selected_energies[-1] < self.energy_threshold:
+            if threshold_mode and len(self._result_energies) == self.num_results:
+                if self._result_energies[-1] < self.energy_threshold:
                     threshold_met = True
                     if self.verbose:
-                        logger.info(f"Threshold met! Worst in top-{self.num_results}: {self._selected_energies[-1]:.6f} < {self.energy_threshold:.6f}")
+                        logger.info(f"Threshold met! Worst in top-{self.num_results}: {self._result_energies[-1]:.6f} < {self.energy_threshold:.6f}")
                     # Force a final snapshot if this round wasn't already saved
                     if not save:
                         self._save_topk_snapshot(round_num)
                     break
 
-        if not threshold_met and len(self._selected_energies) < self.num_results:
-            logger.warning(f"TopK optimizer completed with only {len(self._selected_energies)}/{self.num_results} valid candidates. Filter constraints may be too restrictive or num_samples may not be high enough.")
+        if not threshold_met and len(self._result_energies) < self.num_results:
+            logger.warning(f"TopK optimizer completed with only {len(self._result_energies)}/{self.num_results} valid candidates. Filter constraints may be too restrictive or num_samples may not be high enough.")
 
-        # Handoff: set energy_scores to the sorted selected energies.
+        # Handoff: set energy_scores to the sorted result energies.
         # May be fewer than k if filter constraints rejected too many candidates.
-        self.energy_scores = list(self._selected_energies)
+        self.energy_scores = list(self._result_energies)
 
         # Log statistics
         self._log_optimization_summary(threshold_mode, threshold_met, candidates_generated)
 
     def _save_topk_snapshot(self, round_num: int) -> None:
-        """Save a progress snapshot using the sorted selected energies."""
+        """Save a progress snapshot using the sorted result energies."""
         saved_energy_scores = self.energy_scores
-        self.energy_scores = list(self._selected_energies)
+        self.energy_scores = list(self._result_energies)
         self._save_progress_snapshot(time_step=round_num)
         self.energy_scores = saved_energy_scores
         self._log_round_progress(round_num)
@@ -351,10 +351,10 @@ class TopKOptimizer(Optimizer):
     def _log_round_progress(self, round_num: int) -> None:
         """Log round progress."""
         if self.verbose:
-            num_results = len(self._selected_energies)
+            num_results = len(self._result_energies)
             if num_results > 0:
-                best_energy = self._selected_energies[0]
-                worst_energy = self._selected_energies[-1]
+                best_energy = self._result_energies[0]
+                worst_energy = self._result_energies[-1]
                 total_rounds = self.num_samples // self.samples_per_round
                 progress_pct = (round_num / total_rounds) * 100
                 logger.info(f"Round {round_num}/{total_rounds} ({progress_pct:.0f}%): {num_results}/{self.num_results} in top-k, best={best_energy:.4f}, worst={worst_energy:.4f}")

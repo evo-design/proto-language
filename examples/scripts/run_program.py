@@ -34,13 +34,13 @@ def main():
                 "segments": [
                     {
                         "label": seg.label,
-                        "selected_sequences": [
+                        "result_sequences": [
                             {
                                 "sequence": seq.sequence,
                                 "length": len(seq),
                                 "metadata": seq.metadata,
                             }
-                            for seq in seg.selected_sequences
+                            for seq in seg.result_sequences
                         ]
                     }
                     for seg in construct.segments
@@ -54,7 +54,7 @@ def main():
         print(f"\nConstruct {i}:")
         for seg in construct['segments']:
             print(f"  {seg['label']}:")
-            for j, seq_data in enumerate(seg['selected_sequences']):
+            for j, seq_data in enumerate(seg['result_sequences']):
                 seq = seq_data['sequence']
                 display = seq if len(seq) <= 80 else f"{seq[:80]}..."
                 print(f"    [{j}] {display} ({seq_data['length']} bp)")

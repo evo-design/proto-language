@@ -304,10 +304,10 @@ class TestCyclingOptimizerRun:
         assert call_count[0] == num_steps
         assert len(optimizer.history) == num_steps + 1
         for entry in optimizer.history:
-            assert "time_step" in entry and "batch_results" in entry
+            assert "time_step" in entry and "results" in entry
 
-    def test_filter_constraint_rejection_preserves_selected(self):
-        """Test that selected_sequences stay unchanged when all candidates fail."""
+    def test_filter_constraint_rejection_preserves_result(self):
+        """Test that result_sequences stay unchanged when all candidates fail."""
         components = _setup_cycling_components(
             num_steps=1,
             num_results=2,
@@ -332,18 +332,18 @@ class TestCyclingOptimizerRun:
 
         original_seqs = [
             copy.deepcopy(s.sequence)
-            for s in components["target_segment"].selected_sequences
+            for s in components["target_segment"].result_sequences
         ]
         optimizer.run()
 
-        # All should stay unchanged in selected_sequences since constraint fails all
-        for i, selected in enumerate(
-            components["target_segment"].selected_sequences
+        # All should stay unchanged in result_sequences since constraint fails all
+        for i, result_seq in enumerate(
+            components["target_segment"].result_sequences
         ):
-            assert selected.sequence == original_seqs[i]
+            assert result_seq.sequence == original_seqs[i]
 
     def test_partial_filter_acceptance(self):
-        """Test that only passing candidates update selected_sequences."""
+        """Test that only passing candidates update result_sequences."""
         target_segment = Segment(sequence="A" * 20, sequence_type="protein")
         construct = Construct([target_segment])
 
@@ -396,15 +396,15 @@ class TestCyclingOptimizerRun:
         )
 
         original_seqs = [
-            copy.deepcopy(s.sequence) for s in target_segment.selected_sequences
+            copy.deepcopy(s.sequence) for s in target_segment.result_sequences
         ]
         optimizer.run()
 
-        # Candidate 0 passed → selected updated
-        assert target_segment.selected_sequences[0].sequence == pass_seq
-        # Candidates 1, 2 failed → selected unchanged
-        assert target_segment.selected_sequences[1].sequence == original_seqs[1]
-        assert target_segment.selected_sequences[2].sequence == original_seqs[2]
+        # Candidate 0 passed → result updated
+        assert target_segment.result_sequences[0].sequence == pass_seq
+        # Candidates 1, 2 failed → result unchanged
+        assert target_segment.result_sequences[1].sequence == original_seqs[1]
+        assert target_segment.result_sequences[2].sequence == original_seqs[2]
 
     def test_conditioning_fn_wrong_length_raises(self):
         """Test that conditioning_fn returning wrong number of items raises ValueError.
@@ -473,10 +473,10 @@ class TestCyclingOptimizerRun:
 
 
 class TestAcceptPatternBehavior:
-    """Tests for the accept pattern: passing candidates update selected, failed stay unchanged."""
+    """Tests for the accept pattern: passing candidates update result, failed stay unchanged."""
 
-    def test_all_rejected_selected_unchanged(self):
-        """Test that all-fail → selected stays at initial state, energy stays inf."""
+    def test_all_rejected_result_unchanged(self):
+        """Test that all-fail → result stays at initial state, energy stays inf."""
         target_segment = Segment(sequence="A" * 20, sequence_type="protein")
         construct = Construct([target_segment])
 
@@ -529,13 +529,13 @@ class TestAcceptPatternBehavior:
         )
 
         original_seqs = [
-            copy.deepcopy(s.sequence) for s in target_segment.selected_sequences
+            copy.deepcopy(s.sequence) for s in target_segment.result_sequences
         ]
         optimizer.run()
 
-        # Selected sequences should be unchanged (all rejected)
-        for i, selected in enumerate(target_segment.selected_sequences):
-            assert selected.sequence == original_seqs[i]
+        # Result sequences should be unchanged (all rejected)
+        for i, result_seq in enumerate(target_segment.result_sequences):
+            assert result_seq.sequence == original_seqs[i]
 
         # Energy scores should stay at inf (never accepted)
         assert all(e == float("inf") for e in optimizer.energy_scores)
@@ -597,18 +597,18 @@ class TestAcceptPatternBehavior:
 
         optimizer.run()
 
-        # Candidate 0 passed → selected updated
-        assert target_segment.selected_sequences[0].sequence == pass_seq
-        # Candidate 1 rejected → selected unchanged
-        assert target_segment.selected_sequences[1].sequence == "A" * 20
+        # Candidate 0 passed → result updated
+        assert target_segment.result_sequences[0].sequence == pass_seq
+        # Candidate 1 rejected → result unchanged
+        assert target_segment.result_sequences[1].sequence == "A" * 20
 
         # Energy for candidate 0: accepted score (0.0 from filter-only)
         assert optimizer.energy_scores[0] == 0.0
         # Energy for candidate 1: still inf (never accepted)
         assert optimizer.energy_scores[1] == float("inf")
 
-    def test_conditioning_reads_from_selected_sequences(self):
-        """Test that conditioning fn receives selected_sequences, not candidates."""
+    def test_conditioning_reads_from_result_sequences(self):
+        """Test that conditioning fn receives result_sequences, not candidates."""
         target_segment = Segment(sequence="A" * 20, sequence_type="protein")
         construct = Construct([target_segment])
 
@@ -650,13 +650,13 @@ class TestAcceptPatternBehavior:
 
         optimizer.run()
 
-        # Step 1: conditioning fn receives initial selected_sequences (all "A" * 20)
+        # Step 1: conditioning fn receives initial result_sequences (all "A" * 20)
         assert all(s == "A" * 20 for s in received_sequences[0])
-        # Step 2: conditioning fn receives updated selected (from step 1 acceptance)
+        # Step 2: conditioning fn receives updated result (from step 1 acceptance)
         assert all(s == "MKTAYIAKQRQISFVKSHFS" for s in received_sequences[1])
 
     def test_multi_step_rejection_preserves_previous_accepted(self):
-        """Test: step 1 accepts, step 2 rejects → selected retains step 1 state."""
+        """Test: step 1 accepts, step 2 rejects → result retains step 1 state."""
         target_segment = Segment(sequence="A" * 20, sequence_type="protein")
         construct = Construct([target_segment])
 
@@ -721,9 +721,9 @@ class TestAcceptPatternBehavior:
 
         optimizer.run()
 
-        # Step 2 rejected → selected retains step 1's accepted sequence
-        for selected in target_segment.selected_sequences:
-            assert selected.sequence == step1_seq
+        # Step 2 rejected → result retains step 1's accepted sequence
+        for result_seq in target_segment.result_sequences:
+            assert result_seq.sequence == step1_seq
 
 
 # =============================================================================
@@ -790,8 +790,8 @@ class TestCyclingOptimizerGPU:
         )
         optimizer.run()
 
-        assert len(target_segment.selected_sequences) == 2
-        for seq in target_segment.selected_sequences:
+        assert len(target_segment.result_sequences) == 2
+        for seq in target_segment.result_sequences:
             assert len(seq.sequence) == seq_length
             assert seq.sequence != "X" * seq_length
 
@@ -854,8 +854,8 @@ class TestCyclingOptimizerGPU:
         )
         optimizer.run()
 
-        assert len(target_segment.selected_sequences) == 2
-        for seq in target_segment.selected_sequences:
+        assert len(target_segment.result_sequences) == 2
+        for seq in target_segment.result_sequences:
             assert len(seq.sequence) > 10
 
 
@@ -896,12 +896,12 @@ class TestCyclingOptimizerRestart:
         optimizer.run()
         assert optimizer._initial_state is not None
         first_run_calls = call_count[0]
-        first_run_seqs = [s.sequence for s in components["target_segment"].selected_sequences]
+        first_run_seqs = [s.sequence for s in components["target_segment"].result_sequences]
 
         # Second run should restart - call count continues but state is fresh
         optimizer.run()
         assert call_count[0] > first_run_calls
-        second_run_seqs = [s.sequence for s in components["target_segment"].selected_sequences]
+        second_run_seqs = [s.sequence for s in components["target_segment"].result_sequences]
 
         # Verify sequences were modified from original (mock changes them to valid protein seqs)
         original_seq = "ACDEFGHIKLMNPQRSTVWY"
@@ -929,7 +929,7 @@ class TestCyclingOptimizerRestart:
         )
 
         # Capture original sequences before run
-        original_selected = [copy.deepcopy(s) for s in components["target_segment"].selected_sequences]
+        original_result = [copy.deepcopy(s) for s in components["target_segment"].result_sequences]
         original_candidates = [copy.deepcopy(s) for s in components["target_segment"].candidate_sequences]
 
         optimizer.run()
@@ -939,14 +939,14 @@ class TestCyclingOptimizerRestart:
         assert len(optimizer._initial_state['segments']) == 1
 
         # Verify captured state contains actual sequence content (using index 0)
-        captured_selected = optimizer._initial_state['segments'][0]['selected']
+        captured_result = optimizer._initial_state['segments'][0]['result']
         captured_candidates = optimizer._initial_state['segments'][0]['candidates']
 
-        assert len(captured_selected) == len(original_selected)
+        assert len(captured_result) == len(original_result)
         assert len(captured_candidates) == len(original_candidates)
 
         # Verify sequences match
-        for orig, captured in zip(original_selected, captured_selected):
+        for orig, captured in zip(original_result, captured_result):
             assert orig.sequence == captured['sequence']
             assert orig.sequence_type == captured['sequence_type']
 

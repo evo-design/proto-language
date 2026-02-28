@@ -110,7 +110,7 @@ program = Program(optimizers=[opt1, opt2], num_results=5)
 # Run stage 0 and inspect
 program.run_stage(0)
 results = program.get_stage_results(0)
-print(f"Stage 0 best energy: {results['batch_results'][results['best_batch_idx']]['energy_score']}")
+print(f"Stage 0 best energy: {results['results'][results['best_result_idx']]['energy_score']}")
 
 # Continue to stage 1
 program.run_stage(1)
@@ -174,12 +174,12 @@ print(program.energy_scores)
 
 # Structured results per stage
 results = program.get_stage_results(stage_index=0)
-for batch in results["batch_results"]:
-    print(f"Batch {batch['batch_idx']}: energy={batch['energy_score']:.4f}")
+for result in results["results"]:
+    print(f"Result {result['result_idx']}: energy={result['energy_score']:.4f}")
 
 # Per-constraint metadata
 seg = construct.segments[0]
-for seq in seg.selected_sequences:
+for seq in seg.result_sequences:
     constraints = seq._metadata.get("constraints", {})
     for name, data in constraints.items():
         print(f"  {name}: score={data['score']:.4f}")

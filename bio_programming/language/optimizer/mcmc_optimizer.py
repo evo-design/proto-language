@@ -134,7 +134,7 @@ class MCMCOptimizer(Optimizer):
 
     At each step, the optimizer generates ``num_results x candidates_per_result``
     proposals by mutating each of the K sequences ``candidates_per_result`` times.
-    Each trajectory (batch index) is independent. For each trajectory, the best proposal
+    Each trajectory (result index) is independent. For each trajectory, the best proposal
     (lowest energy) is selected, then MH acceptance is applied to decide whether to
     accept or reject that proposal. If rejected, the trajectory keeps its previous state.
 
@@ -224,13 +224,13 @@ class MCMCOptimizer(Optimizer):
         Execute Metropolis-Hastings MCMC sampling for sequence optimization.
 
         Runs the specified number of MCMC steps, where each step:
-        1. Maintains `num_results` independent trajectories in `selected_sequences`
-        2. Creates `candidate_sequences` by replicating each selected sequence `candidates_per_result` times
+        1. Maintains `num_results` independent trajectories in `result_sequences`
+        2. Creates `candidate_sequences` by replicating each result sequence `candidates_per_result` times
         3. Generates proposals (mutates `candidate_sequences` in-place)
         4. For each trajectory, independently apply MH acceptance and select the best accepted proposal
 
         Note:
-            - Each trajectory (batch index) is independent with no cross-trajectory mixing.
+            - Each trajectory (result index) is independent with no cross-trajectory mixing.
             - Simulated annealing: T(step) = T_max * (T_min / T_max) ^ (step / num_steps)
             - Total proposals per step: num_results x candidates_per_result
             - Snapshots of constructs at tracked timesteps are stored in self.history.
@@ -256,10 +256,10 @@ class MCMCOptimizer(Optimizer):
 
         # MCMC loop
         for step in range(1, self.num_steps + 1):
-            # 1. Save state of selected_sequences to revert if rejected by Metropolis-Hastings acceptance criterion
-            old_selected_sequences = self._save_sequence_state()
+            # 1. Save state of result_sequences to revert if rejected by Metropolis-Hastings acceptance criterion
+            old_result_sequences = self._save_sequence_state()
 
-            # 2. Populate candidate_sequences by replicating each selected_sequence candidates_per_result times
+            # 2. Populate candidate_sequences by replicating each result_sequence candidates_per_result times
             self._populate_candidate_sequences()
 
             # 3. Generate proposals for candidate_sequences in-place by randomly sampling a generator
@@ -269,8 +269,8 @@ class MCMCOptimizer(Optimizer):
             # 4. Score candidate_sequences
             self.score_energy()
 
-            # 5. Metropolis-Hastings acceptance and update energy score, candidate_sequences, and selected_sequences state
-            self._select_topk_with_mcmc_acceptance(step, old_selected_sequences)
+            # 5. Metropolis-Hastings acceptance and update energy score, candidate_sequences, and result_sequences state
+            self._select_topk_with_mcmc_acceptance(step, old_result_sequences)
 
             # Save snapshot and log at tracking interval or final step
             if step % self.tracking_interval == 0 or step == self.num_steps:
@@ -278,38 +278,38 @@ class MCMCOptimizer(Optimizer):
                 self._log_mcmc_progress(step)
 
     def _save_sequence_state(self) -> List[Tuple[Dict[int, Sequence], float]]:
-        """Save state of selected sequences.
+        """Save state of result sequences.
 
         Returns:
-            List of tuples, one per selected sequence, each containing:
+            List of tuples, one per result sequence, each containing:
                 - segments dict: {segment_id -> deepcopied Sequence object}
-                - energy: float (energy_scores[selected_batch_idx])
+                - energy: float (energy_scores[result_idx])
         """
         sequence_state = []
-        for selected_batch_idx in range(self.num_results):
+        for result_idx in range(self.num_results):
             segments_dict = {}
             for segment in self.segments:
                 seg_id = id(segment)
-                segments_dict[seg_id] = copy.deepcopy(segment.selected_sequences[selected_batch_idx])
-            sequence_state.append((segments_dict, self.energy_scores[selected_batch_idx]))
+                segments_dict[seg_id] = copy.deepcopy(segment.result_sequences[result_idx])
+            sequence_state.append((segments_dict, self.energy_scores[result_idx]))
         return sequence_state
 
     def _populate_candidate_sequences(self) -> None:
-        """Populate candidate_sequences by replicating each selected_sequence candidates_per_result times.
+        """Populate candidate_sequences by replicating each result_sequence candidates_per_result times.
 
         Updates candidate_sequences in-place.
         Layout: [sequence_0] * candidates_per_result + [sequence_1] * candidates_per_result + ...
         """
         for segment in self.segments:
-            for selected_batch_idx in range(self.num_results):
-                start_idx = selected_batch_idx * self._candidates_per_result
+            for result_idx in range(self.num_results):
+                start_idx = result_idx * self._candidates_per_result
                 for offset in range(self._candidates_per_result):
-                    segment.candidate_sequences[start_idx + offset] = copy.deepcopy(segment.selected_sequences[selected_batch_idx])
+                    segment.candidate_sequences[start_idx + offset] = copy.deepcopy(segment.result_sequences[result_idx])
 
     def _select_topk_with_mcmc_acceptance(
         self,
         step: int,
-        old_selected_sequences: List[Tuple[Dict[int, Sequence], float]],
+        old_result_sequences: List[Tuple[Dict[int, Sequence], float]],
     ) -> None:
         """Select the best proposal per trajectory and apply Metropolis-Hastings acceptance.
 
@@ -324,14 +324,14 @@ class MCMCOptimizer(Optimizer):
 
         Args:
             step: Current MCMC step (used for temperature annealing).
-            old_selected_sequences: Saved trajectory state before proposals.
+            old_result_sequences: Saved trajectory state before proposals.
         """
         outcomes = list(self._candidate_outcomes)
 
-        for selected_batch_idx in range(self.num_results):
-            old_segments_dict, old_selected_energy = old_selected_sequences[selected_batch_idx]
-            proposal_pool_start = selected_batch_idx * self._candidates_per_result
-            proposal_pool_end = (selected_batch_idx + 1) * self._candidates_per_result
+        for result_idx in range(self.num_results):
+            old_segments_dict, old_result_energy = old_result_sequences[result_idx]
+            proposal_pool_start = result_idx * self._candidates_per_result
+            proposal_pool_end = (result_idx + 1) * self._candidates_per_result
 
             # 1. Find the best proposal by energy
             best_energy = float('inf')
@@ -345,18 +345,18 @@ class MCMCOptimizer(Optimizer):
 
             # 2. Apply MH acceptance criterion
             valid_proposals_exist = best_candidate_idx is not None
-            alpha = self._compute_mcmc_alpha(old_selected_energy, best_energy, step)
+            alpha = self._compute_mcmc_alpha(old_result_energy, best_energy, step)
             accepted = valid_proposals_exist and random.random() < alpha
 
             # 3. Update trajectory state
             if accepted:
                 for segment in self.segments:
-                    segment.selected_sequences[selected_batch_idx] = copy.deepcopy(segment.candidate_sequences[best_candidate_idx])
+                    segment.result_sequences[result_idx] = copy.deepcopy(segment.candidate_sequences[best_candidate_idx])
             else:
-                best_energy = old_selected_energy
+                best_energy = old_result_energy
                 for segment in self.segments:
-                    segment.selected_sequences[selected_batch_idx] = copy.deepcopy(old_segments_dict[id(segment)])
-            self.energy_scores[selected_batch_idx] = best_energy
+                    segment.result_sequences[result_idx] = copy.deepcopy(old_segments_dict[id(segment)])
+            self.energy_scores[result_idx] = best_energy
 
             # 4. Classify each candidate's outcome
             for candidate_idx in range(proposal_pool_start, proposal_pool_end):

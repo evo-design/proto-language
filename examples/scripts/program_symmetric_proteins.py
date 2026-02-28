@@ -188,7 +188,7 @@ def run_optimization(
         #################
 
         def custom_logging(step: int, outputs: Tuple[Segment]) -> None:
-            output_sequence: Sequence = outputs[0].selected_sequences[0]
+            output_sequence: Sequence = outputs[0].result_sequences[0]
             constraints = output_sequence._metadata["constraints"]
 
             # Get pLDDT from structure_plddt_constraint
@@ -243,7 +243,7 @@ def run_optimization(
         #################
 
         # Get sequence from the protomer segment (where constraint metadata is stored)
-        protomer_sequence: Sequence = protomer.selected_sequences[0]
+        protomer_sequence: Sequence = protomer.result_sequences[0]
         constraints = protomer_sequence._metadata["constraints"]
 
         # Save PDB (stored as file reference, need to retrieve content)

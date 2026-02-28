@@ -1,7 +1,7 @@
 # Helper utilities (constraint scoring, and tools)
 # Export utilities
 from .export import (
-    build_batch_results,
+    build_results,
     flatten_constraints,
     flatten_constructs,
     flatten_optimization,
@@ -73,7 +73,7 @@ __all__ = [
     "run_subprocess_command",
     "resolve_sequence_ids",
     # Export utilities
-    "build_batch_results",
+    "build_results",
     "flatten_sequences",
     "flatten_constraints",
     "flatten_constructs",

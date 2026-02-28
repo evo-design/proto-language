@@ -3,7 +3,7 @@ name: implement-optimizer
 description: >
   Implements, modifies, or debugs optimizers in the proto-language DSL.
   Covers the full lifecycle: BaseOptimizerConfig with ConfigField, Optimizer
-  subclass with __init__/run, dual-pool architecture (selected/candidate sequences),
+  subclass with __init__/run, dual-pool architecture (result/candidate sequences),
   constraint evaluation (filter + scoring), decorator registration, export chain,
   and pytest test coverage. Use when working with optimizers, MCMC, beam search,
   TopK selection, cycling, or sequence optimization algorithms.
@@ -34,7 +34,7 @@ allowed-tools:
 The `Optimizer` ABC requires two abstract methods: `__init__` and `run`.
 
 - **`__init__`**: Takes `constructs`, `generators`, `constraints`, plus config. Calls `super().__init__()` which runs `_validate_optimizer()`.
-- **`run`**: Executes the optimization loop. Modifies segments' `selected_sequences` and `candidate_sequences`.
+- **`run`**: Executes the optimization loop. Modifies segments' `result_sequences` and `candidate_sequences`.
 
 **Note**: Subclass `__init__` signatures take `config` as a single parameter and unpack it into the ABC's individual parameters via `super().__init__()`.
 
@@ -43,7 +43,7 @@ The `Optimizer` ABC requires two abstract methods: `__init__` and `run`.
 Every optimizer manages two sequence pools per segment:
 
 ```
-selected_sequences    Persistent top-K results across iterations
+result_sequences    Persistent top-K results across iterations
                       Size: num_results (from config or program-level default)
 
 candidate_sequences   Temporary proposals generated each step
@@ -51,10 +51,10 @@ candidate_sequences   Temporary proposals generated each step
 ```
 
 **Flow per optimization step**:
-1. Copy `selected_sequences` -> `candidate_sequences` (expanded/contracted as needed)
+1. Copy `result_sequences` -> `candidate_sequences` (expanded/contracted as needed)
 2. Apply generators to mutate `candidate_sequences`
 3. Evaluate constraints on `candidate_sequences`
-4. Update `selected_sequences` based on scores
+4. Update `result_sequences` based on scores
 
 ## Filter vs Scoring Constraints
 
@@ -74,7 +74,7 @@ Aggregate score = weighted sum/product of scoring constraint results
 | Method | Purpose |
 |--------|---------|
 | `score_energy(operation="add")` | Evaluate ALL constraints; populates `self.energy_scores` |
-| `_initialize_sequence_pools()` | Set up `candidate_sequences` from `selected_sequences` with cycling |
+| `_initialize_sequence_pools()` | Set up `candidate_sequences` from `result_sequences` with cycling |
 | `_save_progress_snapshot(step)` | Save current state to `self.history` |
 | `_validate_optimizer()` | Comprehensive validation (called in `__init__`) |
 | `_prepare_run()` | Reset history, prepare for fresh run |
@@ -89,7 +89,7 @@ For complete config class and optimizer class templates, use the `Read` tool to 
 Summary of the workflow:
 1. **Config class** — inherit `BaseOptimizerConfig`, use `ConfigField`, declare `num_steps`/`num_results`
 2. **Optimizer class** — `@optimizer` decorator, `@final`, implement `__init__` and `run`
-3. **`_update_selected`** — implement your selection logic (greedy, MCMC, etc.)
+3. **`_update_results`** — implement your selection logic (greedy, MCMC, etc.)
 
 ## Decorator Argument Reference
 
@@ -149,7 +149,7 @@ Copy this and check off as you go:
 - [ ] `@final` decorator on class
 - [ ] `__init__` calls `super().__init__()` with unpacked config
 - [ ] `run()` calls `_prepare_run()`, `_initialize_sequence_pools()`, `score_energy()`, `_save_progress_snapshot()`
-- [ ] `_update_selected()` implements correct selection logic
+- [ ] `_update_results()` implements correct selection logic
 - [ ] Export chain updated: `optimizer/__init__.py`
 - [ ] Tests cover: init, config validation, run, score improvement, history, filter constraints
 - [ ] Tests pass: `pytest tests/language_tests/optimizer_tests/ --cpu -x`

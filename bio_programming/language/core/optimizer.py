@@ -18,8 +18,8 @@ import pandas as pd
 from proto_tools.utils.tool_cache import ToolCache, _program_tool_cache
 
 from proto_language.utils.export import (
-    build_batch_results,
     build_candidate_results,
+    build_results,
     export_tables,
     flatten_table,
     to_fasta,
@@ -46,7 +46,7 @@ class Optimizer(ABC):
     Pool Initialization:
         ``_initialize_sequence_pools()`` is called during ``__init__()`` and by
         ``Program.run_stage()`` before each subsequent optimizer. It reads from
-        ``selected_sequences`` (from previous optimizer) or ``original_sequence``
+        ``result_sequences`` (from previous optimizer) or ``original_sequence``
         and initializes both pools by cycling through source to preserve diversity.
 
     Filter Constraints:
@@ -411,7 +411,7 @@ class Optimizer(ABC):
         """Sync non-target segment candidate pools to match target_segment's pool size.
 
         Maintains the invariant that all segments have equal num_candidates.
-        Non-target segments are populated by cycling through their selected_sequences.
+        Non-target segments are populated by cycling through their result_sequences.
 
         Called after an optimizer resizes target_segment.candidate_sequences
         (e.g., BeamSearch expanding to N*K for batch scoring).
@@ -424,7 +424,7 @@ class Optimizer(ABC):
         for segment in self.segments:
             if segment is target_segment:
                 continue
-            source = segment.selected_sequences or [segment.original_sequence]
+            source = segment.result_sequences or [segment.original_sequence]
             segment.candidate_sequences = [
                 copy.deepcopy(source[i % len(source)])
                 for i in range(target_size)
@@ -434,16 +434,16 @@ class Optimizer(ABC):
         """Initialize sequence pools from previous optimizer's results or original sequence.
 
         Source priority:
-        1. ``segment.selected_sequences`` (if populated) - from previous optimizer
+        1. ``segment.result_sequences`` (if populated) - from previous optimizer
         2. ``[segment.original_sequence]`` (if first optimizer) - falls back to original
 
-        Both ``selected_sequences`` and ``candidate_sequences`` are initialized by cycling
+        Both ``result_sequences`` and ``candidate_sequences`` are initialized by cycling
         through source to preserve diversity when pool sizes differ.
 
         Example: source=[A,B,C], num_results=5 → [A,B,C,A,B]
         """
         # Determine source length from first segment (all segments have same length)
-        source_len = len(self.segments[0].selected_sequences or [self.segments[0].original_sequence])
+        source_len = len(self.segments[0].result_sequences or [self.segments[0].original_sequence])
 
         # Log truncation or expansion with optimizer name for context
         optimizer_name = self.__class__.__name__
@@ -462,10 +462,10 @@ class Optimizer(ABC):
 
         for segment in self.segments:
             # Source: previous optimizer's results or original sequence
-            source = segment.selected_sequences or [segment.original_sequence]
+            source = segment.result_sequences or [segment.original_sequence]
 
-            # Selected pool: cycle through source to preserve diversity
-            segment.selected_sequences = [
+            # Result pool: cycle through source to preserve diversity
+            segment.result_sequences = [
                 copy.deepcopy(source[i % len(source)])
                 for i in range(self.num_results)
             ]
@@ -510,7 +510,7 @@ class Optimizer(ABC):
         self._initial_state = {
             'segments': [
                 {
-                    'selected': [seq.to_dict() for seq in seg.selected_sequences],
+                    'result': [seq.to_dict() for seq in seg.result_sequences],
                     'candidates': [seq.to_dict() for seq in seg.candidate_sequences],
                 }
                 for seg in self.segments
@@ -522,7 +522,7 @@ class Optimizer(ABC):
         """Restore to captured state via deserialization."""
         for i, seg in enumerate(self.segments):
             state = self._initial_state['segments'][i]
-            seg.selected_sequences = [Sequence.from_dict(s) for s in state['selected']]
+            seg.result_sequences = [Sequence.from_dict(s) for s in state['result']]
             seg.candidate_sequences = [Sequence.from_dict(s) for s in state['candidates']]
         self.energy_scores = self._initial_state['energy_scores'].copy()
         self._candidate_outcomes = []
@@ -534,17 +534,17 @@ class Optimizer(ABC):
         """Save current optimization state to history.
 
         Validates internal consistency: all segments have the same number of
-        ``selected_sequences`` and ``energy_scores`` matches that count.
-        Allows partial snapshots (e.g. TopK mid-run with fewer than k selected).
+        ``result_sequences`` and ``energy_scores`` matches that count.
+        Allows partial snapshots (e.g. TopK mid-run with fewer than k result sequences).
         """
-        expected_len = len(self.segments[0].selected_sequences)
+        expected_len = len(self.segments[0].result_sequences)
         for segment in self.segments:
-            if len(segment.selected_sequences) != expected_len:
-                raise RuntimeError(f"selected_sequences length mismatch: segment '{segment.label or 'unlabeled'}' has {len(segment.selected_sequences)}, expected {expected_len}")
+            if len(segment.result_sequences) != expected_len:
+                raise RuntimeError(f"result_sequences length mismatch: segment '{segment.label or 'unlabeled'}' has {len(segment.result_sequences)}, expected {expected_len}")
         if len(self.energy_scores) != expected_len:
-            raise RuntimeError(f"energy_scores has length {len(self.energy_scores)}, expected {expected_len} (matching selected_sequences)")
+            raise RuntimeError(f"energy_scores has length {len(self.energy_scores)}, expected {expected_len} (matching result_sequences)")
 
-        result = build_batch_results(self.constructs, self.energy_scores)
+        result = build_results(self.constructs, self.energy_scores)
         result["time_step"] = time_step
 
         if self.track_candidates and self._candidate_outcomes:
@@ -564,7 +564,7 @@ class Optimizer(ABC):
             "sequences", "constraints", "constructs", "optimization"
         ] | None = None,
         segments: set[str] | None = None,
-        batch_indices: set[int] | None = None,
+        result_indices: set[int] | None = None,
         constraints: set[str] | None = None,
         include_candidates: bool = False,
     ) -> Path:
@@ -581,19 +581,19 @@ class Optimizer(ABC):
             format: ``"csv"`` | ``"tsv"`` | ``"json"`` | ``"xlsx"``.
             table: Single table name, or None for all.
             segments: Only include these segment labels.
-            batch_indices: Only include these batch indices.
+            result_indices: Only include these result indices.
             constraints: Only include these constraint labels (constraints table only).
             include_candidates: Include candidate rows (optimization table only).
         """
-        batch_results = build_batch_results(self.constructs, self.energy_scores)
+        results = build_results(self.constructs, self.energy_scores)
         filters = dict(
             segments=segments,
-            batch_indices=batch_indices,
+            result_indices=result_indices,
             constraints=constraints,
             include_candidates=include_candidates,
         )
         return export_tables(
-            lambda t: flatten_table(t, batch_results, self.history, **filters),
+            lambda t: flatten_table(t, results, self.history, **filters),
             path, format, table,
         )
 
@@ -602,7 +602,7 @@ class Optimizer(ABC):
         table: Literal["sequences", "constraints", "constructs", "optimization"] = "sequences",
         segments: set[str] | None = None,
         constraints: set[str] | None = None,
-        batch_indices: set[int] | None = None,
+        result_indices: set[int] | None = None,
         include_candidates: bool = False,
     ) -> pd.DataFrame:
         """Get a result table as a pandas DataFrame.
@@ -611,10 +611,10 @@ class Optimizer(ABC):
         """
         return pd.DataFrame(flatten_table(
             table,
-            build_batch_results(self.constructs, self.energy_scores),
+            build_results(self.constructs, self.energy_scores),
             self.history,
             segments=segments,
-            batch_indices=batch_indices,
+            result_indices=result_indices,
             constraints=constraints,
             include_candidates=include_candidates,
         ))
@@ -623,23 +623,23 @@ class Optimizer(ABC):
         self,
         path: Path | str | None = None,
         segments: set[str] | None = None,
-        batch_indices: set[int] | None = None,
-        header_format: str = "{construct}_{segment}_batch{batch_idx}",
+        result_indices: set[int] | None = None,
+        header_format: str = "{construct}_{segment}_result{result_idx}",
     ) -> str:
         """Export sequences in FASTA format.
 
         Args:
             path: Output file path. If None, returns string only.
             header_format: Format string for headers. Available fields:
-                construct, segment, batch_idx, energy_score, sequence_type.
+                construct, segment, result_idx, energy_score, sequence_type.
 
         Returns:
             FASTA-formatted string.
         """
         return to_fasta(
-            build_batch_results(self.constructs, self.energy_scores),
+            build_results(self.constructs, self.energy_scores),
             segments=segments,
-            batch_indices=batch_indices,
+            result_indices=result_indices,
             header_format=header_format,
             output=Path(path) if path else None,
         )

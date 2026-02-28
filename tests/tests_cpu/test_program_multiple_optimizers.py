@@ -366,8 +366,8 @@ class TestMultipleOptimizers:
         )
 
         # Verify optimizer2 starts from opt1's ending state
-        # by checking that the segment has the expected selected_sequences
-        assert len(segment.selected_sequences) > 0
+        # by checking that the segment has the expected result_sequences
+        assert len(segment.result_sequences) > 0
         # The state should be preserved in the segment object
 
     def test_mcmc_to_topk_sequence(self):

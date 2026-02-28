@@ -18,12 +18,12 @@ class TestConstruct:
         assert final_sequences[0].sequence == "ATGCGC" + "TAA"
 
     def test_batched_concatenation(self):
-        """Tests concatenation of segments with multiple selected sequences."""
+        """Tests concatenation of segments with multiple result sequences."""
         seg1 = Segment(sequence="A")
-        seg1.selected_sequences.append(Sequence(sequence="G", sequence_type="dna"))
+        seg1.result_sequences.append(Sequence(sequence="G", sequence_type="dna"))
 
         seg2 = Segment(sequence="C")
-        seg2.selected_sequences.append(Sequence(sequence="T", sequence_type="dna"))
+        seg2.result_sequences.append(Sequence(sequence="T", sequence_type="dna"))
 
         construct = Construct([seg1, seg2])
         final_sequences = construct.joined_sequences
@@ -148,13 +148,13 @@ class TestConstructValidation:
         construct = Construct([seg1, seg2])
 
         # Manually create a mismatch
-        seg1.selected_sequences = [
+        seg1.result_sequences = [
             Sequence("AAAA", sequence_type="dna"),
             Sequence("CCCC", sequence_type="dna"),
         ]
-        seg2.selected_sequences = [
+        seg2.result_sequences = [
             Sequence("TTTT", sequence_type="dna"),
         ]
 
-        with pytest.raises(RuntimeError, match="mismatched selected_sequences lengths"):
+        with pytest.raises(RuntimeError, match="mismatched result_sequences lengths"):
             construct.joined_sequences

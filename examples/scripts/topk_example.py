@@ -37,9 +37,9 @@ inputs=[dna_segment],
 def custom_logger(step, segments):
     print(f"After round {step}:")
     for i, segment in enumerate(segments):
-        print(f"Selected sequences for Segment {i + 1}:")
+        print(f"Result sequences for Segment {i + 1}:")
         # show metadata of each sequence in the segment
-        for j, seq in enumerate(segment.selected_sequences):
+        for j, seq in enumerate(segment.result_sequences):
             print(seq._metadata)
 
 # Configure TopK optimizer (standard mode)
@@ -66,7 +66,7 @@ optimizer.run()
 # Access results
 print("\nTop 10 sequences found:")
 for i in range(optimizer.num_results):
-    sequence = dna_segment.selected_sequences[i]
+    sequence = dna_segment.result_sequences[i]
     energy = optimizer.energy_scores[i]
 
     # Calculate actual GC content

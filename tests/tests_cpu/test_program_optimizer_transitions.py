@@ -214,12 +214,12 @@ class TestTopKTransitions:
         program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
-        opt1_seqs = [s.sequence for s in segment.selected_sequences]
+        opt1_seqs = [s.sequence for s in segment.result_sequences]
         assert len(opt1_seqs) == 3
         assert opt1.energy_scores == sorted(opt1.energy_scores), "Should be sorted"
 
         program.run_stage(1)
-        assert len(segment.selected_sequences) == 2
+        assert len(segment.result_sequences) == 2
         assert opt2.energy_scores == sorted(opt2.energy_scores)
 
     def test_2_topk_to_mcmc(self):
@@ -236,7 +236,7 @@ class TestTopKTransitions:
         assert opt1.energy_scores == sorted(opt1.energy_scores)
 
         program.run_stage(1)
-        assert len(segment.selected_sequences) == 2
+        assert len(segment.result_sequences) == 2
 
     def test_3_topk_to_beamsearch(self):
         """TopK -> BeamSearch: BeamSearch IGNORES TopK results, starts from prompt."""
@@ -251,7 +251,7 @@ class TestTopKTransitions:
         program.run_stage(0)
 
         program.run_stage(1)
-        beam_seqs = [s.sequence for s in segment.selected_sequences]
+        beam_seqs = [s.sequence for s in segment.result_sequences]
 
         # BeamSearch starts fresh from prompt, doesn't use TopK results
         assert len(beam_seqs) == 2
@@ -269,12 +269,12 @@ class TestTopKTransitions:
         program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
-        topk_seqs = [s.sequence for s in segment.selected_sequences]
+        topk_seqs = [s.sequence for s in segment.result_sequences]
         assert len(topk_seqs) == 3
 
         program.run_stage(1)
         # CyclingOptimizer should have run with 2 candidates
-        assert len(segment.selected_sequences) == 2
+        assert len(segment.result_sequences) == 2
 
 
 class TestMCMCTransitions:
@@ -293,7 +293,7 @@ class TestMCMCTransitions:
         program.run_stage(0)
 
         program.run_stage(1)
-        assert len(segment.selected_sequences) == 2
+        assert len(segment.result_sequences) == 2
         assert opt2.energy_scores == sorted(opt2.energy_scores)
 
     def test_6_mcmc_to_mcmc(self):
@@ -307,11 +307,11 @@ class TestMCMCTransitions:
         program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
-        mcmc1_seqs = [s.sequence for s in segment.selected_sequences]
+        mcmc1_seqs = [s.sequence for s in segment.result_sequences]
         assert len(mcmc1_seqs) == 3
 
         program.run_stage(1)
-        mcmc2_seqs = [s.sequence for s in segment.selected_sequences]
+        mcmc2_seqs = [s.sequence for s in segment.result_sequences]
         assert len(mcmc2_seqs) == 2
 
     def test_7_mcmc_to_beamsearch(self):
@@ -327,7 +327,7 @@ class TestMCMCTransitions:
         program.run_stage(0)
         program.run_stage(1)
 
-        beam_seqs = [s.sequence for s in segment.selected_sequences]
+        beam_seqs = [s.sequence for s in segment.result_sequences]
         assert all(s.startswith("CCCC") for s in beam_seqs), "BeamSearch ignores previous state"
 
     def test_8_mcmc_to_cycling(self):
@@ -341,11 +341,11 @@ class TestMCMCTransitions:
         program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
-        mcmc_seqs = [s.sequence for s in segment.selected_sequences]
+        mcmc_seqs = [s.sequence for s in segment.result_sequences]
         assert len(mcmc_seqs) == 3
 
         program.run_stage(1)
-        assert len(segment.selected_sequences) == 2
+        assert len(segment.result_sequences) == 2
 
 
 class TestBeamSearchTransitions:
@@ -362,12 +362,12 @@ class TestBeamSearchTransitions:
         program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
-        beam_seqs = [s.sequence for s in segment.selected_sequences]
+        beam_seqs = [s.sequence for s in segment.result_sequences]
         assert len(beam_seqs) == 3
         assert all(s.startswith("AAAA") for s in beam_seqs)
 
         program.run_stage(1)
-        assert len(segment.selected_sequences) == 2
+        assert len(segment.result_sequences) == 2
 
     def test_10_beamsearch_to_mcmc(self):
         """BeamSearch -> MCMC: MCMC refines BeamSearch results."""
@@ -380,11 +380,11 @@ class TestBeamSearchTransitions:
         program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
-        beam_seqs = [s.sequence for s in segment.selected_sequences]
+        beam_seqs = [s.sequence for s in segment.result_sequences]
         assert all(s.startswith("TTTT") for s in beam_seqs)
 
         program.run_stage(1)
-        assert len(segment.selected_sequences) == 2
+        assert len(segment.result_sequences) == 2
 
     def test_11_beamsearch_to_beamsearch(self):
         """BeamSearch -> BeamSearch: Second ignores first, starts from its own prompt."""
@@ -397,11 +397,11 @@ class TestBeamSearchTransitions:
         program = Program(optimizers=[opt1, opt2], num_results=2)
 
         program.run_stage(0)
-        beam1_seqs = [s.sequence for s in segment.selected_sequences]
+        beam1_seqs = [s.sequence for s in segment.result_sequences]
         assert all(s.startswith("AAAA") for s in beam1_seqs)
 
         program.run_stage(1)
-        beam2_seqs = [s.sequence for s in segment.selected_sequences]
+        beam2_seqs = [s.sequence for s in segment.result_sequences]
         # Second BeamSearch uses its own prompt, ignores first
         assert all(s.startswith("TTTT") for s in beam2_seqs)
 
@@ -416,11 +416,11 @@ class TestBeamSearchTransitions:
         program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
-        beam_seqs = [s.sequence for s in segment.selected_sequences]
+        beam_seqs = [s.sequence for s in segment.result_sequences]
         assert all(s.startswith("GGGG") for s in beam_seqs)
 
         program.run_stage(1)
-        assert len(segment.selected_sequences) == 2
+        assert len(segment.result_sequences) == 2
 
 
 class TestCyclingOptimizerTransitions:
@@ -437,11 +437,11 @@ class TestCyclingOptimizerTransitions:
         program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
-        cycling_seqs = [s.sequence for s in segment.selected_sequences]
+        cycling_seqs = [s.sequence for s in segment.result_sequences]
         assert len(cycling_seqs) == 3
 
         program.run_stage(1)
-        assert len(segment.selected_sequences) == 2
+        assert len(segment.result_sequences) == 2
 
     def test_14_cycling_to_mcmc(self):
         """CyclingOptimizer -> MCMC: MCMC refines Cycling's results."""
@@ -456,7 +456,7 @@ class TestCyclingOptimizerTransitions:
         program.run_stage(0)
         program.run_stage(1)
 
-        assert len(segment.selected_sequences) == 2
+        assert len(segment.result_sequences) == 2
 
     def test_15_cycling_to_beamsearch(self):
         """CyclingOptimizer -> BeamSearch: BeamSearch IGNORES Cycling's results."""
@@ -471,7 +471,7 @@ class TestCyclingOptimizerTransitions:
         program.run_stage(0)
         program.run_stage(1)
 
-        beam_seqs = [s.sequence for s in segment.selected_sequences]
+        beam_seqs = [s.sequence for s in segment.result_sequences]
         assert all(s.startswith("ACGT") for s in beam_seqs), "BeamSearch ignores previous state"
 
     def test_16_cycling_to_cycling(self):
@@ -485,11 +485,11 @@ class TestCyclingOptimizerTransitions:
         program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
-        cycling1_seqs = [s.sequence for s in segment.selected_sequences]
+        cycling1_seqs = [s.sequence for s in segment.result_sequences]
         assert len(cycling1_seqs) == 3
 
         program.run_stage(1)
-        cycling2_seqs = [s.sequence for s in segment.selected_sequences]
+        cycling2_seqs = [s.sequence for s in segment.result_sequences]
         assert len(cycling2_seqs) == 2
 
 
@@ -539,12 +539,12 @@ class TestCyclingContent:
         program = Program(optimizers=[opt1, opt2], num_results=2)
 
         program.run_stage(0)
-        source_seqs = [s.sequence for s in segment.selected_sequences]
+        source_seqs = [s.sequence for s in segment.result_sequences]
         assert len(source_seqs) == 2
 
         # Manually call _initialize_sequence_pools to check pattern before MCMC runs
         opt2._initialize_sequence_pools()
-        initialized = [s.sequence for s in segment.selected_sequences]
+        initialized = [s.sequence for s in segment.result_sequences]
 
         # Pattern: [0, 1, 0, 1, 0]
         assert initialized[0] == source_seqs[0]

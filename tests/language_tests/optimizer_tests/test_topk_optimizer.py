@@ -88,7 +88,7 @@ class TestTopKOptimizerStandardMode:
 
         optimizer.run()
 
-        assert len(segment.selected_sequences) == 3
+        assert len(segment.result_sequences) == 3
         assert len(optimizer.energy_scores) == 3
         assert optimizer.num_results == 3
 
@@ -165,7 +165,7 @@ class TestTopKOptimizerStandardMode:
 
         optimizer.run()
 
-        assert len(segment.selected_sequences) == 3
+        assert len(segment.result_sequences) == 3
         assert len(optimizer.energy_scores) == 3
 
     def test_topk_rounds_start_from_initial_state(self):
@@ -173,7 +173,7 @@ class TestTopKOptimizerStandardMode:
         segment = Segment(sequence="ATCGATCG", sequence_type="dna")
         construct = Construct([segment])
 
-        initial_seq = segment.selected_sequences[0].sequence
+        initial_seq = segment.result_sequences[0].sequence
 
         gen = UniformMutationGenerator(
             UniformMutationGeneratorConfig(num_mutations=1)
@@ -201,7 +201,7 @@ class TestTopKOptimizerStandardMode:
         optimizer.run()
 
         for i in range(5):
-            seq = segment.selected_sequences[i].sequence
+            seq = segment.result_sequences[i].sequence
             diff_count = sum(1 for a, b in zip(initial_seq, seq) if a != b)
             assert diff_count == 1, f"Expected 1 mutation, got {diff_count} differences"
 
@@ -233,39 +233,39 @@ class TestTopKOptimizerStandardMode:
             config=config,
         )
 
-        # Capture original state (base class initializes selected_sequences to num_results by cycling)
-        original_seq = segment.selected_sequences[0].sequence
+        # Capture original state (base class initializes result_sequences to num_results by cycling)
+        original_seq = segment.result_sequences[0].sequence
         assert original_seq == "ATCGATCG"
-        assert len(segment.selected_sequences) == 3  # Cycled from single source
+        assert len(segment.result_sequences) == 3  # Cycled from single source
 
         # First run
         optimizer.run()
-        assert len(segment.selected_sequences) == 3
+        assert len(segment.result_sequences) == 3
         assert optimizer._initial_state is not None
 
         # Verify captured state contains cycled original sequences
         assert len(optimizer._initial_state['segments']) == 1
-        captured_selected = optimizer._initial_state['segments'][0]['selected']
-        assert len(captured_selected) == 3  # Cycled to num_results
-        assert all(s['sequence'] == original_seq for s in captured_selected)
+        captured_result = optimizer._initial_state['segments'][0]['result']
+        assert len(captured_result) == 3  # Cycled to num_results
+        assert all(s['sequence'] == original_seq for s in captured_result)
 
         # Verify energy scores captured
         assert 'energy_scores' in optimizer._initial_state
 
         # Verify sorted list was populated (TopK-specific state)
-        assert len(optimizer._selected_energies) == 3  # Has k entries after run
+        assert len(optimizer._result_energies) == 3  # Has k entries after run
 
         # Manually modify sequences to invalid values to verify restore
-        for seq in segment.selected_sequences:
+        for seq in segment.result_sequences:
             seq.sequence = "GGGGGGGG"
 
         # Second run should restart - sorted list should be cleared and sequences restored
         optimizer.run()
-        assert len(segment.selected_sequences) == 3
-        assert len(optimizer._selected_energies) == 3  # Rebuilt from scratch
+        assert len(segment.result_sequences) == 3
+        assert len(optimizer._result_energies) == 3  # Rebuilt from scratch
 
         # Verify sequences were restored (not all G's - restoration happened)
-        assert any(seq.sequence != "GGGGGGGG" for seq in segment.selected_sequences)
+        assert any(seq.sequence != "GGGGGGGG" for seq in segment.result_sequences)
 
     def test_topk_with_candidates_per_round(self):
         """Test TopK with samples_per_round > 1 for efficient batching."""
@@ -302,7 +302,7 @@ class TestTopKOptimizerStandardMode:
 
         optimizer.run()
 
-        assert len(segment.selected_sequences) == 3
+        assert len(segment.result_sequences) == 3
         assert len(optimizer.energy_scores) == 3
 
         for i in range(len(optimizer.energy_scores) - 1):
@@ -344,7 +344,7 @@ class TestTopKOptimizerStandardMode:
 
         optimizer.run()
 
-        assert len(segment.selected_sequences) == 5
+        assert len(segment.result_sequences) == 5
         assert len(optimizer.energy_scores) == 5
 
     def test_inf_and_nan_energy_rejection(self):
@@ -460,7 +460,7 @@ class TestTopKOptimizerThresholdMode:
 
         optimizer.run()
 
-        assert len(segment.selected_sequences) == 3
+        assert len(segment.result_sequences) == 3
         assert len(optimizer.energy_scores) == 3
 
     def test_threshold_mode_respects_num_samples(self):
@@ -496,7 +496,7 @@ class TestTopKOptimizerThresholdMode:
         optimizer.run()
 
         # Should have generated all num_samples and kept top k
-        assert len(segment.selected_sequences) == 3
+        assert len(segment.result_sequences) == 3
         assert len(optimizer.energy_scores) == 3
 
 
@@ -520,8 +520,8 @@ class TestTopKOptimizerValidation:
 class TestTopKOptimizerInternals:
     """Test TopKOptimizer internal methods."""
 
-    def test_selected_sequences_always_sorted(self):
-        """Test that selected_sequences are always sorted by energy (ascending)."""
+    def test_result_sequences_always_sorted(self):
+        """Test that result_sequences are always sorted by energy (ascending)."""
         segment = Segment(sequence="ATCGATCG", sequence_type="dna")
         construct = Construct([segment])
 
@@ -546,10 +546,10 @@ class TestTopKOptimizerInternals:
 
         # energy_scores should be sorted ascending
         assert optimizer.energy_scores == sorted(optimizer.energy_scores)
-        # _selected_energies should match energy_scores
-        assert optimizer._selected_energies == optimizer.energy_scores
+        # _result_energies should match energy_scores
+        assert optimizer._result_energies == optimizer.energy_scores
 
-    def test_empty_selected_when_all_rejected(self):
+    def test_empty_result_when_all_rejected(self):
         """Test that TopK returns empty lists when all candidates are rejected."""
         segment = Segment(sequence="ATCG", sequence_type="dna")
         construct = Construct([segment])
@@ -571,13 +571,13 @@ class TestTopKOptimizerInternals:
             config=config,
         )
 
-        # Capture initial state and clear selected
+        # Capture initial state and clear result
         optimizer._capture_initial_state()
 
         # Verify empty state
-        assert optimizer._selected_energies == []
+        assert optimizer._result_energies == []
         assert optimizer.energy_scores == []
-        assert segment.selected_sequences == []
+        assert segment.result_sequences == []
 
     def test_all_candidates_rejected_by_filter(self):
         """Test TopK optimizer handles case where all candidates are rejected by filter.
@@ -623,7 +623,7 @@ class TestTopKOptimizerInternals:
 
         # No valid candidates found — empty results (no padding)
         assert len(optimizer.energy_scores) == 0
-        assert len(segment.selected_sequences) == 0
+        assert len(segment.result_sequences) == 0
 
     def test_partial_candidates_rejected_by_filter(self):
         """Test TopK optimizer handles case where some but not all candidates pass filter."""
@@ -664,7 +664,7 @@ class TestTopKOptimizerInternals:
 
         # Should have results (up to k, may be fewer if some were rejected)
         assert len(optimizer.energy_scores) <= 10
-        assert len(segment.selected_sequences) == len(optimizer.energy_scores)
+        assert len(segment.result_sequences) == len(optimizer.energy_scores)
 
 
 class TestTopKOptimizerTrajectoryPreservation:
@@ -680,8 +680,8 @@ class TestTopKOptimizerTrajectoryPreservation:
         segment = Segment(sequence="AAAA", sequence_type="dna")
         construct = Construct([segment])
 
-        # Pre-populate selected_sequences with diverse seeds (simulating previous optimizer output)
-        segment.selected_sequences = [
+        # Pre-populate result_sequences with diverse seeds (simulating previous optimizer output)
+        segment.result_sequences = [
             Sequence("AAAA", "dna"),
             Sequence("CCCC", "dna"),
             Sequence("GGGG", "dna"),
@@ -737,10 +737,10 @@ class TestTopKOptimizerTrajectoryPreservation:
             f"Expected cycled pattern but got {candidates}"
         )
 
-    def test_topk_batch_coherence_across_segments(self):
-        """Test that batch coherence is maintained across multiple segments.
+    def test_topk_result_coherence_across_segments(self):
+        """Test that result coherence is maintained across multiple segments.
 
-        Each batch index should use the same source index across all segments,
+        Each result index should use the same source index across all segments,
         preserving the semantic pairing from the previous optimizer.
         """
         # Create two segments with matching diverse seeds
@@ -749,11 +749,11 @@ class TestTopKOptimizerTrajectoryPreservation:
         construct = Construct([segment1, segment2])
 
         # Pre-populate with paired sequences (index 0 pairs: AAAA-TTTT, index 1 pairs: CCCC-GGGG)
-        segment1.selected_sequences = [
+        segment1.result_sequences = [
             Sequence("AAAA", "dna"),
             Sequence("CCCC", "dna"),
         ]
-        segment2.selected_sequences = [
+        segment2.result_sequences = [
             Sequence("TTTT", "dna"),
             Sequence("GGGG", "dna"),
         ]
@@ -797,7 +797,7 @@ class TestTopKOptimizerTrajectoryPreservation:
         optimizer._capture_initial_state()
         optimizer._run_sampling_round(0)
 
-        # Verify batch coherence: index i in segment1 should pair with index i in segment2
+        # Verify result coherence: index i in segment1 should pair with index i in segment2
         candidates1 = [seq.sequence for seq in segment1.candidate_sequences]
         candidates2 = [seq.sequence for seq in segment2.candidate_sequences]
 
@@ -820,7 +820,7 @@ class TestTopKCustomLogging:
     """Regression: custom_logging must not corrupt results (Bug 1).
 
     Previously, logging could corrupt the sorted top-k list by reordering
-    ``selected_sequences`` while indices were still in use.
+    ``result_sequences`` while indices were still in use.
     """
 
     def test_custom_logging_does_not_corrupt_results(self):
@@ -852,7 +852,7 @@ class TestTopKCustomLogging:
             )
             optimizer.run()
             return (
-                [s.sequence for s in segment.selected_sequences],
+                [s.sequence for s in segment.result_sequences],
                 optimizer.energy_scores[:],
             )
 
@@ -1100,8 +1100,8 @@ class TestTopKTrackingInterval:
 class TestTopKMetadata:
     """Test metadata preservation through TopK optimization."""
 
-    def test_topk_preserves_initial_metadata_on_selected(self):
-        """Initial user metadata should survive through TopK rounds to selected_sequences."""
+    def test_topk_preserves_initial_metadata_on_result(self):
+        """Initial user metadata should survive through TopK rounds to result_sequences."""
         segment = Segment(sequence="ATCGATCG", sequence_type="dna", metadata={"user_key": "user_value"})
         construct = Construct([segment])
 
@@ -1130,5 +1130,5 @@ class TestTopKMetadata:
 
         optimizer.run()
 
-        for seq in segment.selected_sequences:
+        for seq in segment.result_sequences:
             assert seq._metadata.get("user_key") == "user_value"

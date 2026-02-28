@@ -471,7 +471,7 @@ class TestBeamSearchOptimizer:
         )
         optimizer.run()
         # 95 tokens total with prepend_prompt=True: len(prompt) + 95 = 99
-        for seq in segment.selected_sequences:
+        for seq in segment.result_sequences:
             assert len(seq.sequence) == len(prompt) + 95
 
     # --- Score Aggregation ---
@@ -499,7 +499,7 @@ class TestBeamSearchOptimizer:
         )
         optimizer.run()
         expected_length = len(prompt) + segment_length
-        for seq in segment.selected_sequences:
+        for seq in segment.result_sequences:
             assert len(seq.sequence) == expected_length
 
     def test_beam_scores_accumulated(self):
@@ -510,10 +510,10 @@ class TestBeamSearchOptimizer:
         for beam in optimizer.beams:
             assert len(beam.beam_scores) == 3  # 60/20 = 3 beams
 
-    def test_selected_sequences_populated(self):
+    def test_result_sequences_populated(self):
         optimizer, _, _, segment = _setup_beam_search(num_results=4)
         optimizer.run()
-        assert len(segment.selected_sequences) == optimizer.num_results
+        assert len(segment.result_sequences) == optimizer.num_results
 
     def test_history_saved(self):
         optimizer, _, _, _ = _setup_beam_search(segment_length=60, beam_length=20)
@@ -527,7 +527,7 @@ class TestBeamSearchOptimizer:
             prompt=prompt, segment_length=40, prepend_prompt=True
         )
         optimizer.run()
-        for seq in segment.selected_sequences:
+        for seq in segment.result_sequences:
             assert seq.sequence.startswith(prompt)
             assert len(seq.sequence) == len(prompt) + 40
 
@@ -536,7 +536,7 @@ class TestBeamSearchOptimizer:
             prompt="ATCGATCG", segment_length=40, beam_length=20, prepend_prompt=False
         )
         optimizer.run()
-        for seq in segment.selected_sequences:
+        for seq in segment.result_sequences:
             assert len(seq.sequence) == 40
 
     # --- KV Caching ---
@@ -545,7 +545,7 @@ class TestBeamSearchOptimizer:
             use_kv_caching=False, segment_length=60, beam_length=20
         )
         optimizer.run()
-        assert len(segment.selected_sequences) == optimizer.num_results
+        assert len(segment.result_sequences) == optimizer.num_results
         for beam in optimizer.beams:
             assert beam.kv_cache is None
 
@@ -562,7 +562,7 @@ class TestBeamSearchOptimizer:
         )
         assert optimizer.generator.batch_size == 2
         optimizer.run()
-        assert len(segment.selected_sequences) == optimizer.num_results
+        assert len(segment.result_sequences) == optimizer.num_results
 
     # --- Resampling ---
     def test_all_invalid_raises_error(self):
@@ -601,14 +601,14 @@ class TestBeamSearchOptimizer:
             num_results=1, candidates_per_result=5
         )
         optimizer.run()
-        assert len(segment.selected_sequences) == 1
+        assert len(segment.result_sequences) == 1
 
     def test_candidates_per_result_one(self):
         optimizer, _, _, segment = _setup_beam_search(
             num_results=3, candidates_per_result=1
         )
         optimizer.run()
-        assert len(segment.selected_sequences) == 3
+        assert len(segment.result_sequences) == 3
 
     # --- Verbose ---
     def test_warning_when_previous_results_discarded(self, caplog):
@@ -619,8 +619,8 @@ class TestBeamSearchOptimizer:
             segment_length=40, beam_length=20, num_results=2, prompt="ATCG"
         )
         # Simulate previous optimizer results
-        segment.selected_sequences[0].sequence = "GCTAGCTA"
-        segment.selected_sequences[1].sequence = "TTTTTTTT"
+        segment.result_sequences[0].sequence = "GCTAGCTA"
+        segment.result_sequences[1].sequence = "TTTTTTTT"
 
         with caplog.at_level(logging.WARNING):
             optimizer.run()
@@ -678,8 +678,8 @@ class TestBeamSearchOptimizerGPU:
             target_segment=segment,
         )
         optimizer.run()
-        assert len(segment.selected_sequences) == 3
-        for seq in segment.selected_sequences:
+        assert len(segment.result_sequences) == 3
+        for seq in segment.result_sequences:
             assert len(seq.sequence) == len(prompt) + 100
 
     def test_kv_caching_speedup(self):
@@ -777,8 +777,8 @@ class TestBeamSearchMultiStepOptimization:
         optimizer.run()
 
         # Verify target segment was optimized
-        assert len(target_segment.selected_sequences) == 2
-        for seq in target_segment.selected_sequences:
+        assert len(target_segment.result_sequences) == 2
+        for seq in target_segment.result_sequences:
             assert len(seq.sequence) == 40 + 4  # prompt + segment length
 
         # Verify context segment was not modified
@@ -820,7 +820,7 @@ class TestBeamSearchMultiStepOptimization:
         optimizer.run()
 
         # Verify target segment was optimized
-        assert len(target_segment.selected_sequences) == 2
+        assert len(target_segment.result_sequences) == 2
 
         # Verify other construct's segment was not modified
         assert other_segment.original_sequence.sequence == "GCGCGCGCGC"
@@ -869,7 +869,7 @@ class TestBeamSearchOptimizerRestart:
         )
 
         # Capture original state before run
-        original_selected = [copy.deepcopy(s) for s in segment.selected_sequences]
+        original_result = [copy.deepcopy(s) for s in segment.result_sequences]
 
         # First run
         optimizer.run()
@@ -880,15 +880,15 @@ class TestBeamSearchOptimizerRestart:
 
         # Verify captured state contains original sequences (using index 0)
         assert len(optimizer._initial_state['segments']) == 1
-        captured_selected = optimizer._initial_state['segments'][0]['selected']
+        captured_result = optimizer._initial_state['segments'][0]['result']
 
         # Verify captured sequences match originals
-        assert len(captured_selected) == len(original_selected)
-        for orig, captured in zip(original_selected, captured_selected):
+        assert len(captured_result) == len(original_result)
+        for orig, captured in zip(original_result, captured_result):
             assert orig.sequence == captured['sequence']
 
         # Manually modify sequences to invalid values to verify restore
-        segment.selected_sequences[0].sequence = "G" * 44  # prompt (4) + segment_length (40)
+        segment.result_sequences[0].sequence = "G" * 44  # prompt (4) + segment_length (40)
         segment.candidate_sequences[0].sequence = "G" * 44
 
         # Second run should restart - beams should be reset to prompt
@@ -898,7 +898,7 @@ class TestBeamSearchOptimizerRestart:
         assert all(len(b) > len(prompt) for b in second_run_beams)
 
         # Verify sequences were restored (not all G's - restoration happened)
-        assert any(seq.sequence != "G" * 44 for seq in segment.selected_sequences)
+        assert any(seq.sequence != "G" * 44 for seq in segment.result_sequences)
 
         # History should be fresh (cleared on restart)
         # t=0 initial snapshot + per-beam snapshots
@@ -916,7 +916,7 @@ class TestBeamSearchOptimizerRestart:
         )
 
         # Capture original sequences
-        original_selected = [s.sequence for s in segment.selected_sequences]
+        original_result = [s.sequence for s in segment.result_sequences]
 
         # First run - beams will be modified
         optimizer.run()
@@ -926,7 +926,7 @@ class TestBeamSearchOptimizerRestart:
         assert all(len(b) > len(prompt) for b in modified_beams)
 
         # Manually modify sequences to invalid values
-        for seq in segment.selected_sequences:
+        for seq in segment.result_sequences:
             seq.sequence = "G" * 48  # prompt (8) + segment_length (40)
 
         # Trigger restore
@@ -940,9 +940,9 @@ class TestBeamSearchOptimizerRestart:
             assert beam.beam_scores == []
 
         # Sequences should be restored to original state
-        restored_sequences = [s.sequence for s in segment.selected_sequences]
-        assert len(restored_sequences) == len(original_selected)
-        for orig, restored in zip(original_selected, restored_sequences):
+        restored_sequences = [s.sequence for s in segment.result_sequences]
+        assert len(restored_sequences) == len(original_result)
+        for orig, restored in zip(original_result, restored_sequences):
             assert orig == restored
 
 
@@ -1015,8 +1015,8 @@ class TestBeamSearchNonTargetSegmentSync:
         # Should run without ValueError from mask-length mismatch
         optimizer.run()
 
-        assert len(target_segment.selected_sequences) == 2
-        for seq in target_segment.selected_sequences:
+        assert len(target_segment.result_sequences) == 2
+        for seq in target_segment.result_sequences:
             assert len(seq.sequence) == 44  # prompt (4) + segment_length (40)
 
     def test_multi_segment_constraint(self):
@@ -1065,7 +1065,7 @@ class TestBeamSearchNonTargetSegmentSync:
         # Should run without pool-size mismatch errors
         optimizer.run()
 
-        assert len(target_segment.selected_sequences) == 2
+        assert len(target_segment.result_sequences) == 2
 
 
 class TestBeamSearchTrackingInterval:

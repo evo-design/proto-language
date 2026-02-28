@@ -60,26 +60,26 @@ class Construct:
     @property
     def joined_sequences(self) -> List[Sequence]:
         """
-        Get the joined Sequence objects from selected pools (user-facing results).
-        Joins corresponding sequences from each segment's selected_sequences.
+        Get the joined Sequence objects from result pools (user-facing results).
+        Joins corresponding sequences from each segment's result_sequences.
         Includes segment metadata nested under _metadata["segments"][segment_label].
 
         Example:
-            >>> construct.segment1.selected_sequences = [Seq("AAA"), Seq("TTT")]
-            >>> construct.segment2.selected_sequences = [Seq("CCC"), Seq("GGG")]
+            >>> construct.segment1.result_sequences = [Seq("AAA"), Seq("TTT")]
+            >>> construct.segment2.result_sequences = [Seq("CCC"), Seq("GGG")]
             >>> construct.joined_sequences  # [Sequence("AAACCC"), Sequence("TTTGGG")]
         """
         joined_sequences = []
         segment_labels = [seg.label for seg in self.segments]
 
-        pool_sizes = [len(seg.selected_sequences) for seg in self.segments]
+        pool_sizes = [len(seg.result_sequences) for seg in self.segments]
         if len(set(pool_sizes)) > 1:
             raise RuntimeError(
-                f"Cannot join sequences: segments have mismatched selected_sequences lengths: "
+                f"Cannot join sequences: segments have mismatched result_sequences lengths: "
                 f"{dict(zip(segment_labels, pool_sizes))}"
             )
 
-        for sequences_to_combine in zip(*[segment.selected_sequences for segment in self.segments]):
+        for sequences_to_combine in zip(*[segment.result_sequences for segment in self.segments]):
             joined_seq = create_concatenated_sequence(sequences_to_combine, segment_labels)
             joined_sequences.append(joined_seq)
 

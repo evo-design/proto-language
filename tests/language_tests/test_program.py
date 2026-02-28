@@ -53,13 +53,13 @@ class TestProgramRestart:
         # First run
         program.run()
         first_run_sequences = [
-            seq.sequence for seq in program.constructs[0].segments[0].selected_sequences
+            seq.sequence for seq in program.constructs[0].segments[0].result_sequences
         ]
 
         # Second run should restart from original state
         program.run()
         second_run_sequences = [
-            seq.sequence for seq in program.constructs[0].segments[0].selected_sequences
+            seq.sequence for seq in program.constructs[0].segments[0].result_sequences
         ]
 
         # Verify sequences were modified from original (mutations applied)
@@ -82,7 +82,7 @@ class TestProgramRestart:
         # First run through both stages
         program.run()
         first_run_sequences = [
-            seq.sequence for seq in segment.selected_sequences
+            seq.sequence for seq in segment.result_sequences
         ]
         assert len(first_run_sequences) == 2
         assert any(seq != original_seq for seq in first_run_sequences)
@@ -94,7 +94,7 @@ class TestProgramRestart:
         # from opt0's fresh output instead of using stale first-run state.
         program.run()
         second_run_sequences = [
-            seq.sequence for seq in segment.selected_sequences
+            seq.sequence for seq in segment.result_sequences
         ]
         assert len(second_run_sequences) == 2
         assert any(seq != original_seq for seq in second_run_sequences)
@@ -131,17 +131,17 @@ class TestProgramRestart:
         segment = program.constructs[0].segments[0]
         assert len(program.optimizers[0]._initial_state['segments']) == 1
         captured_state = program.optimizers[0]._initial_state['segments'][0]
-        captured_selected = captured_state['selected']
+        captured_result = captured_state['result']
         captured_candidates = captured_state['candidates']
 
         # Verify captured sequences match original (cycled to num_results=2)
-        assert len(captured_selected) == 2  # Cycled from single source to num_results=2
-        assert all(s['sequence'] == original_seq for s in captured_selected)
+        assert len(captured_result) == 2  # Cycled from single source to num_results=2
+        assert all(s['sequence'] == original_seq for s in captured_result)
         assert len(captured_candidates) > 0
         assert all(c['sequence'] == original_seq for c in captured_candidates)
 
         # Manually modify sequences to all G's to verify restore works
-        for seq in segment.selected_sequences:
+        for seq in segment.result_sequences:
             seq.sequence = "G" * 20
         for seq in segment.candidate_sequences:
             seq.sequence = "G" * 20
@@ -151,7 +151,7 @@ class TestProgramRestart:
 
         # Sequences should not remain as all G's (they were restored before running)
         current_sequences = [
-            seq.sequence for seq in segment.selected_sequences
+            seq.sequence for seq in segment.result_sequences
         ]
         assert any(seq != "G" * 20 for seq in current_sequences)
 
@@ -185,7 +185,7 @@ class TestProgramNumResults:
         opt = _make_topk(segment, construct, num_results=2)
         opt.run()
         assert opt.num_results == 2
-        assert len(segment.selected_sequences) == 2
+        assert len(segment.result_sequences) == 2
 
     def test_deferred_topk_construction_succeeds(self):
         """TopK with neither config.num_results nor num_results constructs successfully (deferred)."""
@@ -207,7 +207,7 @@ class TestProgramNumResults:
 
         # Should be runnable
         program.run()
-        assert len(segment.selected_sequences) <= 3
+        assert len(segment.result_sequences) <= 3
 
     def test_program_num_results_does_not_override_config(self):
         """config.num_results=2 wins over Program(num_results=5)."""
@@ -317,19 +317,19 @@ class TestRunStageRestart:
         result = program.get_stage_results(0)
 
         # Validate result structure
-        assert "batch_results" in result
-        assert "best_batch_idx" in result
-        assert isinstance(result["batch_results"], list)
-        assert isinstance(result["best_batch_idx"], int)
+        assert "results" in result
+        assert "best_result_idx" in result
+        assert isinstance(result["results"], list)
+        assert isinstance(result["best_result_idx"], int)
 
-        # Validate batch_results structure (new structured format)
-        batch = result["batch_results"][0]
-        assert "batch_idx" in batch
-        assert "constructs" in batch
-        assert "energy_score" in batch
+        # Validate results structure (new structured format)
+        result_entry = result["results"][0]
+        assert "result_idx" in result_entry
+        assert "constructs" in result_entry
+        assert "energy_score" in result_entry
 
         # Validate new structured constructs format
-        construct = batch["constructs"][0]
+        construct = result_entry["constructs"][0]
         assert "type" in construct
         assert "segments" in construct
         segment = construct["segments"][0]
@@ -380,14 +380,14 @@ class TestRunStageRestart:
         program.run_stage(0)
 
         # Verify stage 1 constraint metadata is present
-        seq = segment.selected_sequences[0]
+        seq = segment.result_sequences[0]
         assert "gc_stage_1" in seq._constraints_metadata
 
         # Run stage 2
         program.run_stage(1)
 
         # Verify stage 1 metadata is cleared and only stage 2 metadata exists
-        seq = segment.selected_sequences[0]
+        seq = segment.result_sequences[0]
         assert "gc_stage_1" not in seq._constraints_metadata, \
             "Stage 1 constraint metadata should be cleared"
         assert "gc_stage_2" in seq._constraints_metadata, \
@@ -424,8 +424,8 @@ class TestRunStageRestart:
         # Both stages accessible via getter
         for i in range(2):
             result = program.get_stage_results(i)
-            assert "batch_results" in result
-            assert "best_batch_idx" in result
+            assert "results" in result
+            assert "best_result_idx" in result
 
 
 class TestProgramValidation:
@@ -648,7 +648,7 @@ class TestSerializeRestoreState:
         assert len(state["segments"]) == 1  # One segment
 
     def test_serialize_state_captures_sequences(self):
-        """Test that serialize_state captures selected_sequences correctly."""
+        """Test that serialize_state captures result_sequences correctly."""
         original_seq = "ATGCATGCATGCATGCATGC"
         program = _create_simple_program(num_stages=1, sequence=original_seq)
         program.run_stage(0)
@@ -657,18 +657,18 @@ class TestSerializeRestoreState:
 
         # Check segment state structure
         seg_state = state["segments"][0]
-        assert "selected_sequences" in seg_state
-        assert len(seg_state["selected_sequences"]) == 2  # num_results=2 from config
+        assert "result_sequences" in seg_state
+        assert len(seg_state["result_sequences"]) == 2  # num_results=2 from config
 
         # Check sequence data structure (minimal: sequence, sequence_type, valid_chars)
-        for seq_data in seg_state["selected_sequences"]:
+        for seq_data in seg_state["result_sequences"]:
             assert "sequence" in seq_data
             assert "sequence_type" in seq_data
             assert "valid_chars" in seq_data
             assert isinstance(seq_data["sequence"], str)
 
     def test_restore_state_restores_sequences(self):
-        """Test that restore_state correctly restores selected_sequences."""
+        """Test that restore_state correctly restores result_sequences."""
         original_seq = "ATGCATGCATGCATGCATGC"
         program = _create_simple_program(num_stages=2, sequence=original_seq)
 
@@ -676,7 +676,7 @@ class TestSerializeRestoreState:
         program.run_stage(0)
         state = program.serialize_state()
         stage0_sequences = [
-            seq.sequence for seq in program.constructs[0].segments[0].selected_sequences
+            seq.sequence for seq in program.constructs[0].segments[0].result_sequences
         ]
 
         # Create fresh program and restore
@@ -685,7 +685,7 @@ class TestSerializeRestoreState:
 
         # Verify sequences were restored
         restored_sequences = [
-            seq.sequence for seq in fresh_program.constructs[0].segments[0].selected_sequences
+            seq.sequence for seq in fresh_program.constructs[0].segments[0].result_sequences
         ]
         assert restored_sequences == stage0_sequences
 
@@ -711,7 +711,7 @@ class TestSerializeRestoreState:
         program1.run_stage(0)
         state = program1.serialize_state()
         stage0_sequences = [
-            seq.sequence for seq in program1.constructs[0].segments[0].selected_sequences
+            seq.sequence for seq in program1.constructs[0].segments[0].result_sequences
         ]
 
         # Restore and run stage 1
@@ -721,7 +721,7 @@ class TestSerializeRestoreState:
 
         # Verify state was restored before running stage 1
         pre_stage1_sequences = [
-            seq.sequence for seq in program2.constructs[0].segments[0].selected_sequences
+            seq.sequence for seq in program2.constructs[0].segments[0].result_sequences
         ]
         assert pre_stage1_sequences == stage0_sequences
 
@@ -754,7 +754,7 @@ class TestSerializeRestoreState:
 
         # Verify serialized state includes valid_chars
         state = program.serialize_state()
-        seq_data = state["segments"][0]["selected_sequences"][0]
+        seq_data = state["segments"][0]["result_sequences"][0]
         assert "valid_chars" in seq_data
         assert "sequence_type" in seq_data
 
@@ -762,8 +762,8 @@ class TestSerializeRestoreState:
         fresh_program = _create_simple_program(num_stages=1)
         fresh_program.restore_state(state)
 
-        original_seq = program.constructs[0].segments[0].selected_sequences[0]
-        restored_seq = fresh_program.constructs[0].segments[0].selected_sequences[0]
+        original_seq = program.constructs[0].segments[0].result_sequences[0]
+        restored_seq = fresh_program.constructs[0].segments[0].result_sequences[0]
         assert restored_seq.valid_chars == original_seq.valid_chars
         assert restored_seq.sequence_type == original_seq.sequence_type
 
@@ -788,7 +788,7 @@ class TestProgramExport:
         path = tmp_path / "seqs.csv"
         self.program.export(path=path, table="sequences")
         content = path.read_text()
-        assert "batch_idx" in content and "sequence" in content
+        assert "result_idx" in content and "sequence" in content
 
     def test_export_xlsx(self, tmp_path):
         """export() with xlsx writes a workbook."""

@@ -420,7 +420,7 @@ class TestSequencePoolInitialization:
         original_seq = "ATCG"
         segment = Segment(sequence=original_seq, sequence_type="dna")
         segment.candidate_sequences = []
-        segment.selected_sequences = []
+        segment.result_sequences = []
         construct = Construct([segment])
         generator = MockGenerator()
         generator.assign(segment)
@@ -440,16 +440,16 @@ class TestSequencePoolInitialization:
         )
         assert optimizer.constructs == [construct]
 
-        # Selected sequences initialized from original
-        assert len(segment.selected_sequences) == 2
-        assert all(s.sequence == original_seq for s in segment.selected_sequences)
+        # Result sequences initialized from original
+        assert len(segment.result_sequences) == 2
+        assert all(s.sequence == original_seq for s in segment.result_sequences)
 
         # Candidate sequences initialized from original
         assert len(segment.candidate_sequences) == 5
         assert all(s.sequence == original_seq for s in segment.candidate_sequences)
 
         # Verify independence (deep copy)
-        segment.selected_sequences[0].sequence = "GGGG"
+        segment.result_sequences[0].sequence = "GGGG"
         assert segment.candidate_sequences[0].sequence == original_seq
 
     def test_chained_initialization(self):
@@ -459,7 +459,7 @@ class TestSequencePoolInitialization:
         # Simulate previous optimizer results
         prev_best = Sequence(sequence="AAAA", sequence_type="dna")
         prev_second = Sequence(sequence="TTTT", sequence_type="dna")
-        segment.selected_sequences = [prev_best, prev_second]
+        segment.result_sequences = [prev_best, prev_second]
 
         optimizer = ConcreteOptimizer(
             constructs=[construct],
@@ -470,11 +470,11 @@ class TestSequencePoolInitialization:
         )
         assert optimizer.constructs == [construct]
 
-        # Selected sequences padded by cycling: [AAAA, TTTT, AAAA]
-        assert len(segment.selected_sequences) == 3
-        assert segment.selected_sequences[0].sequence == "AAAA"
-        assert segment.selected_sequences[1].sequence == "TTTT"
-        assert segment.selected_sequences[2].sequence == "AAAA"  # Cycles back
+        # Result sequences padded by cycling: [AAAA, TTTT, AAAA]
+        assert len(segment.result_sequences) == 3
+        assert segment.result_sequences[0].sequence == "AAAA"
+        assert segment.result_sequences[1].sequence == "TTTT"
+        assert segment.result_sequences[2].sequence == "AAAA"  # Cycles back
 
         # Candidates also initialized by cycling: [AAAA, TTTT, AAAA, TTTT, AAAA]
         assert len(segment.candidate_sequences) == 5
@@ -758,35 +758,35 @@ class TestProgressSnapshot:
         snapshot = optimizer.history[0]
 
         assert snapshot["time_step"] == 5
-        assert "batch_results" in snapshot
-        assert len(snapshot["batch_results"]) == 1
-        assert snapshot["batch_results"][0]["energy_score"] == 0.1
-        assert isinstance(snapshot["batch_results"][0]["constructs"], list)
+        assert "results" in snapshot
+        assert len(snapshot["results"]) == 1
+        assert snapshot["results"][0]["energy_score"] == 0.1
+        assert isinstance(snapshot["results"][0]["constructs"], list)
 
-    def test_snapshot_validates_energy_scores_matches_selected(self):
-        """Tests that snapshot raises error if energy_scores length != selected_sequences length."""
+    def test_snapshot_validates_energy_scores_matches_result(self):
+        """Tests that snapshot raises error if energy_scores length != result_sequences length."""
         construct, generator, constraint, segment = _setup_optimizer_components(num_candidates=2)
         optimizer = ConcreteOptimizer([construct], [generator], [constraint], 2, 1)
 
-        # energy_scores doesn't match selected_sequences length (1)
+        # energy_scores doesn't match result_sequences length (1)
         optimizer.energy_scores = [0.1, 0.9]
 
         with pytest.raises(RuntimeError, match="energy_scores has length 2, expected 1"):
             optimizer._save_progress_snapshot(time_step=5)
 
-    def test_snapshot_allows_partial_selected(self):
-        """Tests that snapshot allows partial selected_sequences (e.g. TopK mid-run)."""
+    def test_snapshot_allows_partial_result(self):
+        """Tests that snapshot allows partial result_sequences (e.g. TopK mid-run)."""
         construct, generator, constraint, segment = _setup_optimizer_components(num_candidates=4)
         optimizer = ConcreteOptimizer([construct], [generator], [constraint], 4, 3)
 
-        # Simulate partial state: only 2 of 3 selected
-        segment.selected_sequences = segment.selected_sequences[:2]
+        # Simulate partial state: only 2 of 3 result
+        segment.result_sequences = segment.result_sequences[:2]
         optimizer.energy_scores = [0.1, 0.5]
 
         # Should NOT raise — relaxed validation allows partial
         optimizer._save_progress_snapshot(time_step=1)
         assert len(optimizer.history) == 1
-        assert len(optimizer.history[0]["batch_results"]) == 2
+        assert len(optimizer.history[0]["results"]) == 2
 
 
 class TestStateRestartBehavior:
@@ -816,7 +816,7 @@ class TestStateRestartBehavior:
 
         # Modify state
         segment.candidate_sequences[0].sequence = "GGGG"
-        segment.selected_sequences[0].sequence = "CCCC"
+        segment.result_sequences[0].sequence = "CCCC"
         optimizer.energy_scores = [999.0, 999.0]
         optimizer.history = [{"test": "data"}]
         optimizer._candidate_outcomes = ["accepted", "GC Filter"]
@@ -827,7 +827,7 @@ class TestStateRestartBehavior:
 
         # Verify state restored
         assert segment.candidate_sequences[0].sequence == original_seq
-        assert segment.selected_sequences[0].sequence == original_seq
+        assert segment.result_sequences[0].sequence == original_seq
         assert optimizer.energy_scores == [float("inf"), float("inf")]
         assert optimizer.history == []
         assert optimizer._candidate_outcomes == []
@@ -982,7 +982,7 @@ class TestDeferredNumResults:
         construct, generator, constraint, segment = _setup_optimizer_components()
 
         # Segment starts with 1 sequence in each pool from its constructor
-        pre_selected_len = len(segment.selected_sequences)
+        pre_result_len = len(segment.result_sequences)
         pre_candidate_len = len(segment.candidate_sequences)
 
         optimizer = ConcreteOptimizer(
@@ -997,7 +997,7 @@ class TestDeferredNumResults:
         assert optimizer.num_candidates is None
         assert optimizer.energy_scores == []
         # Pools should NOT have been resized by _initialize_sequence_pools
-        assert len(segment.selected_sequences) == pre_selected_len
+        assert len(segment.result_sequences) == pre_result_len
         assert len(segment.candidate_sequences) == pre_candidate_len
 
     def test_deferred_run_raises_runtime_error(self):
@@ -1034,7 +1034,7 @@ class TestDeferredNumResults:
         assert optimizer.num_results == 2
         assert optimizer.num_candidates == 4
         assert len(optimizer.energy_scores) == 4
-        assert len(segment.selected_sequences) == 2
+        assert len(segment.result_sequences) == 2
         assert len(segment.candidate_sequences) == 4
 
     def test_resolve_num_results_validates_value(self):
@@ -1075,7 +1075,7 @@ class TestOptimizerExport:
         )
         segment.candidate_sequences = [Sequence("ATCGATCG"), Sequence("GCTAGCTA")]
         self.optimizer.score_energy()
-        segment.selected_sequences = list(segment.candidate_sequences)
+        segment.result_sequences = list(segment.candidate_sequences)
         self.optimizer._save_progress_snapshot(time_step=0)
 
     def test_export_all_tables(self, tmp_path):
@@ -1090,7 +1090,7 @@ class TestOptimizerExport:
         path = tmp_path / "seqs.csv"
         self.optimizer.export(path=path, table="sequences")
         content = path.read_text()
-        assert "batch_idx" in content and "sequence" in content
+        assert "result_idx" in content and "sequence" in content
 
     @pytest.mark.parametrize("table,expected_col", [
         ("sequences", "sequence"),

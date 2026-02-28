@@ -49,9 +49,9 @@ gc_constraint_1 = Constraint(
 def topk_custom_logger(step, segments):
     print(f"After round {step}:")
     for i, segment in enumerate(segments):
-        print(f"Selected sequences for Segment {i + 1}:")
+        print(f"Result sequences for Segment {i + 1}:")
         # show metadata of each sequence in the segment
-        for j, seq in enumerate(segment.selected_sequences):
+        for j, seq in enumerate(segment.result_sequences):
             print(seq._metadata)
 
 # Optimizer 1: TopK optimizer (standard mode)
@@ -92,9 +92,9 @@ gc_constraint_2 = Constraint(
 def mcmc_custom_logger(step, segments):
     print(f"After round {step}:")
     for i, segment in enumerate(segments):
-        print(f"Selected sequences for Segment {i + 1}:")
+        print(f"Result sequences for Segment {i + 1}:")
         # show metadata of each sequence in the segment
-        for j, seq in enumerate(segment.selected_sequences):
+        for j, seq in enumerate(segment.result_sequences):
             print(seq._metadata)
 
 mcmc_config = MCMCOptimizerConfig(

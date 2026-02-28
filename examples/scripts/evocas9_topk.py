@@ -885,9 +885,9 @@ def collect_results(
     temperature: float,
     top_k_val: int,
 ) -> List[dict]:
-    """Collect passing candidates from segment selected_sequences and cache."""
+    """Collect passing candidates from segment result_sequences and cache."""
     results = []
-    for i, seq in enumerate(segment.selected_sequences):
+    for i, seq in enumerate(segment.result_sequences):
         dna = seq.sequence
         if not dna:
             continue  # Skip empty padding

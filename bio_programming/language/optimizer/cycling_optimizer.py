@@ -248,9 +248,9 @@ class CyclingOptimizer(Optimizer):
     A generalized optimizer that cycles between a user-defined conditioning function
     and a generator:
 
-    1. Call conditioning function with current sequences (from selected_sequences)
+    1. Call conditioning function with current sequences (from result_sequences)
     2. Pass conditioning output to generator's sample() method (into candidate_sequences)
-    3. Accept passing candidates into selected_sequences (failed stay unchanged)
+    3. Accept passing candidates into result_sequences (failed stay unchanged)
     4. Repeat for num_steps
 
     This enables flexible optimization patterns such as:
@@ -286,7 +286,7 @@ class CyclingOptimizer(Optimizer):
 
     Note:
         - Constraints are optional; if provided, must be filter constraints
-          (have ``threshold`` set) - only passing candidates update selected_sequences
+          (have ``threshold`` set) - only passing candidates update result_sequences
     """
 
     config_class = CyclingOptimizerConfig
@@ -371,8 +371,8 @@ class CyclingOptimizer(Optimizer):
         self._save_progress_snapshot(time_step=0)
 
         for step in range(1, self.num_steps + 1):
-            # 1. Condition from current best (selected_sequences)
-            current_sequences = list(self.target_segment.selected_sequences)
+            # 1. Condition from current best (result_sequences)
+            current_sequences = list(self.target_segment.result_sequences)
             conditioning_data = self.conditioning_fn(current_sequences)
 
             # Validate conditioning_fn returned the correct number of items
@@ -389,11 +389,11 @@ class CyclingOptimizer(Optimizer):
                 for i in range(self.num_candidates):
                     # accept
                     if self._candidate_outcomes[i] == "accepted":
-                        self.target_segment.selected_sequences[i] = copy.deepcopy(self.target_segment.candidate_sequences[i])
+                        self.target_segment.result_sequences[i] = copy.deepcopy(self.target_segment.candidate_sequences[i])
                     else: # reject
                         self.energy_scores[i] = prev_energies[i]
             else:
-                self.target_segment.selected_sequences = [copy.deepcopy(seq) for seq in self.target_segment.candidate_sequences]
+                self.target_segment.result_sequences = [copy.deepcopy(seq) for seq in self.target_segment.candidate_sequences]
                 self.energy_scores = [0] * self.num_candidates
                 self._candidate_outcomes = ["accepted"] * self.num_candidates
                 self._candidate_energy_scores = [0] * self.num_candidates
@@ -436,7 +436,7 @@ class CyclingOptimizer(Optimizer):
         """Log step progress."""
         if self.verbose:
             num_accepted = self._candidate_outcomes.count("accepted")
-            first_seq = self.target_segment.selected_sequences[0].sequence
+            first_seq = self.target_segment.result_sequences[0].sequence
             logger.info(f"Step {step}/{self.num_steps}")
             logger.info(f"  Accepted: {num_accepted}/{self.num_candidates}")
             logger.info(f"  First seq: {first_seq}")

@@ -287,7 +287,7 @@ def generate_creb_dna_sequence() -> str:
     """
     program = create_creb_dna_program()
     program.run()
-    creb_dna = str(program.optimizers[0].constructs[0].segments[1].selected_sequences[0])
+    creb_dna = str(program.optimizers[0].constructs[0].segments[1].result_sequences[0])
     assert len(creb_dna) == DESIGN_SEQ_LENGTH
     return creb_dna
 
