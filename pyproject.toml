@@ -78,6 +78,10 @@ api = [
     "jsonpatch",
     "jsonpointer",
     "pick>=2.0",
+
+    # CLI display + input
+    "rich>=13.0",
+    "prompt-toolkit>=3.0.50",
 ]
 
 # Development and testing tools
