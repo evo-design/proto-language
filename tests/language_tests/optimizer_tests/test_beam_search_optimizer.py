@@ -901,8 +901,8 @@ class TestBeamSearchOptimizerRestart:
         assert any(seq.sequence != "G" * 44 for seq in segment.result_sequences)
 
         # History should be fresh (cleared on restart)
-        # t=0 initial snapshot + per-beam snapshots
-        assert len(optimizer.history) == 3
+        # per-beam snapshots only (no t=0 for BeamSearch)
+        assert len(optimizer.history) == 2
 
     def test_beams_reset_on_restore(self):
         """Test that beams are reset to initial prompt on restore and sequences are restored."""

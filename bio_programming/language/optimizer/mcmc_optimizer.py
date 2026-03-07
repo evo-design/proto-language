@@ -251,8 +251,9 @@ class MCMCOptimizer(Optimizer):
             logger.info(f"  num_results={self.num_results}, candidates_per_result={self._candidates_per_result}")
             logger.info(f"  Initial energy: {self.energy_scores[0]:.4f}")
 
-        # Track initial state
-        self._save_progress_snapshot(time_step=0)
+        # Track initial state only if we have meaningful scores (not all inf/nan)
+        if any(math.isfinite(score) for score in self.energy_scores):
+            self._save_progress_snapshot(time_step=0)
 
         # MCMC loop
         for step in range(1, self.num_steps + 1):

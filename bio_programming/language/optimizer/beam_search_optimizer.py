@@ -354,9 +354,8 @@ class BeamSearchOptimizer(Optimizer):
         ):
             logger.warning("BeamSearchOptimizer starts from its configured prompt and overwrites existing sequences/prompts")
 
-        # t=0 initial snapshot (empty state before any beams run)
+        # BeamSearch starts from empty prompt; no meaningful initial snapshot
         self.energy_scores = [float("inf")] * self.num_results
-        self._save_progress_snapshot(time_step=0)
 
         if self.verbose:
             self._log_run_start()

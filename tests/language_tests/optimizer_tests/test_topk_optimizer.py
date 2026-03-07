@@ -1052,9 +1052,9 @@ class TestTopKTrackingInterval:
         )
         optimizer.run()
 
-        # 10 rounds with interval=2: rounds 2,4,6,8,10 + step 0
+        # 10 rounds with interval=2: rounds 2,4,6,8,10 (no step 0 for TopK)
         saved_steps = {entry["time_step"] for entry in optimizer.history}
-        assert saved_steps == {0, 2, 4, 6, 8, 10}
+        assert saved_steps == {2, 4, 6, 8, 10}
 
     def test_tracking_interval_with_threshold_early_exit(self):
         """Threshold early-exit forces a final snapshot even on non-interval rounds."""

@@ -306,8 +306,7 @@ class TopKOptimizer(Optimizer):
                 "Cannot keep more sequences than generated."
             )
 
-        # t=0 initial snapshot (empty state)
-        self._save_progress_snapshot(time_step=0)
+        # TopK starts empty (builds top-k dynamically); no initial snapshot
 
         candidates_generated = 0
         threshold_met = False

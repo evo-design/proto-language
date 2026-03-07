@@ -302,7 +302,7 @@ class TestCyclingOptimizerRun:
         optimizer.run()
 
         assert call_count[0] == num_steps
-        assert len(optimizer.history) == num_steps + 1
+        assert len(optimizer.history) == num_steps
         for entry in optimizer.history:
             assert "time_step" in entry and "results" in entry
 
@@ -908,7 +908,7 @@ class TestCyclingOptimizerRestart:
         assert all(seq != original_seq for seq in first_run_seqs)
         assert all(seq != original_seq for seq in second_run_seqs)
         # History should be from second run only (cleared on restart)
-        assert len(optimizer.history) == 3  # step 0, 1, 2
+        assert len(optimizer.history) == 2  # step 1, 2 (no step 0 without meaningful scores)
 
     def test_initial_state_captured_correctly(self):
         """Test that initial state captures segment state with actual sequence content."""
@@ -1132,7 +1132,6 @@ class TestCyclingCandidateTracking:
 
         optimizer.run()
 
-        # Skip initial snapshot (time_step=0, before any scoring)
         for entry in optimizer.history:
             if "candidate_results" not in entry:
                 continue
@@ -1180,4 +1179,4 @@ class TestCyclingTrackingInterval:
         optimizer.run()
 
         saved_steps = {entry["time_step"] for entry in optimizer.history}
-        assert saved_steps == {0, 3, 6, 9, 10}
+        assert saved_steps == {3, 6, 9, 10}

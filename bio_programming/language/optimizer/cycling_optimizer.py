@@ -11,6 +11,7 @@ from __future__ import annotations
 import copy
 import inspect
 import logging
+import math
 from typing import Any, Callable, Dict, List, Literal, Optional, final
 
 from pydantic import model_validator
@@ -369,7 +370,9 @@ class CyclingOptimizer(Optimizer):
         if self.verbose:
             logger.info(f"CyclingOptimizer: {self.num_steps} steps, {self.num_candidates} candidates")
 
-        self._save_progress_snapshot(time_step=0)
+        # Track initial state only if we have meaningful scores (not all inf/nan)
+        if any(math.isfinite(score) for score in self.energy_scores):
+            self._save_progress_snapshot(time_step=0)
 
         for step in range(1, self.num_steps + 1):
             # 1. Condition from current best (result_sequences)
