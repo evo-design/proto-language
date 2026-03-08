@@ -236,8 +236,8 @@ class TestBeamSearchOptimizer:
         )
         assert optimizer.target_segment == segments[0]
 
-    def test_non_target_constraint_input_accepted(self):
-        """BeamSearch accepts constraints referencing non-target segments."""
+    def test_non_target_constraint_input_rejected(self):
+        """BeamSearch rejects constraints referencing only non-target segments."""
         target_segment = Segment(length=20, sequence_type="dna")
         context_segment = Segment(sequence="ATCGATCGATCGATCGATCG", sequence_type="dna")
         construct = Construct([target_segment, context_segment])
@@ -253,14 +253,14 @@ class TestBeamSearchOptimizer:
             prompt="ATCG", beam_length=10, num_results=2, proposals_per_result=3
         )
 
-        optimizer = BeamSearchOptimizer(
-            target_segment=target_segment,
-            constructs=[construct],
-            generators=[generator],
-            constraints=[non_target_constraint],
-            config=config,
-        )
-        assert optimizer.target_segment is target_segment
+        with pytest.raises(ValueError, match="does not include the target segment"):
+            BeamSearchOptimizer(
+                target_segment=target_segment,
+                constructs=[construct],
+                generators=[generator],
+                constraints=[non_target_constraint],
+                config=config,
+            )
 
     def test_duplicate_constraint_instance_fails(self):
         """Same constraint instance cannot be passed twice."""
@@ -980,8 +980,8 @@ class TestBeamSearchNonTargetSegmentSync:
     segments stay in sync so Constraint.evaluate() sees equal pool sizes.
     """
 
-    def test_non_target_segment_constraint(self):
-        """BeamSearch with a constraint on a non-target segment runs without pool-size errors."""
+    def test_non_target_segment_constraint_rejected(self):
+        """BeamSearch rejects constraints referencing only non-target segments."""
         target_segment = Segment(length=40, sequence_type="dna")
         context_segment = Segment(sequence="ATCGATCGATCGATCGATCG", sequence_type="dna")
         construct = Construct([target_segment, context_segment])
@@ -989,7 +989,7 @@ class TestBeamSearchNonTargetSegmentSync:
         generator = MockAutoregressiveGenerator(use_kv_caching=False)
         generator._assigned_segment = target_segment
 
-        # Constraint on non-target segment
+        # Constraint on non-target segment only
         non_target_constraint = Constraint(
             inputs=[context_segment],
             function=gc_content_constraint,
@@ -1004,20 +1004,14 @@ class TestBeamSearchNonTargetSegmentSync:
             use_kv_caching=False,
         )
 
-        optimizer = BeamSearchOptimizer(
-            target_segment=target_segment,
-            constructs=[construct],
-            generators=[generator],
-            constraints=[non_target_constraint],
-            config=config,
-        )
-
-        # Should run without ValueError from mask-length mismatch
-        optimizer.run()
-
-        assert len(target_segment.result_sequences) == 2
-        for seq in target_segment.result_sequences:
-            assert len(seq.sequence) == 44  # prompt (4) + segment_length (40)
+        with pytest.raises(ValueError, match="does not include the target segment"):
+            BeamSearchOptimizer(
+                target_segment=target_segment,
+                constructs=[construct],
+                generators=[generator],
+                constraints=[non_target_constraint],
+                config=config,
+            )
 
     def test_multi_segment_constraint(self):
         """Constraint reading from both target and non-target segments runs without errors."""

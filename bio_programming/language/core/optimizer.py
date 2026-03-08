@@ -399,13 +399,36 @@ class Optimizer(ABC):
                         segment_label_counts[key] = 0
             self._labels_deduplicated = True
 
-    def _validate_target_segment(self, target_segment) -> None:
-        """Validate target_segment is in constructs."""
+    def _validate_target_segment(self, target_segment: "Segment") -> None:
+        """Validate target_segment is in constructs and that generators/constraints respect it.
+
+        Checks:
+            1. target_segment belongs to one of the provided constructs.
+            2. All generators target the target_segment (non-target segments are context-only).
+            3. All constraints include the target_segment in their inputs.
+        """
         if target_segment not in self.segments:
             raise ValueError(
                 f"target_segment '{target_segment.label or 'unlabeled'}' "
                 "is not in any of the provided constructs"
             )
+
+        # Generators must only target the target segment
+        for i, gen in enumerate(self.generators):
+            if gen._assigned_segment is not target_segment:
+                raise ValueError(
+                    f"Generator {i} ({gen.__class__.__name__}) targets segment "
+                    f"'{gen._assigned_segment.label or 'unlabeled'}', not target segment "
+                    f"'{target_segment.label or 'unlabeled'}'"
+                )
+
+        # Constraints must include the target segment
+        for i, con in enumerate(self.constraints):
+            if target_segment not in con.inputs:
+                raise ValueError(
+                    f"Constraint {i} ('{con.label}') does not include the target segment "
+                    f"'{target_segment.label or 'unlabeled'}' in its inputs"
+                )
 
     def _sync_proposal_pools(self, target_segment: "Segment") -> None:
         """Sync non-target segment proposal pools to match target_segment's pool size.
