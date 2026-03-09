@@ -106,6 +106,32 @@ class FileStore(ABC):
             content = content.encode("utf-8")
         return hashlib.sha256(content).hexdigest()
 
+    def get_batch(
+        self, file_ids: set[str], *, max_workers: int = 10
+    ) -> dict[str, bytes]:
+        """Retrieve multiple files concurrently.
+
+        Dispatches to :meth:`get` in a thread pool. Subclasses may override
+        with native batch APIs for better performance.
+
+        Args:
+            file_ids: Set of content-addressed file IDs to fetch.
+            max_workers: Maximum concurrent fetches (default 10).
+
+        Returns:
+            Dict mapping each file ID to its content bytes.
+
+        Raises:
+            FileNotFoundError: If any file does not exist.
+        """
+        if not file_ids:
+            return {}
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=min(max_workers, len(file_ids))) as pool:
+            futures = {fid: pool.submit(self.get, fid) for fid in file_ids}
+            return {fid: fut.result() for fid, fut in futures.items()}
+
     @staticmethod
     def _get_sharded_path(file_id: str) -> str:
         """Get sharded path components for a file ID.

@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from proto_language.utils.export import (
+    _finalize_file_refs,
     _serialize_value,
     build_proposal_results,
     flatten_constraints,
@@ -274,7 +275,9 @@ class TestFlattenSequences:
     def test_constraint_columns_present(self, sample_results):
         """Constraint fields use {label}.{field} namespacing."""
         rows = flatten_sequences(sample_results)
-        promoter_row = [r for r in rows if r["segment"] == "promoter" and r["result_idx"] == 0][0]
+        promoter_row = [
+            r for r in rows if r["segment"] == "promoter" and r["result_idx"] == 0
+        ][0]
 
         # All constraint fields present
         assert promoter_row["gc_content_constraint.score"] == 0.1
@@ -287,13 +290,17 @@ class TestFlattenSequences:
     def test_metadata_prefix(self, sample_results):
         """User metadata uses metadata.{key} prefix."""
         rows = flatten_sequences(sample_results)
-        promoter_row = [r for r in rows if r["segment"] == "promoter" and r["result_idx"] == 0][0]
+        promoter_row = [
+            r for r in rows if r["segment"] == "promoter" and r["result_idx"] == 0
+        ][0]
         assert promoter_row["metadata.source"] == "synthetic"
 
     def test_correct_values(self, sample_results):
         """Spot-check specific values."""
         rows = flatten_sequences(sample_results)
-        cds_result1 = [r for r in rows if r["segment"] == "cds" and r["result_idx"] == 1][0]
+        cds_result1 = [
+            r for r in rows if r["segment"] == "cds" and r["result_idx"] == 1
+        ][0]
         assert cds_result1["sequence"] == "CCGGCCGG"
         assert cds_result1["energy_score"] == 0.3
         assert cds_result1["gc_content_constraint.gc_content"] == 75.0
@@ -331,7 +338,13 @@ class TestFlattenConstraints:
     def test_custom_data_unprefixed(self, sample_results):
         """Custom data fields are un-prefixed (one constraint per row)."""
         rows = flatten_constraints(sample_results)
-        gc_row = [r for r in rows if r["constraint"] == "gc_content_constraint" and r["result_idx"] == 0 and r["segment"] == "promoter"][0]
+        gc_row = [
+            r
+            for r in rows
+            if r["constraint"] == "gc_content_constraint"
+            and r["result_idx"] == 0
+            and r["segment"] == "promoter"
+        ][0]
         assert gc_row["gc_content"] == 50.0
         assert gc_row["score"] == 0.1
 
@@ -355,7 +368,10 @@ class TestFlattenConstraints:
                                             "score": 0.1,
                                             "weight": 1.0,
                                             "weighted_score": 0.1,
-                                            "input_segments": ["c0.protein_a", "c0.protein_b"],
+                                            "input_segments": [
+                                                "c0.protein_a",
+                                                "c0.protein_b",
+                                            ],
                                             "position_in_inputs": 0,
                                             "data": {"binding_energy": -5.0},
                                         },
@@ -479,14 +495,24 @@ class TestFlattenOptimization:
                                 "label": "dna_construct",
                                 "type": "dna",
                                 "segments": [
-                                    {"label": "seg", "sequence": "AAAA", "constraints": {}, "metadata": {}},
+                                    {
+                                        "label": "seg",
+                                        "sequence": "AAAA",
+                                        "constraints": {},
+                                        "metadata": {},
+                                    },
                                 ],
                             },
                             {
                                 "label": "rna_construct",
                                 "type": "rna",
                                 "segments": [
-                                    {"label": "seg", "sequence": "UUUU", "constraints": {}, "metadata": {}},
+                                    {
+                                        "label": "seg",
+                                        "sequence": "UUUU",
+                                        "constraints": {},
+                                        "metadata": {},
+                                    },
                                 ],
                             },
                         ],
@@ -630,7 +656,12 @@ class TestEdgeCases:
                             "label": "c0",
                             "type": "dna",
                             "segments": [
-                                {"label": "s0", "sequence": "ATCG", "constraints": {}, "metadata": {}},
+                                {
+                                    "label": "s0",
+                                    "sequence": "ATCG",
+                                    "constraints": {},
+                                    "metadata": {},
+                                },
                             ],
                         },
                     ],
@@ -719,7 +750,10 @@ class TestEdgeCases:
                                             "score": 0.1,
                                             "weight": 1.0,
                                             "weighted_score": 0.1,
-                                            "input_segments": ["c0.protein_a", "c0.protein_b"],
+                                            "input_segments": [
+                                                "c0.protein_a",
+                                                "c0.protein_b",
+                                            ],
                                             "position_in_inputs": 0,
                                             "data": {"binding_energy": -5.0},
                                         },
@@ -734,7 +768,10 @@ class TestEdgeCases:
                                             "score": 0.1,
                                             "weight": 1.0,
                                             "weighted_score": 0.1,
-                                            "input_segments": ["c0.protein_a", "c0.protein_b"],
+                                            "input_segments": [
+                                                "c0.protein_a",
+                                                "c0.protein_b",
+                                            ],
                                             "position_in_inputs": 1,
                                             "data": {"interface_contacts": 12},
                                         },
@@ -776,7 +813,10 @@ class TestEdgeCases:
                                             "score": 0.1,
                                             "weight": 1.0,
                                             "weighted_score": 0.1,
-                                            "input_segments": ["c0.protein_a", "c0.protein_b"],
+                                            "input_segments": [
+                                                "c0.protein_a",
+                                                "c0.protein_b",
+                                            ],
                                             "position_in_inputs": 0,
                                             "data": {"binding_energy": -5.0},
                                         },
@@ -827,9 +867,7 @@ class TestFiltering:
 
     def test_sequences_filter_segment_multiple(self, sample_results):
         """Filter by multiple segments returns rows for all specified."""
-        rows = flatten_sequences(
-            sample_results, segments={"promoter", "cds"}
-        )
+        rows = flatten_sequences(sample_results, segments={"promoter", "cds"})
         assert len(rows) == 4  # All segments included
 
     def test_constraints_filter_segment(self, sample_results):
@@ -841,9 +879,7 @@ class TestFiltering:
 
     def test_constraints_filter_constraint(self, sample_results):
         """Only include rows for the specified constraint label."""
-        rows = flatten_constraints(
-            sample_results, constraints={"length_constraint"}
-        )
+        rows = flatten_constraints(sample_results, constraints={"length_constraint"})
         # Only promoter has length_constraint, 2 results = 2 rows
         assert len(rows) == 2
         assert all(r["constraint"] == "length_constraint" for r in rows)
@@ -877,22 +913,23 @@ class TestFiltering:
         assert "promoter.sequence" in rows[0]
         # No other segment columns should appear
         non_fixed_keys = {
-            k for r in rows for k in r if not k.startswith(("timepoint", "result_idx", "energy_score", "sequence_type", "stage"))
+            k
+            for r in rows
+            for k in r
+            if not k.startswith(
+                ("timepoint", "result_idx", "energy_score", "sequence_type", "stage")
+            )
         }
         assert all(k.startswith("promoter.") for k in non_fixed_keys)
 
     def test_filter_nonexistent_segment(self, sample_results):
         """Filtering by a segment that doesn't exist returns no segment rows."""
-        rows = flatten_sequences(
-            sample_results, segments={"nonexistent"}
-        )
+        rows = flatten_sequences(sample_results, segments={"nonexistent"})
         assert len(rows) == 0
 
     def test_filter_nonexistent_constraint(self, sample_results):
         """Filtering by a constraint that doesn't exist returns no rows."""
-        rows = flatten_constraints(
-            sample_results, constraints={"nonexistent"}
-        )
+        rows = flatten_constraints(sample_results, constraints={"nonexistent"})
         assert len(rows) == 0
 
     def test_sequences_filter_result_idx(self, sample_results):
@@ -941,20 +978,20 @@ class TestFiltering:
 class TestSerializeValue:
     """Tests for _serialize_value helper."""
 
-    def test_file_reference_extracts_url(self):
-        """FileReference dicts serialize to URL string."""
+    def test_file_reference_passes_through(self):
+        """FileReference dicts pass through for post-processing."""
         file_ref = {
             "__file_ref__": True,
             "id": "abc123",
             "file_type": "pdb",
             "url": "gs://bucket/file.pdb",
         }
-        assert _serialize_value(file_ref) == "gs://bucket/file.pdb"
+        assert _serialize_value(file_ref) is file_ref
 
-    def test_file_reference_missing_url(self):
-        """FileReference without url returns empty string."""
+    def test_file_reference_missing_url_passes_through(self):
+        """FileReference without url still passes through."""
         file_ref = {"__file_ref__": True, "id": "abc123"}
-        assert _serialize_value(file_ref) == ""
+        assert _serialize_value(file_ref) is file_ref
 
     def test_dict_to_json(self):
         """Regular dicts serialize to JSON string."""
@@ -1298,12 +1335,15 @@ class TestSegmentBoundaries:
         # promoter is first: [0:8]
         assert row["promoter.start"] == 0
         assert row["promoter.end"] == 8
-        assert full[row["promoter.start"]:row["promoter.end"]] == row["promoter.sequence"]
+        assert (
+            full[row["promoter.start"] : row["promoter.end"]]
+            == row["promoter.sequence"]
+        )
 
         # cds follows: [8:16]
         assert row["cds.start"] == 8
         assert row["cds.end"] == 16
-        assert full[row["cds.start"]:row["cds.end"]] == row["cds.sequence"]
+        assert full[row["cds.start"] : row["cds.end"]] == row["cds.sequence"]
 
     def test_boundaries_with_segment_filter(self, sample_results):
         """Boundaries are still correct when filtering segments."""
@@ -1403,7 +1443,12 @@ class TestBuildProposalResults:
 
         seq = Sequence("ATCG", sequence_type="dna")
         seq._constraints_metadata = {
-            "GC Filter": {"score": 0.8, "weight": 1.0, "weighted_score": 0.8, "data": {"gc_content": 80.0}}
+            "GC Filter": {
+                "score": 0.8,
+                "weight": 1.0,
+                "weighted_score": 0.8,
+                "data": {"gc_content": 80.0},
+            }
         }
 
         segment = MagicMock()
@@ -1463,10 +1508,20 @@ class TestFlattenOptimizationProposals:
                     {
                         "result_idx": 0,
                         "energy_score": 0.5,
-                        "constructs": [{
-                            "label": "c0", "type": "dna",
-                            "segments": [{"label": "seg", "sequence": "AAAA", "constraints": {}, "metadata": {}}],
-                        }],
+                        "constructs": [
+                            {
+                                "label": "c0",
+                                "type": "dna",
+                                "segments": [
+                                    {
+                                        "label": "seg",
+                                        "sequence": "AAAA",
+                                        "constraints": {},
+                                        "metadata": {},
+                                    }
+                                ],
+                            }
+                        ],
                     },
                 ],
                 "proposal_results": [
@@ -1475,22 +1530,47 @@ class TestFlattenOptimizationProposals:
                         "accepted": True,
                         "rejected_by": None,
                         "energy_score": 0.5,
-                        "constructs": [{
-                            "label": "c0", "type": "dna",
-                            "segments": [{"label": "seg", "sequence": "AAAA", "constraints": {}, "metadata": {}}],
-                        }],
+                        "constructs": [
+                            {
+                                "label": "c0",
+                                "type": "dna",
+                                "segments": [
+                                    {
+                                        "label": "seg",
+                                        "sequence": "AAAA",
+                                        "constraints": {},
+                                        "metadata": {},
+                                    }
+                                ],
+                            }
+                        ],
                     },
                     {
                         "proposal_idx": 1,
                         "accepted": False,
                         "rejected_by": "GC Filter",
                         "energy_score": None,
-                        "constructs": [{
-                            "label": "c0", "type": "dna",
-                            "segments": [{"label": "seg", "sequence": "GGGG", "constraints": {
-                                "GC Filter": {"score": 1.0, "weight": 1.0, "weighted_score": 1.0, "data": {"gc_content": 100.0}},
-                            }, "metadata": {}}],
-                        }],
+                        "constructs": [
+                            {
+                                "label": "c0",
+                                "type": "dna",
+                                "segments": [
+                                    {
+                                        "label": "seg",
+                                        "sequence": "GGGG",
+                                        "constraints": {
+                                            "GC Filter": {
+                                                "score": 1.0,
+                                                "weight": 1.0,
+                                                "weighted_score": 1.0,
+                                                "data": {"gc_content": 100.0},
+                                            },
+                                        },
+                                        "metadata": {},
+                                    }
+                                ],
+                            }
+                        ],
                     },
                 ],
                 "best_result_idx": 0,
@@ -1500,7 +1580,9 @@ class TestFlattenOptimizationProposals:
     def test_include_proposals_false_unchanged(self, history_with_proposals):
         """include_proposals=False produces identical output to default (no new columns)."""
         rows_default = flatten_optimization(history_with_proposals)
-        rows_false = flatten_optimization(history_with_proposals, include_proposals=False)
+        rows_false = flatten_optimization(
+            history_with_proposals, include_proposals=False
+        )
         assert rows_default == rows_false
         assert all("pool" not in r for r in rows_default)
 
@@ -1530,7 +1612,11 @@ class TestFlattenOptimizationProposals:
     def test_proposal_constraint_data_exported(self, history_with_proposals):
         """Constraint data on proposal rows is properly flattened."""
         rows = flatten_optimization(history_with_proposals, include_proposals=True)
-        rejected_cand = [r for r in rows if r.get("pool") == "proposal" and r.get("proposal_idx") == 1][0]
+        rejected_cand = [
+            r
+            for r in rows
+            if r.get("pool") == "proposal" and r.get("proposal_idx") == 1
+        ][0]
         assert rejected_cand["seg.GC Filter.score"] == 1.0
         assert rejected_cand["seg.GC Filter.gc_content"] == 100.0
 
@@ -1614,15 +1700,43 @@ class TestResolveFiles:
             "best_result_idx": 0,
         }
 
-    def test_serialize_value_default_returns_url(self):
-        """Default: file ref serializes to URL string."""
-        result = _serialize_value(self.file_ref)
-        assert result == self.file_ref["url"]
+    def test_finalize_file_refs_url_mode(self):
+        """_finalize_file_refs(resolve=False) extracts URLs."""
+        rows = [{"col": self.file_ref, "other": 42}]
+        result = _finalize_file_refs(rows)
+        assert result[0]["col"] == self.file_ref["url"]
+        assert result[0]["other"] == 42
 
-    def test_serialize_value_resolve_returns_content(self):
-        """resolve_files=True: file ref resolves to actual content."""
-        result = _serialize_value(self.file_ref, resolve_files=True)
-        assert result == self.pdb_content
+    def test_finalize_file_refs_resolve_mode(self):
+        """_finalize_file_refs(resolve=True) batch-fetches and inlines content."""
+        rows = [{"col": self.file_ref, "other": 42}]
+        result = _finalize_file_refs(rows, resolve=True)
+        assert result[0]["col"] == self.pdb_content
+        assert result[0]["other"] == 42
+
+    def test_finalize_file_refs_deduplication(self):
+        """Same file ID across multiple rows is fetched only once."""
+        from unittest.mock import patch
+
+        rows = [
+            {"a": self.file_ref},
+            {"a": self.file_ref},
+            {"a": self.file_ref},
+        ]
+        with patch(
+            "proto_language.storage.store.LocalFileStore.get",
+            wraps=self._get_store().get,
+        ) as mock_get:
+            result = _finalize_file_refs(rows, resolve=True)
+            # All 3 rows resolved
+            assert all(r["a"] == self.pdb_content for r in result)
+            # But underlying get() called only once (deduplication)
+            assert mock_get.call_count == 1
+
+    def _get_store(self):
+        from proto_language.storage import get_file_store
+
+        return get_file_store()
 
     def test_flatten_sequences_resolve_files(self):
         """flatten_sequences with resolve_files inlines file content."""

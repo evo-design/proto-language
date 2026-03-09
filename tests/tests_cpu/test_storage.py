@@ -364,6 +364,33 @@ class TestGetContentType:
         assert sidecar.read_text() == "fasta"
 
 
+class TestGetBatch:
+    """Tests for FileStore.get_batch concurrent retrieval."""
+
+    def test_get_batch_multiple_files(self, tmp_path):
+        """Batch retrieval returns all requested files."""
+        store = LocalFileStore(tmp_path / "store")
+        refs = [store.put(f"content_{i}", FileType.PDB) for i in range(5)]
+        file_ids = {r.id for r in refs}
+
+        result = store.get_batch(file_ids)
+
+        assert len(result) == 5
+        for i, ref in enumerate(refs):
+            assert result[ref.id].decode("utf-8") == f"content_{i}"
+
+    def test_get_batch_empty(self, tmp_path):
+        """Empty file_ids returns empty dict without creating threads."""
+        store = LocalFileStore(tmp_path / "store")
+        assert store.get_batch(set()) == {}
+
+    def test_get_batch_missing_file_raises(self, tmp_path):
+        """Missing file in batch raises FileNotFoundError."""
+        store = LocalFileStore(tmp_path / "store")
+        with pytest.raises(FileNotFoundError):
+            store.get_batch({"nonexistent_id"})
+
+
 class TestComputeHash:
     """Tests for hash computation."""
 

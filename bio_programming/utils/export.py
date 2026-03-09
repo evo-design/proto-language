@@ -20,6 +20,8 @@ from io import StringIO
 from pathlib import Path
 from typing import IO, Any, Callable, Dict, List, Literal, Optional, Set, Union
 
+from proto_language.storage.helpers import is_file_reference
+from proto_language.storage.store import get_file_store
 from proto_language.utils.helpers import filter_inf_nan_scores
 
 # Type aliases
@@ -210,31 +212,71 @@ def build_proposal_results(
 # =============================================================================
 
 
-def _serialize_value(value: Any, *, resolve_files: bool = False) -> Any:
+def _serialize_value(value: Any) -> Any:
     """Coerce complex values to CSV/JSON-friendly scalars.
 
-    - FileReference dicts (``__file_ref__: True``) → URL string, or
-      resolved content when *resolve_files* is True
+    - FileReference dicts (``__file_ref__: True``) → passed through unchanged
+      for post-processing by :func:`_finalize_file_refs`
     - Lists/tuples → JSON string
     - Other dicts → JSON string
     - Scalars → passthrough
-
-    Args:
-        value: The value to serialize.
-        resolve_files: If True, resolve file references to their actual
-            content (e.g., inline PDB strings) instead of URLs.
     """
     if isinstance(value, dict):
-        if value.get("__file_ref__"):
-            if resolve_files:
-                from proto_language.storage import get_file_content
-
-                return get_file_content(value)
-            return value.get("url", "")
+        if is_file_reference(value):
+            return value  # Post-processed by _finalize_file_refs
         return json.dumps(value)
     if isinstance(value, (list, tuple)):
         return json.dumps(value)
     return value
+
+
+def _finalize_file_refs(
+    rows: List[Dict[str, Any]], *, resolve: bool = False
+) -> List[Dict[str, Any]]:
+    """Post-process file references in flattened rows.
+
+    When *resolve* is False (default), each file reference dict is replaced
+    with its URL string (fast, no I/O). When True, all unique file IDs are
+    batch-fetched concurrently and inlined as content strings.
+
+    Args:
+        rows: Flattened rows potentially containing file reference dicts.
+        resolve: If True, fetch and inline actual file content.
+    """
+    if not rows:
+        return rows
+
+    # Collect unique file IDs across all rows
+    file_ids: set[str] = set()
+    for row in rows:
+        for v in row.values():
+            if is_file_reference(v):
+                file_ids.add(v["id"])
+
+    if not file_ids:
+        return rows
+
+    if not resolve:
+        # Fast path: extract URLs, no I/O
+        return [
+            {
+                k: (v.get("url", "") if is_file_reference(v) else v)
+                for k, v in row.items()
+            }
+            for row in rows
+        ]
+
+    # Batch fetch with concurrency, decode once
+    store = get_file_store()
+    decoded = {
+        fid: data.decode("utf-8") for fid, data in store.get_batch(file_ids).items()
+    }
+
+    # Substitute
+    return [
+        {k: (decoded[v["id"]] if is_file_reference(v) else v) for k, v in row.items()}
+        for row in rows
+    ]
 
 
 def _collect_all_columns(rows: List[Dict]) -> List[str]:
@@ -250,10 +292,7 @@ def _collect_all_columns(rows: List[Dict]) -> List[str]:
 
 
 def _flatten_constraint_columns(
-    constraints: Dict[str, Dict],
-    prefix: str = "",
-    *,
-    resolve_files: bool = False,
+    constraints: Dict[str, Dict], prefix: str = ""
 ) -> Dict[str, Any]:
     """Flatten all constraint data with {prefix}{label}.{field} namespacing.
 
@@ -263,7 +302,6 @@ def _flatten_constraint_columns(
     Args:
         constraints: Dict mapping constraint labels to their data.
         prefix: Column name prefix (e.g., "promoter." for construct-level).
-        resolve_files: Resolve file references to content instead of URLs.
     """
     flat = {}
     for label, cdata in constraints.items():
@@ -273,11 +311,9 @@ def _flatten_constraint_columns(
                 flat[f"{base}.{key}"] = cdata[key]
         for key in ("input_segments", "position_in_inputs"):
             if key in cdata:
-                flat[f"{base}.{key}"] = _serialize_value(
-                    cdata[key], resolve_files=resolve_files
-                )
+                flat[f"{base}.{key}"] = _serialize_value(cdata[key])
         for k, v in cdata.get("data", {}).items():
-            flat[f"{base}.{k}"] = _serialize_value(v, resolve_files=resolve_files)
+            flat[f"{base}.{k}"] = _serialize_value(v)
     return flat
 
 
@@ -327,18 +363,11 @@ def flatten_sequences(
                     "segment": segment["label"],
                     "sequence": segment["sequence"],
                 }
-                row.update(
-                    _flatten_constraint_columns(
-                        segment.get("constraints", {}),
-                        resolve_files=resolve_files,
-                    )
-                )
+                row.update(_flatten_constraint_columns(segment.get("constraints", {})))
                 for key, value in segment.get("metadata", {}).items():
-                    row[f"metadata.{key}"] = _serialize_value(
-                        value, resolve_files=resolve_files
-                    )
+                    row[f"metadata.{key}"] = _serialize_value(value)
                 rows.append(row)
-    return rows
+    return _finalize_file_refs(rows, resolve=resolve_files)
 
 
 def flatten_constraints(
@@ -391,13 +420,11 @@ def flatten_constraints(
                     }
                     for key in ("input_segments", "position_in_inputs"):
                         if key in cdata:
-                            row[key] = _serialize_value(
-                                cdata[key], resolve_files=resolve_files
-                            )
+                            row[key] = _serialize_value(cdata[key])
                     for k, v in cdata.get("data", {}).items():
-                        row[k] = _serialize_value(v, resolve_files=resolve_files)
+                        row[k] = _serialize_value(v)
                     rows.append(row)
-    return rows
+    return _finalize_file_refs(rows, resolve=resolve_files)
 
 
 def flatten_constructs(
@@ -451,16 +478,13 @@ def flatten_constructs(
                     _flatten_constraint_columns(
                         segment.get("constraints", {}),
                         prefix=f"{seg}.",
-                        resolve_files=resolve_files,
                     )
                 )
                 for key, value in segment.get("metadata", {}).items():
-                    row[f"{seg}.metadata.{key}"] = _serialize_value(
-                        value, resolve_files=resolve_files
-                    )
+                    row[f"{seg}.metadata.{key}"] = _serialize_value(value)
                 offset += seg_len
             rows.append(row)
-    return rows
+    return _finalize_file_refs(rows, resolve=resolve_files)
 
 
 def flatten_optimization(
@@ -531,7 +555,6 @@ def flatten_optimization(
                         _flatten_constraint_columns(
                             segment.get("constraints", {}),
                             prefix=f"{seg}.",
-                            resolve_files=resolve_files,
                         )
                     )
             rows.append(row)
@@ -569,12 +592,11 @@ def flatten_optimization(
                             _flatten_constraint_columns(
                                 segment.get("constraints", {}),
                                 prefix=f"{seg}.",
-                                resolve_files=resolve_files,
                             )
                         )
                 rows.append(row)
 
-    return rows
+    return _finalize_file_refs(rows, resolve=resolve_files)
 
 
 _ALL_TABLES = ("sequences", "constraints", "constructs", "optimization")
