@@ -1,5 +1,5 @@
 """
-Tests for serialize_program - converting Program objects to Proto Bio GPL JSON.
+Tests for serialize_program - converting Program objects to JSON.
 
 Tests cover:
 - Basic serialization of single optimizer programs
