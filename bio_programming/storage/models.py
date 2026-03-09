@@ -23,6 +23,22 @@ class FileType(str, Enum):
     JSON = "json"
     BINARY = "binary"
 
+    @property
+    def content_type(self) -> str:
+        """HTTP content type for this file type."""
+        return _CONTENT_TYPES.get(self, "application/octet-stream")
+
+
+_CONTENT_TYPES: dict[FileType, str] = {
+    FileType.PDB: "chemical/x-pdb",
+    FileType.CIF: "chemical/x-mmcif",
+    FileType.CSV: "text/csv",
+    FileType.JSON: "application/json",
+    FileType.FASTA: "text/plain",
+    FileType.HMM: "application/octet-stream",
+    FileType.BINARY: "application/octet-stream",
+}
+
 
 # Marker key used to identify file references in dictionaries
 FILE_REF_MARKER = "__file_ref__"

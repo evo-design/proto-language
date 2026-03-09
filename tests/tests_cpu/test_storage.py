@@ -280,6 +280,90 @@ class TestGetFileStore:
         os.environ.pop("FILE_STORE_PATH", None)
 
 
+class TestGetUrl:
+    """Tests for get_url and serves_redirect."""
+
+    def test_get_url_returns_path(self, tmp_path):
+        """Test get_url returns the file path for existing files."""
+        store = LocalFileStore(tmp_path / "store")
+        content = "ATOM 1 N ALA A 1 0.0 0.0 0.0 1.0 0.0"
+        ref = store.put(content, FileType.PDB)
+
+        url = store.get_url(ref.id)
+
+        assert url == ref.url
+        assert Path(url).exists()
+
+    def test_get_url_nonexistent_raises(self, tmp_path):
+        """Test get_url raises FileNotFoundError for missing files."""
+        store = LocalFileStore(tmp_path / "store")
+
+        with pytest.raises(FileNotFoundError):
+            store.get_url("a" * 64)
+
+    def test_local_serves_redirect_is_false(self, tmp_path):
+        """Test LocalFileStore.serves_redirect is False."""
+        store = LocalFileStore(tmp_path / "store")
+        assert store.serves_redirect is False
+
+    def test_gcs_serves_redirect_is_true(self):
+        """Test GCSFileStore.serves_redirect is True."""
+        from proto_language.storage import GCSFileStore
+
+        # GCSFileStore sets serves_redirect at the class level
+        assert GCSFileStore.serves_redirect is True
+
+
+class TestGetContentType:
+    """Tests for get_content_type and .type sidecar files."""
+
+    def test_content_type_from_sidecar(self, tmp_path):
+        """Test get_content_type reads the .type sidecar written by put()."""
+        store = LocalFileStore(tmp_path / "store")
+        ref = store.put("ATOM 1 N ALA", FileType.PDB)
+
+        assert store.get_content_type(ref.id) == "chemical/x-pdb"
+
+    def test_content_type_csv(self, tmp_path):
+        """Test CSV content type."""
+        store = LocalFileStore(tmp_path / "store")
+        ref = store.put("a,b,c\n1,2,3", FileType.CSV)
+
+        assert store.get_content_type(ref.id) == "text/csv"
+
+    def test_content_type_json(self, tmp_path):
+        """Test JSON content type."""
+        store = LocalFileStore(tmp_path / "store")
+        ref = store.put('{"key": "value"}', FileType.JSON)
+
+        assert store.get_content_type(ref.id) == "application/json"
+
+    def test_content_type_missing_sidecar(self, tmp_path):
+        """Test fallback to octet-stream when sidecar is missing."""
+        store = LocalFileStore(tmp_path / "store")
+        ref = store.put("content", FileType.PDB)
+
+        # Delete the sidecar to simulate a file stored before sidecar support
+        sidecar = Path(ref.url).with_suffix(".type")
+        sidecar.unlink()
+
+        assert store.get_content_type(ref.id) == "application/octet-stream"
+
+    def test_content_type_nonexistent_file(self, tmp_path):
+        """Test fallback for nonexistent file ID."""
+        store = LocalFileStore(tmp_path / "store")
+        assert store.get_content_type("a" * 64) == "application/octet-stream"
+
+    def test_sidecar_written_on_put(self, tmp_path):
+        """Test that put() creates the .type sidecar file."""
+        store = LocalFileStore(tmp_path / "store")
+        ref = store.put("content", FileType.FASTA)
+
+        sidecar = Path(ref.url).with_suffix(".type")
+        assert sidecar.exists()
+        assert sidecar.read_text() == "fasta"
+
+
 class TestComputeHash:
     """Tests for hash computation."""
 

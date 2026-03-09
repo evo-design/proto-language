@@ -34,16 +34,6 @@ from .helpers import (  # Constraint scoring; Tool utilities
     validate_range,
 )
 
-# Infrastructure utilities (file resolution and cloud storage)
-from .infra import (
-    VOLUME_PATH,
-    download_gcs_file,
-    get_cache_path,
-    resolve_file,
-    resolve_paths,
-    upload_to_gcs,
-)
-
 __all__ = [
     # Constraint scoring
     "MIN_ENERGY",
@@ -59,13 +49,6 @@ __all__ = [
     "calculate_normalized_deviation",
     "sigmoid_score",
     "inverse_sigmoid_score",
-    # File resolution
-    "resolve_file",
-    "resolve_paths",
-    "VOLUME_PATH",
-    "get_cache_path",
-    "download_gcs_file",
-    "upload_to_gcs",
     # Tool utilities
     "mask_k",
     "mask_p",

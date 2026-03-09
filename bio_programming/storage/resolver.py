@@ -1,8 +1,12 @@
 """
-Infrastructure utilities for proto-language.
+resolver.py
 
-This module provides utilities for file resolution and cloud storage (GCS).
+Utilities for resolving and caching GCS file references to local paths.
+
+Used primarily for downloading pre-existing GCS-hosted databases (e.g., MMseqs DBs)
+to a local cache directory for tool execution.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -13,25 +17,19 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# =============================================================================
-# FILE RESOLUTION AND CLOUD STORAGE UTILITIES
-# =============================================================================
-
 # storage volume mount point (set via environment variable or default)
-# In the deploy platform, you mount volumes at specific paths like /data or /cache
 VOLUME_PATH = Path(os.environ.get("STORAGE_VOLUME_PATH", "/data"))
 
 
 def get_cache_path(reference: str) -> Path:
     """Get the path in the storage volume for a given reference."""
-    # Create a short, readable cache key
-    cache_key = hashlib.md5(reference.encode()).hexdigest()[:16]
+    cache_key = hashlib.sha256(reference.encode()).hexdigest()[:32]
     return VOLUME_PATH / cache_key
 
 
 def download_gcs_file(gcs_url: str, destination: Path) -> Path:
-    """
-    Download a file from GCS (gs:// or gcs://) to a local path.
+    """Download a file from GCS (gs:// or gcs://) to a local path.
+
     Uses google-cloud-storage's Blob.from_string for robust URL parsing.
     Falls back to an anonymous client for public buckets.
     """
@@ -57,13 +55,11 @@ def download_gcs_file(gcs_url: str, destination: Path) -> Path:
         logger.info("Using anonymous GCS client for public bucket access")
         client = storage.Client.create_anonymous_client()
 
-    # Parse the URL (now always gs://)
     try:
         blob = storage.Blob.from_string(gcs_url, client=client)
     except Exception as e:
         raise ValueError(f"Invalid GCS URL {gcs_url!r}: {e}") from e
 
-    # Download
     try:
         blob.download_to_filename(str(destination))
         if destination.exists():
@@ -79,8 +75,7 @@ def download_gcs_file(gcs_url: str, destination: Path) -> Path:
 
 
 def resolve_file(reference: str) -> Path:
-    """
-    Resolve a file reference to a local path in the storage volume.
+    """Resolve a file reference to a local path.
 
     Supports:
     - gcs://bucket/path/to/file - Google Cloud Storage
@@ -88,7 +83,7 @@ def resolve_file(reference: str) -> Path:
     - /absolute/path - Local paths (for development only)
 
     Returns:
-        Path to the file in the storage volume
+        Path to the file (local path or cached in storage volume).
     """
     # Handle local paths (for development)
     if reference.startswith("/") and Path(reference).exists():
@@ -104,20 +99,19 @@ def resolve_file(reference: str) -> Path:
 
     # Handle GCS paths
     if reference.startswith(("gcs://", "gs://")):
-        # Download from GCS using the Python client
         download_gcs_file(reference, cache_path)
         logger.info(f"Downloaded to volume: {cache_path}")
     else:
         raise ValueError(
-            f"Unsupported reference: {reference}. Only gcs:// or gs:// paths are supported"
+            f"Unsupported reference: {reference}. "
+            "Only gcs://, gs://, or absolute local paths are supported"
         )
 
     return cache_path
 
 
 def resolve_paths(value: Any) -> Any:
-    """
-    Recursively resolve any cloud file paths in a value.
+    """Recursively resolve any cloud file paths in a value.
 
     Examples:
         >>> resolve_paths("gcs://bucket/database.tar.gz")
@@ -127,8 +121,7 @@ def resolve_paths(value: Any) -> Any:
         {"database": "/data/e5f6g7h8", "threads": 4}
     """
     if isinstance(value, str):
-        # Check if it's a cloud path (GCS only)
-        if any(value.startswith(p) for p in ["gcs://", "gs://"]):
+        if value.startswith(("gcs://", "gs://")):
             return str(resolve_file(value))
         return value
     elif isinstance(value, dict):
@@ -137,43 +130,3 @@ def resolve_paths(value: Any) -> Any:
         return [resolve_paths(item) for item in value]
     else:
         return value
-
-
-def upload_to_gcs(content: bytes, bucket_name: str, blob_path: str) -> str:
-    """
-    Upload content to Google Cloud Storage.
-
-    Args:
-        content: The content to upload as bytes.
-        bucket_name: Name of the GCS bucket.
-        blob_path: Path within the bucket where the content will be stored.
-
-    Returns:
-        The gs:// URL of the uploaded blob.
-
-    Raises:
-        RuntimeError: If upload fails.
-    """
-    logger.info("Uploading to GCS: gs://%s/%s", bucket_name, blob_path)
-
-    from google.cloud import storage
-
-    try:
-        client = storage.Client()
-    except Exception:
-        raise RuntimeError(
-            "Failed to initialize GCS client. Ensure you have valid credentials."
-        )
-
-    try:
-        bucket = client.bucket(bucket_name)
-        blob = bucket.blob(blob_path)
-        blob.upload_from_string(content)
-
-        gcs_url = f"gs://{bucket_name}/{blob_path}"
-        size_kb = len(content) / 1024
-        logger.info("Successfully uploaded %.2f KB to %s", size_kb, gcs_url)
-        return gcs_url
-    except Exception as e:
-        logger.error("Failed to upload to GCS: %s", e)
-        raise RuntimeError(f"Failed to upload to gs://{bucket_name}/{blob_path}: {e}") from e

@@ -1,9 +1,10 @@
 """
-Storage module for large file content.
+Storage module for large file content and GCS utilities.
 
-This module provides file storage backends for externalizing large file content
-(PDB, CIF, HMM, etc.) from sequence metadata. It supports local filesystem storage
-for development and Google Cloud Storage for production.
+Provides:
+- File storage backends (local and GCS) for externalizing large file content
+  (PDB, CIF, HMM, etc.) from sequence metadata.
+- GCS file resolution utilities for downloading and caching remote files.
 
 Configuration via environment variables:
     FILE_STORE_TYPE: "local" (default) or "gcs"
@@ -17,6 +18,10 @@ Example usage in constraints:
 Example usage to retrieve content:
     >>> from proto_language.storage import get_file_content
     >>> pdb_content = get_file_content(seq._metadata["pdb_output"])
+
+Example usage for GCS file resolution:
+    >>> from proto_language.storage import resolve_paths
+    >>> resolved = resolve_paths({"db": "gcs://bucket/mmseqs_db"})
 """
 
 from proto_language.storage.helpers import (
@@ -26,6 +31,13 @@ from proto_language.storage.helpers import (
     store_file,
 )
 from proto_language.storage.models import FILE_REF_MARKER, FileReference, FileType
+from proto_language.storage.resolver import (
+    VOLUME_PATH,
+    download_gcs_file,
+    get_cache_path,
+    resolve_file,
+    resolve_paths,
+)
 from proto_language.storage.store import (
     FileStore,
     GCSFileStore,
@@ -50,4 +62,10 @@ __all__ = [
     "get_file_content",
     "get_file_content_bytes",
     "is_file_reference",
+    # Resolver
+    "VOLUME_PATH",
+    "download_gcs_file",
+    "get_cache_path",
+    "resolve_file",
+    "resolve_paths",
 ]

@@ -1542,3 +1542,111 @@ class TestFlattenOptimizationProposals:
         # All rows are result, no proposals
         assert len(result_rows) == 4
         assert len(proposals) == 0
+
+
+# =============================================================================
+# resolve_files parameter
+# =============================================================================
+
+
+class TestResolveFiles:
+    """Tests for resolve_files parameter on flatten functions."""
+
+    @pytest.fixture(autouse=True)
+    def _setup_store(self, tmp_path):
+        """Set up a temporary file store for resolve_files tests."""
+        import os
+
+        from proto_language.storage import reset_file_store, store_file
+
+        reset_file_store()
+        os.environ["FILE_STORE_TYPE"] = "local"
+        os.environ["FILE_STORE_PATH"] = str(tmp_path / "file_store")
+
+        # Store a PDB file and capture its reference
+        from proto_language.storage import FileType
+
+        pdb_content = "ATOM 1 N ALA A 1 0.0 0.0 0.0"
+        self.file_ref = store_file(pdb_content, FileType.PDB)
+        self.pdb_content = pdb_content
+
+        yield
+
+        reset_file_store()
+        os.environ.pop("FILE_STORE_TYPE", None)
+        os.environ.pop("FILE_STORE_PATH", None)
+
+    def _results_with_file_ref(self):
+        """Build results containing a file reference in constraint data."""
+        return {
+            "results": [
+                {
+                    "result_idx": 0,
+                    "energy_score": 0.5,
+                    "constructs": [
+                        {
+                            "label": "c0",
+                            "type": "protein",
+                            "segments": [
+                                {
+                                    "label": "seg",
+                                    "sequence": "MKTL",
+                                    "constraints": {
+                                        "structure": {
+                                            "score": 0.1,
+                                            "weight": 1.0,
+                                            "weighted_score": 0.1,
+                                            "data": {
+                                                "pdb_output": self.file_ref,
+                                                "plddt": 0.85,
+                                            },
+                                        },
+                                    },
+                                    "metadata": {
+                                        "pdb_output": self.file_ref,
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            "best_result_idx": 0,
+        }
+
+    def test_serialize_value_default_returns_url(self):
+        """Default: file ref serializes to URL string."""
+        result = _serialize_value(self.file_ref)
+        assert result == self.file_ref["url"]
+
+    def test_serialize_value_resolve_returns_content(self):
+        """resolve_files=True: file ref resolves to actual content."""
+        result = _serialize_value(self.file_ref, resolve_files=True)
+        assert result == self.pdb_content
+
+    def test_flatten_sequences_resolve_files(self):
+        """flatten_sequences with resolve_files inlines file content."""
+        results = self._results_with_file_ref()
+
+        # Default: URL
+        rows = flatten_sequences(results)
+        assert rows[0]["structure.pdb_output"] == self.file_ref["url"]
+
+        # Resolved: content
+        rows = flatten_sequences(results, resolve_files=True)
+        assert rows[0]["structure.pdb_output"] == self.pdb_content
+        assert rows[0]["metadata.pdb_output"] == self.pdb_content
+
+    def test_flatten_constraints_resolve_files(self):
+        """flatten_constraints with resolve_files inlines file content."""
+        results = self._results_with_file_ref()
+
+        rows = flatten_constraints(results, resolve_files=True)
+        assert rows[0]["pdb_output"] == self.pdb_content
+
+    def test_flatten_constructs_resolve_files(self):
+        """flatten_constructs with resolve_files inlines file content."""
+        results = self._results_with_file_ref()
+
+        rows = flatten_constructs(results, resolve_files=True)
+        assert rows[0]["seg.structure.pdb_output"] == self.pdb_content

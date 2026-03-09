@@ -10,6 +10,7 @@ import hashlib
 import logging
 import os
 from abc import ABC, abstractmethod
+from datetime import timedelta
 from pathlib import Path
 from typing import Optional, Union
 
@@ -60,6 +61,36 @@ class FileStore(ABC):
             True if file exists.
         """
         pass
+
+    # Whether get_url() returns a redirect URL (True) or a local path (False).
+    # Used by the file-serving endpoint to decide between redirect and stream.
+    serves_redirect: bool = False
+
+    @abstractmethod
+    def get_url(self, file_id: str) -> str:
+        """Get an accessible URL or path for the file.
+
+        Args:
+            file_id: Content-addressed ID of the file.
+
+        Returns:
+            URL (for remote stores) or local file path (for local stores).
+
+        Raises:
+            FileNotFoundError: If file does not exist.
+        """
+        pass
+
+    def get_content_type(self, file_id: str) -> str:
+        """Get the MIME content type for a stored file.
+
+        Args:
+            file_id: Content-addressed ID of the file.
+
+        Returns:
+            MIME type string, defaults to ``application/octet-stream``.
+        """
+        return "application/octet-stream"
 
     @staticmethod
     def compute_hash(content: Union[str, bytes]) -> str:
@@ -126,6 +157,8 @@ class LocalFileStore(FileStore):
         if not file_path.exists():
             file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_bytes(content_bytes)
+            # Write file type sidecar for content-type lookups
+            file_path.with_suffix(".type").write_text(file_type.value)
             logger.debug(f"Stored file {file_id} ({len(content_bytes)} bytes)")
         else:
             logger.debug(f"File {file_id} already exists, skipping write")
@@ -148,6 +181,23 @@ class LocalFileStore(FileStore):
         """Check if file exists in local filesystem."""
         return self._get_file_path(file_id).exists()
 
+    def get_url(self, file_id: str) -> str:
+        """Return the local file path as a string."""
+        file_path = self._get_file_path(file_id)
+        if not file_path.exists():
+            raise FileNotFoundError(f"File not found: {file_id}")
+        return str(file_path)
+
+    def get_content_type(self, file_id: str) -> str:
+        """Read content type from sidecar file."""
+        type_path = self._get_file_path(file_id).with_suffix(".type")
+        if type_path.exists():
+            try:
+                return FileType(type_path.read_text().strip()).content_type
+            except ValueError:
+                pass
+        return "application/octet-stream"
+
 
 class GCSFileStore(FileStore):
     """Google Cloud Storage-based file store for production.
@@ -156,13 +206,18 @@ class GCSFileStore(FileStore):
         gs://{bucket}/files/{hash[:2]}/{hash[2:4]}/{hash}
     """
 
-    def __init__(self, bucket_name: str):
+    serves_redirect = True
+
+    def __init__(self, bucket_name: str, signed_url_expiration_minutes: int = 60):
         """Initialize GCS file store.
 
         Args:
             bucket_name: Name of the GCS bucket.
+            signed_url_expiration_minutes: Validity period for signed URLs
+                returned by :meth:`get_url` (default 60 minutes).
         """
         self.bucket_name = bucket_name
+        self.signed_url_expiration_minutes = signed_url_expiration_minutes
         self._client = None
         self._bucket = None
         logger.info(f"GCSFileStore initialized for bucket {bucket_name}")
@@ -187,9 +242,13 @@ class GCSFileStore(FileStore):
                 from google.oauth2 import service_account
 
                 creds_info = json.loads(creds_json)
-                credentials = service_account.Credentials.from_service_account_info(creds_info)
+                credentials = service_account.Credentials.from_service_account_info(
+                    creds_info
+                )
                 self._client = storage.Client(credentials=credentials)
-                logger.info("GCS client initialized from GOOGLE_APPLICATION_CREDENTIALS_JSON")
+                logger.info(
+                    "GCS client initialized from GOOGLE_APPLICATION_CREDENTIALS_JSON"
+                )
             else:
                 # Fall back to default credentials
                 self._client = storage.Client()
@@ -221,7 +280,7 @@ class GCSFileStore(FileStore):
 
         # Content-addressed: if blob exists, it's already the same content
         if not blob.exists():
-            blob.upload_from_string(content_bytes)
+            blob.upload_from_string(content_bytes, content_type=file_type.content_type)
             logger.debug(f"Uploaded file {file_id} to GCS ({len(content_bytes)} bytes)")
         else:
             logger.debug(f"File {file_id} already exists in GCS, skipping upload")
@@ -247,6 +306,23 @@ class GCSFileStore(FileStore):
         """Check if file exists in GCS."""
         blob_path = self._get_blob_path(file_id)
         return self.bucket.blob(blob_path).exists()
+
+    def get_url(self, file_id: str) -> str:
+        """Generate a time-limited signed URL for the file.
+
+        Returns:
+            Signed HTTPS URL for direct browser access.
+
+        Raises:
+            FileNotFoundError: If file does not exist in GCS.
+        """
+        blob_path = self._get_blob_path(file_id)
+        blob = self.bucket.blob(blob_path)
+        if not blob.exists():
+            raise FileNotFoundError(f"File not found in GCS: {file_id}")
+        return blob.generate_signed_url(
+            expiration=timedelta(minutes=self.signed_url_expiration_minutes)
+        )
 
 
 # Module-level singleton for the configured file store

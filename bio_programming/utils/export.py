@@ -85,30 +85,34 @@ def build_results(
             structured_segments = []
             for seg_idx, segment in enumerate(construct.segments):
                 seq = segment.result_sequences[result_idx]
-                structured_segments.append({
-                    "label": segment.label or f"segment_{seg_idx}",
-                    "sequence": seq.sequence,
-                    "constraints": copy.deepcopy(seq._constraints_metadata),
-                    "metadata": copy.deepcopy(seq._metadata),
-                })
-            structured_constructs.append({
-                "label": construct.label,
-                "type": construct.sequence_type,
-                "segments": structured_segments,
-            })
-        results.append({
-            "result_idx": result_idx,
-            "energy_score": filter_inf_nan_scores(energy_scores[result_idx]),
-            "constructs": structured_constructs,
-        })
+                structured_segments.append(
+                    {
+                        "label": segment.label or f"segment_{seg_idx}",
+                        "sequence": seq.sequence,
+                        "constraints": copy.deepcopy(seq._constraints_metadata),
+                        "metadata": copy.deepcopy(seq._metadata),
+                    }
+                )
+            structured_constructs.append(
+                {
+                    "label": construct.label,
+                    "type": construct.sequence_type,
+                    "segments": structured_segments,
+                }
+            )
+        results.append(
+            {
+                "result_idx": result_idx,
+                "energy_score": filter_inf_nan_scores(energy_scores[result_idx]),
+                "constructs": structured_constructs,
+            }
+        )
 
     def get_score(i: int) -> float:
         score = results[i]["energy_score"]
         return float("inf") if score is None else score
 
-    best_idx = (
-        min(range(len(results)), key=get_score) if results else 0
-    )
+    best_idx = min(range(len(results)), key=get_score) if results else 0
     return {"results": results, "best_result_idx": best_idx}
 
 
@@ -159,34 +163,44 @@ def build_proposal_results(
             structured_segments = []
             for seg_idx, segment in enumerate(construct.segments):
                 seq = segment.proposal_sequences[prop_idx]
-                structured_segments.append({
-                    "label": segment.label or f"segment_{seg_idx}",
-                    "sequence": seq.sequence,
-                    "constraints": copy.deepcopy(seq._constraints_metadata),
-                    "metadata": copy.deepcopy(seq._metadata),
-                })
-            structured_constructs.append({
-                "label": construct.label,
-                "type": construct.sequence_type,
-                "segments": structured_segments,
-            })
+                structured_segments.append(
+                    {
+                        "label": segment.label or f"segment_{seg_idx}",
+                        "sequence": seq.sequence,
+                        "constraints": copy.deepcopy(seq._constraints_metadata),
+                        "metadata": copy.deepcopy(seq._metadata),
+                    }
+                )
+            structured_constructs.append(
+                {
+                    "label": construct.label,
+                    "type": construct.sequence_type,
+                    "segments": structured_segments,
+                }
+            )
         if prop_idx >= len(outcomes):
-            raise ValueError(f"outcomes has {len(outcomes)} entries but there are {num_proposals} proposals — lengths must match")
+            raise ValueError(
+                f"outcomes has {len(outcomes)} entries but there are {num_proposals} proposals — lengths must match"
+            )
         if energy_scores is not None and prop_idx >= len(energy_scores):
-            raise ValueError(f"energy_scores has {len(energy_scores)} entries but there are {num_proposals} proposals — lengths must match")
+            raise ValueError(
+                f"energy_scores has {len(energy_scores)} entries but there are {num_proposals} proposals — lengths must match"
+            )
         outcome = outcomes[prop_idx]
         energy = (
             filter_inf_nan_scores(energy_scores[prop_idx])
             if energy_scores is not None
             else None
         )
-        proposal_results.append({
-            "proposal_idx": prop_idx,
-            "accepted": outcome == "accepted",
-            "rejected_by": None if outcome == "accepted" else outcome,
-            "energy_score": energy,
-            "constructs": structured_constructs,
-        })
+        proposal_results.append(
+            {
+                "proposal_idx": prop_idx,
+                "accepted": outcome == "accepted",
+                "rejected_by": None if outcome == "accepted" else outcome,
+                "energy_score": energy,
+                "constructs": structured_constructs,
+            }
+        )
 
     return proposal_results
 
@@ -196,16 +210,26 @@ def build_proposal_results(
 # =============================================================================
 
 
-def _serialize_value(value: Any) -> Any:
+def _serialize_value(value: Any, *, resolve_files: bool = False) -> Any:
     """Coerce complex values to CSV/JSON-friendly scalars.
 
-    - FileReference dicts (``__file_ref__: True``) → URL string
+    - FileReference dicts (``__file_ref__: True``) → URL string, or
+      resolved content when *resolve_files* is True
     - Lists/tuples → JSON string
     - Other dicts → JSON string
     - Scalars → passthrough
+
+    Args:
+        value: The value to serialize.
+        resolve_files: If True, resolve file references to their actual
+            content (e.g., inline PDB strings) instead of URLs.
     """
     if isinstance(value, dict):
         if value.get("__file_ref__"):
+            if resolve_files:
+                from proto_language.storage import get_file_content
+
+                return get_file_content(value)
             return value.get("url", "")
         return json.dumps(value)
     if isinstance(value, (list, tuple)):
@@ -226,7 +250,10 @@ def _collect_all_columns(rows: List[Dict]) -> List[str]:
 
 
 def _flatten_constraint_columns(
-    constraints: Dict[str, Dict], prefix: str = ""
+    constraints: Dict[str, Dict],
+    prefix: str = "",
+    *,
+    resolve_files: bool = False,
 ) -> Dict[str, Any]:
     """Flatten all constraint data with {prefix}{label}.{field} namespacing.
 
@@ -236,6 +263,7 @@ def _flatten_constraint_columns(
     Args:
         constraints: Dict mapping constraint labels to their data.
         prefix: Column name prefix (e.g., "promoter." for construct-level).
+        resolve_files: Resolve file references to content instead of URLs.
     """
     flat = {}
     for label, cdata in constraints.items():
@@ -245,9 +273,11 @@ def _flatten_constraint_columns(
                 flat[f"{base}.{key}"] = cdata[key]
         for key in ("input_segments", "position_in_inputs"):
             if key in cdata:
-                flat[f"{base}.{key}"] = _serialize_value(cdata[key])
+                flat[f"{base}.{key}"] = _serialize_value(
+                    cdata[key], resolve_files=resolve_files
+                )
         for k, v in cdata.get("data", {}).items():
-            flat[f"{base}.{k}"] = _serialize_value(v)
+            flat[f"{base}.{k}"] = _serialize_value(v, resolve_files=resolve_files)
     return flat
 
 
@@ -260,6 +290,8 @@ def flatten_sequences(
     results: Results,
     segments: Optional[Set[str]] = None,
     result_indices: Optional[Set[int]] = None,
+    *,
+    resolve_files: bool = False,
 ) -> List[Dict[str, Any]]:
     """One row per (result_idx, construct, segment). All constraint fields inline.
 
@@ -267,6 +299,7 @@ def flatten_sequences(
         results: Output from build_results().
         segments: If set, only include these segment labels.
         result_indices: If set, only include these result indices.
+        resolve_files: Resolve file references to content instead of URLs.
 
     Columns:
         Fixed: result_idx, energy_score, construct, segment, sequence
@@ -277,7 +310,10 @@ def flatten_sequences(
     """
     rows = []
     for result_entry in results.get("results", []):
-        if result_indices is not None and result_entry["result_idx"] not in result_indices:
+        if (
+            result_indices is not None
+            and result_entry["result_idx"] not in result_indices
+        ):
             continue
         for construct in result_entry["constructs"]:
             for segment in construct["segments"]:
@@ -293,11 +329,14 @@ def flatten_sequences(
                 }
                 row.update(
                     _flatten_constraint_columns(
-                        segment.get("constraints", {})
+                        segment.get("constraints", {}),
+                        resolve_files=resolve_files,
                     )
                 )
                 for key, value in segment.get("metadata", {}).items():
-                    row[f"metadata.{key}"] = _serialize_value(value)
+                    row[f"metadata.{key}"] = _serialize_value(
+                        value, resolve_files=resolve_files
+                    )
                 rows.append(row)
     return rows
 
@@ -307,6 +346,8 @@ def flatten_constraints(
     segments: Optional[Set[str]] = None,
     constraints: Optional[Set[str]] = None,
     result_indices: Optional[Set[int]] = None,
+    *,
+    resolve_files: bool = False,
 ) -> List[Dict[str, Any]]:
     """One row per (result_idx, construct, segment, constraint). All metrics.
 
@@ -315,6 +356,7 @@ def flatten_constraints(
         segments: If set, only include these segment labels.
         constraints: If set, only include these constraint labels.
         result_indices: If set, only include these result indices.
+        resolve_files: Resolve file references to content instead of URLs.
 
     Columns:
         Fixed: result_idx, energy_score, construct, segment, constraint
@@ -324,7 +366,10 @@ def flatten_constraints(
     """
     rows = []
     for result_entry in results.get("results", []):
-        if result_indices is not None and result_entry["result_idx"] not in result_indices:
+        if (
+            result_indices is not None
+            and result_entry["result_idx"] not in result_indices
+        ):
             continue
         for construct in result_entry["constructs"]:
             for segment in construct["segments"]:
@@ -346,9 +391,11 @@ def flatten_constraints(
                     }
                     for key in ("input_segments", "position_in_inputs"):
                         if key in cdata:
-                            row[key] = _serialize_value(cdata[key])
+                            row[key] = _serialize_value(
+                                cdata[key], resolve_files=resolve_files
+                            )
                     for k, v in cdata.get("data", {}).items():
-                        row[k] = _serialize_value(v)
+                        row[k] = _serialize_value(v, resolve_files=resolve_files)
                     rows.append(row)
     return rows
 
@@ -357,6 +404,8 @@ def flatten_constructs(
     results: Results,
     segments: Optional[Set[str]] = None,
     result_indices: Optional[Set[int]] = None,
+    *,
+    resolve_files: bool = False,
 ) -> List[Dict[str, Any]]:
     """One row per (result_idx, construct). Per-segment data as prefixed columns.
 
@@ -365,6 +414,7 @@ def flatten_constructs(
         segments: If set, only include these segment labels in per-segment columns.
             full_sequence still reflects all segments for construct integrity.
         result_indices: If set, only include these result indices.
+        resolve_files: Resolve file references to content instead of URLs.
 
     Columns:
         Fixed: result_idx, energy_score, construct, full_sequence
@@ -374,7 +424,10 @@ def flatten_constructs(
     """
     rows = []
     for result_entry in results.get("results", []):
-        if result_indices is not None and result_entry["result_idx"] not in result_indices:
+        if (
+            result_indices is not None
+            and result_entry["result_idx"] not in result_indices
+        ):
             continue
         for construct in result_entry["constructs"]:
             row = {
@@ -382,9 +435,7 @@ def flatten_constructs(
                 "energy_score": result_entry["energy_score"],
                 "construct": construct["label"],
                 "sequence_type": construct["type"],
-                "full_sequence": "".join(
-                    s["sequence"] for s in construct["segments"]
-                ),
+                "full_sequence": "".join(s["sequence"] for s in construct["segments"]),
             }
             offset = 0
             for segment in construct["segments"]:
@@ -400,10 +451,13 @@ def flatten_constructs(
                     _flatten_constraint_columns(
                         segment.get("constraints", {}),
                         prefix=f"{seg}.",
+                        resolve_files=resolve_files,
                     )
                 )
                 for key, value in segment.get("metadata", {}).items():
-                    row[f"{seg}.metadata.{key}"] = _serialize_value(value)
+                    row[f"{seg}.metadata.{key}"] = _serialize_value(
+                        value, resolve_files=resolve_files
+                    )
                 offset += seg_len
             rows.append(row)
     return rows
@@ -414,6 +468,8 @@ def flatten_optimization(
     segments: Optional[Set[str]] = None,
     result_indices: Optional[Set[int]] = None,
     include_proposals: bool = False,
+    *,
+    resolve_files: bool = False,
 ) -> List[Dict[str, Any]]:
     """One row per (timepoint, result_idx). Sequences + constraint scores.
 
@@ -441,7 +497,10 @@ def flatten_optimization(
     for entry in history:
         timepoint = entry["time_step"]
         for result_entry in entry.get("results", []):
-            if result_indices is not None and result_entry["result_idx"] not in result_indices:
+            if (
+                result_indices is not None
+                and result_entry["result_idx"] not in result_indices
+            ):
                 continue
             row = {
                 "timepoint": timepoint,
@@ -462,12 +521,17 @@ def flatten_optimization(
                 for segment in construct["segments"]:
                     if segments is not None and segment["label"] not in segments:
                         continue
-                    seg = f"{con}.{segment['label']}" if multi_construct else segment["label"]
+                    seg = (
+                        f"{con}.{segment['label']}"
+                        if multi_construct
+                        else segment["label"]
+                    )
                     row[f"{seg}.sequence"] = segment["sequence"]
                     row.update(
                         _flatten_constraint_columns(
                             segment.get("constraints", {}),
                             prefix=f"{seg}.",
+                            resolve_files=resolve_files,
                         )
                     )
             rows.append(row)
@@ -495,12 +559,17 @@ def flatten_optimization(
                     for segment in construct["segments"]:
                         if segments is not None and segment["label"] not in segments:
                             continue
-                        seg = f"{con}.{segment['label']}" if multi_construct else segment["label"]
+                        seg = (
+                            f"{con}.{segment['label']}"
+                            if multi_construct
+                            else segment["label"]
+                        )
                         row[f"{seg}.sequence"] = segment["sequence"]
                         row.update(
                             _flatten_constraint_columns(
                                 segment.get("constraints", {}),
                                 prefix=f"{seg}.",
+                                resolve_files=resolve_files,
                             )
                         )
                 rows.append(row)
@@ -520,6 +589,7 @@ def flatten_table(
     result_indices: Optional[Set[int]] = None,
     constraints: Optional[Set[str]] = None,
     include_proposals: bool = False,
+    resolve_files: bool = False,
 ) -> List[Dict[str, Any]]:
     """Dispatch to the appropriate flatten function for *table*.
 
@@ -532,11 +602,16 @@ def flatten_table(
         result_indices: Only include these result indices.
         constraints: Only include these constraint labels (constraints table only).
         include_proposals: Include proposal rows (optimization table only).
+        resolve_files: Resolve file references to content instead of URLs.
 
     Raises:
         ValueError: If *table* is not a recognized name.
     """
-    filters = {"segments": segments, "result_indices": result_indices}
+    filters: Dict[str, Any] = {
+        "segments": segments,
+        "result_indices": result_indices,
+        "resolve_files": resolve_files,
+    }
     if table == "optimization":
         return flatten_optimization(
             history, include_proposals=include_proposals, **filters
@@ -544,9 +619,7 @@ def flatten_table(
     if table == "sequences":
         return flatten_sequences(results, **filters)
     if table == "constraints":
-        return flatten_constraints(
-            results, constraints=constraints, **filters
-        )
+        return flatten_constraints(results, constraints=constraints, **filters)
     if table == "constructs":
         return flatten_constructs(results, **filters)
     raise ValueError(
@@ -575,9 +648,7 @@ def to_csv(rows: List[Dict], output: Union[Path, IO, None] = None) -> str:
 
     columns = _collect_all_columns(rows)
     buffer = StringIO()
-    writer = csv.DictWriter(
-        buffer, fieldnames=columns, extrasaction="ignore"
-    )
+    writer = csv.DictWriter(buffer, fieldnames=columns, extrasaction="ignore")
     writer.writeheader()
     for row in rows:
         writer.writerow({k: row.get(k, "") for k in columns})
@@ -685,9 +756,7 @@ def to_xlsx(rows: List[Dict], output: Union[Path, IO]) -> None:
         wb.save(output)
 
 
-def to_xlsx_workbook(
-    tables: Dict[str, List[Dict]], output: Path
-) -> None:
+def to_xlsx_workbook(tables: Dict[str, List[Dict]], output: Path) -> None:
     """Write multiple tables as sheets in a single Excel workbook.
 
     Args:
@@ -710,9 +779,7 @@ def to_xlsx_workbook(
             ws.cell(row=1, column=col_idx, value=col_name)
         for row_idx, row in enumerate(rows, start=2):
             for col_idx, col_name in enumerate(columns, start=1):
-                ws.cell(
-                    row=row_idx, column=col_idx, value=row.get(col_name, "")
-                )
+                ws.cell(row=row_idx, column=col_idx, value=row.get(col_name, ""))
 
     wb.save(str(output))
 
@@ -811,7 +878,10 @@ def to_fasta(
     """
     lines: List[str] = []
     for result_entry in results.get("results", []):
-        if result_indices is not None and result_entry["result_idx"] not in result_indices:
+        if (
+            result_indices is not None
+            and result_entry["result_idx"] not in result_indices
+        ):
             continue
         for construct in result_entry["constructs"]:
             for segment in construct["segments"]:

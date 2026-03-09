@@ -93,7 +93,7 @@ from .language.optimizer import (  # Registry; Optimizers
 from .logging_config import get_logger, setup_logging
 
 # File resolution utilities
-from .utils import resolve_file, resolve_paths
+from .storage import resolve_file, resolve_paths
 
 __all__ = [
     # Base infrastructure

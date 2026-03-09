@@ -24,11 +24,11 @@ from pydantic import model_validator
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.language.core import DNA_NUCLEOTIDES, Sequence
+from proto_language.storage import resolve_paths
 from proto_language.utils import (
     MAX_ENERGY,
     MIN_ENERGY,
     calculate_percentage_range_deviation,
-    resolve_paths,
 )
 
 
