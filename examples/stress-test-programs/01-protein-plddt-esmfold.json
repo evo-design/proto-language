@@ -1,0 +1,70 @@
+{
+  "name": "Protein pLDDT Optimization (ESMFold)",
+  "description": "Simple GPU stress test: optimize a short protein for high pLDDT using ESMFold. Tests basic ToolPool dispatch of a single GPU constraint.",
+  "num_results": 3,
+  "verbose": true,
+  "constructs": [
+    {
+      "id": "construct_1",
+      "type": "protein",
+      "segments": [
+        {
+          "id": "miniprotein",
+          "label": "Villin Headpiece HP35",
+          "sequence": "LSDEDFKAVFGMTRSAFANLPLWKQQNLKKEKGLF"
+        }
+      ]
+    }
+  ],
+  "optimization_stages": [
+    {
+      "optimizer": {
+        "method": "topk",
+        "config": {
+          "num_samples": 100,
+          "num_results": 5,
+          "samples_per_round": 100
+        }
+      },
+      "generators": [
+        {
+          "key": "uniform-mutation",
+          "target": "miniprotein",
+          "config": { "num_mutations": 3 }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "structure-plddt",
+          "targets": ["miniprotein"],
+          "config": { "structure_tool": "esmfold" },
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "optimizer": {
+        "method": "mcmc",
+        "config": {
+          "num_results": 3,
+          "num_steps": 30
+        }
+      },
+      "generators": [
+        {
+          "key": "uniform-mutation",
+          "target": "miniprotein",
+          "config": { "num_mutations": 1 }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "structure-plddt",
+          "targets": ["miniprotein"],
+          "config": { "structure_tool": "esmfold" },
+          "weight": 1.0
+        }
+      ]
+    }
+  ]
+}

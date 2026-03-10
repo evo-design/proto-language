@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
@@ -94,6 +95,7 @@ class Program:
         optimizers: List[Optimizer],
         num_results: int,
         verbose: bool = False,
+        compute: ToolPool | str | None = None,
     ) -> None:
         """
         Initialize a Program with a list of optimizers to run sequentially.
@@ -114,6 +116,34 @@ class Program:
         """
         if not optimizers:
             raise ValueError("optimizers list cannot be empty")
+
+        # Validate compute parameter
+        # TODO: support proto concurrency strings ("proto:64") once
+        # proto dispatch moves through ToolPool via the deployment repo.
+        if isinstance(compute, str) and compute != "proto":
+            raise ValueError(
+                f"Invalid compute string '{compute}'. "
+                f"Currently, only 'proto' or a ToolPool instance consisting of "
+                f"local GPUs are supported. Mixed local + cloud tool pools "
+                f"will be supported in a future PR."
+            )
+
+        # TODO: remove this auto-detection once proto dispatch moves through
+        # ToolPool. Currently "proto" activates the existing cloud execution
+        # backend as a stopgap; once ToolPool handles proto as a device
+        # string, we can default to ToolPool() unconditionally and let it
+        # handle GPU detection and proto fallback internally.
+        if compute is None:
+            from proto_tools.utils.device import number_of_available_gpus
+
+            if number_of_available_gpus() > 0:
+                from proto_tools.utils.tool_pool import ToolPool
+
+                compute = ToolPool()
+            else:
+                compute = "proto"
+
+        self.compute = compute
 
         self.optimizers = optimizers
         self.num_results = num_results
@@ -294,8 +324,9 @@ class Program:
 
         # Run all stages sequentially
         logger.debug(f"Program.run: starting {len(self.optimizers)} optimization stages")
-        for optimizer_stage_idx in range(len(self.optimizers)):
-            self.run_stage(optimizer_stage_idx)
+        with self._enter_compute():
+            for optimizer_stage_idx in range(len(self.optimizers)):
+                self.run_stage(optimizer_stage_idx)
 
     def run_stage(self, stage_index: int) -> None:
         """
@@ -321,37 +352,92 @@ class Program:
             >>> results = program.get_stage_results(0)  # Access results
             >>> program.run_stage(1)  # Run second optimizer
         """
-        self._validate_program()
-        if stage_index < 0 or stage_index >= len(self.optimizers):
-            raise IndexError(f"Stage index {stage_index} out of range (0-{len(self.optimizers)-1}).")
-        if stage_index > self.current_stage:
-            raise RuntimeError(f"Cannot skip to stage {stage_index}. Current stage is {self.current_stage}.")
+        with self._enter_compute():
+            self._validate_program()
+            if stage_index < 0 or stage_index >= len(self.optimizers):
+                raise IndexError(f"Stage index {stage_index} out of range (0-{len(self.optimizers)-1}).")
+            if stage_index > self.current_stage:
+                raise RuntimeError(f"Cannot skip to stage {stage_index}. Current stage is {self.current_stage}.")
 
-        # Re-running a previous stage: restore state from that stage's optimizer
-        if stage_index < self.current_stage:
-            # Use the target stage's initial state (captured before it ran)
-            self.optimizers[stage_index]._restore_initial_state()
-            self._stage_results = self._stage_results[:stage_index]
-            # Clear stale initial states from subsequent optimizers
-            for opt in self.optimizers[stage_index + 1:]:
-                opt._initial_state = None
+            # Re-running a previous stage: restore state from that stage's optimizer
+            if stage_index < self.current_stage:
+                # Use the target stage's initial state (captured before it ran)
+                self.optimizers[stage_index]._restore_initial_state()
+                self._stage_results = self._stage_results[:stage_index]
+                # Clear stale initial states from subsequent optimizers
+                for opt in self.optimizers[stage_index + 1:]:
+                    opt._initial_state = None
 
-        optimizer = self.optimizers[stage_index]
-        logger.debug(f"Program.run_stage: stage={stage_index}, optimizer={optimizer.__class__.__name__}")
-        optimizer._initialize_sequence_pools()
+            optimizer = self.optimizers[stage_index]
+            logger.debug(f"Program.run_stage: stage={stage_index}, optimizer={optimizer.__class__.__name__}")
+            optimizer._initialize_sequence_pools()
 
-        # Clear stale constraint metadata from previous stages
-        self._clear_sequence_metadata()
+            # Clear stale constraint metadata from previous stages
+            self._clear_sequence_metadata()
 
-        optimizer.run()
+            optimizer.run()
 
-        stage_result = self.extract_results(optimizer.energy_scores)
+            stage_result = self.extract_results(optimizer.energy_scores)
 
-        if self.verbose:
-            self._log_stage_results(stage_index, stage_result["results"])
+            if self.verbose:
+                self._log_stage_results(stage_index, stage_result["results"])
 
-        self._stage_results.append(stage_result)
-        self.current_stage = stage_index + 1
+            self._stage_results.append(stage_result)
+            self.current_stage = stage_index + 1
+
+    @contextmanager
+    def _enter_compute(self):
+        """Enter compute context if not already active, otherwise no-op.
+
+        For ToolPool: checks _active_pool ContextVar to avoid double-entry.
+        For proto: checks if execution backend is already set.
+        """
+        # TODO: remove this proto branch once proto dispatch moves through
+        # ToolPool as a device string. This is a temporary bridge that
+        # activates the existing cloud execution backend so tool calls
+        # route to cloud workers. Once ToolPool handles "proto" natively,
+        # only the ToolPool branch below will be needed.
+        if self.compute == "proto":
+            from proto_tools.tools.tool_registry import ToolRegistry
+
+            already_active = ToolRegistry._execution_backend is not None
+            if already_active:
+                yield
+            else:
+                # TODO: remove this try/except once proto dispatch moves
+                # through ToolPool (https://github.com/evo-design/proto-language/issues/983).
+                try:
+                    from deployment.tool_backend.tool_backend import (
+                        create_cloud_tool_backend,
+                    )
+
+                    backend = create_cloud_tool_backend()
+                except Exception as e:
+                    logger.warning(
+                        "Could not activate cloud backend: %s. "
+                        "GPU tools will be unavailable. To fix this, "
+                        "install cloud (`pip install cloud`) and "
+                        "authenticate (`cloud token set`). "
+                        "CPU-based tools will still run locally.",
+                        e,
+                    )
+                    yield
+                    return
+
+                previous_backend = ToolRegistry._execution_backend
+                ToolRegistry.set_execution_backend(backend)
+                try:
+                    yield
+                finally:
+                    ToolRegistry.set_execution_backend(previous_backend)
+        else:
+            from proto_tools.utils.tool_pool import _active_pool
+
+            if _active_pool.get() is not None:
+                yield
+            else:
+                with self.compute:
+                    yield
 
     def get_stage_results(self, stage_index: int) -> Dict[str, Any]:
         """Get results from a specific optimization stage."""

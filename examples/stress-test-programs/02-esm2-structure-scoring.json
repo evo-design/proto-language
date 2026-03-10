@@ -1,0 +1,90 @@
+{
+  "name": "ESM2 Mutation with Structure Scoring",
+  "description": "GPU generator (ESM2) combined with GPU constraints (pLDDT + pTM). Tests ToolPool dispatch of both a GPU generator and GPU constraints.",
+  "num_results": 3,
+  "verbose": true,
+  "constructs": [
+    {
+      "id": "construct_1",
+      "type": "protein",
+      "segments": [
+        {
+          "id": "protein_domain",
+          "label": "WW Domain (Pin1)",
+          "sequence": "KLPPGWEKRMSRSSGRVYYFNHITNASQWERPSG"
+        }
+      ]
+    }
+  ],
+  "optimization_stages": [
+    {
+      "optimizer": {
+        "method": "topk",
+        "config": {
+          "num_samples": 100,
+          "num_results": 5,
+          "samples_per_round": 100
+        }
+      },
+      "generators": [
+        {
+          "key": "esm2",
+          "target": "protein_domain",
+          "config": {
+            "model_checkpoint": "esm2_t33_650M_UR50D",
+            "temperature": 1.0,
+            "num_mutations": 2
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "structure-plddt",
+          "targets": ["protein_domain"],
+          "config": { "structure_tool": "esmfold" },
+          "weight": 1.0
+        },
+        {
+          "key": "structure-ptm",
+          "targets": ["protein_domain"],
+          "config": { "structure_tool": "esmfold" },
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "optimizer": {
+        "method": "mcmc",
+        "config": {
+          "num_results": 3,
+          "num_steps": 20
+        }
+      },
+      "generators": [
+        {
+          "key": "esm2",
+          "target": "protein_domain",
+          "config": {
+            "model_checkpoint": "esm2_t33_650M_UR50D",
+            "temperature": 0.8,
+            "num_mutations": 1
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "structure-plddt",
+          "targets": ["protein_domain"],
+          "config": { "structure_tool": "esmfold" },
+          "weight": 1.5
+        },
+        {
+          "key": "structure-ptm",
+          "targets": ["protein_domain"],
+          "config": { "structure_tool": "esmfold" },
+          "weight": 1.0
+        }
+      ]
+    }
+  ]
+}

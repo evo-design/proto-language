@@ -2,6 +2,9 @@
 Tests for Program class including state management and restart behavior.
 """
 
+from contextlib import nullcontext
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from proto_language.language.constraint import ConstraintRegistry
@@ -12,9 +15,24 @@ from proto_language.language.generator import (
 )
 from proto_language.language.optimizer import TopKOptimizer, TopKOptimizerConfig
 
+_UNSET = object()
 
-def _create_simple_program(num_stages: int = 1, sequence: str = "ATGCATGCATGCATGCATGC"):
-    """Create a simple program for testing."""
+
+def _create_simple_program(
+    num_stages: int = 1,
+    sequence: str = "ATGCATGCATGCATGCATGC",
+    compute=_UNSET,
+):
+    """Create a simple program for testing.
+
+    Args:
+        compute: Compute parameter for Program. Defaults to nullcontext()
+            to avoid auto-detection (no GPU/cloud imports needed).
+            Pass compute=None to test auto-detection behavior.
+    """
+    if compute is _UNSET:
+        compute = nullcontext()
+
     segment = Segment(sequence=sequence, sequence_type="dna", label="test")
     construct = Construct([segment])
 
@@ -39,7 +57,7 @@ def _create_simple_program(num_stages: int = 1, sequence: str = "ATGCATGCATGCATG
         )
         optimizers.append(optimizer)
 
-    return Program(optimizers=optimizers, num_results=2)
+    return Program(optimizers=optimizers, num_results=2, compute=compute)
 
 
 class TestProgramRestart:
@@ -836,3 +854,120 @@ class TestProgramExport:
         """to_fasta with segments= filters output."""
         assert len(self.program.to_fasta(segments={"test"})) > 0
         assert self.program.to_fasta(segments={"nonexistent"}) == ""
+
+
+class TestProgramCompute:
+    """Tests for Program.compute parameter and _enter_compute() context manager."""
+
+    @patch("proto_tools.utils.device.number_of_available_gpus", return_value=4)
+    @patch("proto_tools.utils.tool_pool.ToolPool")
+    def test_compute_defaults_to_toolpool_with_gpu(self, mock_pool_cls, mock_gpus):
+        """With GPUs available, default compute=None resolves to ToolPool()."""
+        program = _create_simple_program(compute=None)
+        mock_pool_cls.assert_called_once_with()
+        assert program.compute is mock_pool_cls.return_value
+
+    @patch("proto_tools.utils.device.number_of_available_gpus", return_value=0)
+    def test_compute_defaults_to_proto_without_gpu(self, mock_gpus):
+        """Without GPUs, default compute=None resolves to 'proto'."""
+        program = _create_simple_program(compute=None)
+        assert program.compute == "proto"
+
+    @patch("proto_tools.utils.tool_pool._active_pool")
+    def test_run_enters_compute_context(self, mock_active_pool):
+        """ToolPool __enter__ and __exit__ called during run()."""
+        # First call returns None (run() enters), subsequent calls return
+        # the pool (run_stage() sees active and skips)
+        mock_pool = MagicMock()
+        mock_active_pool.get.side_effect = [None, mock_pool]
+        program = _create_simple_program(compute=mock_pool)
+        program.run()
+        mock_pool.__enter__.assert_called_once()
+        mock_pool.__exit__.assert_called_once()
+
+    @patch("proto_tools.utils.tool_pool._active_pool")
+    def test_run_stage_standalone_enters_and_exits_compute(self, mock_active_pool):
+        """run_stage() called directly enters and exits compute context."""
+        mock_active_pool.get.return_value = None
+        mock_pool = MagicMock()
+        program = _create_simple_program(compute=mock_pool)
+        program.run_stage(0)
+        mock_pool.__enter__.assert_called_once()
+        mock_pool.__exit__.assert_called_once()
+
+    @patch("proto_tools.utils.tool_pool._active_pool")
+    def test_run_stage_skips_enter_when_active(self, mock_active_pool):
+        """run_stage() called from run() does not double-enter compute."""
+        # First call returns None (run() enters), subsequent calls return mock
+        # (run_stage() sees active pool and skips)
+        mock_pool = MagicMock()
+        mock_active_pool.get.side_effect = [None, mock_pool, mock_pool]
+        program = _create_simple_program(compute=mock_pool)
+        program.run()
+        # Only one __enter__ call (from run()), run_stage() should skip
+        assert mock_pool.__enter__.call_count == 1
+
+    @patch("proto_tools.utils.tool_pool._active_pool")
+    def test_compute_exit_on_exception(self, mock_active_pool):
+        """__exit__ called even when optimizer raises."""
+        mock_pool = MagicMock()
+        mock_active_pool.get.side_effect = [None, mock_pool]
+        program = _create_simple_program(compute=mock_pool)
+        # Make optimizer.run() raise
+        program.optimizers[0].run = MagicMock(side_effect=RuntimeError("boom"))
+        with pytest.raises(RuntimeError, match="boom"):
+            program.run()
+        mock_pool.__exit__.assert_called_once()
+
+    @patch(
+        "deployment.tool_backend.tool_backend.create_cloud_tool_backend",
+        return_value=MagicMock(),
+    )
+    @patch("proto_tools.tools.tool_registry.ToolRegistry")
+    def test_proto_sets_execution_backend(self, mock_registry, mock_create):
+        """compute='proto' sets cloud backend during run(), restores after.
+
+        TODO: remove once proto dispatch moves through ToolPool in the
+        deployment repo — at that point "proto" will be a ToolPool device
+        string, not a separate code path.
+        """
+        mock_registry._execution_backend = None
+        # Make set_execution_backend actually update _execution_backend
+        # so the re-entrancy check in run_stage() sees it as active
+        mock_registry.set_execution_backend.side_effect = (
+            lambda b: setattr(mock_registry, "_execution_backend", b)
+        )
+        program = _create_simple_program(compute="proto")
+        program.run()
+        # set_execution_backend called twice: once to set, once to restore
+        assert mock_registry.set_execution_backend.call_count == 2
+        # First call sets the cloud backend
+        mock_registry.set_execution_backend.assert_any_call(
+            mock_create.return_value
+        )
+        # Last call restores None
+        mock_registry.set_execution_backend.assert_called_with(None)
+
+    @patch(
+        "deployment.tool_backend.tool_backend.create_cloud_tool_backend",
+        return_value=MagicMock(),
+    )
+    @patch("proto_tools.tools.tool_registry.ToolRegistry")
+    def test_proto_restores_backend_on_exception(
+        self, mock_registry, mock_create
+    ):
+        """cloud backend restored even when optimizer raises.
+
+        TODO: remove once proto dispatch moves through ToolPool in the
+        deployment repo.
+        """
+        mock_registry._execution_backend = None
+        mock_registry.set_execution_backend.side_effect = (
+            lambda b: setattr(mock_registry, "_execution_backend", b)
+        )
+        program = _create_simple_program(compute="proto")
+        program.optimizers[0].run = MagicMock(side_effect=RuntimeError("boom"))
+        with pytest.raises(RuntimeError, match="boom"):
+            program.run()
+        # Backend should still be restored
+        mock_registry.set_execution_backend.assert_called_with(None)

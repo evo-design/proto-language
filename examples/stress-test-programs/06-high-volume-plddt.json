@@ -1,0 +1,46 @@
+{
+  "name": "High-Volume pLDDT (100 designs)",
+  "description": "Stress test ToolPool with 100 simultaneous ESMFold evaluations across 2 GPUs.",
+  "num_results": 5,
+  "verbose": true,
+  "constructs": [
+    {
+      "id": "construct_1",
+      "type": "protein",
+      "segments": [
+        {
+          "id": "miniprotein",
+          "label": "Villin Headpiece HP35",
+          "sequence": "LSDEDFKAVFGMTRSAFANLPLWKQQNLKKEKGLF"
+        }
+      ]
+    }
+  ],
+  "optimization_stages": [
+    {
+      "optimizer": {
+        "method": "topk",
+        "config": {
+          "num_samples": 100,
+          "num_results": 5,
+          "samples_per_round": 100
+        }
+      },
+      "generators": [
+        {
+          "key": "uniform-mutation",
+          "target": "miniprotein",
+          "config": { "num_mutations": 3 }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "structure-plddt",
+          "targets": ["miniprotein"],
+          "config": { "structure_tool": "esmfold" },
+          "weight": 1.0
+        }
+      ]
+    }
+  ]
+}

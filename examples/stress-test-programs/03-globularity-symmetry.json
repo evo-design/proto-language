@@ -1,0 +1,79 @@
+{
+  "name": "Protein Globularity and Symmetry Ring",
+  "description": "Optimize for structural compactness and symmetric trimeric assembly. Tests heavier ESMFold usage (n_replications multiplies folding calls).",
+  "num_results": 2,
+  "verbose": true,
+  "constructs": [
+    {
+      "id": "construct_1",
+      "type": "protein",
+      "segments": [
+        {
+          "id": "protomer",
+          "label": "Symmetric Protomer",
+          "sequence": "EQYTAKYKGRTFRNEKELRDFIEKFYSQFMTAEDLKKILEEKFNQFVSHGE"
+        }
+      ]
+    }
+  ],
+  "optimization_stages": [
+    {
+      "optimizer": {
+        "method": "topk",
+        "config": {
+          "num_samples": 100,
+          "num_results": 4,
+          "samples_per_round": 100
+        }
+      },
+      "generators": [
+        {
+          "key": "uniform-mutation",
+          "target": "protomer",
+          "config": { "num_mutations": 3 }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "protein-globularity",
+          "targets": ["protomer"],
+          "config": { "n_replications": 1 },
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "optimizer": {
+        "method": "mcmc",
+        "config": {
+          "num_results": 2,
+          "num_steps": 20
+        }
+      },
+      "generators": [
+        {
+          "key": "uniform-mutation",
+          "target": "protomer",
+          "config": { "num_mutations": 1 }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "protein-globularity",
+          "targets": ["protomer"],
+          "config": { "n_replications": 3 },
+          "weight": 1.0
+        },
+        {
+          "key": "protein-symmetry-ring",
+          "targets": ["protomer"],
+          "config": {
+            "n_replications": 3,
+            "all_to_all_protomer_symmetry": false
+          },
+          "weight": 1.5
+        }
+      ]
+    }
+  ]
+}

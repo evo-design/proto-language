@@ -1,0 +1,137 @@
+{
+  "name": "Heavy Multi-Stage Protein Pipeline",
+  "description": "High-volume stress test: ESM2 generator with pLDDT + pTM + pAE constraints across 3 stages. Large sample counts to stress ToolPool GPU scheduling.",
+  "num_results": 3,
+  "verbose": true,
+  "constructs": [
+    {
+      "id": "construct_1",
+      "type": "protein",
+      "segments": [
+        {
+          "id": "target_protein",
+          "label": "Target Protein",
+          "sequence": "MTYKLILNGKTLKGETTTEAVDAATAEKVFKQYANDNGVDGEWTYDDATKTFTVTE"
+        }
+      ]
+    }
+  ],
+  "optimization_stages": [
+    {
+      "optimizer": {
+        "method": "topk",
+        "config": {
+          "num_samples": 1000,
+          "num_results": 10,
+          "samples_per_round": 1000
+        }
+      },
+      "generators": [
+        {
+          "key": "esm2",
+          "target": "target_protein",
+          "config": {
+            "model_checkpoint": "esm2_t33_650M_UR50D",
+            "temperature": 1.2,
+            "num_mutations": 5
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "structure-plddt",
+          "targets": ["target_protein"],
+          "config": { "structure_tool": "esmfold" },
+          "weight": 1.0
+        },
+        {
+          "key": "structure-ptm",
+          "targets": ["target_protein"],
+          "config": { "structure_tool": "esmfold" },
+          "weight": 0.5
+        }
+      ]
+    },
+    {
+      "optimizer": {
+        "method": "topk",
+        "config": {
+          "num_samples": 500,
+          "num_results": 8,
+          "samples_per_round": 500
+        }
+      },
+      "generators": [
+        {
+          "key": "esm2",
+          "target": "target_protein",
+          "config": {
+            "model_checkpoint": "esm2_t33_650M_UR50D",
+            "temperature": 0.9,
+            "num_mutations": 3
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "structure-plddt",
+          "targets": ["target_protein"],
+          "config": { "structure_tool": "esmfold" },
+          "weight": 1.5
+        },
+        {
+          "key": "structure-ptm",
+          "targets": ["target_protein"],
+          "config": { "structure_tool": "esmfold" },
+          "weight": 1.0
+        },
+        {
+          "key": "structure-pae",
+          "targets": ["target_protein"],
+          "config": { "structure_tool": "esmfold" },
+          "weight": 0.5
+        }
+      ]
+    },
+    {
+      "optimizer": {
+        "method": "mcmc",
+        "config": {
+          "num_results": 3,
+          "num_steps": 40
+        }
+      },
+      "generators": [
+        {
+          "key": "esm2",
+          "target": "target_protein",
+          "config": {
+            "model_checkpoint": "esm2_t33_650M_UR50D",
+            "temperature": 0.7,
+            "num_mutations": 1
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "structure-plddt",
+          "targets": ["target_protein"],
+          "config": { "structure_tool": "esmfold" },
+          "weight": 2.0
+        },
+        {
+          "key": "structure-ptm",
+          "targets": ["target_protein"],
+          "config": { "structure_tool": "esmfold" },
+          "weight": 1.0
+        },
+        {
+          "key": "structure-pae",
+          "targets": ["target_protein"],
+          "config": { "structure_tool": "esmfold" },
+          "weight": 1.0
+        }
+      ]
+    }
+  ]
+}
