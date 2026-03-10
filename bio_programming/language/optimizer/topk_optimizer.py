@@ -64,8 +64,8 @@ class TopKOptimizerConfig(BaseOptimizerConfig):
     num_results: Optional[int] = ConfigField(
         default=None,
         ge=1,
-        title="Num Results",
-        description="Number of top sequences to keep and return (top-K value). Overrides program Num Results.",
+        title="Design Candidates",
+        description="Top candidate designs to keep for this optimizer (top-K). Overrides program-level count.",
         advanced=True,
     )
     samples_per_round: int = ConfigField(

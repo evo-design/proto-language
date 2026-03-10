@@ -208,8 +208,8 @@ class CyclingOptimizerConfig(BaseOptimizerConfig):
     num_results: Optional[int] = ConfigField(
         default=None,
         ge=1,
-        title="Num Results",
-        description="Number of independent proposal trajectories to maintain. Overrides program Num Results.",
+        title="Design Candidates",
+        description="Candidate design trajectories for this optimizer. Overrides program-level count.",
         advanced=True,
     )
     conditioning_param_name: str = ConfigField(

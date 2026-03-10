@@ -82,8 +82,8 @@ class MCMCOptimizerConfig(BaseOptimizerConfig):
     num_results: Optional[int] = ConfigField(
         default=None,
         ge=1,
-        title="Num Results",
-        description="Number of result sequences to optimize in parallel. Overrides program Num Results.",
+        title="Design Candidates",
+        description="Candidate designs for this optimizer. Overrides program-level count.",
         advanced=True,
     )
     proposals_per_result: int = ConfigField(

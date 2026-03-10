@@ -106,8 +106,8 @@ class BeamSearchOptimizerConfig(BaseOptimizerConfig):
     num_results: Optional[int] = ConfigField(
         default=None,
         ge=1,
-        title="Num Results",
-        description="Number of result sequences (beam width) to maintain at each step. Overrides program Num Results.",
+        title="Design Candidates",
+        description="Candidate designs (beam width) for this optimizer. Overrides program-level count.",
         advanced=True,
     )
     proposals_per_result: int = ConfigField(
