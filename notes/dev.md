@@ -179,7 +179,7 @@ Known intentional omissions (internal base configs, private subpackages, etc.) a
 
 ### CI Integration
 
-Runs automatically on PRs and pushes to main when any `__init__.py`, the validator script, or the exceptions file changes (`.github/workflows/validate_exports.yml`).
+Runs automatically as a pre-commit hook when any `__init__.py` is staged. See [Pre-commit Hooks](#pre-commit-hooks).
 
 ---
 
@@ -233,7 +233,7 @@ flake8 proto_language api agent tests
 The following CIs run manually when requested by the user:
 
 #### Claude Code Review
-**File:** `.github/workflows/claude-code-review.yml`
+**File:** `.github/workflows/claude.yml`
 **Triggers:** Only when `@claude` is mentioned in a PR comment
 **What it does:**
 - If comment is just `@claude` or explicitly asks for review → Full code review

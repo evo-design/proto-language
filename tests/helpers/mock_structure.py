@@ -1,18 +1,11 @@
 """
 mock_structure.py
 """
-"""
-mock_structure.py
-"""
 
 from pathlib import Path
 from typing import Dict, Optional
 
-from proto_tools import (
-    BFactorType,
-    Structure,
-    load_structure_file,
-)
+from proto_tools import BFactorType, Structure, load_structure_file
 
 MOCK_PDB = load_structure_file(Path(__file__).parent.parent / "dummy_data" / "renin_af3.pdb")
 MOCK_CIF = load_structure_file(Path(__file__).parent.parent / "dummy_data" / "renin.cif")
