@@ -51,9 +51,7 @@ def gc_content_constraint(input_sequences, config) -> List[float]: ...
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `CLOUD_APP_NAME` | cloud app name for GPU dispatch | `proto-language` |
-| `API_BASE_URL` | Public URL for cloud containers to report progress | `http://localhost:8000` |
-| `INTERNAL_API_SECRET` | Auth secret for cloud → API progress reports | `dev-secret` |
+| `CLOUD_ENVIRONMENT` | cloud environment for staging/prod isolation | *(unset = main/production)* |
 | `CLOUD_TOKEN_ID` | cloud authentication | *(unset)* |
 | `CLOUD_TOKEN_SECRET` | cloud authentication | *(unset)* |
 | `HF_TOKEN` | HuggingFace gated models (ESM3, AlphaGenome) | *(unset)* |

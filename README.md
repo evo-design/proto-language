@@ -100,7 +100,7 @@ Starts a cache + API together. Available at [http://localhost:8000](http://local
 
 ### Production
 
-Deployed via GitHub Actions (`release-to-prod.yml`). Requires `DATABASE_URL`, `REDIS_URL`, `LOCAL_EXECUTION=false`, cloud tokens, and `INTERNAL_API_SECRET` set in the deploy platform environment variables.
+Deployed via GitHub Actions (`release-to-prod.yml`). Requires `DATABASE_URL`, `REDIS_URL`, `LOCAL_EXECUTION=false`, and cloud tokens set in the deploy platform environment variables. Set `CLOUD_ENVIRONMENT=staging` on the staging the deploy platform service.
 
 ## Tests
 
