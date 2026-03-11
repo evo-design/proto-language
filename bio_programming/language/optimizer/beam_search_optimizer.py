@@ -447,7 +447,11 @@ class BeamSearchOptimizer(Optimizer):
             )
 
             # Collect results from this batch
-            kv_caches = self.generator.kv_caches if self.use_kv_caching else [None] * batch_count
+            kv_caches = (
+                self.generator.kv_caches
+                if self.use_kv_caching and self.generator.kv_caches is not None
+                else [None] * batch_count
+            )
             for i in range(batch_count):
                 generated_seq = self.target_segment.proposal_sequences[i].sequence
                 new_prompt = generated_seq if prepend_prompt else beam.running_sequence + generated_seq
