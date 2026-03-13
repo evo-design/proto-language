@@ -95,7 +95,7 @@ class Program:
         optimizers: List[Optimizer],
         num_results: int,
         verbose: bool = False,
-        compute: ToolPool | str | None = None,
+        compute: ToolPool | None = None,
     ) -> None:
         """
         Initialize a Program with a list of optimizers to run sequentially.
@@ -117,31 +117,26 @@ class Program:
         if not optimizers:
             raise ValueError("optimizers list cannot be empty")
 
-        # Validate compute parameter
-        # TODO: support proto concurrency strings ("proto:64") once
-        # proto dispatch moves through ToolPool via the deployment repo.
-        if isinstance(compute, str) and compute != "proto":
-            raise ValueError(
-                f"Invalid compute string '{compute}'. "
-                f"Currently, only 'proto' or a ToolPool instance consisting of "
-                f"local GPUs are supported. Mixed local + cloud tool pools "
-                f"will be supported in a future PR."
-            )
-
-        # TODO: remove this auto-detection once proto dispatch moves through
-        # ToolPool. Currently "proto" activates the existing cloud execution
-        # backend as a stopgap; once ToolPool handles proto as a device
-        # string, we can default to ToolPool() unconditionally and let it
-        # handle GPU detection and proto fallback internally.
         if compute is None:
+            from proto_tools.tools.tool_registry import ToolRegistry
             from proto_tools.utils.device import number_of_available_gpus
+            from proto_tools.utils.tool_pool import ToolPool
 
-            if number_of_available_gpus() > 0:
-                from proto_tools.utils.tool_pool import ToolPool
+            has_backend = ToolRegistry._execution_backend is not None
+            has_gpus = number_of_available_gpus() > 0
 
+            if has_backend:
+                compute = ToolPool(remote=True)
+            elif has_gpus:
                 compute = ToolPool()
             else:
-                compute = "proto"
+                from contextlib import nullcontext
+
+                logger.warning(
+                    "No GPUs detected and no cloud backend registered. "
+                    "Tools will execute inline without parallelism."
+                )
+                compute = nullcontext()
 
         self.compute = compute
 
@@ -389,55 +384,16 @@ class Program:
     def _enter_compute(self):
         """Enter compute context if not already active, otherwise no-op.
 
-        For ToolPool: checks _active_pool ContextVar to avoid double-entry.
-        For proto: checks if execution backend is already set.
+        Checks _active_pool ContextVar to avoid double-entry when
+        run_stage() is called from run() (which already entered the context).
         """
-        # TODO: remove this proto branch once proto dispatch moves through
-        # ToolPool as a device string. This is a temporary bridge that
-        # activates the existing cloud execution backend so tool calls
-        # route to cloud workers. Once ToolPool handles "proto" natively,
-        # only the ToolPool branch below will be needed.
-        if self.compute == "proto":
-            from proto_tools.tools.tool_registry import ToolRegistry
+        from proto_tools.utils.tool_pool import _active_pool
 
-            already_active = ToolRegistry._execution_backend is not None
-            if already_active:
-                yield
-            else:
-                # TODO: remove this try/except once proto dispatch moves
-                # through ToolPool (https://github.com/evo-design/proto-language/issues/983).
-                try:
-                    from deployment.tool_backend.tool_backend import (
-                        create_cloud_tool_backend,
-                    )
-
-                    backend = create_cloud_tool_backend()
-                except Exception as e:
-                    logger.warning(
-                        "Could not activate cloud backend: %s. "
-                        "GPU tools will be unavailable. To fix this, "
-                        "install cloud (`pip install cloud`) and "
-                        "authenticate (`cloud token set`). "
-                        "CPU-based tools will still run locally.",
-                        e,
-                    )
-                    yield
-                    return
-
-                previous_backend = ToolRegistry._execution_backend
-                ToolRegistry.set_execution_backend(backend)
-                try:
-                    yield
-                finally:
-                    ToolRegistry.set_execution_backend(previous_backend)
+        if _active_pool.get() is not None:
+            yield
         else:
-            from proto_tools.utils.tool_pool import _active_pool
-
-            if _active_pool.get() is not None:
+            with self.compute:
                 yield
-            else:
-                with self.compute:
-                    yield
 
     def get_stage_results(self, stage_index: int) -> Dict[str, Any]:
         """Get results from a specific optimization stage."""

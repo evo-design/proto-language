@@ -859,19 +859,31 @@ class TestProgramExport:
 class TestProgramCompute:
     """Tests for Program.compute parameter and _enter_compute() context manager."""
 
-    @patch("proto_tools.utils.device.number_of_available_gpus", return_value=4)
+    @patch("proto_tools.utils.device.number_of_available_gpus", return_value=0)
+    @patch("proto_tools.tools.tool_registry.ToolRegistry._execution_backend", new="mock_backend")
     @patch("proto_tools.utils.tool_pool.ToolPool")
-    def test_compute_defaults_to_toolpool_with_gpu(self, mock_pool_cls, mock_gpus):
-        """With GPUs available, default compute=None resolves to ToolPool()."""
+    def test_compute_defaults_to_toolpool_remote_when_backend(self, mock_pool_cls, _mock_gpus):
+        """Default compute=None resolves to ToolPool(remote=True) when cloud backend is registered."""
+        program = _create_simple_program(compute=None)
+        mock_pool_cls.assert_called_once_with(remote=True)
+        assert program.compute is mock_pool_cls.return_value
+
+    @patch("proto_tools.utils.device.number_of_available_gpus", return_value=2)
+    @patch("proto_tools.tools.tool_registry.ToolRegistry._execution_backend", new=None)
+    @patch("proto_tools.utils.tool_pool.ToolPool")
+    def test_compute_defaults_to_toolpool_local_when_gpus(self, mock_pool_cls, _mock_gpus):
+        """Default compute=None resolves to ToolPool() when GPUs available but no backend."""
         program = _create_simple_program(compute=None)
         mock_pool_cls.assert_called_once_with()
         assert program.compute is mock_pool_cls.return_value
 
     @patch("proto_tools.utils.device.number_of_available_gpus", return_value=0)
-    def test_compute_defaults_to_proto_without_gpu(self, mock_gpus):
-        """Without GPUs, default compute=None resolves to 'proto'."""
+    @patch("proto_tools.tools.tool_registry.ToolRegistry._execution_backend", new=None)
+    def test_compute_defaults_to_nullcontext_when_nothing(self, _mock_gpus):
+        """Default compute=None resolves to nullcontext() when no backend and no GPUs."""
+        from contextlib import nullcontext
         program = _create_simple_program(compute=None)
-        assert program.compute == "proto"
+        assert isinstance(program.compute, nullcontext)
 
     @patch("proto_tools.utils.tool_pool._active_pool")
     def test_run_enters_compute_context(self, mock_active_pool):
@@ -919,55 +931,3 @@ class TestProgramCompute:
             program.run()
         mock_pool.__exit__.assert_called_once()
 
-    @patch(
-        "deployment.tool_backend.tool_backend.create_cloud_tool_backend",
-        return_value=MagicMock(),
-    )
-    @patch("proto_tools.tools.tool_registry.ToolRegistry")
-    def test_proto_sets_execution_backend(self, mock_registry, mock_create):
-        """compute='proto' sets cloud backend during run(), restores after.
-
-        TODO: remove once proto dispatch moves through ToolPool in the
-        deployment repo — at that point "proto" will be a ToolPool device
-        string, not a separate code path.
-        """
-        mock_registry._execution_backend = None
-        # Make set_execution_backend actually update _execution_backend
-        # so the re-entrancy check in run_stage() sees it as active
-        mock_registry.set_execution_backend.side_effect = (
-            lambda b: setattr(mock_registry, "_execution_backend", b)
-        )
-        program = _create_simple_program(compute="proto")
-        program.run()
-        # set_execution_backend called twice: once to set, once to restore
-        assert mock_registry.set_execution_backend.call_count == 2
-        # First call sets the cloud backend
-        mock_registry.set_execution_backend.assert_any_call(
-            mock_create.return_value
-        )
-        # Last call restores None
-        mock_registry.set_execution_backend.assert_called_with(None)
-
-    @patch(
-        "deployment.tool_backend.tool_backend.create_cloud_tool_backend",
-        return_value=MagicMock(),
-    )
-    @patch("proto_tools.tools.tool_registry.ToolRegistry")
-    def test_proto_restores_backend_on_exception(
-        self, mock_registry, mock_create
-    ):
-        """cloud backend restored even when optimizer raises.
-
-        TODO: remove once proto dispatch moves through ToolPool in the
-        deployment repo.
-        """
-        mock_registry._execution_backend = None
-        mock_registry.set_execution_backend.side_effect = (
-            lambda b: setattr(mock_registry, "_execution_backend", b)
-        )
-        program = _create_simple_program(compute="proto")
-        program.optimizers[0].run = MagicMock(side_effect=RuntimeError("boom"))
-        with pytest.raises(RuntimeError, match="boom"):
-            program.run()
-        # Backend should still be restored
-        mock_registry.set_execution_backend.assert_called_with(None)
