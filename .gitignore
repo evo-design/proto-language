@@ -114,3 +114,7 @@ cython_debug/
 
 # Worktrees
 .claude/worktrees/
+
+# Agent eval artifacts
+.agent_components/
+agent/eval/results/.judge_cache/
