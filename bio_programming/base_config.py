@@ -3,7 +3,7 @@ Base configuration classes for all pydantic configs.
 """
 from __future__ import annotations
 
-from typing import Any, List, TypedDict, Union
+from typing import Any, TypedDict, Union
 
 from pydantic import BaseModel, ConfigDict
 from pydantic import Field as PydanticField
@@ -20,7 +20,7 @@ class DependsOn(TypedDict, total=False):
     """
 
     field: str  # Required: sibling field key to watch
-    value: Union[str, int, float, bool, List]  # Optional: value(s) to match
+    value: Union[str, int, float, bool, list]  # Optional: value(s) to match
     not_null: bool  # Optional: True means "show when not None"
 
 
@@ -61,7 +61,7 @@ def ConfigField(
     if depends_on is not None:
         if "field" not in depends_on:
             raise ValueError("depends_on must include a 'field' key")
-        json_schema_extra["x-depends-on"] = dict(depends_on)
+        json_schema_extra["x-depends-on"] = depends_on
 
     kwargs["json_schema_extra"] = json_schema_extra
 

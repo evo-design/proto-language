@@ -36,9 +36,7 @@ def list_of_all_config_models() -> List[Type]:
         ]
     ]
 
-@pytest.mark.parametrize("config_model", [
-    config_model for config_model in list_of_all_config_models()
-])
+@pytest.mark.parametrize("config_model", list_of_all_config_models())
 def test_config_consistency(config_model: Type):
     """
     Determines if config models are defined consistently throughout the codebase
@@ -149,7 +147,7 @@ def list_tool_inputs_and_outputs() -> List[Tuple[str, str]]:
 
 @pytest.mark.parametrize(
     "tool_input, tool_output",
-    [(tool_input, tool_output) for (tool_input, tool_output) in list_tool_inputs_and_outputs()],
+    list_tool_inputs_and_outputs(),
 )
 def test_tool_input_and_output_consistency(tool_input: type, tool_output: type):
     """
@@ -223,9 +221,7 @@ def test_tool_input_and_output_consistency(tool_input: type, tool_output: type):
     )
 
 
-@pytest.mark.parametrize("config_model", [
-    config_model for config_model in list_of_all_config_models()
-])
+@pytest.mark.parametrize("config_model", list_of_all_config_models())
 def test_depends_on_references_valid_field(config_model: Type):
     """
     Every x-depends-on in a config schema must reference an existing,
