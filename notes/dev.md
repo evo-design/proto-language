@@ -7,7 +7,7 @@ This guide covers the development workflow, including pre-commit hooks and what 
 ```bash
 # Important commands to know
 python docs/generate_docs.py          # Manually regenerate docs locally (CI auto-generates on main)
-flake8 proto_language api agent tests # Run by Lint Check CI to check code style
+flake8 proto_language api agent tests # Run by Checks CI to check code style
 pytest --cpu --skip-ci                 # Run by Unit Test CI to run CPU-only unit tests (mimics exact CI conditions)
 pytest --e2e -v                        # Run by E2E Test CI (starts real a cache + API server)
 
@@ -16,6 +16,8 @@ python deployment/deploy_cloud_functions.py --test # Deploy and run smoke tests 
 
 python .github/scripts/validate_exports.py          # Validate export chain consistency across both repos
 python .github/scripts/validate_exports.py --verbose # Same, with detailed output
+python .github/scripts/generate_openapi.py           # Regenerate openapi.json from FastAPI app
+python .github/scripts/generate_openapi.py --check   # Verify openapi.json is up to date (run by Checks CI)
 ```
 
 ## Table of Contents
@@ -229,14 +231,19 @@ pytest --e2e -v
 ### Constant Automatic CIs
 This CI always runs automatically on pull requests regardless of state.
 
-#### Lint Check
-**File:** `.github/workflows/flake8_check.yml`
+#### Checks (Lint, Exports, OpenAPI)
+**File:** `.github/workflows/checks.yml`
 **Triggers:** On all PR pushes and main branch
-**What it does:** Checks code style with flake8
+**What it does:** Three parallel jobs:
+1. **Flake8 Lint** — checks code style (F401 + F841)
+2. **Validate Export Chains** — verifies `__init__.py` exports are consistent
+3. **Verify OpenAPI Spec** — ensures `openapi.json` matches current Pydantic models
 
 **Run locally:**
 ```bash
 flake8 proto_language api agent tests
+python .github/scripts/validate_exports.py --verbose
+python .github/scripts/generate_openapi.py --check
 ```
 
 ### Manual CIs
