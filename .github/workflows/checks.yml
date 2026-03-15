@@ -1,0 +1,78 @@
+name: Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    if: github.event.pull_request.draft == false
+    name: Flake8 Lint
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.CI_SUBMODULE_ACCESS }}
+        submodules: recursive
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - run: pip install flake8
+
+    - run: flake8 proto_language api agent deployment tests
+
+  validate-exports:
+    if: github.event.pull_request.draft == false
+    name: Validate Export Chains
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.CI_SUBMODULE_ACCESS }}
+        submodules: recursive
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - run: python .github/scripts/validate_exports.py --verbose
+
+  openapi-check:
+    if: github.event.pull_request.draft == false
+    name: Verify OpenAPI Spec
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.CI_SUBMODULE_ACCESS }}
+        submodules: recursive
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip uv
+        uv pip install --system -e ".[all]"
+        uv pip install --system -e ./proto-tools
+
+    - run: python .github/scripts/generate_openapi.py --check

@@ -87,6 +87,8 @@ flake8 proto_language api agent deployment tests  # Lint (F401, F841 only)
 black proto_language api agent deployment tests   # Format
 isort proto_language api agent deployment tests   # Sort imports
 pre-commit run --all-files              # All checks
+python .github/scripts/generate_openapi.py          # Regenerate openapi.json from FastAPI app
+python .github/scripts/generate_openapi.py --check  # Verify openapi.json is up to date (CI)
 python api/main.py                             # API dev server (port 8000)
 python deployment/deploy_cloud_functions.py  # Deploy cloud services
 ```
@@ -135,7 +137,7 @@ When a code change alters behavior documented in this file or any `SKILL.md`, up
 | `proto_language/language/core/` | `general-dev` SKILL.md (Data Model, Result Export) |
 | `proto_language/base_config.py` | `general-dev` SKILL.md (Config Pattern) |
 | `tests/conftest.py`, pytest markers | CLAUDE.md Test Conventions, `testing` SKILL.md |
-| `api/`, `agent/` | CLAUDE.md Architecture |
+| `api/`, `agent/` | CLAUDE.md Architecture, regenerate `openapi.json` |
 | `deployment/` | CLAUDE.md Architecture, `implement-deployment` SKILL.md, `deployment/README.md` |
 | New skills or commands added | CLAUDE.md Skills & Commands section |
 
