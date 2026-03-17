@@ -82,6 +82,9 @@ api = [
     # CLI display + input
     "rich>=13.0",
     "prompt-toolkit>=3.0.50",
+
+    # MCP server
+    "fastmcp>=3.0.0",
 ]
 
 # Development and testing tools
@@ -103,16 +106,9 @@ dev = [
     "docstring-parser",
 ]
 
-# MCP server
-mcp = [
-    "fastmcp>=3.0.0",
-    "httpx",
-    "rank-bm25",
-]
-
 # Everything
 all = [
-    "proto-language[api,dev,mcp]",
+    "proto-language[api,dev]",
 ]
 
 [project.urls]
