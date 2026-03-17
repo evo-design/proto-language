@@ -49,19 +49,11 @@ class ProteinQualitySubConfig(BaseConfig):
 
     All sub-constraints evaluate sequences on a 0.0-1.0 scale where 0.0 indicates
     perfect satisfaction and higher values indicate increasing violation. The
-    ``quality_threshold`` parameter determines the maximum acceptable average
-    score across all enabled constraints for a protein to be classified as
-    "high quality."
+    final score is the average across all enabled sub-constraints, clipped to
+    [0.0, 1.0]. Use the native ``Constraint(threshold=...)`` parameter for
+    pass/fail filtering.
 
     Attributes:
-        quality_threshold (float): Maximum acceptable average constraint score for
-            high-quality classification. Sequences with average scores ≤ this value
-            receive a final score of 0.0, while those exceeding it receive their
-            actual average score (capped at 1.0). Valid range: 0.0-1.0. Lower
-            thresholds enforce stricter quality requirements. Example: 0.2 means
-            proteins must satisfy constraints with an average score ≤ 0.2 to be
-            considered high quality.
-
         **Length Constraint Parameters:**
 
         enable_length (bool): Toggle to include sequence length constraint. When
@@ -153,14 +145,6 @@ class ProteinQualitySubConfig(BaseConfig):
             before the sequence is penalized. Valid range: 0-20. Default: 3.
             Advanced parameter.
     """
-
-    quality_threshold: float = ConfigField(
-        ge=0.0,
-        le=1.0,
-        title="Quality Threshold",
-        description="Maximum acceptable average constraint score for high-quality classification. "
-        "Sequences with scores ≤ threshold receive 0.0; sequences exceeding threshold receive their average score.",
-    )
 
     enable_length: bool = ConfigField(
         default=False,
@@ -348,8 +332,8 @@ class OverallProteinQualityConfig(BaseConfig):
         protein_quality_config (ProteinQualitySubConfig): Nested configuration
             object containing all parameters for individual protein quality checks.
             See ``ProteinQualitySubConfig`` for detailed parameter descriptions.
-            This includes the quality threshold, toggles for each sub-constraint,
-            and constraint-specific parameters.
+            This includes toggles for each sub-constraint and
+            constraint-specific parameters.
 
     Raises:
         ValueError: If no sub-constraints are enabled (i.e., all ``enable_*``
@@ -359,7 +343,6 @@ class OverallProteinQualityConfig(BaseConfig):
     Note:
         The nested ``protein_quality_config`` provides access to:
 
-        - **Quality threshold**: Maximum acceptable average constraint score
         - **Length constraint**: Validates protein length against min/max range
           or target value
         - **Complexity constraint**: Detects low-complexity regions using segmasker
@@ -423,11 +406,9 @@ def overall_protein_quality_constraint(input_sequences: List[Tuple[Sequence, ...
     then evaluates all predicted proteins. For protein sequences, it evaluates
     them directly.
 
-    The function aggregates scores from enabled sub-constraints by averaging them,
-    then applies a quality threshold to determine if sequences are "high quality."
-    Sequences meeting the threshold (average score ≤ threshold) receive a score
-    of 0.0, while those exceeding it receive their average constraint score,
-    capped at 1.0.
+    The function aggregates scores from enabled sub-constraints by averaging them
+    and clipping to [0.0, 1.0]. Use the native ``Constraint(threshold=...)``
+    parameter for pass/fail filtering.
 
     Args:
         input_sequences (List[Tuple[Sequence, ...]]): List of sequence tuples to evaluate.
@@ -438,11 +419,6 @@ def overall_protein_quality_constraint(input_sequences: List[Tuple[Sequence, ...
         config (OverallProteinQualityConfig): Configuration object containing a
             ``protein_quality_config`` attribute of type ``ProteinQualitySubConfig``,
             which exposes the following parameters:
-
-            - ``quality_threshold`` (float): Maximum acceptable average constraint
-              score for high-quality classification (0.0-1.0, default: varies).
-              Sequences with average scores ≤ this threshold receive 0.0; those
-              exceeding it receive their actual average score.
 
             **Length constraint (optional):**
             - ``enable_length`` (bool): Toggle for sequence length constraint.
@@ -488,16 +464,10 @@ def overall_protein_quality_constraint(input_sequences: List[Tuple[Sequence, ...
             during configuration validation.
 
     Returns:
-        List[float]: Constraint scores for each sequence, ranging from 0.0 (best,
-            high quality) to 1.0 (worst, poor quality). Scores are calculated as:
-
-            - 0.0: Sequence meets quality threshold (average score ≤ threshold)
-            - 0.0 < score ≤ 1.0: Sequence exceeds quality threshold, score equals
-              the average of all enabled sub-constraint scores, capped at 1.0
-
-            For DNA sequences, the score reflects the average quality of all
-            predicted proteins. For protein sequences, the score reflects the
-            direct quality assessment.
+        List[float]: Constraint scores for each sequence, ranging from 0.0 (best)
+            to 1.0 (worst). Scores are the average of all enabled sub-constraint
+            scores, clipped to [0.0, 1.0]. For DNA sequences, the score reflects
+            the average quality across all predicted proteins.
 
     Raises:
         ValueError: If no sub-constraints are enabled in the configuration, or if
@@ -518,26 +488,20 @@ def overall_protein_quality_constraint(input_sequences: List[Tuple[Sequence, ...
           prodigal_protein_count)
         - ``avg_constraint_score``: Float average quality score across all
           predicted proteins
-        - ``is_high_quality``: Boolean indicating if average score ≤ threshold
         - ``protein_quality_details``: List of dictionaries, one per predicted
           protein, each containing:
 
           - ``protein_id``: String identifier from Prodigal
           - ``length``: Integer protein length in amino acids
-          - ``is_high_quality``: Boolean for this specific protein
           - ``avg_constraint_score``: Float average across enabled constraints
           - ``quality_scores``: Dictionary mapping constraint names to scores
           - ``metadata``: Dictionary of additional constraint-specific metadata
-
-        - ``protein_quality_threshold``: Float threshold value used
 
         **For protein sequences:**
         - ``protein_quality_scores``: Dictionary mapping constraint names (e.g.,
           "length", "complexity", "repetitiveness", "diversity", "balanced_aas")
           to their individual scores
         - ``avg_constraint_score``: Float average across all enabled constraints
-        - ``is_high_quality``: Boolean indicating if average score ≤ threshold
-        - ``protein_quality_threshold``: Float threshold value used
 
         Each enabled sub-constraint may also add its own specific metadata fields
         to individual proteins, such as amino acid counts, low-complexity regions,
@@ -547,7 +511,6 @@ def overall_protein_quality_constraint(input_sequences: List[Tuple[Sequence, ...
         Using all available constraints with custom thresholds:
 
         >>> quality_config = ProteinQualitySubConfig(
-        ...     quality_threshold=0.15,
         ...     enable_length=True,
         ...     length_target_length=300,
         ...     enable_complexity=True,
@@ -579,7 +542,6 @@ def overall_protein_quality_constraint(input_sequences: List[Tuple[Sequence, ...
 
     dna_scores = []
     protein_scores = []
-    threshold = protein_quality_config.quality_threshold
 
     if dna_sequences:
         # For DNA sequences: predict proteins first, get predicted proteins using Prodigal
@@ -601,8 +563,6 @@ def overall_protein_quality_constraint(input_sequences: List[Tuple[Sequence, ...
 
             if len(proteins_list) == 0:
                 input_sequence._metadata["predicted_protein_count"] = 0
-                input_sequence._metadata["high_quality_protein_count"] = 0
-                input_sequence._metadata["high_quality_protein_fraction"] = 0.0
                 input_sequence._metadata["protein_quality_details"] = []
                 dna_scores.append(1.0)
                 continue
@@ -649,9 +609,6 @@ def overall_protein_quality_constraint(input_sequences: List[Tuple[Sequence, ...
             else:
                 avg_scores = np.zeros(len(predicted_protein_seqs))
 
-            # batched quality determination
-            is_high_quality = avg_scores <= threshold
-
             # Build details
             protein_quality_details = []
             for prot_idx, (orf, protein_seq) in enumerate(zip(proteins_list, predicted_protein_seqs)):
@@ -663,29 +620,19 @@ def overall_protein_quality_constraint(input_sequences: List[Tuple[Sequence, ...
                 protein_quality_details.append({
                     "protein_id": orf.id,
                     "length": orf.amino_acid_length,
-                    "is_high_quality": bool(is_high_quality[prot_idx]),
                     "avg_constraint_score": float(avg_scores[prot_idx]),
                     "quality_scores": individual_scores,
                     "metadata": protein_seq._metadata.copy(),
                 })
 
             overall_avg_protein_score = float(avg_scores.mean())
-            is_dna_high_quality = overall_avg_protein_score <= threshold
 
             # Store metadata
             input_sequence._metadata["predicted_protein_count"] = len(proteins_list)
             input_sequence._metadata["avg_constraint_score"] = overall_avg_protein_score
-            input_sequence._metadata["is_high_quality"] = is_dna_high_quality
             input_sequence._metadata["protein_quality_details"] = protein_quality_details
-            input_sequence._metadata["protein_quality_threshold"] = threshold
 
-            # Calculate score
-            if is_dna_high_quality:
-                score = 0.0
-            else:
-                score = min(1.0, max(0.0, overall_avg_protein_score))
-
-            dna_scores.append(score)
+            dna_scores.append(float(np.clip(overall_avg_protein_score, 0.0, 1.0)))
 
     if protein_sequences:
         # Convert to input_sequences format for sub-constraints
@@ -724,15 +671,7 @@ def overall_protein_quality_constraint(input_sequences: List[Tuple[Sequence, ...
         else:
             avg_scores = np.zeros(len(protein_sequences))
 
-        # batched quality determination
-        is_high_quality = avg_scores <= threshold
-
-        # batched score calculation
-        protein_scores = np.where(
-            is_high_quality,
-            0.0,
-            np.clip(avg_scores, 0.0, 1.0)
-        ).tolist()
+        protein_scores = np.clip(avg_scores, 0.0, 1.0).tolist()
 
         # Store metadata
         for seq_idx, input_sequence in enumerate(protein_sequences):
@@ -743,8 +682,6 @@ def overall_protein_quality_constraint(input_sequences: List[Tuple[Sequence, ...
 
             input_sequence._metadata["protein_quality_scores"] = individual_scores
             input_sequence._metadata["avg_constraint_score"] = float(avg_scores[seq_idx])
-            input_sequence._metadata["is_high_quality"] = bool(is_high_quality[seq_idx])
-            input_sequence._metadata["protein_quality_threshold"] = threshold
 
     final_scores = []
     dna_idx = 0
