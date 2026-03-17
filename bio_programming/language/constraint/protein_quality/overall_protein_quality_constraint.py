@@ -632,7 +632,7 @@ def overall_protein_quality_constraint(input_sequences: List[Tuple[Sequence, ...
             input_sequence._metadata["avg_constraint_score"] = overall_avg_protein_score
             input_sequence._metadata["protein_quality_details"] = protein_quality_details
 
-            dna_scores.append(min(1.0, max(0.0, overall_avg_protein_score)))
+            dna_scores.append(float(np.clip(overall_avg_protein_score, 0.0, 1.0)))
 
     if protein_sequences:
         # Convert to input_sequences format for sub-constraints
