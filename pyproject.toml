@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "proto-language"
-version = "1.2.8"
+version = "1.2.9"
 description = "A high level programming language for generative biology"
 readme = "README.md"
 license = {text = "Apache-2.0"}
