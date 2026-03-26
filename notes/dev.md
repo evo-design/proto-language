@@ -6,7 +6,6 @@ This guide covers the development workflow, including pre-commit hooks and what 
 
 ```bash
 # Important commands to know
-python docs/generate_docs.py          # Manually regenerate docs locally (CI auto-generates on main)
 flake8 proto_language api agent tests # Run by Checks CI to check code style
 pytest --cpu --skip-ci                 # Run by Unit Test CI to run CPU-only unit tests (mimics exact CI conditions)
 pytest --e2e -v                        # Run by E2E Test CI (starts real a cache + API server)
@@ -268,16 +267,9 @@ The following CIs run manually when requested by the user:
 # Answers specific question only
 ```
 
-#### Auto-Generate Unified Documentation (Main only)
-**File:** `.github/workflows/docs_autogen.yml`
-**Triggers:** Pushes to `main` when language source, docs content/generator, or submodule pointer changes
-**What it does:** Regenerates docs, validates links (``), and auto-commits `docs/` updates with the bot
+#### Documentation Generation
 
-**Run locally (optional):**
-```bash
-python docs/generate_docs.py
-
-```
+Documentation reference pages are auto-generated from Python docstrings and field descriptions. The `docs_autogen.yml` workflow no longer exists in this repo; generation now happens externally from the source code in this repo.
 
 #### Deploy to Staging
 **File:** `.github/workflows/release-to-staging.yml`
@@ -293,47 +285,19 @@ python docs/generate_docs.py
 
 ## Documentation Generation
 
-Documentation is auto-generated from:
-
-1. **Python docstrings** - Constraints, generators, optimizers (parsed in this repo)
-2. **Tool docs artifacts** - Synced from `proto-tools/docs/tools/*.mdx` at the pinned submodule commit
-
-### Documentation Structure
-
-```
-docs/
-├── language/
-│   ├── constraints/    # Auto-generated from constraint docstrings
-│   ├── generators/     # Auto-generated from generator docstrings
-│   └── optimizers/     # Auto-generated from optimizer docstrings
-├── tools/              # Synced from proto-tools generated docs
-└── docs.json           # Navigation structure (auto-updated)
-```
+Documentation reference pages are auto-generated from Python docstrings, field descriptions, and tool READMEs. The generation scripts introspect the Python registries in this repo and `proto-tools`.
 
 ### Adding Documentation
 
 **For constraints/generators/optimizers:**
 1. Add Google-style docstrings to your Python class/function
-2. Open and merge your PR without committing generated docs
-3. After merge to `main`, docs are regenerated automatically by CI
+2. Open and merge your PR in this repo
+3. Reference pages regenerate automatically from the source code
 
 **For tools:**
 1. Update tool README/source in `proto-tools`
-2. Merge that change in the tools repo (its own main-only autogen updates tool docs artifacts)
-3. Bump the `proto-tools` submodule pointer in this repo
-4. Merge pointer update; outer main autogen then syncs those artifacts into unified docs
-
-### Manual Documentation Generation
-
-```bash
-python docs/generate_docs.py
-```
-
-This will:
-- Scan all registered constraints, generators, and optimizers
-- Parse their docstrings
-- Sync tool MDX artifacts from the pinned submodule commit snapshot
-- Update `docs.json` navigation
+2. Merge that change in the tools repo
+3. Reference pages regenerate automatically from the source code
 
 ---
 
