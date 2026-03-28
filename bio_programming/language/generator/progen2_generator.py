@@ -1,4 +1,6 @@
 """
+proto_language/language/generator/progen2_generator.py
+
 ProGen2 Generator for protein sequence generation.
 """
 
@@ -31,7 +33,7 @@ class ProGen2GeneratorConfig(BaseConfig):
     Models are loaded from HuggingFace: https://huggingface.co/hugohrban/
 
     Attributes:
-        prompts (List[str]): Prompt sequence(s) to start protein generation.
+        prompts (list[str]): Prompt sequence(s) to start protein generation.
             Can be a single prompt string (automatically converted to list) or list of
             prompts for batch generation.
 
@@ -42,7 +44,7 @@ class ProGen2GeneratorConfig(BaseConfig):
             during sampling. For explicit control, include the start token yourself:
             "1MKTL".
 
-        model_checkpoint (str): ProGen2 model checkpoint to use. Options:
+        model_checkpoint (PROGEN2_MODEL_CHECKPOINTS): ProGen2 model checkpoint to use. Options:
             - ``"progen2-small"``: 151M parameters (fastest)
             - ``"progen2-medium"``: 754M parameters
             - ``"progen2-oas"``: 754M parameters, trained on OAS antibody sequences
@@ -51,7 +53,7 @@ class ProGen2GeneratorConfig(BaseConfig):
             - ``"progen2-xlarge"``: 6B parameters (highest quality, slowest)
             Default: ``"progen2-large"``.
 
-        local_path (Optional[str]): Path to local model weights directory for custom
+        local_path (str | None): Path to local model weights directory for custom
             or fine-tuned models. If ``None``, downloads from HuggingFace (hugohrban/).
             Default: ``None``.
 
@@ -69,7 +71,7 @@ class ProGen2GeneratorConfig(BaseConfig):
         top_k (int): Limits sampling to the top-k most probable tokens at each
             generation step. Set to 0 to disable. Default: 0 (disabled, use top_p).
 
-        max_length (int): Maximum total sequence length including prompt.
+        max_length: Maximum total sequence length including prompt.
             Generation stops when this length is reached or a stop token is encountered.
             Must be at least 1. Default: 256.
 
@@ -222,8 +224,8 @@ class ProGen2Generator(Generator):
         """Generate protein sequences using ProGen2 tool.
 
         Args:
-            prompts: Optional prompts to use instead of self.prompts.
-            prepend_prompt: Optional override for prepend_prompt setting.
+            prompts (list[str] | None): Optional prompts to use instead of self.prompts.
+            prepend_prompt (bool | None): Optional override for prepend_prompt setting.
         """
         self._validate_generator()
         sampling_prompts = prompts if prompts is not None else self._replicate_prompts(self.prompts)

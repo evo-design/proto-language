@@ -1,5 +1,5 @@
 """
-Constraint class for biological programming language.
+proto_language/language/core/constraint.py
 
 Constraints score how well sequences satisfy biological or design requirements,
 returning values between 0.0 (perfect) and 1.0 (worst). Constraints can optionally
@@ -74,7 +74,7 @@ class Constraint:
     All constraint functions use a standardized signature:
         (input_sequences: List[Tuple[Sequence, ...]], config) -> List[float]
 
-    Examples (Library Usage - with registered constraints):
+    Examples:
         >>> from proto_language.language.core import Constraint
         >>> from proto_language.language.constraint import gc_content_constraint, GCContentConfig
         >>>
@@ -95,7 +95,7 @@ class Constraint:
         ... )
         >>> passed = filter_constraint.evaluate()  # [True, False, True, ...]
 
-    Examples (Library Usage - without registry, custom functions):
+    Examples:
         >>> # Define your own constraint function (no decorator needed)
         >>> def my_custom_constraint(input_sequences, config) -> List[float]:
         ...     return [0.0 if config["value"] > 0.5 else 1.0 for _ in input_sequences]
@@ -145,17 +145,17 @@ class Constraint:
         Initialize a constraint.
 
         Args:
-            inputs: List of Segment objects to evaluate. Each proposal is evaluated
+            inputs (list[Segment]): List of Segment objects to evaluate. Each proposal is evaluated
                 as a tuple of sequences (one from each segment).
-            function: The constraint scoring function with signature:
+            function (Callable): The constraint scoring function with signature:
                 (input_sequences: List[Tuple[Sequence, ...]], config) -> List[float]
                 Returns scores between 0.0-1.0 for each proposal.
-            function_config: Configuration as Pydantic BaseModel or dict (auto-converted to BaseModel)
-            label: Optional label for metadata tracking. Defaults to function.__name__
-            threshold: Optional threshold for filtering mode. If provided, scores <= threshold are accepted (True),
+            function_config (BaseModel | dict[str, Any]): Configuration as Pydantic BaseModel or dict (auto-converted to BaseModel)
+            label (str | None): Optional label for metadata tracking. Defaults to function.__name__
+            threshold (float | None): Optional threshold for filtering mode. If provided, scores <= threshold are accepted (True),
                 scores > threshold are rejected (False). If None, returns raw float scores.
                 Mutually exclusive with ``weight`` (setting both raises a ValueError).
-            weight: Optional weight to multiply the raw constraint score by. Defaults to 1.0 if not provided.
+            weight (float | None): Optional weight to multiply the raw constraint score by. Defaults to 1.0 if not provided.
                 Only meaningful for scoring constraints (when threshold is None).
                 Mutually exclusive with ``threshold`` (setting both raises a ValueError).
         """
@@ -220,13 +220,13 @@ class Constraint:
         5. Build a dense result array (one entry per proposal)
 
         Args:
-            mask: Boolean mask indicating which proposals to evaluate. If None, evaluates all.
-            verbose: If true, logs evaluation details.
+            mask (list[bool] | None): Boolean mask indicating which proposals to evaluate. If None, evaluates all.
+            verbose (bool): If true, logs evaluation details.
 
         Returns:
-            List of results.
-            - Filter constraints: False for unevaluated proposals
-            - Scoring constraints: NaN for unevaluated proposals
+            list[float] | list[bool]: List of results. Filter constraints
+                return False for unevaluated proposals; scoring constraints
+                return NaN for unevaluated proposals.
         """
         num_proposals = self._get_effective_num_candidates()
         logger.debug(f"Constraint.evaluate: {self.label}, proposals={num_proposals}, threshold={self._threshold}")
@@ -307,10 +307,10 @@ class Constraint:
         objects with fresh metadata to pass to the scoring function.
 
         Args:
-            sequence_idx: Index position in the sequence pool (0-based)
+            sequence_idx (int): Index position in the sequence pool (0-based)
 
         Returns:
-            Tuple[Sequence, ...] - tuple of clean Sequence objects, one per input segment
+            tuple[Sequence, ...]: Tuple[Sequence, ...] - tuple of clean Sequence objects, one per input segment
         """
         # Return tuple of clean Sequence objects
         # Example: sequence_idx=0, segments with sequences=[Seq("AAA"), ...], [Seq("CCC"), ...] → (Seq("AAA"), Seq("CCC"))
@@ -342,10 +342,10 @@ class Constraint:
         - Input segment linking info for multi-segment constraints
 
         Args:
-            sequence_idx: Index position in the sequence pool (0-based)
-            scored_sequence: Tuple of Sequences that were scored, containing metadata
+            sequence_idx (int): Index position in the sequence pool (0-based)
+            scored_sequence (tuple[Sequence, ...]): Tuple of Sequences that were scored, containing metadata
                            written by the scoring function (one per segment)
-            score: Raw score returned by the constraint function (before weight applied)
+            score (float): Raw score returned by the constraint function (before weight applied)
 
         Example:
             Scoring constraint (weight=2.0):

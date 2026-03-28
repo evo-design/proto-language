@@ -1,5 +1,5 @@
 """
-Gyration radius constraint for filtering structures by compactness.
+proto_language/language/constraint/protein_structure/gyration_radius_constraint.py
 
 Uses the structure_metrics tool to compute radius of gyration from PDB files,
 then scores based on deviation from a maximum acceptable radius.
@@ -25,10 +25,10 @@ class GyrationRadiusConfig(BaseConfig):
     """Configuration for gyration radius constraint.
 
     Attributes:
-        max_gyration_radius: Maximum acceptable gyration radius in Angstroms.
+        max_gyration_radius (float): Maximum acceptable gyration radius in Angstroms.
             Structures at or below this threshold receive a score of 0.0 (perfect).
             Structures above are penalized proportionally.
-        pdb_paths: Optional list of PDB file paths. If not provided, the constraint
+        pdb_paths (list[str] | None): Optional list of PDB file paths. If not provided, the constraint
             reads PDB paths from sequence metadata (key ``pdb_path``).
     """
 
@@ -68,13 +68,13 @@ def gyration_radius_constraint(
     score 0.0, with penalty scaling linearly for larger radii, clamped to [0, 1].
 
     Args:
-        input_sequences: List of single-sequence tuples to evaluate.
+        input_sequences (list[tuple[Sequence, ...]]): List of single-sequence tuples to evaluate.
             Each sequence should have ``pdb_path`` in its metadata, or
             PDB paths should be provided via config.
-        config: Configuration with max_gyration_radius threshold.
+        config (GyrationRadiusConfig): Configuration with max_gyration_radius threshold.
 
     Returns:
-        List of float scores in [0.0, 1.0]. 0.0 = within threshold, 1.0 = worst.
+        list[float]: List of float scores in [0.0, 1.0]. 0.0 = within threshold, 1.0 = worst.
     """
     sequences = [seq for (seq,) in input_sequences]
 

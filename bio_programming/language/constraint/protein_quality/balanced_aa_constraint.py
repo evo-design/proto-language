@@ -1,4 +1,6 @@
 """
+proto_language/language/constraint/protein_quality/balanced_aa_constraint.py
+
 Balanced amino acid constraint function.
 """
 
@@ -83,7 +85,7 @@ def balanced_aa_constraint(input_sequences: List[Tuple[Sequence, ...]], config: 
     of underrepresented amino acids exceeds the configured threshold.
     
     Args:
-        input_sequences (List[Tuple[Sequence, ...]]): List of sequence tuples to evaluate.
+        input_sequences (list[tuple[Sequence, ...]]): List of sequence tuples to evaluate.
             Each tuple contains one protein sequence.
             
         config (BalancedAaConfig): Configuration object containing ``min_aa_frequency``

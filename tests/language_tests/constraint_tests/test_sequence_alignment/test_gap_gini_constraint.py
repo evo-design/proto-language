@@ -1,4 +1,6 @@
-"""Tests for the gap Gini constraint (internal functions and full constraint)."""
+"""tests/language_tests/constraint_tests/test_sequence_alignment/test_gap_gini_constraint.py
+
+Tests for the gap Gini constraint (internal functions and full constraint)."""
 
 from __future__ import annotations
 

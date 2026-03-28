@@ -1,5 +1,5 @@
 """
-test_program_multiple_optimizers.py
+tests/tests_cpu/test_program_multiple_optimizers.py
 
 Tests for Program class with multiple sequential optimizers.
 Verifies that state persists correctly between optimizers and that

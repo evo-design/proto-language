@@ -1,4 +1,6 @@
 """
+proto_language/language/constraint/sequence_composition/kmer_frequency_constraint.py
+
 K-mer frequency constraint for evaluating sequence k-mer properties with arbitrary mer length.
 """
 
@@ -33,7 +35,7 @@ class KmerFrequencyConfig(BaseConfig):
             - 3: Trinucleotides/codons (codon usage in coding sequences)
             - 4+: Longer motifs (tetranucleotide frequencies etc.)
             
-        scoring_mode (Literal["frequency", "usage_deviation"]): Scoring metric to
+        scoring_mode (Literal['frequency', 'usage_deviation']): Scoring metric to
             evaluate. Options:
             - "frequency": Evaluates if raw k-mer frequencies (observed_count / total_kmers)
               fall within a given [min_value, max_value] range. Use for direct frequency
@@ -56,7 +58,7 @@ class KmerFrequencyConfig(BaseConfig):
             mode: maximum acceptable observed/expected ratio (e.g., 1.5 = at most
             150% of expected).
 
-        specific_kmer (Optional[str]): If specified, only this specific k-mer is
+        specific_kmer (str | None): If specified, only this specific k-mer is
             evaluated instead of all possible k-mers. Must be uppercase and have
             length equal to k. For example, "ATG" for start codons, or "GGGG" 
             for G-quadruplex motifs. If None, all possible k-mers are evaluated.
@@ -171,7 +173,7 @@ def kmer_frequency_constraint(input_sequences: List[Tuple[Sequence, ...]], confi
     evaluated k-mers as the penalty score.
 
     Args:
-        input_sequences (List[Tuple[Sequence, ...]]): List of sequence tuples to evaluate.
+        input_sequences (list[tuple[Sequence, ...]]): List of sequence tuples to evaluate.
             Each tuple contains one DNA, RNA, or protein sequence. Sequences must 
             be at least k nucleotides/amino acids long. Sequences shorter than k 
             receive maximum penalty.

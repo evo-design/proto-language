@@ -1,5 +1,5 @@
 """
-Optimizer base class for the biological programming language.
+proto_language/language/core/optimizer.py
 
 Base class for iterative optimization algorithms that coordinate multiple
 generators and constraints to search for optimal biological sequences.
@@ -83,23 +83,23 @@ class Optimizer(ABC):
         Initialize the Optimizer with dual-pool semantics.
 
         Args:
-            constructs: List of Construct objects to optimize.
-            generators: List of Generator objects for sequence modification.
-            constraints: List of Constraint objects for evaluation.
-            num_results: Number of sequences to select and maintain as results.
+            constructs (list[Construct]): List of Construct objects to optimize.
+            generators (list[Generator]): List of Generator objects for sequence modification.
+            constraints (list[Constraint]): List of Constraint objects for evaluation.
+            num_results (int | None): Number of sequences to select and maintain as results.
                 May be None to defer resolution to Program(num_results=N).
-            tracking_interval: Save history snapshot and log progress every N steps.
+            tracking_interval (int): Save history snapshot and log progress every N steps.
                 Step 0 (initial) and the final step are always saved.
-            track_proposals: Include per-proposal results in history snapshots.
-            verbose: Whether to print detailed progress information.
-            proposals_per_result: Number of proposals per result sequence.
+            track_proposals (bool): Include per-proposal results in history snapshots.
+            verbose (bool): Whether to print detailed progress information.
+            proposals_per_result (int): Number of proposals per result sequence.
                 Used to compute num_proposals when deferred.
-            num_proposals: Number of proposals to generate per iteration.
+            num_proposals (int | None): Number of proposals to generate per iteration.
                 Computed as ``num_results * proposals_per_result`` when None.
-            clear_tool_cache: (int) Maximum size of cache in bytes, defaults to 100 MB.
-                              (bool) Whether to clear the tool cache on each iteration.
-                              (List[str]) Restrict clearing cache to a list of tool names.
-            custom_logging: Optional callback with signature ``(step: int, segments: tuple) -> None``.
+            clear_tool_cache (int | bool | list[str]): Maximum size of cache in bytes, defaults to 100 MB.
+                If bool, whether to clear the tool cache on each iteration.
+                If list[str], restrict clearing to specific tool names.
+            custom_logging (Callable | None): Optional callback with signature ``(step: int, segments: tuple) -> None``.
                 Called at tracked steps only (governed by ``tracking_interval``).
         """
         self.constructs = constructs
@@ -173,8 +173,8 @@ class Optimizer(ABC):
             4. Rejected proposals receive filter_penalty without further evaluation
 
         Args:
-            operation: How to combine scores: 'add' (sum) or 'multiply' (product)
-            filter_penalty: Score for rejected proposals (default: inf)
+            operation (Literal['add', 'multiply']): How to combine scores: 'add' (sum) or 'multiply' (product)
+            filter_penalty (float): Score for rejected proposals (default: inf)
 
         Raises:
             ValueError: If optimizer is not properly initialized or operation is not 'add' or 'multiply'.
@@ -406,6 +406,9 @@ class Optimizer(ABC):
             1. target_segment belongs to one of the provided constructs.
             2. All generators target the target_segment (non-target segments are context-only).
             3. All constraints include the target_segment in their inputs.
+
+        Args:
+            target_segment ('Segment'): Segment targeted for optimization.
         """
         if target_segment not in self.segments:
             raise ValueError(
@@ -440,7 +443,7 @@ class Optimizer(ABC):
         (e.g., BeamSearch expanding to N*K for batch scoring).
 
         Args:
-            target_segment: The segment whose proposal pool was just resized.
+            target_segment ('Segment'): The segment whose proposal pool was just resized.
                 All other segments will be synced to match its size.
         """
         target_size = len(target_segment.proposal_sequences)
@@ -506,6 +509,9 @@ class Optimizer(ABC):
         1. During __init__ when config.num_results is set directly.
         2. By Program.__init__ to flow program-level num_results to optimizers
            whose config.num_results was left as None.
+
+        Args:
+            num_results (int): Requested number of result sequences.
         """
         if num_results < 1:
             raise ValueError(f"num_results must be >= 1, got {num_results}")
@@ -559,6 +565,9 @@ class Optimizer(ABC):
         Validates internal consistency: all segments have the same number of
         ``result_sequences`` and ``energy_scores`` matches that count.
         Allows partial snapshots (e.g. TopK mid-run with fewer than k result sequences).
+
+        Args:
+            time_step (int): Current optimization time step index.
         """
         expected_len = len(self.segments[0].result_sequences)
         for segment in self.segments:
@@ -600,13 +609,13 @@ class Optimizer(ABC):
         With *table*: writes a single file to *path*.
 
         Args:
-            path: Output directory (all tables) or file path (single table / xlsx).
-            format: ``"csv"`` | ``"tsv"`` | ``"json"`` | ``"xlsx"``.
-            table: Single table name, or None for all.
-            segments: Only include these segment labels.
-            result_indices: Only include these result indices.
-            constraints: Only include these constraint labels (constraints table only).
-            include_proposals: Include proposal rows (optimization table only).
+            path (Path | str): Output directory (all tables) or file path (single table / xlsx).
+            format (Literal['csv', 'tsv', 'json', 'xlsx']): ``"csv"`` | ``"tsv"`` | ``"json"`` | ``"xlsx"``.
+            table (Literal['sequences', 'constraints', 'constructs', 'optimization'] | None): Single table name, or None for all.
+            segments (set[str] | None): Only include these segment labels.
+            result_indices (set[int] | None): Only include these result indices.
+            constraints (set[str] | None): Only include these constraint labels (constraints table only).
+            include_proposals (bool): Include proposal rows (optimization table only).
         """
         results = build_results(self.constructs, self.energy_scores)
         filters = dict(
@@ -631,6 +640,13 @@ class Optimizer(ABC):
         """Get a result table as a pandas DataFrame.
 
         Accepts the same filter arguments as :meth:`export`.
+
+        Args:
+            table (Literal['sequences', 'constraints', 'constructs', 'optimization']): Output format: 'wide' for one column per metric, 'long' for melted rows.
+            segments (set[str] | None): Subset of segment IDs to include, or None for all.
+            constraints (set[str] | None): Subset of constraint keys to include, or None for all.
+            result_indices (set[int] | None): Indices of specific results to include, or None for all.
+            include_proposals (bool): Whether to include proposal sequences alongside accepted results.
         """
         return pd.DataFrame(flatten_table(
             table,
@@ -652,12 +668,14 @@ class Optimizer(ABC):
         """Export sequences in FASTA format.
 
         Args:
-            path: Output file path. If None, returns string only.
-            header_format: Format string for headers. Available fields:
+            path (Path | str | None): Output file path. If None, returns string only.
+            header_format (str): Format string for headers. Available fields:
                 construct, segment, result_idx, energy_score, sequence_type.
+            segments (set[str] | None): Subset of segment IDs to include, or None for all.
+            result_indices (set[int] | None): Indices of specific results to include, or None for all.
 
         Returns:
-            FASTA-formatted string.
+            str: FASTA-formatted string.
         """
         return to_fasta(
             build_results(self.constructs, self.energy_scores),

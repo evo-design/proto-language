@@ -1,4 +1,6 @@
 """
+proto_language/language/constraint/protein_quality/protein_diversity_constraint.py
+
 Protein diversity constraint function.
 """
 
@@ -64,7 +66,7 @@ def protein_diversity_constraint(input_sequences: List[Tuple[Sequence, ...]], co
     with the deficit below the minimum diversity threshold.
 
     Args:
-        input_sequences (List[Tuple[Sequence, ...]]): List of sequence tuples to evaluate.
+        input_sequences (list[tuple[Sequence, ...]]): List of sequence tuples to evaluate.
             Each tuple contains one protein sequence.
             
         config (ProteinDiversityConfig): Configuration object containing

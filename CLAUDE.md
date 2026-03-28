@@ -140,6 +140,7 @@ When a code change alters behavior documented in this file or any `SKILL.md`, up
 | `api/`, `agent/` | CLAUDE.md Architecture, regenerate `openapi.json` |
 | `deployment/` | CLAUDE.md Architecture, `implement-deployment` SKILL.md, `deployment/README.md` |
 | New skills or commands added | CLAUDE.md Skills & Commands section |
+| Docstring conventions | CLAUDE.md (Docstring Conventions), `tests/test_docstring_consistency.py` |
 
 The `proto-tools/` submodule has its own CLAUDE.md with its own mappings.
 
@@ -151,6 +152,34 @@ The `proto-tools/` submodule has its own CLAUDE.md with its own mappings.
 - Pydantic v2 for all configs — inherit `BaseConfig`, use `ConfigField` (not `Field`). Use `depends_on` for conditional field visibility (show/hide fields based on another field's value).
 - Registry keys: kebab-case. Config classes: `{Name}Config`. Files: `{name}_constraint.py` / `{name}_generator.py`
 - **When modifying existing code**: Thoroughly find and update ALL callsites, imports, docstrings, comments, tests, and documentation that reference the changed code. Use sub-agents to search the entire codebase in parallel. Leave no dangling references.
+
+## Docstring Conventions
+
+Google style everywhere. Enforced by `tests/test_docstring_consistency.py`.
+
+- **Module docstrings**: First line is the relative path from repo root. Blank line, then short description. More content after that is optional. `__init__.py` files are exempt.
+  ```python
+  """
+  proto_language/language/core/constraint.py
+
+  Constraint evaluation and metadata propagation for sequences.
+  """
+  ```
+- **One-liners**: Acceptable for simple functions. No structured sections needed.
+- **Multi-line docstrings** (anything with a blank line): Google style — summary line, blank line, then sections as needed: `Args:`, `Returns:`, `Raises:`, `Attributes:`, `Example:`, `Note:`.
+- **Types required in docstrings**: Every `Args:`, `Attributes:`, and `Returns:` entry must include the type annotation matching the function signature or class annotation. Use modern Python syntax (`list[str]`, `X | None`). Consistency tests enforce that docstring types match signatures.
+  ```python
+  Args:
+      sequences (list[str]): Input protein sequences.
+      config (GCContentConfig | None): Optional configuration.
+
+  Attributes:
+      min_gc (float): Minimum acceptable GC content percentage.
+
+  Returns:
+      list[float]: Constraint scores for each sequence.
+  ```
+- **Pydantic classes**: Always include `Attributes:` section with full descriptions. These intentionally duplicate the short `ConfigField(description=...)` strings — field descriptions are short tooltips for the client UI, while docstring descriptions are longer developer-facing explanations.
 
 ## Test Conventions
 

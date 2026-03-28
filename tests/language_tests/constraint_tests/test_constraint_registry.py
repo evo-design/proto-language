@@ -1,5 +1,5 @@
 """
-Comprehensive tests for ConstraintRegistry.
+tests/language_tests/constraint_tests/test_constraint_registry.py
 
 Tests cover:
 1. Registration mechanism (decorator-based)

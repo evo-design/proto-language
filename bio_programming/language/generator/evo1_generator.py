@@ -1,4 +1,6 @@
 """
+proto_language/language/generator/evo1_generator.py
+
 Evo1 Generator for DNA sequence generation.
 """
 
@@ -23,16 +25,16 @@ class Evo1GeneratorConfig(BaseConfig):
     """Configuration object for Evo1Generator.
 
     Attributes:
-        prompts: Prompt sequence(s) for DNA generation. All prompts must
+        prompts (list[str]): Prompt sequence(s) for DNA generation. All prompts must
             have the same length.
-        model_checkpoint: Evo1 model checkpoint to use.
-        top_k: Top-k sampling parameter.
-        temperature: Sampling temperature.
-        prepend_prompt: Whether to prepend the prompt to the output.
-        batch_size: Number of sequences to process simultaneously on GPU.
+        model_checkpoint (EVO1_MODEL_CHECKPOINTS): Evo1 model checkpoint to use.
+        top_k (int): Top-k sampling parameter.
+        temperature (float): Sampling temperature.
+        prepend_prompt (bool): Whether to prepend the prompt to the output.
+        batch_size (int): Number of sequences to process simultaneously on GPU.
             Larger batches improve throughput but use more GPU memory; reduce
             if encountering out-of-memory errors.
-        verbose: Whether to print generation progress.
+        verbose (bool): Whether to print generation progress.
     """
 
     prompts: List[str] = ConfigField(
@@ -114,6 +116,9 @@ class Evo1Generator(Generator):
     variants. The number of tokens to generate is automatically calculated
     based on the assigned segment's sequence_length.
 
+    Attributes:
+        batch_size (int): Number of sequences to generate per batch.
+
     Example:
         >>> config = Evo1GeneratorConfig(
         ...     prompts="ATG",
@@ -145,8 +150,8 @@ class Evo1Generator(Generator):
         """Generate sequences using the Evo1 model.
 
         Args:
-            prompts: Optional prompts to use instead of self.prompts.
-            prepend_prompt: Optional override for prepend_prompt setting.
+            prompts (list[str] | None): Optional prompts to use instead of self.prompts.
+            prepend_prompt (bool | None): Optional override for prepend_prompt setting.
         """
         self._validate_generator()
 

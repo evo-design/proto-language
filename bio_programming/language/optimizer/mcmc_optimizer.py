@@ -1,4 +1,6 @@
 """
+proto_language/language/optimizer/mcmc_optimizer.py
+
 Metropolis-Hastings MCMC Optimizer that uses multiple sub-generators as proposal distributions and constraints to define the energy function.
 """
 from __future__ import annotations
@@ -39,7 +41,7 @@ class MCMCOptimizerConfig(BaseOptimizerConfig):
     probabilistic acceptance based on energy improvements.
 
     Attributes:
-        num_results (Optional[int]): Number of result sequences to optimize in
+        num_results (int | None): Number of result sequences to optimize in
             parallel. Each result sequence is an independent MCMC trajectory.
             When ``num_results=1`` (standard single-chain MCMC), only one
             sequence is optimized. Overrides program-level ``num_results`` if set.
@@ -66,6 +68,8 @@ class MCMCOptimizerConfig(BaseOptimizerConfig):
 
         verbose (bool): Whether to print detailed progress information at each
             step, including energy statistics and temperature. Default: ``False``.
+        tracking_interval (int): Number of steps between progress snapshots.
+        track_proposals (bool): Whether to record proposal sequences alongside accepted results.
 
     Note:
         - When ``num_results=1`` (default), behaves like standard single-chain MCMC.
@@ -142,11 +146,11 @@ class MCMCOptimizer(Optimizer):
     accept or reject that proposal. If rejected, the trajectory keeps its previous state.
 
     Attributes:
-        num_results (int): Number of result sequences to optimize in parallel.
-        num_steps (int): Total number of MCMC steps to run.
-        proposals_per_result (int): Number of proposals per result sequence.
-        max_temperature (float): Starting temperature for annealing.
-        min_temperature (float): Ending temperature for annealing.
+        num_results: Number of result sequences to optimize in parallel.
+        num_steps: Total number of MCMC steps to run.
+        proposals_per_result: Number of proposals per result sequence.
+        max_temperature: Starting temperature for annealing.
+        min_temperature: Ending temperature for annealing.
 
     Example:
         >>> constructs = [Construct([segment1, segment2])]
@@ -191,12 +195,12 @@ class MCMCOptimizer(Optimizer):
         Initialize the MCMC Optimizer with sub-generators and constraints.
 
         Args:
-            constructs: List of Construct objects to optimize.
-            generators: List of Generator objects for sequence modification.
-            constraints: List of Constraint objects for evaluation.
-            config: Configuration object containing algorithm parameters (temperature, num_steps, etc.).
-            custom_logging: Optional callback called at tracked steps (governed by ``tracking_interval``).
-            clear_tool_cache: (int) Maximum size of cache in bytes, defaults to 100 MB.
+            constructs (list[Construct]): List of Construct objects to optimize.
+            generators (list[Generator]): List of Generator objects for sequence modification.
+            constraints (list[Constraint]): List of Constraint objects for evaluation.
+            config (MCMCOptimizerConfig): Configuration object containing algorithm parameters (temperature, num_steps, etc.).
+            custom_logging (Callable | None): Optional callback called at tracked steps (governed by ``tracking_interval``).
+            clear_tool_cache (int | bool | list[str]): (int) Maximum size of cache in bytes, defaults to 100 MB.
                               (bool) Whether to clear the tool cache on each iteration.
                               (List[str]) Restrict clearing cache to a list of tool names.
 
@@ -529,7 +533,7 @@ class MCMCOptimizer(Optimizer):
         """Save state of result sequences.
 
         Returns:
-            List of tuples, one per result sequence, each containing:
+            list[tuple[dict[int, Sequence], float]]: List of tuples, one per result sequence, each containing:
                 - segments dict: {segment_id -> deepcopied Sequence object}
                 - energy: float (energy_scores[result_idx])
         """
@@ -571,8 +575,8 @@ class MCMCOptimizer(Optimizer):
         5. Truncate energy_scores to num_results (discard stale proposal energies).
 
         Args:
-            step: Current MCMC step (used for temperature annealing).
-            old_result_sequences: Saved trajectory state before proposals.
+            step (int): Current MCMC step (used for temperature annealing).
+            old_result_sequences (list[tuple[dict[int, Sequence], float]]): Saved trajectory state before proposals.
         """
         outcomes = list(self._proposal_outcomes)
 
@@ -625,6 +629,9 @@ class MCMCOptimizer(Optimizer):
     def _compute_temperature(self, step: int) -> float:
         """Calculate annealed temperature: T(step) = T_max * (T_min/T_max)^((step-1)/(num_steps-1))
 
+        Args:
+            step (int): Current MCMC iteration index.
+
         Note:
         - At step=1: T = T_max (start hot), at step=num_steps: T = T_min (end cold)
         - Exponential decay between T_max and T_min
@@ -637,6 +644,11 @@ class MCMCOptimizer(Optimizer):
 
     def _compute_mcmc_alpha(self, current_energy: float, proposed_energy: float, step: int) -> float:
         """Compute Metropolis-Hastings acceptance probability: alpha = min(1, exp(-(E_new - E_old) / T))
+
+        Args:
+            current_energy (float): Energy of the current accepted state.
+            proposed_energy (float): Energy of the proposed candidate state.
+            step (int): Current MCMC iteration index.
 
         Note:
         - Always accepts improvements (proposed_energy < current_energy)

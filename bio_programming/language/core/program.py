@@ -1,3 +1,4 @@
+"""proto_language/language/core/program.py"""
 from __future__ import annotations
 
 import logging
@@ -101,14 +102,15 @@ class Program:
         Initialize a Program with a list of optimizers to run sequentially.
 
         Args:
-            optimizers: List of Optimizer objects to run in sequence. Each optimizer
+            optimizers (list[Optimizer]): List of Optimizer objects to run in sequence. Each optimizer
                        builds on the results of the previous one. All optimizers must
                        share the same construct objects (by identity).
-            num_results: Number of result sequences to produce by default. Flows down to any
+            num_results (int): Number of result sequences to produce by default. Flows down to any
                 optimizer whose config field is not set. Optimizer-level config
                 always takes priority.
-            verbose: If True, print detailed energy score calculations for each constraint
+            verbose (bool): If True, print detailed energy score calculations for each constraint
                      for all optimizers.
+            compute (ToolPool | None): Compute backend: 'local' or 'cloud'.
 
         Raises:
             ValueError: If optimizers list is empty or if optimizers don't share
@@ -177,7 +179,7 @@ class Program:
         Get energy scores from the final optimizer.
 
         Returns:
-            List of energy scores where lower values indicate better solutions.
+            list[float]: List of energy scores where lower values indicate better solutions.
 
         Raises:
             RuntimeError: If run() hasn't been called yet.
@@ -335,7 +337,7 @@ class Program:
         to that point and invalidates all subsequent stages.
 
         Args:
-            stage_index: Zero-based index of the optimizer stage to run.
+            stage_index (int): Zero-based index of the optimizer stage to run.
 
         Raises:
             IndexError: If stage_index is out of range.
@@ -448,8 +450,8 @@ class Program:
         Restore program state from serialized data.
 
         Args:
-            state: Dictionary returned by serialize_state()
-            stage_index: Optional stage index to set current_stage to (for resuming from a specific stage)
+            state (dict): Dictionary returned by serialize_state()
+            stage_index (int): Optional stage index to set current_stage to (for resuming from a specific stage)
 
         Raises:
             ValueError: If state doesn't match program structure
@@ -524,14 +526,14 @@ class Program:
         With *table*: writes a single file to *path*.
 
         Args:
-            path: Output directory (all tables) or file path (single table / xlsx).
-            format: ``"csv"`` | ``"tsv"`` | ``"json"`` | ``"xlsx"``.
-            table: Single table name, or None for all.
-            stage: Filter to this optimizer stage index.
-            segments: Only include these segment labels.
-            result_indices: Only include these result indices.
-            constraints: Only include these constraint labels (constraints table only).
-            include_proposals: Include proposal rows (optimization table only).
+            path (Path | str): Output directory (all tables) or file path (single table / xlsx).
+            format (Literal['csv', 'tsv', 'json', 'xlsx']): ``"csv"`` | ``"tsv"`` | ``"json"`` | ``"xlsx"``.
+            table (Literal['sequences', 'constraints', 'constructs', 'optimization'] | None): Single table name, or None for all.
+            stage (int | None): Filter to this optimizer stage index.
+            segments (set[str] | None): Only include these segment labels.
+            result_indices (set[int] | None): Only include these result indices.
+            constraints (set[str] | None): Only include these constraint labels (constraints table only).
+            include_proposals (bool): Include proposal rows (optimization table only).
         """
         results = self._results_for_stage(stage)
         history = self._collect_history(stage)
@@ -560,6 +562,14 @@ class Program:
         """Get a result table as a pandas DataFrame.
 
         Accepts the same filter arguments as :meth:`export`.
+
+        Args:
+            table (Literal['sequences', 'constraints', 'constructs', 'optimization']): Output format: 'wide' for one column per metric, 'long' for melted rows.
+            stage (int | None): Zero-based optimizer stage index to export from.
+            segments (set[str] | None): Subset of segment IDs to include, or None for all.
+            constraints (set[str] | None): Subset of constraint keys to include, or None for all.
+            result_indices (set[int] | None): Indices of specific results to include, or None for all.
+            include_proposals (bool): Whether to include proposal sequences alongside accepted results.
         """
         return pd.DataFrame(flatten_table(
             table,
@@ -582,12 +592,15 @@ class Program:
         """Export sequences in FASTA format.
 
         Args:
-            path: Output file path. If None, returns string only.
-            header_format: Format string for headers. Available fields:
+            path (Path | str | None): Output file path. If None, returns string only.
+            header_format (str): Format string for headers. Available fields:
                 construct, segment, result_idx, energy_score, sequence_type.
+            stage (int | None): Zero-based optimizer stage index to export from.
+            segments (set[str] | None): Subset of segment IDs to include, or None for all.
+            result_indices (set[int] | None): Indices of specific results to include, or None for all.
 
         Returns:
-            FASTA-formatted string.
+            str: FASTA-formatted string.
         """
         return to_fasta(
             self._results_for_stage(stage),

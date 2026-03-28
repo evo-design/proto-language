@@ -1,5 +1,5 @@
 """
-Cycling Optimizer that cycles between a conditioning function and a generator.
+proto_language/language/optimizer/cycling_optimizer.py
 
 A generalized optimizer that iteratively runs a user-defined conditioning function
 and passes its output to a generator. Supports optional constraint filtering with
@@ -40,7 +40,7 @@ class ProteinHunterPipelineConfig(BaseConfig):
     cycles for de novo protein design (hallucination).
 
     Attributes:
-        structure_tool: Structure prediction tool to use. Options: "boltz2", "chai1", "alphafold3".
+        structure_tool (Literal['boltz2', 'chai1', 'alphafold3']): Structure prediction tool to use. Options: "boltz2", "chai1", "alphafold3".
     """
     structure_tool: Literal["boltz2", "chai1", "alphafold3"] = ConfigField(
         default="boltz2",
@@ -54,6 +54,9 @@ def _create_protein_hunter_conditioning_fn(config: CyclingOptimizerConfig) -> Ca
 
     The Protein Hunter algorithm predicts 3D structures from current sequences,
     then uses those structures to condition inverse folding for the next iteration.
+
+    Args:
+        config (CyclingOptimizerConfig): Constraint configuration controlling evaluation parameters.
     """
     from proto_tools import StructurePredictionComplex, predict_structures
 
@@ -91,12 +94,12 @@ def _resolve_conditioning_fn(
     Resolve the conditioning function from either direct parameter or pipeline config.
 
     Args:
-        config: Optimizer config containing optional pipeline specification
-        generator: The generator to validate against pipeline requirements
-        conditioning_fn: Optional directly-provided conditioning function
+        config (CyclingOptimizerConfig): Optimizer config containing optional pipeline specification
+        generator (Generator): The generator to validate against pipeline requirements
+        conditioning_fn (Callable | None): Optional directly-provided conditioning function
 
     Returns:
-        The resolved conditioning function
+        Callable: The resolved conditioning function
 
     Raises:
         ValueError: If both or neither of conditioning_fn/pipeline are provided,
@@ -164,7 +167,7 @@ class CyclingOptimizerConfig(BaseOptimizerConfig):
             Each cycle calls the conditioning function, then the generator.
             Must be >= 1.
 
-        num_results (Optional[int]): Number of independent proposal trajectories
+        num_results (int | None): Number of independent proposal trajectories
             to maintain. Each proposal is processed independently through the
             conditioning function and generator. Overrides program-level ``num_results``
             if set.
@@ -174,14 +177,16 @@ class CyclingOptimizerConfig(BaseOptimizerConfig):
             - ``"structure_inputs"`` for inverse folding generators (ProteinMPNN, LigandMPNN)
             - ``"prompts"`` for autoregressive generators (Evo2)
 
-        pipeline (Literal["protein-hunter"]): Predefined conditioning pipeline.
+        pipeline (Literal['protein-hunter'] | None): Predefined conditioning pipeline.
             - ``"protein-hunter"``: Structure prediction -> inverse folding cycle.
               Requires an inverse_folding generator (ProteinMPNN or LigandMPNN).
 
-        protein_hunter (ProteinHunterPipelineConfig): Configuration for protein-hunter pipeline.
+        protein_hunter (ProteinHunterPipelineConfig | None): Configuration for protein-hunter pipeline.
             Only used when ``pipeline="protein-hunter"``.
 
         verbose (bool): Whether to print progress information. Default: ``False``.
+        tracking_interval (int): Number of steps between progress snapshots.
+        track_proposals (bool): Whether to record proposal sequences alongside accepted results.
 
     Note:
         - Pipeline-specific constraints:
@@ -260,12 +265,12 @@ class CyclingOptimizer(Optimizer):
     - Evo2 with feedback: Constraint-guided prompt modification -> generation cycles
 
     Attributes:
-        target_segment (Segment): The segment being optimized.
-        generator (Generator): The generator to use for sequence generation.
-        conditioning_fn (Callable): User-defined function that produces conditioning data.
-        conditioning_param_name (str): Generator sample() parameter name for conditioning data.
-        num_steps (int): Number of cycles to run.
-        num_results (int): Number of independent proposal trajectories.
+        target_segment: The segment being optimized.
+        generator: The generator to use for sequence generation.
+        conditioning_fn: User-defined function that produces conditioning data.
+        conditioning_param_name: Generator sample() parameter name for conditioning data.
+        num_steps: Number of cycles to run.
+        num_results: Number of independent proposal trajectories.
 
     Example:
         >>> def my_conditioning_fn(sequences):
@@ -308,21 +313,21 @@ class CyclingOptimizer(Optimizer):
         """Initialize the Cycling Optimizer.
 
         Args:
-            target_segment: The specific Segment to optimize. Must belong to one
+            target_segment (Segment): The specific Segment to optimize. Must belong to one
                 of the constructs.
-            constructs: List of Construct objects. The target_segment must belong
+            constructs (list[Construct]): List of Construct objects. The target_segment must belong
                 to one of these.
-            generators: List containing exactly one Generator.
-            constraints: List of Constraint objects for filtering. Can be empty.
+            generators (list[Generator]): List containing exactly one Generator.
+            constraints (list[Constraint]): List of Constraint objects for filtering. Can be empty.
                 If provided, all constraints must have ``threshold`` set (filter mode).
-            config: Configuration object with algorithm parameters.
-            conditioning_fn: User-defined function that produces conditioning data.
+            config (CyclingOptimizerConfig): Configuration object with algorithm parameters.
+            conditioning_fn (Callable[[list[Sequence]], list[Any]] | None): User-defined function that produces conditioning data.
                 Signature: ``(sequences: List[Sequence]) -> List[Any]``
                 Returns one conditioning item per proposal.
                 Mutually exclusive with ``config.pipeline`` - use one or the other.
-            custom_logging: Optional callback called at tracked steps (governed by ``tracking_interval``)
+            custom_logging (Callable[[int, tuple], None] | None): Optional callback called at tracked steps (governed by ``tracking_interval``)
                 with signature ``(step: int, segments: tuple) -> None``.
-            clear_tool_cache: Cache management setting. (int) byte threshold,
+            clear_tool_cache (int | bool | list[str]): Cache management setting. (int) byte threshold,
                 (bool) clear all, or (List[str]) specific tool names.
 
         Raises:

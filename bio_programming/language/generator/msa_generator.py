@@ -1,4 +1,6 @@
 """
+proto_language/language/generator/msa_generator.py
+
 MSAGenerator for sampling mutations from multiple sequence alignment distributions.
 """
 
@@ -93,12 +95,13 @@ class MSAGenerator(Generator):
     from these distributions.
 
     Attributes:
-        msa (MSA): The input multiple sequence alignment.
-        num_mutations (int): Number of positions to mutate per sample.
-        include_gaps (bool): Whether gaps are included in probability calculations.
-        position_probs (List[Optional[Dict[str, float]]]): Position-specific
+        msa: The input multiple sequence alignment.
+        num_mutations: Number of positions to mutate per sample.
+        include_gaps: Whether gaps are included in probability calculations.
+        position_probs: Position-specific
             probability distributions. None for positions with no valid characters.
-        mutable_positions (List[int]): Indices of positions that can be mutated.
+        mutable_positions: Indices of positions that can be mutated.
+        batch_size (int): Number of sequences to generate per batch.
 
     Example:
         >>> from proto_language.language.generator import MSAGenerator, MSAGeneratorConfig
@@ -118,7 +121,7 @@ class MSAGenerator(Generator):
         """Initialize the MSA generator.
 
         Args:
-            config: Configuration containing MSA and parameters.
+            config (MSAGeneratorConfig): Configuration containing MSA and parameters.
         """
         super().__init__()
         self.config = config
@@ -152,7 +155,7 @@ class MSAGenerator(Generator):
         and that the MSA has at least one mutable position.
 
         Args:
-            assigned_segment: The segment to assign.
+            assigned_segment (Segment): The segment to assign.
 
         Raises:
             ValueError: If alignment/segment length mismatch, no mutable positions, or invalid segment.

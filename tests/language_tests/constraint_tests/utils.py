@@ -1,5 +1,5 @@
 """
-Test utilities for constraint tests.
+tests/language_tests/constraint_tests/utils.py
 
 This module provides helper functions, mock scoring functions, and fixtures
 used across multiple constraint test files. It does NOT contain actual unit tests.

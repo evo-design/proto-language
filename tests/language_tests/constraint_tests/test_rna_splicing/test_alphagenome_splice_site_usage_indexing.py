@@ -1,4 +1,6 @@
-"""GPU integration checks for AlphaGenome SSU splice-site indexing."""
+"""tests/language_tests/constraint_tests/test_rna_splicing/test_alphagenome_splice_site_usage_indexing.py
+
+GPU integration checks for AlphaGenome SSU splice-site indexing."""
 
 from __future__ import annotations
 

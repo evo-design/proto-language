@@ -1,3 +1,9 @@
+"""
+tests/language_tests/generator_tests/test_random_protein_generator.py
+
+Tests for the RandomProteinGenerator.
+"""
+
 from __future__ import annotations
 
 import copy

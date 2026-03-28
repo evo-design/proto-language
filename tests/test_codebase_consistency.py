@@ -1,5 +1,6 @@
 """
-Pulls all codebase configs of registered components and checks for field definition
+tests/test_codebase_consistency.py
+
 consistency.
 """
 from __future__ import annotations

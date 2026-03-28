@@ -1,3 +1,4 @@
+"""tests/language_tests/constraint_tests/test_protein_quality/test_balanced_aa_constraint.py"""
 import pytest
 
 from proto_language.language.constraint import balanced_aa_constraint

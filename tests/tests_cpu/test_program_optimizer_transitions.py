@@ -1,5 +1,5 @@
 """
-test_program_optimizer_transitions.py
+tests/tests_cpu/test_program_optimizer_transitions.py
 
 Tests for all 16 optimizer transition permutations.
 

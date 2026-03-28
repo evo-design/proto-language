@@ -1,4 +1,6 @@
 """
+proto_language/language/constraint/rna_splicing/splice_transformer_specificity.py
+
 Evaluate tissue-specific splicing with SpliceTransformer.
 
 Accepts three segments (left_flank, intron_core, right_flank), concatenates
@@ -86,7 +88,7 @@ class SpliceTransformerSpecificityConfig(BaseConfig):
             This flanking sequence provides downstream genomic context. Should be
             the genomic sequence immediately 3' of the target sequence.
 
-        splice_pos (List[int]): Zero-indexed position(s) within the input
+        splice_pos (list[int]): Zero-indexed position(s) within the input
             sequence to evaluate for tissue-specific splicing. These positions
             typically correspond to splice sites (donor or acceptor) where you
             want to assess or control tissue-specific usage. Can be a single
@@ -101,7 +103,7 @@ class SpliceTransformerSpecificityConfig(BaseConfig):
             for general splice site quality or specific tissues for tissue-specific
             designs. Default: "AVERAGE".
 
-        direction (Literal["max", "min"]): Optimization direction for the splice
+        direction (Literal['max', 'min']): Optimization direction for the splice
             score. Use "max" to maximize splicing at the position (encourage splice
             site usage), or "min" to minimize splicing (discourage splice site usage).
             For example, use "max" to create tissue-specific splice sites that are
@@ -172,73 +174,17 @@ def splice_transformer_specificity(
     input_sequences: List[Tuple[Sequence, ...]],
     config: SpliceTransformerSpecificityConfig,
 ) -> List[float]:
-    """Evaluate tissue-specific splicing with SpliceTransformer.
+    """Score tissue-specific splice site usage for three-segment intron boundaries.
 
-    Each input tuple contains three DNA sequences (left_flank, intron_core,
-    right_flank) which are concatenated into a single target sequence for
-    scoring. Metadata is propagated back to all three input segments.
-
-    The constraint can maximize or minimize splicing in a target tissue,
-    enabling design of sequences with controlled tissue-specific alternative
-    splicing.
-
-    The concatenated target sequence must be exactly 1000 bp, and both flanking
-    contexts must be exactly 4000 bp each, for a total analyzed region of
-    9000 bp.
+    Accepts three segments (left_flank, intron_core, right_flank), concatenates
+    them into a single 1-kb target sequence, and scores tissue-specific splice
+    site usage. Metadata is propagated back to all three input segments.
 
     Args:
-        input_sequences: List of 3-tuples (left_flank, intron_core, right_flank).
-            The three sequences are concatenated into a single 1000 bp target.
-
-        config: Configuration object containing ``left_context`` (4000 bp),
-            ``right_context`` (4000 bp), ``splice_pos`` (position(s) to
-            evaluate), ``tissue`` (target tissue), ``direction`` ("max" or
-            "min"), and optional ``splice_transformer_config``.
-
-    Returns:
-        List[float]: Constraint scores ranging from 0.0 to 1.0 for each
-            sequence. The interpretation depends on the ``direction`` parameter:
-
-            - **direction="max"** (maximize splicing): Score = 1.0 - tissue_prob.
-              Lower scores indicate stronger predicted splicing. Use this to
-              encourage tissue-specific splice site usage.
-            - **direction="min"** (minimize splicing): Score = tissue_prob.
-              Lower scores indicate weaker predicted splicing. Use this to
-              discourage tissue-specific splice site usage.
-
-            When multiple positions are specified, the score uses the mean
-            probability across all positions.
-
-    Note:
-        This function adds metadata to each input ``Sequence`` object's
-        ``_metadata`` dictionary with the following keys:
-
-        - ``specificity_direction_{tissue}``: String indicating the optimization
-          direction used ("max" or "min")
-        - ``specificity_score_{tissue}``: Float constraint score for the
-          specified tissue
-
-        The metadata keys include the tissue name, so evaluating multiple
-        tissues on the same sequence will create separate metadata entries.
-
-    Examples:
-        Maximizing brain-specific splicing:
-
-        >>> left = Sequence("A" * 200, "dna")
-        >>> intron = Sequence("C" * 600, "dna")
-        >>> right = Sequence("G" * 200, "dna")
-        >>> config = SpliceTransformerSpecificityConfig(
-        ...     left_context="A" * 4000,
-        ...     right_context="A" * 4000,
-        ...     splice_pos=[199, 800],
-        ...     tissue="BRAIN",
-        ...     direction="max",
-        ... )
-        >>> scores = splice_transformer_specificity(
-        ...     [(left, intron, right)], config
-        ... )
-        >>> print(scores[0])  # e.g., 0.15 (85% brain-specific probability)
-        >>> print(left._metadata["specificity_score_BRAIN"])  # e.g., 0.15
+        input_sequences (list[tuple[Sequence, ...]]): Mapping of segment IDs to
+            their current sequences.
+        config (SpliceTransformerSpecificityConfig): Constraint configuration
+            controlling evaluation parameters.
     """
     if not input_sequences:
         return []

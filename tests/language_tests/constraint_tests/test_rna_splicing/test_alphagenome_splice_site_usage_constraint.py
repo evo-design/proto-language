@@ -1,9 +1,8 @@
-"""Unit tests for AlphaGenome splice-site-usage RNA-splicing constraint.
+"""tests/language_tests/constraint_tests/test_rna_splicing/test_alphagenome_splice_site_usage_constraint.py
 
 The constraint accepts three-part input tuples (left_flank, intron_core,
 right_flank), integrates them into a genomic context via cassette insertion,
-and scores splice-site usage with AlphaGenome.
-"""
+and scores splice-site usage with AlphaGenome."""
 from __future__ import annotations
 
 from unittest.mock import patch

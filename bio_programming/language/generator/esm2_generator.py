@@ -1,4 +1,6 @@
 """
+proto_language/language/generator/esm2_generator.py
+
 ESM2 Generator for protein sequence generation
 """
 
@@ -25,7 +27,7 @@ class ESM2GeneratorConfig(BaseConfig):
     iterative mutation of masked positions.
 
     Attributes:
-        model_checkpoint (str): ESM2 model checkpoint to use. Options:
+        model_checkpoint (ESM2_MODEL_CHECKPOINTS): ESM2 model checkpoint to use. Options:
 
             - ``"esm2_t6_8M_UR50D"``: 8M parameters, 6 layers (fastest)
             - ``"esm2_t12_35M_UR50D"``: 35M parameters, 12 layers
@@ -132,7 +134,7 @@ class ESM2Generator(Generator):
         Initialize the ESM-2 generator with model and sampling configuration.
 
         Args:
-            config: Configuration object containing all generator parameters.
+            config (ESM2GeneratorConfig): Configuration object containing all generator parameters.
         """
         super().__init__()
         self.config = config

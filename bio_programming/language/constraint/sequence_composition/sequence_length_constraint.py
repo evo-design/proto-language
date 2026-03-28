@@ -1,4 +1,6 @@
 """
+proto_language/language/constraint/sequence_composition/sequence_length_constraint.py
+
 Sequence length constraint for evaluating sequence length properties.
 """
 
@@ -31,14 +33,14 @@ class SequenceLengthConfig(BaseConfig):
        based on proportional distance from the target.
     
     Attributes:
-        min_length (Optional[int]): Minimum acceptable sequence length in nucleotides
+        min_length (int | None): Minimum acceptable sequence length in nucleotides
             or amino acids. Must be a positive integer. Use together with max_length
             for range mode.
             Default: None.
-        max_length (Optional[int]): Maximum acceptable sequence length in nucleotides
+        max_length (int | None): Maximum acceptable sequence length in nucleotides
             or amino acids. Must be a positive integer and ≥ min_length. Use together
             with min_length for range mode. Default: None.
-        target_length (Optional[int]): Target sequence length for exact matching
+        target_length (int | None): Target sequence length for exact matching
             (alternative to min/max range). Must be a positive integer. Cannot be
             used together with min_length/max_length. Default: None.
     """
@@ -102,7 +104,7 @@ def sequence_length_constraint(input_sequences: List[Tuple[Sequence, ...]], conf
     (exact length matching).
 
     Args:
-        input_sequences (List[Tuple[Sequence, ...]]): List of sequence tuples to evaluate.
+        input_sequences (list[tuple[Sequence, ...]]): List of sequence tuples to evaluate.
             Each tuple contains one sequence (DNA, RNA, or protein).
 
         config (SequenceLengthConfig): Configuration object containing either

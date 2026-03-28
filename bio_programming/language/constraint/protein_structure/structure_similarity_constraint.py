@@ -1,5 +1,5 @@
 """
-structure_similarity_constraint.py
+proto_language/language/constraint/protein_structure/structure_similarity_constraint.py
 
 Contains implementation of generic structure similarity constraints (RMSD, TM-score)
 supporting multiple structure prediction tools (ESMFold, AlphaFold3, Boltz, Chai1).
@@ -139,7 +139,7 @@ class StructureSimilarityConfig(StructureBasedConstraintConfig):
 
     Inherits tool selection and configuration from StructureBasedConstraintConfig:
 
-        structure_tool (Literal["esmfold", "alphafold3", "boltz2", "chai1"]):
+        structure_tool (Literal['esmfold', 'alphafold3', 'boltz2', 'chai1']):
             The structure prediction tool to use for folding both the target (if provided
             as a sequence) and the proposal sequences. Supported options:
             - "esmfold": ESMFold (Meta AI)
@@ -148,7 +148,7 @@ class StructureSimilarityConfig(StructureBasedConstraintConfig):
             - "chai1": Chai-1 (Chai Discovery)
             Default is "esmfold".
 
-        tool_config (Union[ESMFoldConfig, AlphaFold3Config, Boltz2Config, Chai1Config, Dict]):
+        tool_config (dict[str, Any] | ESMFoldConfig | AlphaFold3Config | Boltz2Config | Chai1Config | None):
             A dictionary of configuration parameters to pass directly to the underlying
             structure prediction tool runner. Can be a typed config object or a dictionary.
             Automatically validated and converted to the appropriate config type based on
@@ -156,14 +156,14 @@ class StructureSimilarityConfig(StructureBasedConstraintConfig):
 
     Attributes:
 
-        target_chains (Optional[Tuple[str, ...] | StructurePredictionComplex]):
+        target_chains (tuple[str, ...] | StructurePredictionComplex | None):
             The sequences of the target chains. Accepts either a tuple of sequence
             strings (entity types are auto-detected) or a StructurePredictionComplex.
             If provided, these will be folded using the specified `structure_tool`
             to generate the reference structure. Mutually exclusive with
             `target_structure`.
 
-        target_structure (Optional[Structure | str]):
+        target_structure (Structure | str | None):
             The target structure. Accepts a Structure object, a file path to a
             PDB/CIF file (identified by .pdb/.cif/.mmcif extension), or raw
             PDB/CIF content as a string. Mutually exclusive with `target_chains`.
@@ -174,6 +174,8 @@ class StructureSimilarityConfig(StructureBasedConstraintConfig):
             structure. If the target is provided as a sequence and its predicted
             structure has a confidence below this threshold, the constraint may return
             a default/penalty score or log a warning. Default is 0.6.
+        structure_tool (Literal['esmfold', 'alphafold3', 'boltz2', 'chai1']): Structure prediction tool key to use.
+        tool_config (dict[str, Any] | ESMFoldConfig | AlphaFold3Config | Boltz2Config | Chai1Config | None): Configuration dict passed to the structure prediction tool.
     """
 
     # Target specification (mutually exclusive):
@@ -227,18 +229,18 @@ class StructureRMSDConfig(StructureSimilarityConfig):
             sharper transition from good to bad scores around the inflection point.
             Default is 3.0.
 
-        target_chains (Optional[Tuple[str, ...] | StructurePredictionComplex]):
+        target_chains (tuple[str, ...] | StructurePredictionComplex | None):
             The sequences of the target chains. Accepts a tuple of sequence strings
             (entity types auto-detected) or a StructurePredictionComplex. If provided,
             these will be folded using the specified `structure_tool` to generate the
             reference structure. Mutually exclusive with `target_structure`.
 
-        target_structure (Optional[Structure | str]):
+        target_structure (Structure | str | None):
             The target structure. Accepts a Structure object, a file path to a
             PDB/CIF file, or raw PDB/CIF content as a string. Mutually exclusive
             with `target_chains`.
 
-        structure_tool (Literal["esmfold", "alphafold3", "boltz2", "chai1"]):
+        structure_tool:
             The structure prediction tool to use for folding both the target (if provided
             as a sequence) and the proposal sequences. Supported options:
             - "esmfold": ESMFold (Meta AI)
@@ -247,7 +249,7 @@ class StructureRMSDConfig(StructureSimilarityConfig):
             - "chai1": Chai-1 (Chai Discovery)
             Default is "esmfold".
 
-        tool_config (Union[ESMFoldConfig, AlphaFold3Config, Boltz2Config, Chai1Config, Dict]):
+        tool_config:
             A dictionary of configuration parameters to pass directly to the underlying
             structure prediction tool runner. Can be a typed config object or a dictionary.
             Automatically validated and converted to the appropriate config type based on
@@ -287,11 +289,11 @@ class StructureTMScoreConfig(StructureSimilarityConfig):
     similarity.
 
     Attributes:
-        plddt_threshold (Optional[float]):
+        plddt_threshold (float | None):
             If provided, this will first filter out atoms in the predicted structure
             with pLDDT less than this threshold. Defaults to ``None``.
 
-        tm_score_normalization (Literal["structure1", "structure2", "max", "min", "mean"]):
+        tm_score_normalization (Literal['structure1', 'structure2', 'max', 'min', 'mean']):
             How to select or combine the two TM-scores (normalized by different structure
             lengths). Importantly, the ``target_chains`` are passed as the second structure
             to the alignment programs. Options:
@@ -302,18 +304,18 @@ class StructureTMScoreConfig(StructureSimilarityConfig):
             - "mean": Take the arithmetic mean of both TM-scores (default).
             Default is "mean".
 
-        target_chains (Optional[Tuple[str, ...] | StructurePredictionComplex]):
+        target_chains (tuple[str, ...] | StructurePredictionComplex | None):
             The sequences of the target chains. Accepts a tuple of sequence strings
             (entity types auto-detected) or a StructurePredictionComplex. If provided,
             these will be folded using the specified `structure_tool` to generate the
             reference structure. Mutually exclusive with `target_structure`.
 
-        target_structure (Optional[Structure | str]):
+        target_structure (Structure | str | None):
             The target structure. Accepts a Structure object, a file path to a
             PDB/CIF file, or raw PDB/CIF content as a string. Mutually exclusive
             with `target_chains`.
 
-        structure_tool (Literal["esmfold", "alphafold3", "boltz2", "chai1"]):
+        structure_tool:
             The structure prediction tool to use for folding both the target (if provided
             as a sequence) and the proposal sequences. Supported options:
             - "esmfold": ESMFold (Meta AI)
@@ -322,7 +324,7 @@ class StructureTMScoreConfig(StructureSimilarityConfig):
             - "chai1": Chai-1 (Chai Discovery)
             Default is "esmfold".
 
-        tool_config (Union[ESMFoldConfig, AlphaFold3Config, Boltz2Config, Chai1Config, Dict]):
+        tool_config:
             A dictionary of configuration parameters to pass directly to the underlying
             structure prediction tool runner. Can be a typed config object or a dictionary.
             Automatically validated and converted to the appropriate config type based on
@@ -502,6 +504,10 @@ def structure_tmscore_constraint(
     - Monomer vs monomer comparisons use standard `TMalign`.
     - Comparisons involving multiple chains use `USalign` with `-mm 1` and default
       values for all other parameters.
+
+    Args:
+        input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
+        config (StructureTMScoreConfig): Constraint configuration controlling evaluation parameters.
 
     Note:
     All TM-scores are normalized by the length of the **target** structure. This

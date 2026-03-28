@@ -1,4 +1,6 @@
 """
+proto_language/base_config.py
+
 Base configuration classes for all pydantic configs.
 """
 from __future__ import annotations
@@ -17,6 +19,11 @@ class DependsOn(TypedDict, total=False):
       - ``value`` present (list):   show when ``parent[field] in value``
       - ``not_null`` is True:       show when ``parent[field]`` is not None
       - Neither ``value`` nor ``not_null``: show when ``parent[field]`` is truthy
+
+    Attributes:
+        field (str): Name of the field this dependency targets.
+        value (Union[str, int, float, bool, list]): Required value of the target field for this field to be visible.
+        not_null (bool): If True, the dependency is satisfied when the target field is not None.
     """
 
     field: str  # Required: sibling field key to watch
@@ -38,13 +45,16 @@ def ConfigField(
     Custom Field wrapper that automatically adds metadata flags to json_schema_extra.
 
     Args:
-        advanced: If True, field appears in "Advanced" section of UI
-        hidden: If True, field is hidden from UI completely
-        depends_on: If set, field is only visible when the sibling field
-            identified by ``depends_on["field"]`` satisfies the condition.
-            See :class:`DependsOn` for evaluation rules.
-
-        **kwargs: All other standard Pydantic Field arguments
+        default (Any): Default value for the configuration field.
+        title (str): Human-readable display title for the field.
+        description (str): Short description shown in the client UI.
+        advanced (bool): If True, field appears in "Advanced" section of UI.
+        hidden (bool): If True, field is hidden from UI completely.
+        depends_on (DependsOn | None): If set, field is only visible when the
+            sibling field identified by ``depends_on["field"]`` satisfies the
+            condition. See :class:`DependsOn` for evaluation rules.
+        kwargs: All other standard Pydantic Field arguments (passed through
+            to ``pydantic.Field``).
 
     Usage:
         param: int = ConfigField(default=42, title="Param", advanced=True)

@@ -1,4 +1,6 @@
 """
+proto_language/language/constraint/sequence_annotation/promoter_strength_constraint.py
+
 Promoter strength constraint using Salis Lab Promoter Calculator.
 """
 
@@ -45,7 +47,7 @@ class PromoterStrengthConfig(BaseConfig):
             detection across sequence ends. Useful for plasmids where promoters
             may span the origin. If False, treats sequences as linear. Default: False.
 
-        scoring_type (Literal["dG", "tx_rate"]): Metric to use for promoter strength
+        scoring_type (Literal['dG', 'tx_rate']): Metric to use for promoter strength
             scoring. Options:
             - "dG": Binding free energy in kcal/mol. More negative values indicate
               stronger RNAP binding. Range typically -5 to 2 kcal/mol. Use for
@@ -135,13 +137,14 @@ def promoter_strength_constraint(input_sequences: List[Tuple[Sequence, ...]], co
     predictions for the strongest promoter on the forward (+) strand.
 
     Args:
-        sequences (List[Sequence]): List of DNA sequences to evaluate. Sequences
+        sequences: List of DNA sequences to evaluate. Sequences
             should contain potential promoter regions (typically 70-200+ bp).
             The calculator scans for sigma-70 promoter elements throughout each sequence.
 
         config (PromoterStrengthConfig): Configuration object containing ``scoring_type``
             (default: "dG"), ``threads`` (default: 8), ``add_context`` (default: False),
             and other processing parameters.
+        input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
 
     Returns:
         List[float]: Penalty scores for each sequence, ranging from 0.0 (strong

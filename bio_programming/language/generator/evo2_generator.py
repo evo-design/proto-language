@@ -1,4 +1,6 @@
 """
+proto_language/language/generator/evo2_generator.py
+
 Evo2 Generator for DNA sequence generation
 """
 
@@ -25,19 +27,19 @@ class Evo2GeneratorConfig(BaseConfig):
     from prompt sequences.
 
     Attributes:
-        prompts (List[str]): Prompt sequence(s) to start DNA generation.
+        prompts (list[str]): Prompt sequence(s) to start DNA generation.
             Can be a single prompt string (automatically converted to list) or list of
             prompts for batch generation. All prompts must have the same length.
             Uses Evo2's special formatting (refer to Evo2 documentation for prompt
             format details).
 
-        model_checkpoint (str): Evo2 model checkpoint to use. Options:
+        model_checkpoint (EVO2_MODEL_CHECKPOINTS): Evo2 model checkpoint to use. Options:
 
             - ``"evo2_7b"``: 7 billion parameter Evo2 model (default)
 
             Default: ``"evo2_7b"``.
 
-        local_path (Optional[str]): Path to local model weights directory for custom
+        local_path (str | None): Path to local model weights directory for custom
             or fine-tuned models. If ``None``, downloads from Hugging Face.
             Default: ``None``.
 
@@ -52,11 +54,11 @@ class Evo2GeneratorConfig(BaseConfig):
             distribution sharpness. Lower values are more deterministic, higher
             values more diverse. Must be greater than 0. Default: 1.0.
 
-        force_prompt_threshold (Optional[int]): Optional number of tokens to prefill
+        force_prompt_threshold (int | None): Optional number of tokens to prefill
             in parallel before switching to autoregressive generation. Can speed up
             generation for long prompts. Default: ``None``.
 
-        max_seqlen (Optional[int]): Optional maximum sequence length to generate.
+        max_seqlen (int | None): Optional maximum sequence length to generate.
             Determines KV cache size. If ``None``, automatically calculated.
             Default: ``None``.
 
@@ -231,10 +233,11 @@ class Evo2Generator(Generator):
     assigned segment's sequence_length, prompt length, and prepend_prompt setting.
 
     Attributes:
-        prompts (List[str]): Prompt sequences for generation.
-        model_checkpoint (str): Evo2 model checkpoint name.
-        temperature (float): Sampling temperature for diversity control.
-        kv_caches (List[Dict]): Stored KV caches when ``store_kv_cache=True``.
+        prompts: Prompt sequences for generation.
+        model_checkpoint: Evo2 model checkpoint name.
+        temperature: Sampling temperature for diversity control.
+        kv_caches: Stored KV caches when ``store_kv_cache=True``.
+        batch_size (int): Number of sequences to generate per batch.
 
     Example:
         >>> from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
@@ -258,7 +261,7 @@ class Evo2Generator(Generator):
         https://github.com/arcinstitute/evo2 and https://github.com/Zymrael/vortex
 
         Args:
-            config: Configuration object containing all generator parameters.
+            config (Evo2GeneratorConfig): Configuration object containing all generator parameters.
         """
         super().__init__()
         self.config = config
@@ -289,10 +292,10 @@ class Evo2Generator(Generator):
         """Generate sequences using the Evo2 model.
 
         Args:
-            prompts: Optional prompts to use instead of self.prompts.
-            prepend_prompt: Optional override for prepend_prompt setting.
-            num_tokens: Optional explicit token count (used by beam search).
-            old_kv_cache: Optional cache state to continue from (batched format).
+            prompts (list[str] | None): Optional prompts to use instead of self.prompts.
+            prepend_prompt (bool | None): Optional override for prepend_prompt setting.
+            num_tokens (int | None): Optional explicit token count (used by beam search).
+            old_kv_cache (dict | None): Optional cache state to continue from (batched format).
         """
         self._validate_generator()
 

@@ -1,4 +1,6 @@
-"""Tests for CyclingOptimizer."""
+"""tests/language_tests/optimizer_tests/test_cycling_optimizer.py
+
+Tests for CyclingOptimizer."""
 
 from __future__ import annotations
 

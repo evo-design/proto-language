@@ -1,3 +1,4 @@
+"""tests/language_tests/constraint_tests/test_sequence_annotation/test_sigma70_promoter_constraint.py"""
 from proto_language.language.constraint import sigma70_promoter_constraint
 from proto_language.language.constraint.sequence_annotation.sigma70_promoter_constraint import (
     Sigma70PromoterConfig,

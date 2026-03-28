@@ -1,3 +1,4 @@
+"""tests/language_tests/generator_tests/test_proteinmpnn_generator.py"""
 import copy
 
 import pytest

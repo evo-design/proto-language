@@ -1,5 +1,5 @@
 """
-Alignment gap distribution Gini constraint.
+proto_language/language/constraint/sequence_alignment/gap_gini_constraint.py
 
 Computes a Gini coefficient on the gap run-length distribution of pairwise
 alignments to detect truncation artifacts where gaps are concentrated in one
@@ -80,6 +80,10 @@ def _gap_gini_single(al1: str, al2: str) -> float:
     """Compute gap Gini score for a single pairwise alignment.
 
     Returns the max Gini coefficient across both aligned sequences.
+
+    Args:
+        al1 (str): First aligned sequence string.
+        al2 (str): Second aligned sequence string.
     """
     al1_runs = np.array(_gap_runs(al1))
     al2_runs = np.array(_gap_runs(al2))
@@ -94,6 +98,10 @@ def _trim_alignment(al1: str, al2: str) -> Tuple[str | None, str | None]:
     """Center-crop to 80% and strip end gaps (matches evocas9 pipeline).
 
     Returns (trimmed_al1, trimmed_al2) or (None, None) if no overlap remains.
+
+    Args:
+        al1 (str): First aligned sequence string.
+        al2 (str): Second aligned sequence string.
     """
     align_len = len(al1)
     start, end = int(0.1 * align_len), int(0.9 * align_len)
@@ -146,10 +154,10 @@ class GapGiniConfig(BaseConfig):
     single run (truncation artifact).
 
     Attributes:
-        max_gap_gini: Maximum acceptable gap Gini score (0-1). Alignments
+        max_gap_gini (float): Maximum acceptable gap Gini score (0-1). Alignments
             with a Gini above this threshold are penalized.  Paper default
             is 0.1.
-        trim_alignment: Whether to center-crop to 80% and strip end gaps
+        trim_alignment (bool): Whether to center-crop to 80% and strip end gaps
             before computing the Gini.  Matches the evocas9 pipeline.
     """
 
@@ -207,14 +215,14 @@ def gap_gini_constraint(
       4. Returns 0.0 if gap_gini <= max_gap_gini, else scales linearly to 1.0.
 
     Args:
-        input_sequences: List of 2-tuples ``(query_seq, reference_seq)`` where
+        input_sequences (list[tuple[Sequence, ...]]): List of 2-tuples ``(query_seq, reference_seq)`` where
             each element is a :class:`Sequence` of type ``"protein"``.
-        config: :class:`GapGiniConfig` with ``max_gap_gini`` threshold and
+        config (GapGiniConfig): :class:`GapGiniConfig` with ``max_gap_gini`` threshold and
             ``trim_alignment`` flag.
 
     Returns:
-        List of scores (one per pair). 0.0 = gap distribution acceptable,
-        up to 1.0 = worst violation.
+        list[float]: List of scores (one per pair). 0.0 = gap distribution
+            acceptable, up to 1.0 = worst violation.
     """
     from proto_tools.tools.sequence_alignment.mafft import (
         MafftConfig,

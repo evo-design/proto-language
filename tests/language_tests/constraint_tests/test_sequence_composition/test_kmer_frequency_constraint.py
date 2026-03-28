@@ -1,5 +1,5 @@
 """
-Comprehensive tests for kmer_frequency_constraint.
+tests/language_tests/constraint_tests/test_sequence_composition/test_kmer_frequency_constraint.py
 
 Tests the generalized k-mer frequency constraint that replaced
 dinucleotide_frequency and tetranucleotide_usage constraints.

@@ -1,5 +1,5 @@
 """
-structure_ensemble_similarity_constraint.py
+proto_language/language/constraint/protein_structure/structure_ensemble_similarity_constraint.py
 
 Contains implementation of structure ensemble similarity constraints
 for conformational ensemble sampling and PyMOL-based RMSD alignment.
@@ -51,13 +51,13 @@ def _compute_pymol_aligned_rmsd(
     making it robust to differences in residue numbering or sequence length.
 
     Args:
-        target_pdb_text: PDB content of the target (reference) structure.
-        mobile_pdb_text: PDB content of the mobile structure to align.
-        target_selection: PyMOL selection string for target atoms (default: "name CA").
-        mobile_selection: PyMOL selection string for mobile atoms (default: "name CA").
+        target_pdb_text (str): PDB content of the target (reference) structure.
+        mobile_pdb_text (str): PDB content of the mobile structure to align.
+        target_selection (str): PyMOL selection string for target atoms (default: "name CA").
+        mobile_selection (str): PyMOL selection string for mobile atoms (default: "name CA").
 
     Returns:
-        Dictionary containing:
+        dict[str, Any]: Dictionary containing:
             - rmsd: The RMSD after alignment (Angstroms).
             - aligned_atoms: Number of atoms used in the alignment.
             - alignment_cycles: Number of refinement cycles performed.
@@ -122,14 +122,14 @@ def _compute_ensemble_rmsds(
     Compute RMSD between a target structure and all frames in an ensemble.
 
     Args:
-        target_pdb_text: PDB content of the target (reference) structure.
-        ensemble_pdb_frames: List of PDB content strings, one per ensemble frame.
-        target_selection: PyMOL selection for target atoms.
-        mobile_selection: PyMOL selection for ensemble atoms.
-        verbose: Whether to log progress.
+        target_pdb_text (str): PDB content of the target (reference) structure.
+        ensemble_pdb_frames (list[str]): List of PDB content strings, one per ensemble frame.
+        target_selection (str): PyMOL selection for target atoms.
+        mobile_selection (str): PyMOL selection for ensemble atoms.
+        verbose (bool): Whether to log progress.
 
     Returns:
-        List of RMSD values (one per frame).
+        list[float]: List of RMSD values (one per frame).
     """
     rmsds = []
     n_frames = len(ensemble_pdb_frames)
@@ -158,15 +158,15 @@ def _summarize_rmsds(
     is empty
 
     Args:
-        rmsds: List of RMSD values.
-        aggregation: How to summarize:
+        rmsds (list[float]): List of RMSD values.
+        aggregation (Literal['min', 'p10', 'mean', 'median']): How to summarize:
             - "min": Minimum RMSD (best match in ensemble).
             - "p10": 10th percentile RMSD.
             - "mean": Mean RMSD across ensemble.
             - "median": Median RMSD across ensemble.
 
     Returns:
-        Summarized RMSD value or None if list is empty.
+        float | None: Summarized RMSD value or None if list is empty.
     """
     if not rmsds:
         return None
@@ -199,12 +199,12 @@ def _prepare_target_structure(
     specific chain and residue range.
 
     Args:
-        target_structure: A Structure object, file path (.pdb/.cif), or raw PDB/CIF content string.
-        residue_range: Optional (start, end) 1-indexed residue range to extract.
-        chain_id: Optional chain ID to extract.
+        target_structure (Structure | str): A Structure object, file path (.pdb/.cif), or raw PDB/CIF content string.
+        residue_range (tuple[int, int] | None): Optional (start, end) 1-indexed residue range to extract.
+        chain_id (str | None): Optional chain ID to extract.
 
     Returns:
-        PDB content string for the target structure.
+        str: PDB content string for the target structure.
     """
     if isinstance(target_structure, Structure):
         pdb_content = target_structure.structure_pdb
@@ -229,11 +229,11 @@ def _extract_chain_from_pdb(pdb_text: str, chain_id: str) -> str:
     Extract a specific chain from PDB content.
 
     Args:
-        pdb_text: Full PDB content.
-        chain_id: Chain identifier to extract (e.g., 'A').
+        pdb_text (str): Full PDB content.
+        chain_id (str): Chain identifier to extract (e.g., 'A').
 
     Returns:
-        PDB content with only the specified chain.
+        str: PDB content with only the specified chain.
     """
     extracted_lines = []
     for line in pdb_text.splitlines():
@@ -263,12 +263,12 @@ def _extract_residue_range_from_pdb(
     Extract a residue range from PDB content.
 
     Args:
-        pdb_text: Full PDB content.
-        start_res: Starting residue number (1-indexed, inclusive).
-        end_res: Ending residue number (1-indexed, inclusive).
+        pdb_text (str): Full PDB content.
+        start_res (int): Starting residue number (1-indexed, inclusive).
+        end_res (int): Ending residue number (1-indexed, inclusive).
 
     Returns:
-        PDB content with only residues in the specified range.
+        str: PDB content with only residues in the specified range.
     """
     extracted_lines = []
     for line in pdb_text.splitlines():
@@ -307,15 +307,15 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
             PDB/CIF file (identified by .pdb/.cif/.mmcif extension), or raw
             PDB/CIF content as a string.
 
-        target_chain_id (Optional[str]):
+        target_chain_id (str | None):
             If specified, extract only this chain from the target structure.
             Useful when the target PDB contains multiple chains.
 
-        target_residue_range (Optional[Tuple[int, int]]):
+        target_residue_range (tuple[int, int] | None):
             If specified, extract only residues within this range (1-indexed,
             inclusive) from the target structure.
 
-        proposal_residue_range (Optional[Tuple[int, int]]):
+        proposal_residue_range (tuple[int, int] | None):
             If specified, use only this range (1-indexed) of the proposal
             sequence for ensemble sampling.
 
@@ -330,7 +330,7 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
               Default: True.
             - batch_size (int): BioEmu batch size parameter. Default: 10.
 
-        rmsd_aggregation (Literal["min", "p10", "mean", "median"]):
+        rmsd_aggregation (Literal['min', 'p10', 'mean', 'median']):
             How to summarize RMSD values across the ensemble:
             - "min": Use minimum RMSD (best match). Default.
             - "p10": Use 10th percentile RMSD.
@@ -468,13 +468,13 @@ def structure_ensemble_rmsd_constraint(
     5. Converts the summarized RMSD to a 0-1 score using a sigmoid function.
 
     Args:
-        input_sequences: List of single-sequence tuples. Each tuple contains one protein
+        input_sequences (list[tuple[Sequence, ...]]): List of single-sequence tuples. Each tuple contains one protein
             Sequence object to evaluate.
-        config: Configuration specifying target structure, ensemble prediction
+        config (StructureEnsembleSimilarityConfig): Configuration specifying target structure, ensemble prediction
                 parameters, and scoring settings.
 
     Returns:
-        List of scores (0-1), where 0 is a perfect match and 1 is poor.
+        list[float]: List of scores (0-1), where 0 is a perfect match and 1 is poor.
     """
     # Prepare target structure
     target_pdb = _prepare_target_structure(

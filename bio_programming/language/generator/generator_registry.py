@@ -1,5 +1,5 @@
 """
-Generator registry for managing generator discovery and schema generation.
+proto_language/language/generator/generator_registry.py
 
 Provides a decorator-based API for registering generator classes with metadata and
 automatic schema generation for API/client integration.
@@ -19,6 +19,17 @@ class GeneratorSpec(BaseSpec):
     Specification for a registered generator.
 
     Extends BaseSpec with generator-specific metadata for discovery and schema generation.
+
+    Attributes:
+        key (str): Unique kebab-case registry identifier.
+        label (str): Human-readable display name.
+        description (str): Short description shown in the client UI.
+        uses_gpu (bool): Whether this component requires GPU resources.
+        config_model (type[BaseModel]): Pydantic model class for the component configuration.
+        category (Literal['autoregressive', 'mutation', 'inverse_folding']): Generator category grouping (e.g. 'language_model', 'mutation').
+        tools_called (list[str]): List of external tool keys this generator invokes.
+        supported_sequence_types (list[str]): Sequence types this generator can produce (e.g. 'protein', 'dna').
+        generator_class (type[Generator]): Generator subclass implementing the generation logic.
     """
 
     category: Literal["autoregressive", "mutation", "inverse_folding"] = Field(description="Generator category: 'autoregressive' (left-to-right, e.g. Evo2), 'mutation' (bidirectional/masked, e.g. ESM2), or 'inverse_folding' (structure-conditioned, e.g. ProteinMPNN)")
@@ -45,7 +56,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
     - count(): Get number of registered generators (inherited)
 
     Examples:
-        Registration (in generator files):
+        Registration:
         >>> @generator(
         ...     key="random-nucleotide",
         ...     config=RandomNucleotideGeneratorConfig,
@@ -98,15 +109,15 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
         method from BaseRegistry.
 
         Args:
-            key: Unique identifier (e.g., "random-nucleotide", "evo2")
-            label: Readable external name (e.g., "Random Nucleotide Generator", "EVO2 Generator")
-            config: Pydantic model class for configuration validation
-            description: Readable description
-            category: "autoregressive" (left-to-right), "mutation" (bidirectional/masked),
+            key (str): Unique identifier (e.g., "random-nucleotide", "evo2")
+            label (str): Readable external name (e.g., "Random Nucleotide Generator", "EVO2 Generator")
+            config (type[BaseModel]): Pydantic model class for configuration validation
+            description (str): Readable description
+            category (Literal['autoregressive', 'mutation', 'inverse_folding']): "autoregressive" (left-to-right), "mutation" (bidirectional/masked),
                 or "inverse_folding" (structure-conditioned)
-            uses_gpu: If True, generator requires GPU for computation
-            tools_called: List of tool keys this generator calls
-            supported_sequence_types: List of supported sequence types (e.g., ["dna", "protein"]).
+            uses_gpu (bool): If True, generator requires GPU for computation
+            tools_called (list[str]): List of tool keys this generator calls
+            supported_sequence_types (list[str]): List of supported sequence types (e.g., ["dna", "protein"]).
                 Empty list means supports all types.
 
         Returns:
@@ -160,15 +171,15 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
         3. Creates a Generator instance with validated config
 
         Args:
-            key: Registered generator identifier (e.g., "random-nucleotide")
-            config_dict: Configuration as plain dict (from JSON/client)
+            key (str): Registered generator identifier (e.g., "random-nucleotide")
+            config_dict (dict[str, Any]): Configuration as plain dict (from JSON/client)
 
         Returns:
-            Configured Generator instance ready to use
+            Generator: Configured Generator instance ready to use
 
         Raises:
             ValueError: If key is not registered
-            pydantic.ValidationError: If config_dict has invalid values
+            ValidationError: If config_dict has invalid values
 
         Examples:
             >>> # From API endpoint receiving JSON

@@ -1,5 +1,5 @@
 """
-Tests for ProtoParser with multiple optimizer support.
+tests/tests_cpu/test_parser_multiple_optimizers.py
 
 Tests the parsing of the new JSON format that supports multiple sequential optimizers
 in a single program.

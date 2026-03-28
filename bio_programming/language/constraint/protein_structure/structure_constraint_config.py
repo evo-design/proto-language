@@ -1,5 +1,5 @@
 """
-structure_constraint_config.py
+proto_language/language/constraint/protein_structure/structure_constraint_config.py
 
 Base configuration classes for structure-based constraints.
 
@@ -33,14 +33,14 @@ class StructureBasedConstraintConfig(BaseConfig):
     the structure_tool field with a narrower Literal type.
 
     Attributes:
-        structure_tool: Tool to use for structure prediction. Supported options:
+        structure_tool (Literal['esmfold', 'alphafold3', 'boltz2', 'chai1']): Tool to use for structure prediction. Supported options:
             - "esmfold": ESMFold (Meta AI)
             - "alphafold3": AlphaFold 3 (Google DeepMind)
             - "boltz2": Boltz2 (MIT)
             - "chai1": Chai-1 (Chai Discovery)
             Default is "esmfold".
 
-        tool_config: Tool-specific configuration parameters. Can be provided as:
+        tool_config (dict[str, Any] | ESMFoldConfig | AlphaFold3Config | Boltz2Config | Chai1Config | None): Tool-specific configuration parameters. Can be provided as:
             - A typed config object (ESMFoldConfig, AlphaFold3Config, etc.)
             - A dictionary that will be automatically converted to the appropriate config type
             Default is an empty dictionary.
@@ -94,10 +94,10 @@ class StructureBasedConstraintConfig(BaseConfig):
         - tool_config=<typed config> → validate it matches structure_tool
 
         Args:
-            values: Dict of tool configuration parameters.
+            values (dict[str, Any]): Dict of tool configuration parameters.
 
         Returns:
-            Dict of tool configuration parameters with tool_config converted.
+            dict[str, Any]: Dict of tool configuration parameters with tool_config converted.
 
         Raises:
             ValueError: If structure_tool is unknown or tool_config type doesn't match.

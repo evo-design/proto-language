@@ -1,4 +1,6 @@
-"""Tests for MSAGenerator."""
+"""tests/language_tests/generator_tests/test_msa_generator.py
+
+Tests for MSAGenerator."""
 
 from __future__ import annotations
 

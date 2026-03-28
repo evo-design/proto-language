@@ -1,4 +1,6 @@
 """
+proto_language/language/generator/random_protein_generator.py
+
 RandomProteinGenerator for CPU-based random protein mutagenesis.
 """
 
@@ -33,7 +35,7 @@ class RandomProteinGeneratorConfig(BaseConfig):
             how many. Supports exact count (``num_mutations``), fractional
             (``mask_fraction``), or default random 30%.
 
-        codon_scheme (str): Codon scheme controlling amino acid sampling
+        codon_scheme (CodonScheme): Codon scheme controlling amino acid sampling
             probabilities. Each scheme defines which amino acids can be
             sampled and their relative weights (based on the number of
             codons encoding each amino acid). Available schemes:
@@ -54,7 +56,7 @@ class RandomProteinGeneratorConfig(BaseConfig):
             - ``"NRT"``: 8 codons (R = A/G at position 2); encodes 8 amino
               acids. Very compact library for focused mutagenesis.
 
-        seed (Optional[int]): Random seed for reproducibility.
+        seed (int | None): Random seed for reproducibility.
     """
 
     masking_strategy: MaskingStrategy = ConfigField(
@@ -102,8 +104,8 @@ class RandomProteinGenerator(Generator):
 
     Attributes:
         masking_strategy (MaskingStrategy): Strategy for selecting positions to mutate.
-        codon_scheme (str): Codon scheme for amino acid sampling.
-        seed (Optional[int]): Random seed for reproducibility.
+        codon_scheme (CodonScheme): Codon scheme for amino acid sampling.
+        seed (int | None): Random seed for reproducibility.
 
     Example:
         >>> from proto_language.language.generator import RandomProteinGenerator, RandomProteinGeneratorConfig
@@ -122,7 +124,8 @@ class RandomProteinGenerator(Generator):
         Initialize the random protein generator.
 
         Args:
-            config: Configuration object containing all generator parameters.
+            config (RandomProteinGeneratorConfig): Configuration object
+                containing all generator parameters.
         """
         super().__init__()
         self.config = config

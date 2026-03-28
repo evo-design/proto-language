@@ -1,4 +1,6 @@
-"""Overall protein quality constraint function."""
+"""proto_language/language/constraint/protein_quality/overall_protein_quality_constraint.py
+
+Overall protein quality constraint function."""
 
 from __future__ import annotations
 
@@ -54,92 +56,68 @@ class ProteinQualitySubConfig(BaseConfig):
     pass/fail filtering.
 
     Attributes:
-        **Length Constraint Parameters:**
-
         enable_length (bool): Toggle to include sequence length constraint. When
             True, you must specify either a length range (``length_min_length`` +
             ``length_max_length``) or a target length (``length_target_length``).
             Default: False.
-
-        length_min_length (Optional[int]): Minimum acceptable protein length in
+        length_min_length (int | None): Minimum acceptable protein length in
             amino acids. Must be used with ``length_max_length`` for range-based
             validation. Cannot be combined with ``length_target_length``. Must be
-            greater than 0.
-            Default: None. Advanced parameter.
-
-        length_max_length (Optional[int]): Maximum acceptable protein length in
+            greater than 0. Default: None. Advanced parameter.
+        length_max_length (int | None): Maximum acceptable protein length in
             amino acids. Must be used with ``length_min_length`` for range-based
             validation. Cannot be combined with ``length_target_length``. Must be
-            greater than 0 and should be ≥ ``length_min_length``. Default: None.
+            greater than 0 and should be >= ``length_min_length``. Default: None.
             Advanced parameter.
-
-        length_target_length (Optional[int]): Exact target protein length in amino
+        length_target_length (int | None): Exact target protein length in amino
             acids. Alternative to range mode; cannot be combined with
             ``length_min_length`` or ``length_max_length``. Sequences are penalized
             based on their distance from this target. Must be greater than 0.
             Default: None. Advanced parameter.
-
-        **Complexity Constraint Parameters:**
-
         enable_complexity (bool): Toggle to include segmasker-based low-complexity
             detection. When True, uses segmasker to identify low-complexity regions
             (e.g., homopolymeric runs, simple repeats) and penalizes sequences
             exceeding the complexity threshold. Requires segmasker to be installed
             and accessible. Default: False.
-
         complexity_max_low_complexity (float): Maximum acceptable fraction of
             residues identified as low-complexity by segmasker. Valid range: 0.0-1.0.
             Lower values enforce stricter complexity requirements. Default: 0.2.
             Advanced parameter.
-
         complexity_segmasker_path (str): Path to the segmasker executable for
             low-complexity analysis. Can be an absolute path or a command name
             if segmasker is in PATH. Default: "segmasker" (assumes it's in PATH).
             Hidden parameter.
-
-        **Repetitiveness Constraint Parameters:**
-
         enable_repetitiveness (bool): Toggle to include k-mer repetitiveness
             constraint. When True, analyzes the sequence for repeated k-mer
             patterns and penalizes sequences with excessive repetition. Checks
             k-mers of sizes from ``repetitiveness_min_repeat_length`` up to
             ``repetitiveness_min_repeat_length + 7``. Default: False.
-
         repetitiveness_max_repetitiveness (float): Maximum allowed fraction of
             sequence covered by repeated k-mers. Valid range: 0.0-1.0. Lower values
-            enforce stricter anti-repetition requirements. Default: 0.1. Advanced parameter.
-
+            enforce stricter anti-repetition requirements. Default: 0.1.
+            Advanced parameter.
         repetitiveness_min_repeat_length (int): Smallest k-mer size to consider
             as a potential repeat. The analysis examines k-mers from this size
-            up to this size + 7. Must be ≥ 1. Lower values detect shorter repeats
+            up to this size + 7. Must be >= 1. Lower values detect shorter repeats
             but are more computationally intensive. Default: 1. Advanced parameter.
-
-        **Diversity Constraint Parameters:**
-
         enable_diversity (bool): Toggle to include amino acid diversity constraint.
             When True, requires the sequence to contain a minimum fraction of the
             20 standard amino acid types. Penalizes sequences with low amino acid
             alphabet usage. Default: False.
-
         diversity_min_diversity (float): Minimum acceptable fraction of unique
             amino acid types, calculated as (unique amino acids / 20). Valid range:
             0.0-1.0. Higher values enforce greater amino acid diversity. Default: 0.7.
             Advanced parameter.
-
-        **Balanced Amino Acids Constraint Parameters:**
-
         enable_balanced_aas (bool): Toggle to include balanced amino acid
             representation constraint. When True, requires each amino acid type
             to appear above a minimum frequency threshold, with allowance for a
             limited number of underrepresented amino acids. Complements the
             diversity constraint by checking frequency in addition to presence.
             Default: False.
-
         balanced_min_aa_frequency (float): Minimum acceptable relative frequency
             for any amino acid type in the sequence. Valid range: 0.0-1.0.
             Amino acids below this threshold are considered "underrepresented."
             Default: 0.02. Advanced parameter.
-
         balanced_max_underrepresented_count (int): Maximum acceptable number of
             amino acid types that can fall below ``balanced_min_aa_frequency``
             before the sequence is penalized. Valid range: 0-20. Default: 3.
@@ -356,15 +334,17 @@ class OverallProteinQualityConfig(BaseConfig):
         for complete parameter details.
 
         For more details, see:
-            - ``ProteinQualitySubConfig``: Detailed documentation of all sub-constraint
-            parameters and configuration options
-            - ``overall_protein_quality_constraint``: The constraint function that
-            uses this configuration
+            - ``ProteinQualitySubConfig``: Detailed documentation of all
+              sub-constraint parameters and configuration options
+            - ``overall_protein_quality_constraint``: The constraint function
+              that uses this configuration
             - ``SequenceLengthConfig``: Configuration for length constraint
             - ``ProteinComplexityConfig``: Configuration for complexity constraint
-            - ``ProteinRepetitivenessConfig``: Configuration for repetitiveness constraint
+            - ``ProteinRepetitivenessConfig``: Configuration for repetitiveness
+              constraint
             - ``ProteinDiversityConfig``: Configuration for diversity constraint
-            - ``BalancedAaConfig``: Configuration for balanced amino acids constraint
+            - ``BalancedAaConfig``: Configuration for balanced amino acids
+              constraint
     """
     protein_quality_config: ProteinQualitySubConfig = ConfigField(
         title="Protein Quality Config",
@@ -411,7 +391,7 @@ def overall_protein_quality_constraint(input_sequences: List[Tuple[Sequence, ...
     parameter for pass/fail filtering.
 
     Args:
-        input_sequences (List[Tuple[Sequence, ...]]): List of sequence tuples to evaluate.
+        input_sequences (list[tuple[Sequence, ...]]): List of sequence tuples to evaluate.
             Each tuple contains one DNA or protein sequence.
             For DNA sequences, ORF prediction is performed automatically using
             Prodigal before quality assessment.

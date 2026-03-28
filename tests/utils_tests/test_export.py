@@ -1,4 +1,6 @@
-"""Tests for proto_language.utils.export module."""
+"""tests/utils_tests/test_export.py
+
+Tests for proto_language.utils.export module."""
 
 from __future__ import annotations
 

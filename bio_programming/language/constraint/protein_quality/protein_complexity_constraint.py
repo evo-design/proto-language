@@ -1,4 +1,6 @@
 """
+proto_language/language/constraint/protein_quality/protein_complexity_constraint.py
+
 Protein complexity constraint function.
 """
 
@@ -88,7 +90,7 @@ def protein_complexity_constraint(input_sequences: List[Tuple[Sequence, ...]], c
     the constraint calculates the fraction of masked positions.
 
     Args:
-        input_sequences (List[Tuple[Sequence, ...]]): List of sequence tuples to evaluate.
+        input_sequences (list[tuple[Sequence, ...]]): List of sequence tuples to evaluate.
             Each tuple contains one protein sequence.
 
         config (ProteinComplexityConfig): Configuration object containing

@@ -1,4 +1,6 @@
 """
+proto_language/language/constraint/sequence_composition/gc_content_constraint.py
+
 GC content constraint for evaluating sequence GC content properties.
 """
 
@@ -82,7 +84,7 @@ def gc_content_constraint(input_sequences: List[Tuple[Sequence, ...]], config: G
     and technical considerations like PCR amplification efficiency.
 
     Args:
-        input_sequences (List[Tuple[Sequence, ...]]): List of sequence tuples to evaluate.
+        input_sequences (list[tuple[Sequence, ...]]): List of sequence tuples to evaluate.
             Each tuple contains one DNA or RNA sequence. Empty sequences receive
             maximum penalty.
 
@@ -91,14 +93,14 @@ def gc_content_constraint(input_sequences: List[Tuple[Sequence, ...]], config: G
             GC percentage). Both values must be between 0 and 100.
 
     Returns:
-        List[float]: Constraint scores for each sequence. A score of 0.0 indicates
+        list[float]: Constraint scores for each sequence. A score of 0.0 indicates
             GC content is within the acceptable range [min_gc, max_gc]. Higher
             scores indicate greater deviation from the acceptable range, with
             penalties scaling linearly with the deviation distance.
 
     Raises:
         ValueError: If the input list is empty, if min_gc or max_gc are
-        outside the range [0, 100], or if a sequence is not DNA or RNA type.
+            outside the range [0, 100], or if a sequence is not DNA or RNA type.
 
     Examples:
         Evaluating GC content constraint:

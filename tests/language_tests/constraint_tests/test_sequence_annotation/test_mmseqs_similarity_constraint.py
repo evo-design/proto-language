@@ -1,5 +1,5 @@
 """
-Comprehensive tests for mmseqs_similarity_constraint.
+tests/language_tests/constraint_tests/test_sequence_annotation/test_mmseqs_similarity_constraint.py
 
 Tests the MMseqs2 similarity constraint for protein sequences.
 """

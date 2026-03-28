@@ -1,5 +1,5 @@
 """
-Base registry pattern for decorator-based component registration.
+proto_language/base_registry.py
 
 Provides shared infrastructure for ConstraintRegistry, GeneratorRegistry, and ToolRegistry.
 """
@@ -22,6 +22,13 @@ class BaseSpec(BaseModel):
     2. API: Automatically serialized by FastAPI to JSON
 
     Subclasses extend this to add component-specific metadata
+
+    Attributes:
+        key (str): Unique kebab-case registry identifier.
+        label (str): Human-readable display name.
+        description (str): Short description shown in the client UI.
+        uses_gpu (bool): Whether this component requires GPU resources.
+        config_model (type[BaseModel]): Pydantic model class for the component configuration.
     """
 
     # Public fields - exposed in API
@@ -49,16 +56,20 @@ class BaseSpec(BaseModel):
         and metadata. This provides a standard format for client form generation
         and validation.
 
+        Args:
+            config_model (type[BaseModel]): Pydantic model class for the component configuration.
+
         Returns:
-            Standard JSON Schema dict with structure:
-            {
-                "properties": {
-                    "param_name": {"type": "number", "description": "...", ...}
-                },
-                "required": ["param1", "param2"],
-                "title": "ConfigModelName",
-                "type": "object"
-            }
+            dict[str, Any]: Standard JSON Schema dict with structure::
+
+                {
+                    "properties": {
+                        "param_name": {"type": "number", "description": "...", ...}
+                    },
+                    "required": ["param1", "param2"],
+                    "title": "ConfigModelName",
+                    "type": "object"
+                }
         """
         return config_model.model_json_schema()
 
@@ -101,10 +112,10 @@ class BaseRegistry(ABC, Generic[SpecType]):
         Get component spec by key.
 
         Args:
-            key: Component identifier
+            key (str): Component identifier
 
         Returns:
-            Component specification object
+            SpecType: Component specification object
 
         Raises:
             ValueError: If key not found in registry
@@ -124,24 +135,25 @@ class BaseRegistry(ABC, Generic[SpecType]):
         and descriptions - everything needed to generate a client form.
 
         Args:
-            key: Component identifier
+            key (str): Component identifier
 
         Returns:
-            JSON Schema dict with structure:
-            {
-                "properties": {
-                    "param_name": {
-                        "type": "number",
-                        "description": "Parameter description",
-                        "default": 42,
+            dict[str, Any]: JSON Schema dict with structure::
+
+                {
+                    "properties": {
+                        "param_name": {
+                            "type": "number",
+                            "description": "Parameter description",
+                            "default": 42,
+                            ...
+                        },
                         ...
                     },
+                    "required": ["param1", "param2"],
+                    "title": "ConfigModelName",
                     ...
-                },
-                "required": ["param1", "param2"],
-                "title": "ConfigModelName",
-                ...
-            }
+                }
 
         Examples:
             >>> schema = MyRegistry.get_schema("my_component")
@@ -158,7 +170,7 @@ class BaseRegistry(ABC, Generic[SpecType]):
         Get count of registered components.
 
         Returns:
-            Number of registered components
+            int: Number of registered components
         """
         return len(cls._registry)
 
@@ -168,8 +180,8 @@ class BaseRegistry(ABC, Generic[SpecType]):
         Check for duplicate registration.
 
         Args:
-            key: Component identifier to check
-            attempted_component_name: Name of component attempting registration (optional)
+            key (str): Component identifier to check
+            attempted_component_name (str): Name of component attempting registration (optional)
 
         Raises:
             ValueError: If key already exists in registry
@@ -199,6 +211,6 @@ class BaseRegistry(ABC, Generic[SpecType]):
         Get component type derived from registry class name.
 
         Returns:
-            Component type string (e.g., 'constraint', 'generator', 'tool')
+            str: Component type string (e.g., 'constraint', 'generator', 'tool')
         """
         return cls.__name__.replace('Registry', '').lower()

@@ -1,3 +1,4 @@
+"""tests/language_tests/test_segment.py"""
 import pytest
 
 from proto_language.language.core import Segment, Sequence

@@ -1,4 +1,6 @@
 """
+proto_language/language/constraint/sequence_composition/max_homopolymer_constraint.py
+
 Maximum homopolymer constraint for evaluating sequence homopolymer properties.
 """
 
@@ -69,7 +71,7 @@ def max_homopolymer_constraint(input_sequences: List[Tuple[Sequence, ...]], conf
     extreme penalty values while still strongly discouraging very long homopolymers.
 
     Args:
-        input_sequences (List[Tuple[Sequence, ...]]): List of sequence tuples to evaluate.
+        input_sequences (list[tuple[Sequence, ...]]): List of sequence tuples to evaluate.
             Each tuple contains one DNA, RNA, or protein sequence.
 
         config (MaxHomopolymerConfig): Configuration object containing ``max_length``

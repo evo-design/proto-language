@@ -1,5 +1,5 @@
 """
-structure_confidence_constraints.py
+proto_language/language/constraint/protein_structure/structure_confidence_constraint.py
 
 Generic structure prediction confidence constraints supporting multiple tools:
 ESMFold, AlphaFold3, Boltz2, and Chai1.
@@ -58,14 +58,14 @@ def _structure_confidence(
     Core helper for structure confidence constraints.
 
     Args:
-        proposals: List of sequence tuples, where each tuple represents a
+        proposals (list[tuple[Sequence, ...]]): List of sequence tuples, where each tuple represents a
             complex (monomer = 1-tuple, dimer = 2-tuple, etc.).
-        config: Configuration specifying tool and tool-specific parameters.
-        target_metric: Metric to extract from structure predictions.
+        config (StructureBasedConstraintConfig): Configuration specifying tool and tool-specific parameters.
+        target_metric (str): Metric to extract from structure predictions.
 
     Returns:
-        List of raw metrics requested by `target_metric`. Invalid raw metrics
-        are returned as None and should be checked by the caller.
+        list[float]: List of raw metrics requested by `target_metric`. Invalid
+            raw metrics are returned as None and should be checked by the caller.
 
     Raises:
         ValueError: If target_metric is not available for the specified tool.
@@ -144,6 +144,10 @@ def structure_plddt_constraint(
 
     **Supported tools**: ESMFold, AlphaFold3, Boltz2, Chai1
 
+    Args:
+        input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
+        config (StructureBasedConstraintConfig): Constraint configuration controlling evaluation parameters.
+
     Example:
         Programming a homo-trimer with ESMFold:
 
@@ -193,6 +197,10 @@ def structure_ptm_constraint(
 
     **Supported tools**: ESMFold, AlphaFold3, Boltz2, Chai1
 
+    Args:
+        input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
+        config (StructureBasedConstraintConfig): Constraint configuration controlling evaluation parameters.
+
     Example:
         Programming a homo-dimer with ESMFold:
 
@@ -234,6 +242,10 @@ def structure_iptm_constraint(
     better predicted interface quality.
 
     **Supported tools**: AlphaFold3, Boltz2, Chai1 (NOT ESMFold)
+
+    Args:
+        input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
+        config (StructureBasedConstraintConfig): Constraint configuration controlling evaluation parameters.
 
     Examples:
         Programming a protein-protein binder with AF3:
@@ -297,6 +309,10 @@ def structure_pae_constraint(
         3. Returns that value without flipping the sign, as lower is better.
 
     **Supported tools**: ESMFold, AlphaFold3, Boltz2, Chai1
+
+    Args:
+        input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
+        config (StructureBasedConstraintConfig): Constraint configuration controlling evaluation parameters.
 
     Examples:
         Programming a protein-protein binder with AF3:

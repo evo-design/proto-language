@@ -1,5 +1,6 @@
 """
-ORF prediction + MMseqs gene similarity constraint for evaluating similarity (percent identity).
+proto_language/language/constraint/sequence_annotation/mmseqs_similarity_constraint.py
+
 Supports DNA (with ORF prediction) and Protein sequences (direct search).
 """
 
@@ -65,7 +66,7 @@ class MMseqsSimilarityConfig(BaseConfig):
             Example: ``MmseqsSearchProteinsConfig(threads=16, sensitivity=8.0)``
             for faster, more sensitive searches. Default: MmseqsSearchProteinsConfig().
 
-        orf_predictor (Literal["orfipy", "prodigal"]): ORF prediction tool for
+        orf_predictor (Literal['orfipy', 'prodigal']): ORF prediction tool for
             DNA sequences (ignored for protein inputs). Options:
             - "prodigal": Prokaryotic gene finder, faster and more accurate for
               bacterial/archaeal genomes (default)
@@ -172,7 +173,7 @@ def mmseqs_similarity_constraint(input_sequences: List[Tuple[Sequence, ...]], co
     percent identity within the specified [min_similarity, max_similarity] range.
 
     Args:
-        sequences (List[Sequence]): List of DNA or protein sequences to evaluate.
+        sequences: List of DNA or protein sequences to evaluate.
             All sequences in the list must be the same type (all DNA or all PROTEIN).
             For DNA sequences, ORF prediction is performed automatically based on
             the configured predictor.
@@ -182,6 +183,7 @@ def mmseqs_similarity_constraint(input_sequences: List[Tuple[Sequence, ...]], co
             percent identity, default: 100.0), ``mmseqs_db`` (database path),
             ``orf_predictor`` (default: "prodigal"), and optional advanced configs
             for MMseqs2, ORFipy, and Prodigal.
+        input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
 
     Returns:
         List[float]: Constraint scores for each sequence. A score of 0.0 indicates

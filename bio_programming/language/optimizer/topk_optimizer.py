@@ -1,4 +1,6 @@
 """
+proto_language/language/optimizer/topk_optimizer.py
+
 TopK Optimizer that runs multiple independent sampling rounds and returns the top-k best constructs.
 """
 from __future__ import annotations
@@ -35,18 +37,20 @@ class TopKOptimizerConfig(BaseOptimizerConfig):
         num_samples (int): Maximum number of samples to generate. Rounded up to the
             nearest multiple of ``samples_per_round``. Must be at least ``num_results``.
 
-        num_results (Optional[int]): Number of top sequences to keep and return (lowest
+        num_results (int | None): Number of top sequences to keep and return (lowest
             energy scores). Overrides program-level ``num_results`` if set.
 
         samples_per_round (int): Number of proposal sequences to generate
             and evaluate per sampling round. Default: ``1``.
 
-        energy_threshold (Optional[float]): If set, enables early stopping. The
+        energy_threshold (float | None): If set, enables early stopping. The
             optimizer stops before reaching ``num_samples`` if all top-``num_results``
             best proposals have energy below this threshold. Default: ``None``
             (no early stopping).
 
         verbose (bool): Print progress information. Default: ``False``.
+        tracking_interval (int): Number of steps between progress snapshots.
+        track_proposals (bool): Whether to record proposal sequences alongside accepted results.
 
     Note:
         If filter constraints reject many proposals (returning inf/nan energies),
@@ -117,10 +121,10 @@ class TopKOptimizer(Optimizer):
     proposals have energy below the threshold.
 
     Attributes:
-        num_samples (int): Maximum samples to generate.
-        num_results (int): Number of top sequences to keep (k).
-        samples_per_round (int): Proposals generated and evaluated per round.
-        energy_threshold (Optional[float]): Early stopping threshold.
+        num_samples: Maximum samples to generate.
+        num_results: Number of top sequences to keep (k).
+        samples_per_round: Proposals generated and evaluated per round.
+        energy_threshold: Early stopping threshold.
 
     Note:
         If filter constraints reject many proposals, the optimizer may return
@@ -162,12 +166,12 @@ class TopKOptimizer(Optimizer):
         Initialize the TopK Optimizer.
 
         Args:
-            constructs: List of Construct objects to optimize.
-            generators: List of Generator objects for sequence modification.
-            constraints: List of Constraint objects for evaluation.
-            config: Configuration object containing algorithm parameters.
-            custom_logging: Optional callback called at tracked rounds (governed by ``tracking_interval``).
-            clear_tool_cache: (int) Maximum size of cache in bytes, defaults to 100 MB.
+            constructs (list[Construct]): List of Construct objects to optimize.
+            generators (list[Generator]): List of Generator objects for sequence modification.
+            constraints (list[Constraint]): List of Constraint objects for evaluation.
+            config (TopKOptimizerConfig): Configuration object containing algorithm parameters.
+            custom_logging (Callable | None): Optional callback called at tracked rounds (governed by ``tracking_interval``).
+            clear_tool_cache (int | bool | list[str]): (int) Maximum size of cache in bytes, defaults to 100 MB.
                               (bool) Whether to clear the tool cache on each iteration.
                               (List[str]) Restrict clearing cache to a list of tool names.
 
@@ -226,8 +230,8 @@ class TopKOptimizer(Optimizer):
         5. Optionally save a progress snapshot from the current sorted state.
 
         Args:
-            round_num: The 1-indexed round number (for tracking purposes).
-            save_snapshot: Whether to save a progress snapshot after this round.
+            round_num (int): The 1-indexed round number (for tracking purposes).
+            save_snapshot (bool): Whether to save a progress snapshot after this round.
         """
         # 1. Reset proposal sequences to their initial state
         for seg_idx, segment in enumerate(self.segments):

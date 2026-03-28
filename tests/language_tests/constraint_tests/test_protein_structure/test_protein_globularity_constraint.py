@@ -1,4 +1,6 @@
 """
+tests/language_tests/constraint_tests/test_protein_structure/test_protein_globularity_constraint.py
+
 Tests for Protein Globularity constraint.
 """
 
@@ -42,7 +44,9 @@ ATOM     26  CA  ARG C   3       3.958  11.451   0.000  1.00 90.00           C
 ATOM     27  C   ARG C   3       4.509  12.451   0.000  1.00 90.00           C"""
 
 class TestProteinGlobularityConstraint:
-    """Tests for Protein Globularity constraint."""
+    """tests/language_tests/constraint_tests/test_protein_structure/test_protein_globularity_constraint.py
+
+Tests for Protein Globularity constraint."""
 
     def test_scoring_algorithm(self):
         """Test basic constraint evaluation with mocked structure."""

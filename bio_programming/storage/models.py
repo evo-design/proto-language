@@ -1,5 +1,5 @@
 """
-models.py
+proto_language/storage/models.py
 
 Data models for file storage references.
 """
@@ -48,10 +48,10 @@ class FileReference(BaseModel):
     """Reference to a file stored in the file store.
 
     Attributes:
-        id: Content-addressed SHA-256 hash of the file content.
-        file_type: Type of the file (pdb, cif, hmm, etc.).
-        size: Size of the file in bytes.
-        url: URL or path to the file (gs:// for GCS, local path for development).
+        id (str): Content-addressed SHA-256 hash of the file content.
+        file_type (FileType): Type of the file (pdb, cif, hmm, etc.).
+        size (int): Size of the file in bytes.
+        url (str): URL or path to the file (gs:// for GCS, local path for development).
     """
 
     id: str = Field(description="Content-addressed SHA-256 hash ID")
@@ -64,10 +64,10 @@ class FileReference(BaseModel):
         """Check if a dictionary represents a file reference.
 
         Args:
-            data: Value to check.
+            data (Any): Value to check.
 
         Returns:
-            True if data is a dict with the file reference marker.
+            bool: True if data is a dict with the file reference marker.
         """
         if not isinstance(data, dict):
             return False
@@ -77,7 +77,7 @@ class FileReference(BaseModel):
         """Convert to a dictionary with the file reference marker.
 
         Returns:
-            Dictionary representation suitable for storage in metadata.
+            dict[str, Any]: Dictionary representation suitable for storage in metadata.
         """
         return {
             FILE_REF_MARKER: True,
@@ -92,10 +92,10 @@ class FileReference(BaseModel):
         """Create a FileReference from a dictionary.
 
         Args:
-            data: Dictionary with file reference data.
+            data (dict[str, Any]): Dictionary with file reference data.
 
         Returns:
-            FileReference instance.
+            FileReference: FileReference instance.
 
         Raises:
             ValueError: If data is not a valid file reference dict.

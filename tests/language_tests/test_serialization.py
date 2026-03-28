@@ -1,5 +1,5 @@
 """
-Tests for serialization/deserialization of core language objects.
+tests/language_tests/test_serialization.py
 
 Tests roundtrip serialization (to_dict -> from_dict) for Sequence, Segment, and Construct.
 """

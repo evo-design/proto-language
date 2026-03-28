@@ -1,5 +1,5 @@
 """
-Segment class for the proto-language.
+proto_language/language/core/segment.py
 
 Represents building blocks for biological constructs.
 """
@@ -47,12 +47,12 @@ class Segment:
         Initialize a Segment with dual sequence pools.
 
         Args:
-            sequence: Optional biological sequence string. If provided, length is inferred.
-            length: Optional desired length for sequences. Required if sequence not provided.
-            sequence_type: Type of biological sequence ("dna", "rna", or "protein"). Defaults to "dna".
-            valid_chars: Optional custom set of valid characters for sequence validation.
-            label: Optional label for this segment (e.g., "promoter", "coding_region").
-            metadata: Additional data associated with this sequence.
+            sequence (str | None): Optional biological sequence string. If provided, length is inferred.
+            length (int | None): Optional desired length for sequences. Required if sequence not provided.
+            sequence_type (SequenceType): Type of biological sequence ("dna", "rna", or "protein"). Defaults to "dna".
+            valid_chars (set[str] | None): Optional custom set of valid characters for sequence validation.
+            label (str | None): Optional label for this segment (e.g., "promoter", "coding_region").
+            metadata (dict[str, Any] | None): Additional data associated with this sequence.
 
         Raises:
             ValueError: If both sequence and length are provided, if neither is provided,

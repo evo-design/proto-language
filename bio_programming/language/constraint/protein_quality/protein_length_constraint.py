@@ -1,4 +1,6 @@
 """
+proto_language/language/constraint/protein_quality/protein_length_constraint.py
+
 Protein length constraint function.
 """
 
@@ -66,7 +68,7 @@ def protein_length_constraint(input_sequences: List[Tuple[Sequence, ...]], confi
     with the distance outside the acceptable range.
 
     Args:
-        input_sequences (List[Tuple[Sequence, ...]]): List of sequence tuples to evaluate.
+        input_sequences (list[tuple[Sequence, ...]]): List of sequence tuples to evaluate.
             Each tuple contains one protein sequence.
             
         config (ProteinLengthConfig): Configuration object containing ``min_length``

@@ -1,5 +1,5 @@
 """
-End-to-end tests for structure constraints.
+tests/language_tests/constraint_tests/test_protein_structure/test_structure_constraints_e2e.py
 
 Tests all structure confidence and similarity constraints with protein-ligand
 complexes using the Boltz structure predictor without MSAs.

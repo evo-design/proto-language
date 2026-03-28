@@ -1,5 +1,5 @@
 """
-Comprehensive tests for Sequence Motif constraint.
+tests/language_tests/constraint_tests/test_sequence_annotation/test_seq_motif_constraint.py
 
 Tests cover:
 1. Configuration validation

@@ -1,5 +1,5 @@
 """
-resolver.py
+proto_language/storage/resolver.py
 
 Utilities for resolving and caching GCS file references to local paths.
 
@@ -32,6 +32,10 @@ def download_gcs_file(gcs_url: str, destination: Path) -> Path:
 
     Uses google-cloud-storage's Blob.from_string for robust URL parsing.
     Falls back to an anonymous client for public buckets.
+
+    Args:
+        gcs_url (str): Google Cloud Storage URL to download from.
+        destination (Path): Local file path to write the downloaded file.
     """
     if not gcs_url.startswith(("gs://", "gcs://")):
         raise ValueError(f"Invalid GCS URL: {gcs_url!r} (expected gs://bucket/path)")
@@ -82,8 +86,11 @@ def resolve_file(reference: str) -> Path:
     - gs://bucket/path/to/file - Google Cloud Storage (alternative prefix)
     - /absolute/path - Local paths (for development only)
 
+    Args:
+        reference (str): File reference string (local path or GCS URL).
+
     Returns:
-        Path to the file (local path or cached in storage volume).
+        Path: Path to the file (local path or cached in storage volume).
     """
     # Handle local paths (for development)
     if reference.startswith("/") and Path(reference).exists():
@@ -112,6 +119,9 @@ def resolve_file(reference: str) -> Path:
 
 def resolve_paths(value: Any) -> Any:
     """Recursively resolve any cloud file paths in a value.
+
+    Args:
+        value (Any): Value or nested structure potentially containing file references.
 
     Examples:
         >>> resolve_paths("gcs://bucket/database.tar.gz")

@@ -1,5 +1,5 @@
 """
-Shared helper utilities for proto-language.
+proto_language/utils/helpers.py
 
 This module provides utilities for metadata management and structural/geometric
 calculations used across the proto-language framework.
@@ -40,10 +40,10 @@ def validate_range(value: float, min_val: float, max_val: float, name: str) -> N
     Validate that a value falls within the specified range.
 
     Args:
-        value: The value to validate.
-        min_val: Minimum acceptable value (inclusive).
-        max_val: Maximum acceptable value (inclusive).
-        name: Name of the parameter for error messages.
+        value (float): The value to validate.
+        min_val (float): Minimum acceptable value (inclusive).
+        max_val (float): Maximum acceptable value (inclusive).
+        name (str): Name of the parameter for error messages.
 
     Raises:
         ValueError: If value is outside the specified range.
@@ -57,13 +57,13 @@ def calculate_range_deviation(actual: float, min_val: float, max_val: float) -> 
     Calculate deviation from acceptable range for general constraints.
 
     Args:
-        actual: The actual measured value.
-        min_val: Minimum acceptable value.
-        max_val: Maximum acceptable value.
+        actual (float): The actual measured value.
+        min_val (float): Minimum acceptable value.
+        max_val (float): Maximum acceptable value.
 
     Returns:
-        Range deviation score where 0.0 indicates the value is within range
-        and higher values indicate greater deviation from acceptable range.
+        float: Range deviation score where 0.0 indicates the value is within range
+            and higher values indicate greater deviation from acceptable range.
     """
     if min_val <= actual <= max_val:
         return MIN_ENERGY
@@ -80,13 +80,13 @@ def calculate_percentage_range_deviation(
     Calculate deviation from acceptable range for percentage-based constraints (0-100%).
 
     Args:
-        actual: The actual measured percentage value.
-        min_val: Minimum acceptable percentage.
-        max_val: Maximum acceptable percentage.
+        actual (float): The actual measured percentage value.
+        min_val (float): Minimum acceptable percentage.
+        max_val (float): Maximum acceptable percentage.
 
     Returns:
-        Percentage range deviation score where 0.0 indicates the value is within range
-        and higher values indicate greater deviation from acceptable range.
+        float: Percentage range deviation score where 0.0 indicates the value is within range
+            and higher values indicate greater deviation from acceptable range.
     """
     if min_val <= actual <= max_val:
         return MIN_ENERGY
@@ -101,10 +101,10 @@ def calculate_gc_content(sequence: str) -> float:
     Calculate the GC content percentage of a DNA/RNA sequence.
 
     Args:
-        sequence: DNA or RNA sequence string.
+        sequence (str): DNA or RNA sequence string.
 
     Returns:
-        GC content as a percentage (0-100).
+        float: GC content as a percentage (0-100).
     """
     if not sequence:
         return 0.0
@@ -119,12 +119,12 @@ def calculate_normalized_deviation(actual: float, target: float) -> float:
     Calculate normalized deviation from target value for target-based constraints.
 
     Args:
-        actual: The actual measured value.
-        target: The desired target value.
+        actual (float): The actual measured value.
+        target (float): The desired target value.
 
     Returns:
-        Normalized deviation score where 0.0 indicates perfect match
-        and higher values indicate greater deviation from target.
+        float: Normalized deviation score where 0.0 indicates perfect match
+            and higher values indicate greater deviation from target.
     """
     return min(MAX_ENERGY, abs(actual - target) / max(target, 1))
 
@@ -139,10 +139,10 @@ def sigmoid_score(
     function.
 
     Args:
-        metric: A non-negative metric value.
-        inflection: The value of the original metric where the transformed score
+        metric (float): A non-negative metric value.
+        inflection (float): The value of the original metric where the transformed score
             would be 0.5.
-        slope: The steepness of the curve. Default: 3.0.
+        slope (float): The steepness of the curve. Default: 3.0.
 
     Returns:
         float: Score between 0.0 (good/low) and 1.0 (bad/high).
@@ -169,10 +169,10 @@ def inverse_sigmoid_score(
     0-1 score.
 
     Args:
-        score: A score value strictly between 0.0 and 1.0.
-        inflection: The value of the original metric where the transformed score
+        score (float): A score value strictly between 0.0 and 1.0.
+        inflection (float): The value of the original metric where the transformed score
                     is 0.5.
-        slope: The steepness of the curve. Default: 3.0.
+        slope (float): The steepness of the curve. Default: 3.0.
 
     Returns:
         float: The recovered metric value.
@@ -212,7 +212,7 @@ def mask_k(sequence: str, k: int, mask_str: str = "_", fixed_indices: List[int] 
         k (int): The number of positions to mask.
         mask_str (str): The string of characters that replace sequence characters
             in masked positions.
-        fixed_indices (List[int]): The indices of the positions that are fixed and
+        fixed_indices (list[int]): The indices of the positions that are fixed and
             should not be masked.
     """
     if k > len(sequence):
@@ -249,6 +249,7 @@ def mask_p(
         p (float): The fraction of positions to mask.
         mask_str (str): The string of characters that replace sequence characters
             in masked positions.
+        fixed_indices (list[int]): Sequence positions that should remain unchanged during mutation.
 
     Returns:
         str: The masked sequence.
@@ -303,11 +304,11 @@ def run_subprocess_command(cmd: List[str], tool_name: str) -> subprocess.Complet
     Run subprocess command with error handling.
 
     Args:
-        cmd: Command and arguments to execute.
-        tool_name: Name of the tool being executed for error messages.
+        cmd (list[str]): Command and arguments to execute.
+        tool_name (str): Name of the tool being executed for error messages.
 
     Returns:
-        CompletedProcess object with stdout/stderr accessible.
+        subprocess.CompletedProcess: CompletedProcess object with stdout/stderr accessible.
 
     Raises:
         RuntimeError: If the subprocess exits with a non-zero return code.
@@ -325,11 +326,11 @@ def resolve_sequence_ids(sequences: List[str], ids: Optional[List[str]]) -> List
     """Resolve sequence identifiers, using provided IDs or generating defaults.
 
     Args:
-        sequences: List of sequences to generate IDs for.
-        ids: Optional list of user-provided sequence identifiers.
+        sequences (list[str]): List of sequences to generate IDs for.
+        ids (list[str] | None): Optional list of user-provided sequence identifiers.
 
     Returns:
-        List of sequence identifiers (provided IDs or seq_0, seq_1, ...).
+        list[str]: List of sequence identifiers (provided IDs or seq_0, seq_1, ...).
 
     Raises:
         ValueError: If ids length doesn't match sequences length.

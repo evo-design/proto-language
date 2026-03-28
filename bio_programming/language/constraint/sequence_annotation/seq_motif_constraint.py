@@ -1,4 +1,6 @@
 """
+proto_language/language/constraint/sequence_annotation/seq_motif_constraint.py
+
 Sequence motif constraint for scoring DNA sequences against motifs using MEME.
 """
 
@@ -38,7 +40,7 @@ class SeqMotifConfig(BaseConfig):
             MEME Suite installation. Example: "/usr/local/meme/bin" or
             "/opt/meme-5.5.0/bin". Install MEME Suite from https://meme-suite.org/
 
-        wanted (Optional[List[str]]): Motifs that should be present in
+        wanted (list[str] | None): Motifs that should be present in
             sequences. Options:
             - ["all"]: All motifs in the file must be present
             - ["none"] or None: No requirement for specific motifs
@@ -48,7 +50,7 @@ class SeqMotifConfig(BaseConfig):
             Strong matches to wanted motifs result in low penalties (rewards).
             Default: None.
 
-        not_wanted (Optional[List[str]]): Motifs that should NOT be
+        not_wanted (list[str] | None): Motifs that should NOT be
             present in sequences. Options:
             - ["all"]: No motifs should be present (avoid all binding sites)
             - ["none"] or None: Allow any motifs (default)
@@ -66,7 +68,7 @@ class SeqMotifConfig(BaseConfig):
             and exclusive=True, all other motifs in the file become unwanted. Useful
             for enforcing strict motif specificity. Default: True.
 
-        aggregation (Literal["smart", "average", "max", "percentile"]): Method for
+        aggregation (Literal['smart', 'average', 'max', 'percentile']): Method for
             aggregating penalties across multiple motifs:
             - "smart": Adaptive strategy that uses max/percentile for unwanted motifs
               and average for wanted motifs (recommended for most cases)
@@ -183,7 +185,7 @@ def seq_motif_constraint(input_sequences: List[Tuple[Sequence, ...]], config: Se
     - **No motif specification**: Any motif matches are penalized (novelty constraint)
 
     Args:
-        sequences (List[Sequence]): List of DNA sequences to evaluate. Each sequence
+        sequences: List of DNA sequences to evaluate. Each sequence
             is independently scanned for motif occurrences using FIMO. Sequences can
             be any length, though motif detection accuracy improves with longer
             sequences (50+ bp recommended).
@@ -192,6 +194,7 @@ def seq_motif_constraint(input_sequences: List[Tuple[Sequence, ...]], config: Se
             (MEME motif file), ``meme_bin_path`` (MEME Suite binary directory),
             ``wanted`` (default: None), ``not_wanted`` (default: None), ``aggregation``
             (default: "smart"), and other scoring parameters.
+        input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
 
     Returns:
         List[float]: Penalty scores for each sequence, ranging from 0.0 (best,

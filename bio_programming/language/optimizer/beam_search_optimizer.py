@@ -1,5 +1,5 @@
 """
-Beam Search Optimizer that performs beam search for sequence generation.
+proto_language/language/optimizer/beam_search_optimizer.py
 
 This optimizer splits a single long segment into beams of `beam_length` tokens and
 performs beam search, accumulating KV cache state across beams.
@@ -35,9 +35,9 @@ class BeamState:
     """State for a single beam during beam search.
 
     Attributes:
-        running_sequence: Accumulated sequence (initial prompt + all generated tokens so far)
-        kv_cache: KV cache state for this beam (None if KV caching disabled)
-        beam_scores: Per-beam energy scores for score aggregation
+        running_sequence (str): Accumulated sequence (initial prompt + all generated tokens so far)
+        kv_cache (dict | None): KV cache state for this beam (None if KV caching disabled)
+        beam_scores (list[float]): Per-beam energy scores for score aggregation
     """
 
     running_sequence: str
@@ -61,7 +61,7 @@ class BeamSearchOptimizerConfig(BaseOptimizerConfig):
         beam_length (int): Number of tokens to generate per iteration.
             The segment is split into ceil(segment.sequence_length / beam_length) beams.
 
-        num_results (int): Number of result sequences (beam width) to maintain at each
+        num_results (int | None): Number of result sequences (beam width) to maintain at each
             step. At each beam boundary, the top ``num_results`` sequences by
             energy score are selected to continue. Higher values explore more
             paths but increase computation. Must be at least 1.
@@ -71,7 +71,7 @@ class BeamSearchOptimizerConfig(BaseOptimizerConfig):
             ``num_results x proposals_per_result``. Higher values increase
             diversity but also increase computation. Must be at least 1.
 
-        score_by (str): How to aggregate beam scores when selecting beams.
+        score_by (Literal['mean', 'last']): How to aggregate beam scores when selecting beams.
             - ``"mean"``: Average scores across all beams - rewards consistent trajectory
             - ``"last"``: Use only the most recent beam's score - only cares about current state
             Default: ``"mean"``.
@@ -96,6 +96,8 @@ class BeamSearchOptimizerConfig(BaseOptimizerConfig):
         verbose (bool): Whether to print detailed progress information including
             beam energies, result sequences, and generation statistics at each
             iteration. Default: ``False``.
+        tracking_interval (int): Number of steps between progress snapshots.
+        track_proposals (bool): Whether to record proposal sequences alongside accepted results.
     """
 
     # Required parameters
@@ -172,15 +174,15 @@ class BeamSearchOptimizer(Optimizer):
     energy are retained for the next step.
 
     Attributes:
-        target_segment (Segment): The target segment to generate with beam search.
-        generator (Generator): Single autoregressive generator for sequence generation.
-        prompt (str): Initial prompt sequence starting all beams.
-        beam_length (int): Tokens per beam.
-        num_results (int): Number of beams to maintain (K).
-        proposals_per_result (int): Proposals generated per result sequence (N).
-        score_by (str): Score aggregation method ('mean' or 'last').
-        use_kv_caching (bool): Whether KV caching is enabled.
-        beams (List[BeamState]): Current beam states.
+        target_segment: The target segment to generate with beam search.
+        generator: Single autoregressive generator for sequence generation.
+        prompt: Initial prompt sequence starting all beams.
+        beam_length: Tokens per beam.
+        num_results: Number of beams to maintain (K).
+        proposals_per_result: Proposals generated per result sequence (N).
+        score_by: Score aggregation method ('mean' or 'last').
+        use_kv_caching: Whether KV caching is enabled.
+        beams: Current beam states.
 
     Example:
         >>> from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
@@ -222,13 +224,13 @@ class BeamSearchOptimizer(Optimizer):
         Initialize the Beam Search Optimizer.
 
         Args:
-            target_segment: The specific Segment to optimize with beam search. Must belong to one of the constructs.
-            constructs: List of Construct objects. The target_segment must belong to one of these constructs.
-            generators: List containing a single autoregressive Generator object (must have category="autoregressive").
-            constraints: List of Constraint objects for evaluation (lower scores are better).
-            config: Configuration object containing algorithm parameters.
-            custom_logging: Optional callback called at tracked beams (governed by ``tracking_interval``).
-            clear_tool_cache: (int) Maximum size of cache in bytes, defaults to 100 MB.
+            target_segment (Segment): The specific Segment to optimize with beam search. Must belong to one of the constructs.
+            constructs (list[Construct]): List of Construct objects. The target_segment must belong to one of these constructs.
+            generators (list[Generator]): List containing a single autoregressive Generator object (must have category="autoregressive").
+            constraints (list[Constraint]): List of Constraint objects for evaluation (lower scores are better).
+            config (BeamSearchOptimizerConfig): Configuration object containing algorithm parameters.
+            custom_logging (Callable | None): Optional callback called at tracked beams (governed by ``tracking_interval``).
+            clear_tool_cache (int | bool | list[str]): (int) Maximum size of cache in bytes, defaults to 100 MB.
                               (bool) Whether to clear the tool cache on each iteration.
                               (List[str]) Restrict clearing cache to a list of tool names.
         """
@@ -405,11 +407,12 @@ class BeamSearchOptimizer(Optimizer):
         Generates proposals in batches (sized by generator batch_size) to manage GPU memory.
 
         Args:
-            beam_idx: Index of the beam to generate proposals for
-            prepend_prompt: Whether to prepend prompt to generated sequences
+            beam_idx (int): Index of the beam to generate proposals for
+            prepend_prompt (bool): Whether to prepend prompt to generated sequences
+            num_tokens (int | None): Number of tokens to generate per proposal.
 
         Returns:
-            List of BeamState proposals (length=proposals_per_result)
+            list[BeamState]: List of BeamState proposals (length=proposals_per_result)
         """
         beam = self.beams[beam_idx]
 
@@ -465,10 +468,11 @@ class BeamSearchOptimizer(Optimizer):
         Generate and score proposals, resampling beams until each has valid proposals.
 
         Args:
-            prepend_prompt: Whether to prepend prompt to generated sequences
+            prepend_prompt (bool): Whether to prepend prompt to generated sequences
+            num_tokens (int | None): Number of tokens to generate per proposal.
 
         Returns:
-            List of all valid proposal BeamStates with scores populated
+            list[BeamState]: List of all valid proposal BeamStates with scores populated
 
         Raises:
             RuntimeError: If unable to get enough valid proposals after max attempts
@@ -558,7 +562,7 @@ class BeamSearchOptimizer(Optimizer):
            captures the current state.
 
         Args:
-            proposal_beams: All valid proposal BeamStates from expansion.
+            proposal_beams (list[BeamState]): All valid proposal BeamStates from expansion.
         """
         # 1. Score each proposal beam
         scored_proposals = [

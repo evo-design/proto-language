@@ -1,5 +1,5 @@
 """
-Generator base class for the biological programming language.
+proto_language/language/core/generator.py
 
 Provides the abstract interface for sequence generation algorithms.
 """
@@ -23,6 +23,9 @@ class Generator(ABC):
 
     Subclasses must implement `__init__()` and `sample()`. Override `assign()` only if
     additional validation or initialization is needed (call super().assign() first).
+
+    Attributes:
+        batch_size (int): Number of sequences to generate per batch.
     """
 
     batch_size: int = 1  # GPU generators override to higher values
@@ -53,6 +56,9 @@ class Generator(ABC):
 
         Subclasses should call super().assign() first, then perform any
         additional validation/initialization as necessary.
+
+        Args:
+            assigned_segment (Segment): Segment to assign generated sequences to.
 
         Raises:
             ValueError: If segment is a ligand or has incompatible sequence type.

@@ -1,4 +1,6 @@
 """
+proto_language/language/constraint/protein_structure/boltz_binding_strength_constraint.py
+
 Boltz binding strength constraint for protein-protein and protein-ligand interactions.
 """
 
@@ -66,7 +68,7 @@ class BoltzBindingStrengthConfig(BaseConfig):
     optimized for different complex types (monomers, protein-nucleic acid, protein-protein).
 
     Attributes:
-        desired_higher (Dict[str, float]): Target values for "higher is better" metrics.
+        desired_higher (dict[str, float]): Target values for "higher is better" metrics.
             Metrics in this category should ideally be close to 1.0 (high confidence).
             Available metrics:
             - ``iptm``: Interface predicted TM-score (protein-protein interactions, 0-1)
@@ -79,25 +81,25 @@ class BoltzBindingStrengthConfig(BaseConfig):
             Provide partial dict to override specific metrics while keeping defaults.
             Default: See DEFAULT_DESIRED_HIGHER.
 
-        desired_lower (Dict[str, float]): Target values for "lower is better" metrics
+        desired_lower (dict[str, float]): Target values for "lower is better" metrics
             (in Ångströms). Metrics should ideally be low (tight interfaces). Available:
             - ``complex_ipde``: Interface predicted distance error (Å)
             - ``complex_pde``: Overall complex predicted distance error (Å)
             Lower values indicate tighter, more accurate predicted interfaces.
             Default: See DEFAULT_DESIRED_LOWER.
 
-        tol_higher (Dict[str, float]): Tolerances for "higher is better" metrics.
+        tol_higher (dict[str, float]): Tolerances for "higher is better" metrics.
             Defines acceptable deviation below target before penalty reaches 1.0.
             For example, if iptm target is 0.90 and tolerance is 0.05, then iptm=0.85
             receives penalty 1.0 (at tolerance limit). Smaller tolerances are stricter.
             Default: See DEFAULT_TOL_HIGHER.
 
-        tol_lower (Dict[str, float]): Tolerances for "lower is better" metrics (in Å).
+        tol_lower (dict[str, float]): Tolerances for "lower is better" metrics (in Å).
             Defines acceptable deviation above target before penalty reaches 1.0.
             For example, if complex_ipde target is 2.0 Å and tolerance is 2.0 Å,
             then complex_ipde=4.0 Å receives penalty 1.0. Default: See DEFAULT_TOL_LOWER.
 
-        weights (Optional[Dict[str, float]]): Custom weights for combining metric
+        weights (dict[str, float] | None): Custom weights for combining metric
             penalties into total score. If None, uses automatic weights based on
             complex type:
             - **Monomer**: ptm=0.35, complex_plddt=0.45, complex_pde=0.20
@@ -111,13 +113,13 @@ class BoltzBindingStrengthConfig(BaseConfig):
             confidence_score in penalty calculation. Adds weight 0.10 to the metric
             combination. Recommended for overall quality assessment. Default: True.
 
-        on_error (Literal["penalize", "raise"]): How to handle Boltz prediction
+        on_error (Literal['penalize', 'raise']): How to handle Boltz prediction
             errors or failures. Options:
             - "penalize": Return penalty 1.0 (maximum) if prediction fails
             - "raise": Raise exception and halt execution
             Use "penalize" for robust pipelines, "raise" for debugging. Default: "penalize".
 
-        return_component (Literal[...]): Which component to return as the constraint
+        return_component (Literal['total_penalty', 'iptm', 'ligand_iptm', 'protein_iptm', 'complex_iplddt', 'complex_plddt', 'complex_pde', 'complex_ipde', 'confidence_score', 'ptm']): Which component to return as the constraint
             score. Options:
             - "total_penalty": Weighted combination of all metrics (default)
             - Specific metric names: "iptm", "ligand_iptm", "complex_iplddt", etc.
@@ -245,7 +247,7 @@ def boltz_binding_strength_constraint(
     depending on size and hardware.
 
     Args:
-        input_sequences (List[Tuple[Sequence, ...]]): List of complexes to evaluate,
+        input_sequences (list[tuple[Sequence, ...]]): List of complexes to evaluate,
             where each complex is a tuple of Sequence objects representing the
             chains/molecules. Examples:
             - (protein_seq,): Single monomer
@@ -257,7 +259,7 @@ def boltz_binding_strength_constraint(
             defaults if not customized.
 
     Returns:
-        List[float]: Constraint scores for each complex, ranging from 0.0 (perfect
+        float | list[float]: Constraint scores for each complex, ranging from 0.0 (perfect
             binding, all metrics meet targets) to 1.0 (poor binding, metrics at or
             beyond tolerance limits). The score is either:
             - Weighted combination of all metric penalties (return_component="total_penalty")
@@ -482,11 +484,12 @@ def get_penalty_for_metric(
     and tolerance values.
 
     Args:
-        metric_name: The name of the metric to retrieve the penalty for.
-        metric_value: The value of the metric to retrieve the penalty for.
+        metric_name (str): The name of the metric to retrieve the penalty for.
+        metric_value (float): The value of the metric to retrieve the penalty for.
+        config (BoltzBindingStrengthConfig): Constraint configuration controlling evaluation parameters.
 
     Returns:
-        The penalty for the given metric's value.
+        float: The penalty for the given metric's value.
     """
 
     higher_is_better = None

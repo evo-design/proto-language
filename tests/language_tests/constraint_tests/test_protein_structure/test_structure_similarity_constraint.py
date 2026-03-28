@@ -1,4 +1,6 @@
 """
+tests/language_tests/constraint_tests/test_protein_structure/test_structure_similarity_constraint.py
+
 Tests for structure prediction similarity constraints.
 """
 

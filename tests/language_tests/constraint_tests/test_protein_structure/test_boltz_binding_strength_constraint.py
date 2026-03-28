@@ -1,4 +1,6 @@
 """
+tests/language_tests/constraint_tests/test_protein_structure/test_boltz_binding_strength_constraint.py
+
 Tests for Boltz Binding Strength constraint.
 """
 
@@ -103,7 +105,9 @@ mock_monomer_output = StructurePredictionOutput(
 
 
 class TestBoltzBindingStrengthConstraint:
-    """Tests for Boltz Binding Strength constraint."""
+    """tests/language_tests/constraint_tests/test_protein_structure/test_boltz_binding_strength_constraint.py
+
+Tests for Boltz Binding Strength constraint."""
 
     def test_config_merge_overrides(self):
         """

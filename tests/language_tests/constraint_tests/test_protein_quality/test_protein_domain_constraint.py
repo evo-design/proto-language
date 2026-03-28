@@ -1,5 +1,5 @@
 """
-Comprehensive tests for Protein Domain constraint.
+tests/language_tests/constraint_tests/test_protein_quality/test_protein_domain_constraint.py
 
 Tests cover:
 1. Configuration validation

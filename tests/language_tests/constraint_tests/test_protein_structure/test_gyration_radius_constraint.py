@@ -1,4 +1,6 @@
 """
+tests/language_tests/constraint_tests/test_protein_structure/test_gyration_radius_constraint.py
+
 Tests for Gyration Radius constraint.
 """
 
@@ -48,7 +50,9 @@ PATCH_TARGET = (
 
 
 class TestGyrationRadiusConstraint:
-    """Tests for Gyration Radius constraint."""
+    """tests/language_tests/constraint_tests/test_protein_structure/test_gyration_radius_constraint.py
+
+Tests for Gyration Radius constraint."""
 
     def test_within_threshold_scores_zero(self):
         """Structures within the max gyration radius score 0.0."""

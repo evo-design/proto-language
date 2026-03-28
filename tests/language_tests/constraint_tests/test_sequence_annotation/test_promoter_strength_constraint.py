@@ -1,5 +1,5 @@
 """
-Tests for Promoter Strength constraint.
+tests/language_tests/constraint_tests/test_sequence_annotation/test_promoter_strength_constraint.py
 
 promoter_calculator is mocked — it accepts a single sequence string
 and returns a flat list of result objects (one per detected promoter).

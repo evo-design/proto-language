@@ -1,5 +1,5 @@
 """
-Constraint registry for managing constraint functions.
+proto_language/language/constraint/constraint_registry.py
 
 Provides a decorator-based API for registering constraint functions and
 a factory method for creating Constraint instances.
@@ -43,7 +43,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
     - count(): Get number of registered constraints (inherited)
 
     Examples:
-        Registration (in constraint files):
+        Registration:
         >>> @constraint(
         ...     key="gc-content",
         ...     label="GC Content",
@@ -103,15 +103,15 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             (input_sequences: List[Tuple[Sequence, ...]], config) -> List[float]
 
         Args:
-            key: Unique identifier (e.g., "gc-content", "protein-length")
-            label: Readable external name (e.g., "GC Content Range", "Protein Length")
-            config: Pydantic model class for configuration validation
-            description: Readable description
-            uses_gpu: If True, constraint requires GPU for computation (e.g., ESMFold, Boltz).
-            tools_called: List of tool keys this constraint calls (helps agent find relevant documentation).
-            category: Optional category for organization (e.g., 'protein_structure', 'sequence_composition').
-            supported_sequence_types: List of supported sequence types (e.g., ["dna", "protein"]).
-            num_input_sequences_per_tuple: Number of Sequence objects required in each tuple of input_sequences. If None, any number is allowed.
+            key (str): Unique identifier (e.g., "gc-content", "protein-length")
+            label (str): Readable external name (e.g., "GC Content Range", "Protein Length")
+            config (type[BaseModel]): Pydantic model class for configuration validation
+            description (str): Readable description
+            uses_gpu (bool): If True, constraint requires GPU for computation (e.g., ESMFold, Boltz).
+            tools_called (list[str]): List of tool keys this constraint calls (helps agent find relevant documentation).
+            category (str | None): Optional category for organization (e.g., 'protein_structure', 'sequence_composition').
+            supported_sequence_types (list[str]): List of supported sequence types (e.g., ["dna", "protein"]).
+            num_input_sequences_per_tuple (int | None): Number of Sequence objects required in each tuple of input_sequences. If None, any number is allowed.
 
         Returns:
             Decorator that registers the function and returns it unchanged
@@ -178,21 +178,23 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         3. Creates a Constraint instance with validated config
 
         Args:
-            key: Registered constraint identifier (e.g., "gc-content")
-            segments: List of Segment objects to evaluate
-            config_dict: Configuration as plain dict (from JSON/client)
-            label: Optional label for metadata tracking
-            threshold: Optional threshold for filtering. If provided, constraint acts as a filter:
-                scores <= threshold are accepted (True), scores > threshold are rejected (False).
-                If None, returns raw float scores for optimization.
-            weight: Optional weight to scale constraint scores. Defaults to 1.0 if not provided.
+            key (str): Registered constraint identifier (e.g., "gc-content")
+            segments (list[Segment]): List of Segment objects to evaluate
+            config_dict (dict[str, Any]): Configuration as plain dict (from JSON/client)
+            label (str | None): Optional label for metadata tracking
+            threshold (float | None): Optional threshold for filtering. If provided,
+                constraint acts as a filter: scores <= threshold are accepted (True),
+                scores > threshold are rejected (False). If None, returns raw float
+                scores for optimization.
+            weight (float | None): Optional weight to scale constraint scores.
+                Defaults to 1.0 if not provided.
 
         Returns:
-            Configured Constraint instance ready to evaluate
+            Constraint: Configured Constraint instance ready to evaluate
 
         Raises:
             ValueError: If key is not registered
-            pydantic.ValidationError: If config_dict has invalid values
+            ValidationError: If config_dict has invalid values
 
         Examples:
             >>> # Scoring mode (default)

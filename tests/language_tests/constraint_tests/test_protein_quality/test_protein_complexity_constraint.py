@@ -1,5 +1,5 @@
 """
-Comprehensive tests for Protein Complexity constraint.
+tests/language_tests/constraint_tests/test_protein_quality/test_protein_complexity_constraint.py
 
 Tests cover:
 1. Basic functionality with mocked segmasker

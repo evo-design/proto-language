@@ -1,8 +1,7 @@
-"""Tests for scripts/validate_exports.py — export chain validator.
+"""tests/utils_tests/test_validate_exports.py
 
 Uses synthetic temp files to test AST parsing and validation logic
-without depending on the real codebase.
-"""
+without depending on the real codebase."""
 from __future__ import annotations
 
 import json

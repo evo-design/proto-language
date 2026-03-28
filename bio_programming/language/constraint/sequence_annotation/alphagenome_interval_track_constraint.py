@@ -1,4 +1,6 @@
-"""AlphaGenome interval track-value constraint."""
+"""proto_language/language/constraint/sequence_annotation/alphagenome_interval_track_constraint.py
+
+AlphaGenome interval track-value constraint."""
 
 from __future__ import annotations
 
@@ -26,16 +28,17 @@ class AlphaGenomeIntervalTrackConfig(BaseConfig):
     """Configuration for interval track-value scoring with AlphaGenome.
 
     Attributes:
-        intervals: 0-based half-open intervals scored on the predicted track.
-        ontology_terms: AlphaGenome ontology term(s) to score.
-        requested_output: AlphaGenome output type to score (e.g. RNA_SEQ).
-        direction: Whether to maximize or minimize interval mean signal.
-        maximize_inflection_value: Signal value for maximize-mode sigmoid inflection.
-        maximize_sigmoid_scale: Scale for maximize-mode sigmoid transform.
-        minimize_threshold_value: Upper bound for minimize-mode linear score.
-        model_version: AlphaGenome model version.
-        organism: Organism for AlphaGenome prediction.
-        prediction_timeout: Timeout (seconds) for each prediction call.
+        intervals (list[tuple[int, int]]): 0-based half-open intervals scored on the predicted track.
+        ontology_terms (list[str]): AlphaGenome ontology term(s) to score.
+        requested_output (OutputTypeName): AlphaGenome output type to score (e.g. RNA_SEQ).
+        direction (Literal['maximize', 'minimize']): Whether to maximize or minimize interval mean signal.
+        maximize_inflection_value (float): Signal value for maximize-mode sigmoid inflection.
+        maximize_sigmoid_scale (float): Scale for maximize-mode sigmoid transform.
+        minimize_threshold_value (float): Upper bound for minimize-mode linear score.
+        model_version (str): AlphaGenome model version.
+        organism (Literal['human', 'mouse']): Organism for AlphaGenome prediction.
+        prediction_timeout (int): Timeout (seconds) for each prediction call.
+        device (str): PyTorch device string for model inference (e.g. 'cpu', 'cuda').
     """
 
     intervals: List[Tuple[int, int]] = ConfigField(

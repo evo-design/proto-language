@@ -1,4 +1,6 @@
 """
+proto_language/language/constraint/rna_splicing/splice_transformer_intron_boundary.py
+
 Evaluate intron boundary prediction with SpliceTransformer.
 
 Accepts three segments (left_flank, intron_core, right_flank), concatenates
@@ -47,14 +49,14 @@ class SpliceTransformerIntronBoundaryConfig(BaseConfig):
             This flanking sequence provides downstream context. Should be the
             genomic sequence immediately 3' of the target sequence.
 
-        donor_pos (List[int]): Zero-indexed position(s) of expected donor
+        donor_pos (list[int]): Zero-indexed position(s) of expected donor
             splice site(s) within the input sequence. The donor site marks the 5'
             end of an intron (exon-intron boundary), typically at a "GT" dinucleotide.
             SpliceTransformer predicts on the position immediately before the "GT".
             Can be a single integer (automatically converted to list) or list of
             integers for multiple donors.
 
-        acceptor_pos (List[int]): Zero-indexed position(s) of expected
+        acceptor_pos (list[int]): Zero-indexed position(s) of expected
             acceptor splice site(s) within the input sequence. The acceptor site
             marks the 3' end of an intron (intron-exon boundary), typically at an
             "AG" dinucleotide. SpliceTransformer predicts on the position immediately
@@ -130,75 +132,17 @@ def splice_transformer_intron_boundary(
     input_sequences: List[Tuple[Sequence, ...]],
     config: SpliceTransformerIntronBoundaryConfig,
 ) -> List[float]:
-    """Evaluate intron boundary prediction with SpliceTransformer.
+    """Score donor/acceptor splice sites for three-segment intron boundaries.
 
-    Each input tuple contains three DNA sequences (left_flank, intron_core,
-    right_flank) which are concatenated into a single target sequence for
-    scoring. Metadata is propagated back to all three input segments.
-
-    SpliceTransformer outputs probabilities for donor and acceptor splice sites
-    at each position. The constraint score is calculated as 1 - (average of
-    donor and acceptor probabilities), so lower scores indicate better splice
-    sites.
-
-    The concatenated target sequence must be exactly 1000 bp, and both flanking
-    contexts must be exactly 4000 bp each, for a total analyzed region of
-    9000 bp.
+    Accepts three segments (left_flank, intron_core, right_flank), concatenates
+    them into a single 1-kb target sequence, and scores donor/acceptor splice
+    sites. Metadata is propagated back to all three input segments.
 
     Args:
-        input_sequences: List of 3-tuples (left_flank, intron_core, right_flank).
-            The three sequences are concatenated into a single 1000 bp target.
-
-        config: Configuration object containing ``left_context`` (4000 bp),
-            ``right_context`` (4000 bp), ``donor_pos`` (position(s) of donor
-            sites), ``acceptor_pos`` (position(s) of acceptor sites), and
-            optional ``splice_transformer_config`` for advanced settings.
-
-    Returns:
-        List[float]: Constraint scores ranging from 0.0 (perfect splice sites,
-            both donor and acceptor probabilities = 1.0) to 1.0 (poor splice
-            sites, probabilities = 0.0) for each sequence. The score is
-            calculated as: ``1.0 - ((donor_probability + acceptor_probability) / 2)``.
-            When multiple positions are specified, the score uses the mean
-            probability across all donor and acceptor positions.
-
-    Note:
-        This function adds metadata to each input ``Sequence`` object's
-        ``_metadata`` dictionary with the following keys:
-
-        - ``donor_pos``: List of integers indicating donor site position(s)
-        - ``acceptor_pos``: List of integers indicating acceptor site position(s)
-        - ``donor_score``: Float, calculated as 1.0 - mean(donor_probabilities).
-          Lower is better.
-        - ``acceptor_score``: Float, calculated as
-          1.0 - mean(acceptor_probabilities). Lower is better.
-        - ``total_splice_score``: Float overall constraint score (average of
-          donor_score and acceptor_score)
-
-        **Important prediction positions:**
-
-        - For donor sites: SpliceTransformer predicts on the nucleotide
-          immediately **before** the "GT" dinucleotide.
-        - For acceptor sites: SpliceTransformer predicts on the nucleotide
-          immediately **after** the "AG" dinucleotide.
-
-    Examples:
-        Evaluating a single intron with one donor and one acceptor:
-
-        >>> left = Sequence("A" * 200, "dna")
-        >>> intron = Sequence("C" * 600, "dna")
-        >>> right = Sequence("G" * 200, "dna")
-        >>> config = SpliceTransformerIntronBoundaryConfig(
-        ...     left_context="A" * 4000,
-        ...     right_context="A" * 4000,
-        ...     donor_pos=199,
-        ...     acceptor_pos=800,
-        ... )
-        >>> scores = splice_transformer_intron_boundary(
-        ...     [(left, intron, right)], config
-        ... )
-        >>> print(scores[0])  # e.g., 0.15 (good splice sites)
-        >>> print(left._metadata["donor_score"])  # e.g., 0.12
+        input_sequences (list[tuple[Sequence, ...]]): Mapping of segment IDs to
+            their current sequences.
+        config (SpliceTransformerIntronBoundaryConfig): Constraint configuration
+            controlling evaluation parameters.
     """
     if not input_sequences:
         return []

@@ -1,4 +1,6 @@
 """
+proto_language/language/constraint/sequence_annotation/sigma70_promoter_constraint.py
+
 sigma-70 promoter similarity constraint for evaluating promoter similarity.
 """
 
@@ -41,13 +43,13 @@ class Sigma70PromoterConfig(BaseConfig):
             upstream of the transcription start site. The canonical E. coli sigma-70
             consensus is "TATAAT". Must be exactly 6 nucleotides. Default: "TATAAT".
 
-        probs_35 (List[float]): Position-specific conservation probabilities for
+        probs_35 (list[float]): Position-specific conservation probabilities for
             the -35 box (6 values, one per position). These values represent the
             frequency of the consensus base at each position in experimentally
             validated E. coli promoters from RegulonDB. Must be exactly 6 values
             between 0.0 and 1.0. Default: [0.69, 0.79, 0.61, 0.56, 0.54, 0.54].
 
-        probs_10 (List[float]): Position-specific conservation probabilities for
+        probs_10 (list[float]): Position-specific conservation probabilities for
             the -10 box (6 values, one per position). These represent conservation
             at each -10 box position. Must be exactly 6 values between 0.0
             and 1.0. Default: [0.77, 0.76, 0.60, 0.61, 0.56, 0.82].
@@ -221,7 +223,7 @@ def sigma70_promoter_constraint(input_sequences: List[Tuple[Sequence, ...]], con
     sequences, it exhaustively scans all positions.
 
     Args:
-        sequences (List[Sequence]): List of DNA sequences to evaluate. Sequences
+        sequences: List of DNA sequences to evaluate. Sequences
             should contain potential promoter regions. For best results, use
             sequences 50-100+ bp that may contain -35 and -10 boxes with appropriate
             spacing. Shorter sequences (12-32 bp) are treated as fixed promoters.
@@ -229,6 +231,7 @@ def sigma70_promoter_constraint(input_sequences: List[Tuple[Sequence, ...]], con
         config (Sigma70PromoterConfig): Configuration object containing consensus
             sequences, conservation probabilities, spacer parameters, and scoring
             weights. Uses E. coli sigma-70 defaults if not specified.
+        input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
 
     Returns:
         List[float]: Constraint scores for each sequence, ranging from 0.0 (perfect

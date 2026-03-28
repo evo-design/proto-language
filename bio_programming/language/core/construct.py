@@ -1,5 +1,5 @@
 """
-Construct class for the biological programming language.
+proto_language/language/core/construct.py
 
 Represents a full biological construct composed of multiple segments.
 """
@@ -32,8 +32,8 @@ class Construct:
         Initialize a Construct with Segment objects.
 
         Args:
-            segments: An iterable of Segment objects in order.
-            label: Optional label for this construct (e.g., "plasmid", "insert").
+            segments (Iterable[Segment]): An iterable of Segment objects in order.
+            label (str | None): Optional label for this construct (e.g., "plasmid", "insert").
         """
         # Convert to tuple for validation and storage
         self.segments = tuple(segments)

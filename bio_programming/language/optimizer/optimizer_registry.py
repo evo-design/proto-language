@@ -1,5 +1,5 @@
 """
-Optimizer registry for managing optimizer discovery and schema generation.
+proto_language/language/optimizer/optimizer_registry.py
 
 Provides a decorator-based API for registering optimizer classes with metadata and
 automatic schema generation for API/client integration.
@@ -19,6 +19,15 @@ class OptimizerSpec(BaseSpec):
     Specification for a registered optimizer.
 
     Extends BaseSpec with optimizer-specific metadata for discovery and schema generation.
+
+    Attributes:
+        key (str): Unique kebab-case registry identifier.
+        label (str): Human-readable display name.
+        description (str): Short description shown in the client UI.
+        uses_gpu (bool): Whether this component requires GPU resources.
+        config_model (type[BaseModel]): Pydantic model class for the component configuration.
+        targets_single_segment (bool): Whether this optimizer operates on a single segment at a time.
+        optimizer_class (type[Optimizer]): Optimizer subclass implementing the optimization logic.
     """
 
     targets_single_segment: bool = Field(
@@ -44,7 +53,7 @@ class OptimizerRegistry(BaseRegistry[OptimizerSpec]):
     - count(): Get number of registered optimizers (inherited)
 
     Examples:
-        Registration (in optimizer files):
+        Registration:
         >>> @optimizer(
         ...     key="mcmc",
         ...     config=MCMCOptimizerConfig,
@@ -99,12 +108,12 @@ class OptimizerRegistry(BaseRegistry[OptimizerSpec]):
         method from BaseRegistry.
 
         Args:
-            key: Unique identifier (e.g., "mcmc", "beam-search")
-            label: Readable external name (e.g., "MCMC Optimizer", "Beam Search")
-            config: Pydantic model class for configuration validation
-            description: Readable description
-            uses_gpu: If True, optimizer requires GPU for computation
-            targets_single_segment: If True, optimizer operates on a single target segment
+            key (str): Unique identifier (e.g., "mcmc", "beam-search")
+            label (str): Readable external name (e.g., "MCMC Optimizer", "Beam Search")
+            config (type[BaseModel]): Pydantic model class for configuration validation
+            description (str): Readable description
+            uses_gpu (bool): If True, optimizer requires GPU for computation
+            targets_single_segment (bool): If True, optimizer operates on a single target segment
 
         Returns:
             Decorator that registers the class and returns it unchanged

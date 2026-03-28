@@ -1,5 +1,5 @@
 """
-rna_structure_constraints.py
+proto_language/language/constraint/rna_secondary_structure/structure_similarity_constraint.py
 
 Constraint functions for RNA secondary structure similarity comparison.
 
@@ -34,11 +34,11 @@ def _fold_sequences(
     Fold multiple sequences using ViennaRNA.
 
     Args:
-        sequences: List of RNA/DNA sequences
-        temperature: Folding temperature in Celsius
+        sequences (list[str]): List of RNA/DNA sequences
+        temperature (float): Folding temperature in Celsius
 
     Returns:
-        List of (structure, mfe) tuples
+        list[tuple[str, float]]: List of (structure, mfe) tuples
     """
     inputs = ViennaRNAInput(sequences=sequences)
     config = ViennaRNAConfig(temperature=temperature)
@@ -367,6 +367,10 @@ def rna_property_similarity_constraint(
     and reference.
 
     Returns 1 - similarity (so 0 is perfect match, 1 is worst).
+
+    Args:
+        input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
+        config (RNAPropertySimilarityConfig): Constraint configuration controlling evaluation parameters.
     """
     # Fold reference
     ref_results = _fold_sequences([config.reference_sequence], config.temperature)
@@ -440,6 +444,10 @@ def rna_motif_similarity_constraint(
     reference using Jaccard similarity.
 
     Returns 1 - similarity (so 0 is perfect match, 1 is worst).
+
+    Args:
+        input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
+        config (RNAMotifSimilarityConfig): Constraint configuration controlling evaluation parameters.
     """
     # Fold reference
     ref_results = _fold_sequences([config.reference_sequence], config.temperature)
@@ -506,6 +514,10 @@ def rna_feature_similarity_constraint(
     Construct 10-dim feature vectors and compare using cosine similarity.
 
     Returns 1 - similarity (so 0 is perfect match, 1 is worst).
+
+    Args:
+        input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
+        config (RNAFeatureSimilarityConfig): Constraint configuration controlling evaluation parameters.
     """
     # Fold reference
     ref_results = _fold_sequences([config.reference_sequence], config.temperature)
@@ -572,6 +584,10 @@ def rna_basepair_similarity_constraint(
     Compare base pair sets between proposals and reference using Jaccard similarity.
 
     Returns 1 - similarity (so 0 is perfect match, 1 is worst).
+
+    Args:
+        input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
+        config (RNABasePairSimilarityConfig): Constraint configuration controlling evaluation parameters.
     """
     # Fold reference
     ref_results = _fold_sequences([config.reference_sequence], config.temperature)

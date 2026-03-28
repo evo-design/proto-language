@@ -1,5 +1,5 @@
 """
-Export utilities for optimization results at different granularities.
+proto_language/utils/export.py
 
 Five tables, each with a single natural format:
 - sequences:    One row per (result_idx, construct, segment)
@@ -44,11 +44,11 @@ def build_results(
     Infinite/NaN energy scores are converted to None for JSON compatibility.
 
     Args:
-        constructs: List of Construct objects.
-        energy_scores: List of energy scores (one per result).
+        constructs (list): List of Construct objects.
+        energy_scores (list[float]): List of energy scores (one per result).
 
     Returns:
-        Dict with "results" (list of result dicts) and "best_result_idx"::
+        Results: Dict with "results" (list of result dicts) and "best_result_idx"::
 
             {
                 "results": [{
@@ -129,12 +129,12 @@ def build_proposal_results(
     with whether it was accepted, the rejection reason (if any), and energy score.
 
     Args:
-        constructs: List of Construct objects.
-        outcomes: Per-proposal outcome — ``"accepted"`` or a rejection reason string.
-        energy_scores: Per-proposal energy scores. Inf/NaN converted to None.
+        constructs (list): List of Construct objects.
+        outcomes (list[str]): Per-proposal outcome — ``"accepted"`` or a rejection reason string.
+        energy_scores (list[float] | None): Per-proposal energy scores. Inf/NaN converted to None.
 
     Returns:
-        List of proposal dicts::
+        list[dict[str, Any]]: List of proposal dicts::
 
             [{
                 "proposal_idx": 0,
@@ -220,6 +220,9 @@ def _serialize_value(value: Any) -> Any:
     - Lists/tuples → JSON string
     - Other dicts → JSON string
     - Scalars → passthrough
+
+    Args:
+        value (Any): Value to serialize.
     """
     if isinstance(value, dict):
         if is_file_reference(value):
@@ -240,8 +243,8 @@ def _finalize_file_refs(
     batch-fetched concurrently and inlined as content strings.
 
     Args:
-        rows: Flattened rows potentially containing file reference dicts.
-        resolve: If True, fetch and inline actual file content.
+        rows (list[dict[str, Any]]): Flattened rows potentially containing file reference dicts.
+        resolve (bool): If True, fetch and inline actual file content.
     """
     if not rows:
         return rows
@@ -300,8 +303,8 @@ def _flatten_constraint_columns(
     Includes score, weight, weighted_score, all data fields, and multi-segment info.
 
     Args:
-        constraints: Dict mapping constraint labels to their data.
-        prefix: Column name prefix (e.g., "promoter." for construct-level).
+        constraints (dict[str, dict]): Dict mapping constraint labels to their data.
+        prefix (str): Column name prefix (e.g., "promoter." for construct-level).
     """
     flat = {}
     for label, cdata in constraints.items():
@@ -332,10 +335,10 @@ def flatten_sequences(
     """One row per (result_idx, construct, segment). All constraint fields inline.
 
     Args:
-        results: Output from build_results().
-        segments: If set, only include these segment labels.
-        result_indices: If set, only include these result indices.
-        resolve_files: Resolve file references to content instead of URLs.
+        results (Results): Output from build_results().
+        segments (set[str] | None): If set, only include these segment labels.
+        result_indices (set[int] | None): If set, only include these result indices.
+        resolve_files (bool): Resolve file references to content instead of URLs.
 
     Columns:
         Fixed: result_idx, energy_score, construct, segment, sequence
@@ -381,11 +384,11 @@ def flatten_constraints(
     """One row per (result_idx, construct, segment, constraint). All metrics.
 
     Args:
-        results: Output from build_results().
-        segments: If set, only include these segment labels.
-        constraints: If set, only include these constraint labels.
-        result_indices: If set, only include these result indices.
-        resolve_files: Resolve file references to content instead of URLs.
+        results (Results): Output from build_results().
+        segments (set[str] | None): If set, only include these segment labels.
+        constraints (set[str] | None): If set, only include these constraint labels.
+        result_indices (set[int] | None): If set, only include these result indices.
+        resolve_files (bool): Resolve file references to content instead of URLs.
 
     Columns:
         Fixed: result_idx, energy_score, construct, segment, constraint
@@ -437,11 +440,11 @@ def flatten_constructs(
     """One row per (result_idx, construct). Per-segment data as prefixed columns.
 
     Args:
-        results: Output from build_results().
-        segments: If set, only include these segment labels in per-segment columns.
+        results (Results): Output from build_results().
+        segments (set[str] | None): If set, only include these segment labels in per-segment columns.
             full_sequence still reflects all segments for construct integrity.
-        result_indices: If set, only include these result indices.
-        resolve_files: Resolve file references to content instead of URLs.
+        result_indices (set[int] | None): If set, only include these result indices.
+        resolve_files (bool): Resolve file references to content instead of URLs.
 
     Columns:
         Fixed: result_idx, energy_score, construct, full_sequence
@@ -501,14 +504,15 @@ def flatten_optimization(
     so traversal is identical to the other flatten functions.
 
     Args:
-        history: List of history entries from optimizer(s).
-        segments: If set, only include these segment labels.
-        result_indices: If set, only include these result indices.
-        include_proposals: If True, add proposal rows alongside result rows.
+        history (list[dict[str, Any]]): List of history entries from optimizer(s).
+        segments (set[str] | None): If set, only include these segment labels.
+        result_indices (set[int] | None): If set, only include these result indices.
+        include_proposals (bool): If True, add proposal rows alongside result rows.
             Result rows get ``pool="result"``, proposal rows get
             ``pool="proposal"`` with ``proposal_idx``, ``accepted``,
             ``rejected_by`` columns. When False, output is identical to
             previous behavior (no new columns).
+        resolve_files (bool): Whether to resolve file references to local paths.
 
     Columns:
         Fixed: timepoint, result_idx, energy_score
@@ -616,15 +620,15 @@ def flatten_table(
     """Dispatch to the appropriate flatten function for *table*.
 
     Args:
-        table: One of ``sequences``, ``constraints``, ``constructs``,
+        table (str): One of ``sequences``, ``constraints``, ``constructs``,
             or ``optimization``.
-        results: Output from :func:`build_results`.
-        history: Optimization history entries.
-        segments: Only include these segment labels.
-        result_indices: Only include these result indices.
-        constraints: Only include these constraint labels (constraints table only).
-        include_proposals: Include proposal rows (optimization table only).
-        resolve_files: Resolve file references to content instead of URLs.
+        results (Results): Output from :func:`build_results`.
+        history (list[dict[str, Any]]): Optimization history entries.
+        segments (set[str] | None): Only include these segment labels.
+        result_indices (set[int] | None): Only include these result indices.
+        constraints (set[str] | None): Only include these constraint labels (constraints table only).
+        include_proposals (bool): Include proposal rows (optimization table only).
+        resolve_files (bool): Resolve file references to content instead of URLs.
 
     Raises:
         ValueError: If *table* is not a recognized name.
@@ -659,11 +663,11 @@ def to_csv(rows: List[Dict], output: Union[Path, IO, None] = None) -> str:
     """Write rows to CSV format.
 
     Args:
-        rows: List of dicts with consistent keys
-        output: Path or file-like object. If None, returns string.
+        rows (list[dict]): List of dicts with consistent keys
+        output (Path | IO | None): Path or file-like object. If None, returns string.
 
     Returns:
-        CSV string if output is None
+        str: CSV string if output is None
     """
     if not rows:
         return ""
@@ -691,11 +695,11 @@ def to_tsv(rows: List[Dict], output: Union[Path, IO, None] = None) -> str:
     """Write rows to TSV format.
 
     Args:
-        rows: List of dicts with consistent keys
-        output: Path or file-like object. If None, returns string.
+        rows (list[dict]): List of dicts with consistent keys
+        output (Path | IO | None): Path or file-like object. If None, returns string.
 
     Returns:
-        TSV string if output is None
+        str: TSV string if output is None
     """
     if not rows:
         return ""
@@ -729,12 +733,12 @@ def to_json(
     """Write rows to JSON format.
 
     Args:
-        rows: List of dicts
-        output: Path or file-like object. If None, returns string.
-        indent: JSON indentation (default 2)
+        rows (list[dict]): List of dicts
+        output (Path | IO | None): Path or file-like object. If None, returns string.
+        indent (int): JSON indentation (default 2)
 
     Returns:
-        JSON string if output is None
+        str: JSON string if output is None
     """
     json_str = json.dumps(rows, indent=indent, default=str)
 
@@ -752,8 +756,8 @@ def to_xlsx(rows: List[Dict], output: Union[Path, IO]) -> None:
     """Write rows to Excel format (single sheet).
 
     Args:
-        rows: List of dicts with consistent keys
-        output: Path or file-like object (required for xlsx)
+        rows (list[dict]): List of dicts with consistent keys
+        output (Path | IO): Path or file-like object (required for xlsx)
 
     """
     from openpyxl import Workbook
@@ -782,8 +786,8 @@ def to_xlsx_workbook(tables: Dict[str, List[Dict]], output: Path) -> None:
     """Write multiple tables as sheets in a single Excel workbook.
 
     Args:
-        tables: Dict mapping sheet names to row lists.
-        output: Output file path.
+        tables (dict[str, list[dict]]): Dict mapping sheet names to row lists.
+        output (Path): Output file path.
 
     """
     from openpyxl import Workbook
@@ -819,12 +823,12 @@ def write_export(
     """Write rows to the specified format.
 
     Args:
-        rows: List of dicts to export
-        format: Output format ("csv", "tsv", "json", "xlsx")
-        path: Output path. If None, returns string (not supported for xlsx).
+        rows (list[dict]): List of dicts to export
+        format (Format): Output format ("csv", "tsv", "json", "xlsx")
+        path (Path | None): Output path. If None, returns string (not supported for xlsx).
 
     Returns:
-        String content for csv/tsv/json when path is None, else None
+        str | None: String content for csv/tsv/json when path is None, else None
     """
     if format == "csv":
         return to_csv(rows, path)
@@ -854,10 +858,10 @@ def export_tables(
     With *table*: writes a single file to *path*.
 
     Args:
-        flatten_fn: Called with a table name, returns flattened rows.
-        path: Output directory (all tables) or file (single table / xlsx).
-        format: Output format.
-        table: Single table name, or ``None`` to export all.
+        flatten_fn (Callable[[str], list[dict[str, Any]]]): Called with a table name, returns flattened rows.
+        path (Path | str): Output directory (all tables) or file (single table / xlsx).
+        format (Format): Output format.
+        table (str | None): Single table name, or ``None`` to export all.
     """
     path = Path(path)
     if table is not None:
@@ -888,15 +892,15 @@ def to_fasta(
     """Export sequences in FASTA format for bioinformatics pipelines.
 
     Args:
-        results: Output from build_results().
-        segments: If set, only include these segment labels.
-        result_indices: If set, only include these result indices.
-        header_format: Python format string for FASTA headers. Available
+        results (Results): Output from build_results().
+        segments (set[str] | None): If set, only include these segment labels.
+        result_indices (set[int] | None): If set, only include these result indices.
+        header_format (str): Python format string for FASTA headers. Available
             fields: construct, segment, result_idx, energy_score, sequence_type.
-        output: Path or file-like object. If None, returns string.
+        output (Path | IO | None): Path or file-like object. If None, returns string.
 
     Returns:
-        FASTA string if output is None.
+        str: FASTA string if output is None.
     """
     lines: List[str] = []
     for result_entry in results.get("results", []):

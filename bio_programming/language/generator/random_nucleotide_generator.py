@@ -1,4 +1,6 @@
 """
+proto_language/language/generator/random_nucleotide_generator.py
+
 RandomNucleotideGenerator for CPU-based random nucleotide mutagenesis.
 """
 
@@ -33,8 +35,8 @@ class RandomNucleotideGeneratorConfig(BaseConfig):
             how many. Supports exact count (``num_mutations``), fractional
             (``mask_fraction``), or default random 30%.
 
-        substitution_scheme (str): IUPAC ambiguity code defining the nucleotide
-            pool for substitutions. Available schemes:
+        substitution_scheme (SubstitutionScheme): IUPAC ambiguity code defining
+            the nucleotide pool for substitutions. Available schemes:
 
             - ``"N"``: Any base (A, C, G, T). Default.
             - ``"R"``: Purines only (A, G)
@@ -48,7 +50,7 @@ class RandomNucleotideGeneratorConfig(BaseConfig):
             - ``"H"``: Not G (A, C, T)
             - ``"V"``: Not T (A, C, G)
 
-        seed (Optional[int]): Random seed for reproducibility.
+        seed (int | None): Random seed for reproducibility.
     """
 
     masking_strategy: MaskingStrategy = ConfigField(
@@ -96,8 +98,8 @@ class RandomNucleotideGenerator(Generator):
 
     Attributes:
         masking_strategy (MaskingStrategy): Strategy for selecting positions to mutate.
-        substitution_scheme (str): IUPAC code for nucleotide sampling.
-        seed (Optional[int]): Random seed for reproducibility.
+        substitution_scheme (SubstitutionScheme): IUPAC code for nucleotide sampling.
+        seed (int | None): Random seed for reproducibility.
 
     Example:
         >>> from proto_language.language.generator import RandomNucleotideGenerator, RandomNucleotideGeneratorConfig
@@ -116,7 +118,8 @@ class RandomNucleotideGenerator(Generator):
         Initialize the random nucleotide generator.
 
         Args:
-            config: Configuration object containing all generator parameters.
+            config (RandomNucleotideGeneratorConfig): Configuration object
+                containing all generator parameters.
         """
         super().__init__()
         self.config = config

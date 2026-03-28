@@ -1,5 +1,5 @@
 """
-sequence.py
+proto_language/language/core/sequence.py
 
 Sequence class for the proto-language.
 
@@ -57,11 +57,11 @@ class Sequence:
         Initialize a Sequence with sequence data and metadata.
 
         Args:
-            sequence: The biological sequence string. Defaults to empty string.
-            sequence_type: Type of biological sequence ("dna", "rna", or "protein"). Defaults to "dna".
-            valid_chars: Optional custom set of valid characters for sequence validation.
+            sequence (str): The biological sequence string. Defaults to empty string.
+            sequence_type (SequenceType): Type of biological sequence ("dna", "rna", or "protein"). Defaults to "dna".
+            valid_chars (set[str] | None): Optional custom set of valid characters for sequence validation.
                 If provided, overrides the default character set for the sequence_type.
-            metadata: Additional data associated with this sequence.
+            metadata (dict[str, Any] | None): Additional data associated with this sequence.
         """
         self._sequence_type: SequenceType = sequence_type
         # Set up character validation based on sequence type or custom valid_chars
@@ -99,7 +99,7 @@ class Sequence:
         or that ligand sequences follow the RDKit SMILES syntax.
 
         Args:
-            sequence: The sequence string to validate.
+            sequence (str): The sequence string to validate.
 
         Raises:
             ValueError: If sequence contains invalid characters for this sequence type.
@@ -145,7 +145,7 @@ class Sequence:
         Get the current sequence string.
 
         Returns:
-            The sequence string.
+            str: The sequence string.
         """
         return self._sequence
 
@@ -155,7 +155,7 @@ class Sequence:
         Set a new sequence string with validation.
 
         Args:
-            new_sequence: The new sequence string to set.
+            new_sequence (str): The new sequence string to set.
 
         Raises:
             ValueError: If the new sequence contains invalid characters.
@@ -168,7 +168,7 @@ class Sequence:
         Get the length of the sequence.
 
         Returns:
-            Number of characters in the sequence.
+            int: Number of characters in the sequence.
         """
         return len(self._sequence)
 
@@ -177,7 +177,7 @@ class Sequence:
         Get the sequence as a string.
 
         Returns:
-            The sequence string.
+            str: The sequence string.
         """
         return self._sequence
 
@@ -248,12 +248,12 @@ def create_concatenated_sequence(subsequences: Iterable[Sequence], segment_label
     Concatenate subsequences into a single Sequence object.
 
     Args:
-        subsequences: Iterable of Sequence objects to concatenate
-        segment_labels: Optional list of segment labels for metadata nesting
+        subsequences (Iterable[Sequence]): Iterable of Sequence objects to concatenate
+        segment_labels (list[str] | None): Optional list of segment labels for metadata nesting
 
     Returns:
-        Single Sequence with concatenated content. If segment_labels provided,
-        includes segment metadata nested under _metadata["segments"][label].
+        Sequence: Single Sequence with concatenated content. If segment_labels provided,
+            includes segment metadata nested under _metadata["segments"][label].
     """
     seq_list = list(subsequences)
     if not seq_list:
@@ -287,11 +287,11 @@ def _return_invalid_chars(sequence: str, valid_chars: Set[str]) -> Set[str]:
     Return the invalid characters in a sequence given a set of valid characters.
 
     Args:
-        sequence: The sequence string to validate.
-        valid_chars: The set of valid characters.
+        sequence (str): The sequence string to validate.
+        valid_chars (set[str]): The set of valid characters.
 
     Returns:
-        The set of invalid characters.
+        set[str]: The set of invalid characters.
     """
     invalid_chars = set(sequence) - valid_chars
     return invalid_chars
@@ -306,7 +306,7 @@ def return_invalid_dna_chars(
 
     Args:
         sequence (str): The sequence string to validate.
-        additional_valid_chars (Optional[str]): Additional valid characters to add to the default DNA characters.
+        additional_valid_chars (str | None): Additional valid characters to add to the default DNA characters.
 
     Returns:
         Set[str]: The set of invalid characters.
@@ -328,7 +328,7 @@ def return_invalid_rna_chars(
 
     Args:
         sequence (str): The sequence string to validate.
-        additional_valid_chars (Optional[str]): Additional valid characters to add to the default RNA characters.
+        additional_valid_chars (str | None): Additional valid characters to add to the default RNA characters.
 
     Returns:
         Set[str]: The set of invalid characters.
@@ -349,7 +349,7 @@ def return_invalid_nucleotide_chars(
 
     Args:
         sequence (str): The sequence string to validate.
-        additional_valid_chars (Optional[str]): Additional valid characters to add to the default nucleotide characters.
+        additional_valid_chars (str | None): Additional valid characters to add to the default nucleotide characters.
 
     Returns:
         Set[str]: The set of invalid characters.
@@ -370,7 +370,7 @@ def return_invalid_protein_chars(
 
     Args:
         sequence (str): The sequence string to validate.
-        additional_valid_chars (Optional[str]): Additional valid characters to add to the default protein amino acids.
+        additional_valid_chars (str | None): Additional valid characters to add to the default protein amino acids.
 
     Returns:
         Set[str]: The set of invalid characters.
@@ -387,11 +387,11 @@ def validate_smiles(smiles: str, verbose: bool = True) -> bool:
     Validate SMILES string using RDKit if available.
 
     Args:
-        smiles: The SMILES string to validate.
-        verbose: Print warnings.
+        smiles (str): The SMILES string to validate.
+        verbose (bool): Print warnings.
 
     Returns:
-        True if valid SMILES, False if invalid or RDKit unavailable.
+        bool: True if valid SMILES, False if invalid or RDKit unavailable.
     """
     from rdkit import Chem
     mol = Chem.MolFromSmiles(smiles)
@@ -419,7 +419,7 @@ def detect_sequence_type(sequence: str) -> str:
         sequence (str): The sequence string to detect the type of.
 
     Returns:
-       string: The type of the sequence ("dna", "rna", "protein", "ligand", or "unknown").
+       str: The type of the sequence ("dna", "rna", "protein", "ligand", or "unknown").
     """
 
     # DNA ================================================================

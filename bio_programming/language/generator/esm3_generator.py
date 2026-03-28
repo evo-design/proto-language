@@ -1,4 +1,6 @@
 """
+proto_language/language/generator/esm3_generator.py
+
 ESM3 Generator for protein sequence generation
 """
 
@@ -25,7 +27,7 @@ class ESM3GeneratorConfig(BaseConfig):
     sequences through iterative mutation of masked positions.
 
     Attributes:
-        model_checkpoint (str): ESM3 model checkpoint to use. Currently available:
+        model_checkpoint (ESM3_MODEL_CHECKPOINTS): ESM3 model checkpoint to use. Currently available:
 
             - ``"esm3_sm_open_v1"``: Small open-source ESM3 model (default)
 
@@ -131,7 +133,7 @@ class ESM3Generator(Generator):
         Initialize the ESM3 generator with model and sampling configuration.
 
         Args:
-            config: Configuration object containing all generator parameters.
+            config (ESM3GeneratorConfig): Configuration object containing all generator parameters.
         """
         super().__init__()
         self.config = config

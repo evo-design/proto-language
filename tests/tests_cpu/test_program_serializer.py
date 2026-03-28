@@ -1,5 +1,5 @@
 """
-Tests for serialize_program - converting Program objects to JSON.
+tests/tests_cpu/test_program_serializer.py
 
 Tests cover:
 - Basic serialization of single optimizer programs

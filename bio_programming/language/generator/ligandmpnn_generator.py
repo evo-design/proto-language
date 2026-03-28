@@ -1,5 +1,5 @@
 """
-LigandMPNN Generator for ligand-aware protein sequence design.
+proto_language/language/generator/ligandmpnn_generator.py
 
 LigandMPNN extends ProteinMPNN to consider ligand context when designing
 protein sequences, making it particularly effective for enzyme design
@@ -39,7 +39,7 @@ class LigandMPNNGeneratorConfig(BaseConfig):
     - Cofactor-dependent protein design
 
     Attributes:
-        structure_inputs (Optional[List[InverseFoldingStructureInput]]): Structure(s) with per-structure
+        structure_inputs (list[InverseFoldingStructureInput] | None): Structure(s) with per-structure
             design constraints. Each ``InverseFoldingStructureInput`` bundles a structure with optional
             ``chain_ids`` and ``fixed_positions`` specific to that structure.
 
@@ -74,7 +74,7 @@ class LigandMPNNGeneratorConfig(BaseConfig):
             temperatures explore more sequence diversity. Must be in range [0, 1].
             Default: ``0.1``.
 
-        excluded_amino_acids (Optional[List[str]]): List of amino acids to exclude
+        excluded_amino_acids (list[str] | None): List of amino acids to exclude
             from designed sequences, specified as single-letter codes. Common uses:
 
             - ``["C"]``: Exclude cysteine to avoid disulfide complications
@@ -240,6 +240,9 @@ class LigandMPNNGenerator(Generator):
     - Creating sequences for cofactor-dependent proteins
     - Redesigning protein-ligand interfaces
 
+    Attributes:
+        batch_size (int): Number of sequences to generate per batch.
+
     Example:
         >>> from proto_language.language.generator import LigandMPNNGenerator, LigandMPNNGeneratorConfig
         >>> from proto_language.language.core import Segment
@@ -257,7 +260,7 @@ class LigandMPNNGenerator(Generator):
         """Initialize the LigandMPNN generator with structure and sampling configuration.
 
         Args:
-            config: Configuration object containing all generator parameters.
+            config (LigandMPNNGeneratorConfig): Configuration object containing all generator parameters.
         """
         super().__init__()
         self.config = config
@@ -276,7 +279,7 @@ class LigandMPNNGenerator(Generator):
         """Generate protein sequences using LigandMPNN and update proposal sequences.
 
         Args:
-            structure_inputs: Optional structure inputs to use instead of config.
+            structure_inputs (list[InverseFoldingStructureInput] | None): Optional structure inputs to use instead of config.
                 Accepts flexible formats (same as config): single structure, list of structures,
                 ``Structure`` objects, file paths, or ``InverseFoldingStructureInput`` objects.
                 If provided, generates one sequence per structure. If None, uses

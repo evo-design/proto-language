@@ -1,4 +1,6 @@
 """
+proto_language/language/constraint/protein_quality/protein_repetitiveness_constraint.py
+
 Protein repetitiveness constraint function.
 """
 
@@ -83,7 +85,7 @@ def protein_repetitiveness_constraint(input_sequences: List[Tuple[Sequence, ...]
     (40% of sequence).
     
     Args:
-        input_sequences (List[Tuple[Sequence, ...]]): List of sequence tuples to evaluate.
+        input_sequences (list[tuple[Sequence, ...]]): List of sequence tuples to evaluate.
             Each tuple contains one protein sequence.
             
         config (ProteinRepetitivenessConfig): Configuration object containing
@@ -148,11 +150,11 @@ def _calculate_repetitiveness_score(seq: str, min_repeat_length: int = 3) -> flo
     Calculate repetitiveness score based on k-mer frequency analysis
 
     Args:
-        seq: Protein sequence to analyze
-        min_repeat_length: Minimum length of repeats to consider
+        seq (str): Protein sequence to analyze
+        min_repeat_length (int): Minimum length of repeats to consider
 
     Returns:
-        Maximum fraction of sequence covered by repeated k-mers (0.0 to 1.0)
+        float: Maximum fraction of sequence covered by repeated k-mers (0.0 to 1.0)
 
     Raises:
         ValueError: If length of sequence is shorter than the minimum repeat length

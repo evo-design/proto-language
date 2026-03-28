@@ -1,4 +1,6 @@
-"""Tests for BeamSearchOptimizer - single-segment iterative beam search."""
+"""tests/language_tests/optimizer_tests/test_beam_search_optimizer.py
+
+Tests for BeamSearchOptimizer - single-segment iterative beam search."""
 
 from __future__ import annotations
 

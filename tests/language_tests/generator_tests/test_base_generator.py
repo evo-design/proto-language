@@ -1,3 +1,4 @@
+"""tests/language_tests/generator_tests/test_base_generator.py"""
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch

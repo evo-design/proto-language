@@ -1,5 +1,5 @@
 """
-Tests for TopKOptimizer functionality.
+tests/language_tests/optimizer_tests/test_topk_optimizer.py
 
 Minimal tests verifying core behavior of the TopKOptimizer.
 """

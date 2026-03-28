@@ -1,4 +1,6 @@
 """
+proto_language/language/constraint/protein_structure/protein_symmetry_ring_constraint.py
+
 Protein symmetry ring constraint for symmetric multimeric structures.
 """
 
@@ -139,7 +141,7 @@ def protein_symmetry_ring_constraint(input_sequences: List[Tuple[Sequence, ...]]
     depending on length and hardware.
 
     Args:
-        input_sequences (List[Tuple[Sequence, ...]]): List of single-sequence tuples to
+        input_sequences (list[tuple[Sequence, ...]]): List of single-sequence tuples to
             evaluate. Each tuple contains one protein or DNA sequence. All sequences
             must be the same type. For DNA sequences, ORF prediction is performed
             automatically.

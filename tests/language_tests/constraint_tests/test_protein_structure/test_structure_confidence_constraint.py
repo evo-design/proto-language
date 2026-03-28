@@ -1,5 +1,5 @@
 """
-Comprehensive tests for structure confidence constraints.
+tests/language_tests/constraint_tests/test_protein_structure/test_structure_confidence_constraint.py
 
 Tests cover:
 1. Score calculation for all metrics (pLDDT, pTM, ipTM, pAE)

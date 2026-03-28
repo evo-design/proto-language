@@ -1,5 +1,5 @@
 """
-Logging configuration for proto_language.
+proto_language/logging_config.py
 
 Provides centralized logging setup with file and console handlers,
 automatic log directory management, suppression of noisy third-party loggers,
@@ -47,10 +47,10 @@ def _parse_log_level(level: Union[int, str]) -> int:
     Parse log level from string or int, case-insensitive.
 
     Args:
-        level: Log level as int (e.g., logging.INFO) or string (e.g., "INFO", "info", "Info")
+        level (int | str): Log level as int (e.g., logging.INFO) or string (e.g., "INFO", "info", "Info")
 
     Returns:
-        Integer log level
+        int: Integer log level
 
     Raises:
         ValueError: If string level is not recognized
@@ -83,19 +83,19 @@ def setup_logging(
     Configure logging for proto_language.
 
     Args:
-        level: Default logging level for all handlers. Can be an int (e.g., logging.INFO)
+        level (int | str): Default logging level for all handlers. Can be an int (e.g., logging.INFO)
             or a case-insensitive string (e.g., "INFO", "info", "Debug"). Default: INFO.
-        log_dir: Directory for log files. Defaults to logs/ in project root.
-        log_filename: Custom filename for the log file. If None, uses timestamped filename
+        log_dir (str | None): Directory for log files. Defaults to logs/ in project root.
+        log_filename (str | None): Custom filename for the log file. If None, uses timestamped filename
             like proto_language_YYYYMMDD_HHMMSS.log. If provided, uses this exact filename.
-        log_to_file: Whether to enable file logging (default: True).
-        log_to_console: Whether to enable console logging to stdout (default: True).
-        console_level: Override level for console handler. Accepts int or string (default: uses `level`).
-        file_level: Override level for file handler. Accepts int or string (default: DEBUG for full capture).
-        console_output_formatted: If True, console output includes timestamp and metadata like file logs.
+        log_to_file (bool): Whether to enable file logging (default: True).
+        log_to_console (bool): Whether to enable console logging to stdout (default: True).
+        console_level (int | str | None): Override level for console handler. Accepts int or string (default: uses `level`).
+        file_level (int | str | None): Override level for file handler. Accepts int or string (default: DEBUG for full capture).
+        console_output_formatted (bool): If True, console output includes timestamp and metadata like file logs.
             If False (default), console output is print-like: DEBUG/INFO show only the message,
             while WARNING/ERROR/CRITICAL include the level prefix (e.g., "WARNING: message").
-        log_file_header: Optional header text to write at the top of the log file before logging starts.
+        log_file_header (str | None): Optional header text to write at the top of the log file before logging starts.
     """
     # Parse levels (supports case-insensitive strings)
     level = _parse_log_level(level)
@@ -223,11 +223,11 @@ def get_logger(name: str) -> logging.Logger:
     Get a logger for a proto_language module.
 
     Args:
-        name: Logger name, typically __name__ from the calling module.
+        name (str): Logger name, typically __name__ from the calling module.
             Will be prefixed with 'proto_language.' if not already.
 
     Returns:
-        Configured Logger instance.
+        logging.Logger: Configured Logger instance.
 
     Example:
         >>> logger = get_logger(__name__)

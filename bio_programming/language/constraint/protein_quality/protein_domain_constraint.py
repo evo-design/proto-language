@@ -1,4 +1,6 @@
 """
+proto_language/language/constraint/protein_quality/protein_domain_constraint.py
+
 Protein domain constraint function.
 """
 
@@ -39,7 +41,7 @@ class ProteinDomainConfig(BaseConfig):
             TIGRFAM.hmm). The database must be preprocessed with hmmpress before
             use. Download Pfam from: https://www.ebi.ac.uk/interpro/download/pfam/
 
-        keywords (List[str]): Keywords to search for in domain descriptions
+        keywords (list[str]): Keywords to search for in domain descriptions
             (case-insensitive). For example, ["kinase", "ATP-binding"] will match
             any domain description containing either term. Matches if ANY keyword
             is found in hit description, unless ``match_all_keywords=True``.
@@ -49,7 +51,7 @@ class ProteinDomainConfig(BaseConfig):
             expected by chance. Typical values range from 0.0001 (strict) to
             0.01 (permissive). Default: 0.005.
 
-        query_coverage (Optional[float]): Minimum query coverage percentage (0-100)
+        query_coverage (float | None): Minimum query coverage percentage (0-100)
             for significant hits. If specified, filters hits by alignment coverage
             of the query sequence. For example, 50.0 requires at least 50% of the
             query to align to the domain. None means no coverage filter applied.
@@ -135,7 +137,7 @@ def protein_domain_constraint(input_sequences: List[Tuple[Sequence, ...]], confi
     depending on configuration).
 
     Args:
-        input_sequences (List[Tuple[Sequence, ...]]): List of sequence tuples to evaluate.
+        input_sequences (list[tuple[Sequence, ...]]): List of sequence tuples to evaluate.
             Each tuple contains one DNA or protein sequence. DNA sequences are first
             processed through ORF prediction.
 
@@ -349,13 +351,13 @@ def _process_protein_sequences(
     Process protein sequences: Check domains in batch.
 
     Args:
-        input_sequences: List of protein sequences
-        hmm_db: Path to HMM database
-        keywords_lower: Lowercase keywords to search for
-        config: Domain constraint configuration
+        input_sequences (list[Sequence]): List of protein sequences
+        hmm_db (Path): Path to HMM database
+        keywords_lower (list[str]): Lowercase keywords to search for
+        config (ProteinDomainConfig): Domain constraint configuration
 
     Returns:
-        List of constraint scores
+        list[float]: List of constraint scores
     """
     # Extract protein sequence strings
     protein_sequences = [seq.sequence for seq in input_sequences]
@@ -424,15 +426,15 @@ def _check_protein_domains_batch(
     Helper function to check a batch of protein sequences for domain matches.
 
     Args:
-        protein_sequences: Protein sequence to analyze.
-        hmm_db: Path to HMM database.
-        keywords_lower: Lowercase keywords to search for.
-        evalue_threshold: E-value threshold for significance.
-        query_coverage: Minimum query coverage (optional).
-        hmmscan_config: Configuration for PyHMMER hmmscan.
+        protein_sequences (list[Sequence]): Protein sequence to analyze.
+        hmm_db (str): Path to HMM database.
+        keywords_lower (list[str]): Lowercase keywords to search for.
+        evalue_threshold (float): E-value threshold for significance.
+        query_coverage (float): Minimum query coverage (optional).
+        hmmscan_config (PyHmmerConfig): Configuration for PyHMMER hmmscan.
 
     Returns:
-        List of dictionaries with analysis results including hits and keywords found.
+        list[dict[str, Any]]: List of dictionaries with analysis results including hits and keywords found.
     """
 
     # Create PyHMMER config with direct sequence input (no temporary files needed)

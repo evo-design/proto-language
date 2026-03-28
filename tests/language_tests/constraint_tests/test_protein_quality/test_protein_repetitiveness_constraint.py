@@ -1,3 +1,4 @@
+"""tests/language_tests/constraint_tests/test_protein_quality/test_protein_repetitiveness_constraint.py"""
 from proto_language.language.constraint import protein_repetitiveness_constraint
 from proto_language.language.constraint.protein_quality.protein_repetitiveness_constraint import (
     ProteinRepetitivenessConfig,

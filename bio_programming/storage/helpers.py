@@ -1,5 +1,5 @@
 """
-helpers.py
+proto_language/storage/helpers.py
 
 Convenience functions for storing and retrieving file content.
 """
@@ -22,12 +22,12 @@ def store_file(
     large file content (PDB, CIF, HMM, etc.) to avoid bloating metadata.
 
     Args:
-        content: File content as string or bytes.
-        file_type: Type of the file being stored.
+        content (str | bytes): File content as string or bytes.
+        file_type (FileType): Type of the file being stored.
 
     Returns:
-        Dictionary representation of the FileReference, suitable for
-        storing in sequence metadata.
+        dict[str, Any]: Dictionary representation of the FileReference, suitable for
+            storing in sequence metadata.
 
     Example:
         >>> from proto_language.storage import store_file, FileType
@@ -49,10 +49,10 @@ def get_file_content(ref_or_content: Union[Dict[str, Any], str]) -> str:
     making it easy to work with metadata that may contain either format.
 
     Args:
-        ref_or_content: Either a file reference dictionary or an inline string.
+        ref_or_content (dict[str, Any] | str): Either a file reference dictionary or an inline string.
 
     Returns:
-        The file content as a string.
+        str: The file content as a string.
 
     Raises:
         ValueError: If the input is neither a valid file reference nor a string.
@@ -83,10 +83,10 @@ def get_file_content_bytes(ref_or_content: Union[Dict[str, Any], bytes]) -> byte
     Similar to get_file_content but for binary content.
 
     Args:
-        ref_or_content: Either a file reference dictionary or inline bytes.
+        ref_or_content (dict[str, Any] | bytes): Either a file reference dictionary or inline bytes.
 
     Returns:
-        The file content as bytes.
+        bytes: The file content as bytes.
 
     Raises:
         ValueError: If the input is neither a valid file reference nor bytes.
@@ -110,9 +110,9 @@ def is_file_reference(value: Any) -> bool:
     """Check if a value is a file reference dictionary.
 
     Args:
-        value: Value to check.
+        value (Any): Value to check.
 
     Returns:
-        True if value is a file reference dictionary.
+        bool: True if value is a file reference dictionary.
     """
     return FileReference.is_file_ref(value)

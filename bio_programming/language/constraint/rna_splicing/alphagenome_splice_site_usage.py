@@ -1,10 +1,9 @@
-"""AlphaGenome splice-site-usage constraint.
+"""proto_language/language/constraint/rna_splicing/alphagenome_splice_site_usage.py
 
 Accepts three segments (left_flank, intron_core, right_flank), concatenates
 them into a target sequence, integrates the target into a genomic context
 via cassette insertion, and scores splice-site usage with AlphaGenome.
-Metadata is propagated back to all three input segments.
-"""
+Metadata is propagated back to all three input segments."""
 
 from __future__ import annotations
 
@@ -149,16 +148,17 @@ class AlphaGenomeSpliceSiteUsageConfig(BaseConfig):
     specified relative to the concatenated target sequence.
 
     Attributes:
-        genomic_context: Genomic context sequence for cassette integration.
-        cassette_left_context: Left flanking context for the cassette.
-        cassette_right_context: Right flanking context for the cassette.
-        ontology_terms: AlphaGenome ontology term(s) to score.
-        splice_pos: 0-indexed position(s) in the concatenated target to evaluate.
-        direction: Optimization direction ('max' or 'min').
-        strand: Track strand subset to aggregate over.
-        model_version: AlphaGenome model version.
-        organism: Organism for AlphaGenome prediction.
-        prediction_timeout: Timeout (seconds) for each prediction call.
+        genomic_context (str): Genomic context sequence for cassette integration.
+        cassette_left_context (str): Left flanking context for the cassette.
+        cassette_right_context (str): Right flanking context for the cassette.
+        ontology_terms (list[str]): AlphaGenome ontology term(s) to score.
+        splice_pos (list[int]): 0-indexed position(s) in the concatenated target to evaluate.
+        direction (Literal['max', 'min']): Optimization direction ('max' or 'min').
+        strand (Literal['positive', 'negative', 'all']): Track strand subset to aggregate over.
+        model_version (str): AlphaGenome model version.
+        organism (Literal['human', 'mouse']): Organism for AlphaGenome prediction.
+        prediction_timeout (int): Timeout (seconds) for each prediction call.
+        device (str): PyTorch device string for model inference (e.g. 'cpu', 'cuda').
     """
 
     # Cassette and genomic context fields
@@ -270,11 +270,11 @@ def alphagenome_splice_site_usage(
     Metadata is propagated back to all three input segments.
 
     Args:
-        input_sequences: List of 3-tuples (left_flank, intron_core, right_flank).
-        config: Configuration with genomic/cassette contexts and scoring params.
+        input_sequences (list[tuple[Sequence, ...]]): List of 3-tuples (left_flank, intron_core, right_flank).
+        config (AlphaGenomeSpliceSiteUsageConfig): Configuration with genomic/cassette contexts and scoring params.
 
     Returns:
-        List of float scores in [0.0, 1.0]. Interpretation depends on direction.
+        list[float]: List of float scores in [0.0, 1.0]. Interpretation depends on direction.
     """
     if not input_sequences:
         return []

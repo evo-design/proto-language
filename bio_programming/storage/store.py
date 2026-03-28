@@ -1,5 +1,5 @@
 """
-store.py
+proto_language/storage/store.py
 
 File storage backends for large file content.
 """
@@ -27,11 +27,11 @@ class FileStore(ABC):
         """Store content and return a reference.
 
         Args:
-            content: File content as string or bytes.
-            file_type: Type of the file being stored.
+            content (str | bytes): File content as string or bytes.
+            file_type (FileType): Type of the file being stored.
 
         Returns:
-            FileReference to the stored content.
+            FileReference: FileReference to the stored content.
         """
         pass
 
@@ -40,10 +40,10 @@ class FileStore(ABC):
         """Retrieve content by file ID.
 
         Args:
-            file_id: Content-addressed ID of the file.
+            file_id (str): Content-addressed ID of the file.
 
         Returns:
-            File content as bytes.
+            bytes: File content as bytes.
 
         Raises:
             FileNotFoundError: If file does not exist.
@@ -55,10 +55,10 @@ class FileStore(ABC):
         """Check if a file exists.
 
         Args:
-            file_id: Content-addressed ID of the file.
+            file_id (str): Content-addressed ID of the file.
 
         Returns:
-            True if file exists.
+            bool: True if file exists.
         """
         pass
 
@@ -71,10 +71,10 @@ class FileStore(ABC):
         """Get an accessible URL or path for the file.
 
         Args:
-            file_id: Content-addressed ID of the file.
+            file_id (str): Content-addressed ID of the file.
 
         Returns:
-            URL (for remote stores) or local file path (for local stores).
+            str: URL (for remote stores) or local file path (for local stores).
 
         Raises:
             FileNotFoundError: If file does not exist.
@@ -85,10 +85,10 @@ class FileStore(ABC):
         """Get the MIME content type for a stored file.
 
         Args:
-            file_id: Content-addressed ID of the file.
+            file_id (str): Content-addressed ID of the file.
 
         Returns:
-            MIME type string, defaults to ``application/octet-stream``.
+            str: MIME type string, defaults to ``application/octet-stream``.
         """
         return "application/octet-stream"
 
@@ -97,10 +97,10 @@ class FileStore(ABC):
         """Compute SHA-256 hash of content.
 
         Args:
-            content: Content as string or bytes.
+            content (str | bytes): Content as string or bytes.
 
         Returns:
-            Hex-encoded SHA-256 hash.
+            str: Hex-encoded SHA-256 hash.
         """
         if isinstance(content, str):
             content = content.encode("utf-8")
@@ -115,11 +115,11 @@ class FileStore(ABC):
         with native batch APIs for better performance.
 
         Args:
-            file_ids: Set of content-addressed file IDs to fetch.
-            max_workers: Maximum concurrent fetches (default 10).
+            file_ids (set[str]): Set of content-addressed file IDs to fetch.
+            max_workers (int): Maximum concurrent fetches (default 10).
 
         Returns:
-            Dict mapping each file ID to its content bytes.
+            dict[str, bytes]: Dict mapping each file ID to its content bytes.
 
         Raises:
             FileNotFoundError: If any file does not exist.
@@ -140,10 +140,10 @@ class FileStore(ABC):
         to avoid too many files in a single directory.
 
         Args:
-            file_id: Content-addressed ID.
+            file_id (str): Content-addressed ID.
 
         Returns:
-            Path like "ab/cd/abcdef1234..."
+            str: Path like "ab/cd/abcdef1234..."
         """
         return f"{file_id[:2]}/{file_id[2:4]}/{file_id}"
 
@@ -153,13 +153,16 @@ class LocalFileStore(FileStore):
 
     Stores files in a sharded directory structure:
         {base_path}/{hash[:2]}/{hash[2:4]}/{hash}
+
+    Attributes:
+        serves_redirect (bool): Whether this store serves redirect URLs instead of direct content.
     """
 
     def __init__(self, base_path: Union[str, Path]):
         """Initialize local file store.
 
         Args:
-            base_path: Base directory for file storage.
+            base_path (str | Path): Base directory for file storage.
         """
         self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
@@ -230,6 +233,9 @@ class GCSFileStore(FileStore):
 
     Stores files in a sharded path structure:
         gs://{bucket}/files/{hash[:2]}/{hash[2:4]}/{hash}
+
+    Attributes:
+        serves_redirect (bool): Whether this store serves redirect URLs instead of direct content.
     """
 
     serves_redirect = True
@@ -238,8 +244,8 @@ class GCSFileStore(FileStore):
         """Initialize GCS file store.
 
         Args:
-            bucket_name: Name of the GCS bucket.
-            signed_url_expiration_minutes: Validity period for signed URLs
+            bucket_name (str): Name of the GCS bucket.
+            signed_url_expiration_minutes (int): Validity period for signed URLs
                 returned by :meth:`get_url` (default 60 minutes).
         """
         self.bucket_name = bucket_name
@@ -336,8 +342,11 @@ class GCSFileStore(FileStore):
     def get_url(self, file_id: str) -> str:
         """Generate a time-limited signed URL for the file.
 
+        Args:
+            file_id (str): Unique identifier for the stored file.
+
         Returns:
-            Signed HTTPS URL for direct browser access.
+            str: Signed HTTPS URL for direct browser access.
 
         Raises:
             FileNotFoundError: If file does not exist in GCS.
@@ -364,7 +373,7 @@ def get_file_store() -> FileStore:
         GCS_FILE_BUCKET: GCS bucket name (required if FILE_STORE_TYPE=gcs)
 
     Returns:
-        Configured FileStore instance.
+        FileStore: Configured FileStore instance.
 
     Raises:
         ValueError: If GCS is configured but GCS_FILE_BUCKET is not set.
