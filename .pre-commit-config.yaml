@@ -9,12 +9,12 @@
 #   pre-commit run --all-files
 
 repos:
-  # Import sorting
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
+  # Linting + import sorting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.8
     hooks:
-      - id: isort
-        args: ["--profile", "black"]
+      - id: ruff
+        args: ["--fix"]
 
   # Basic file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks

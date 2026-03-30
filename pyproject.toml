@@ -93,9 +93,7 @@ dev = [
     "pytest-asyncio>=0.21", # asyncio_mode="auto" requires 0.21+
     "pytest-cov>=4.1.0",
     "pytest-forked",        # Required on Sherlock (exclusive GPU process mode)
-    "black",
-    "isort",
-    "flake8",
+    "ruff",
     "mypy",
     "pre-commit",
     "jupyter",
@@ -147,14 +145,6 @@ log_cli = true
 log_cli_level = "INFO"
 log_cli_format = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
 
-[tool.black]
-line-length = 88
-target-version = ['py310']
-
-[tool.isort]
-profile = "black"
-known_first_party = ["proto_language", "api", "agent", "mcp"]
-
 [tool.mypy]
 python_version = "3.10"
 warn_return_any = true
@@ -164,3 +154,22 @@ ignore_missing_imports = true
 check_untyped_defs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+exclude = [
+    ".venvs",
+    "*/.venvs",
+    "__pycache__",
+    ".git",
+    "build",
+    "dist",
+    "*.egg-info",
+]
+
+[tool.ruff.lint]
+select = ["F401", "F841", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["proto_language", "api", "agent", "mcp"]
