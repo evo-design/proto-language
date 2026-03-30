@@ -153,6 +153,6 @@ Copy this and check off as you go:
 - [ ] Export chain updated: `optimizer/__init__.py`
 - [ ] Tests cover: init, config validation, run, score improvement, history, filter constraints
 - [ ] Tests pass: `pytest tests/language_tests/optimizer_tests/ --cpu -x`
-- [ ] Lint passes: `flake8 proto_language/language/optimizer/`
+- [ ] Lint passes: `ruff check proto_language/language/optimizer/`
 
 If any check fails, fix before proceeding.

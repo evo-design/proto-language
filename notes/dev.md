@@ -6,7 +6,7 @@ This guide covers the development workflow, including pre-commit hooks and what 
 
 ```bash
 # Important commands to know
-flake8 proto_language api agent tests # Run by Checks CI to check code style
+ruff check proto_language api agent tests # Run by Checks CI to check code style
 pytest --cpu --skip-ci                 # Run by Unit Test CI to run CPU-only unit tests (mimics exact CI conditions)
 pytest --e2e -v                        # Run by E2E Test CI (starts real a cache + API server)
 
@@ -127,7 +127,7 @@ pre-commit install
 
 ### What the Hooks Do
 
-1. **Import sorting** - Runs `isort` to sort imports
+1. **Linting + import sorting** - Runs `ruff` to lint and sort imports
 2. **Basic checks** - Removes trailing whitespace, fixes end-of-file issues, validates YAML, checks for large files
 3. **Export chain validation** - Validates `__init__.py` export chains when any `__init__.py` is staged (see [Export Chain Validator](#export-chain-validator))
 
@@ -141,7 +141,7 @@ pre-commit run --all-files
 pre-commit run --files path/to/file.py
 
 # Run a specific hook
-pre-commit run isort --all-files
+pre-commit run ruff --all-files
 ```
 
 ### Bypassing Hooks (Not Recommended)
@@ -234,13 +234,13 @@ This CI always runs automatically on pull requests regardless of state.
 **File:** `.github/workflows/checks.yml`
 **Triggers:** On all PR pushes and main branch
 **What it does:** Three parallel jobs:
-1. **Flake8 Lint** — checks code style (F401 + F841)
+1. **Ruff Lint** — checks code style (F401 + F841 + import sorting)
 2. **Validate Export Chains** — verifies `__init__.py` exports are consistent
 3. **Verify OpenAPI Spec** — ensures `openapi.json` matches current Pydantic models
 
 **Run locally:**
 ```bash
-flake8 proto_language api agent tests
+ruff check proto_language api agent tests
 python .github/scripts/validate_exports.py --verbose
 python .github/scripts/generate_openapi.py --check
 ```

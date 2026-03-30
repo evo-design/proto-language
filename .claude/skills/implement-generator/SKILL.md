@@ -168,6 +168,6 @@ Copy this and check off as you go:
 - [ ] Export chain updated: `generator/__init__.py` (class + config)
 - [ ] Tests cover: init, assign, sample, batch, type validation, config validation
 - [ ] Tests pass: `pytest tests/language_tests/generator_tests/ --cpu -x`
-- [ ] Lint passes: `flake8 proto_language/language/generator/`
+- [ ] Lint passes: `ruff check proto_language/language/generator/`
 
 If any check fails, fix before proceeding.

@@ -90,7 +90,7 @@ For feature requests (not bugs), skip the failing-test step — but still plan t
 Follow the coding conventions:
 - `from __future__ import annotations` at top of every file
 - `logging.getLogger(__name__)` — never `print()`
-- Black (line length 88), isort (black-compatible profile)
+- Ruff (line length 88, import sorting)
 - Pydantic v2 with `BaseConfig` / `ConfigField` for configs
 - Registry keys: kebab-case
 
@@ -111,7 +111,7 @@ pytest tests/language_tests/constraint_tests/ --cpu    # (or whichever area)
 pytest --cpu --skip-ci
 
 # 4. Lint
-flake8 proto_language api agent tests
+ruff check proto_language api agent tests
 ```
 
 If any test fails, fix it before proceeding. Don't ask — just fix regressions.
@@ -130,7 +130,7 @@ gh pr create --title "Fix #$ARGUMENTS: <concise description>" --body "Closes #$A
 ## Test plan
 - [ ] New test reproduces the bug and passes with fix
 - [ ] Existing test suite passes (`pytest --cpu --skip-ci`)
-- [ ] Lint clean (`flake8`)"
+- [ ] Lint clean (`ruff check`)"
 ```
 
 Then offer to clean up the worktree:

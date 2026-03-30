@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 Never use `print()`. Always use `logger.info()` / `logger.debug()` / `logger.warning()` / `logger.error()`.
 
-## Import Ordering (enforced by isort)
+## Import Ordering (enforced by ruff)
 
 1. `from __future__ import annotations`
 2. Standard library (`os`, `logging`, `typing`, etc.)
@@ -228,8 +228,6 @@ All tool keys follow **`{tool}-{action}`** in kebab-case:
 ## Linting & Formatting
 
 ```bash
-black proto_language api agent tests         # Format (line length 88)
-isort proto_language api agent tests         # Sort imports (black-compatible)
-flake8 proto_language api agent tests        # Lint: F401 (unused imports) + F841 (unused vars) ONLY
+ruff check proto_language api agent tests    # Lint: F401 (unused imports) + F841 (unused vars) + import sorting
 pre-commit run --all-files                    # All checks
 ```

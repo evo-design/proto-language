@@ -346,6 +346,6 @@ Copy this and check off as you go:
 - [ ] Use `depends_on` for fields that are only relevant when another field has a specific value
 - [ ] Tests cover: parametrized scoring, wrong type, invalid config, metadata, edge cases
 - [ ] Tests pass: `pytest tests/language_tests/constraint_tests/ --cpu -x`
-- [ ] Lint passes: `flake8 proto_language/language/constraint/`
+- [ ] Lint passes: `ruff check proto_language/language/constraint/`
 
 If any check fails, fix before proceeding.

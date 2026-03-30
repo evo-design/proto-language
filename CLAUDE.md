@@ -83,9 +83,7 @@ pytest --all                          # Everything including slow + integration 
 pytest --cpu --skip-ci                # Mimic CI
 pytest --gpu --all                    # GPU + slow + integration tests
 pytest -k "name"                      # Filter by name
-flake8 proto_language api agent deployment tests  # Lint (F401, F841 only)
-black proto_language api agent deployment tests   # Format
-isort proto_language api agent deployment tests   # Sort imports
+ruff check proto_language api agent deployment tests  # Lint (F401, F841, import sorting)
 pre-commit run --all-files              # All checks
 python .github/scripts/generate_openapi.py          # Regenerate openapi.json from FastAPI app
 python .github/scripts/generate_openapi.py --check  # Verify openapi.json is up to date (CI)
@@ -148,7 +146,7 @@ The `proto-tools/` submodule has its own CLAUDE.md with its own mappings.
 
 - `from __future__ import annotations` at top of every file
 - `logging.getLogger(__name__)` — never `print()`
-- Black (line length 88), isort (black-compatible profile), flake8 (F401 + F841 only)
+- Ruff (line length 88, checks F401 + F841 + import sorting)
 - Pydantic v2 for all configs — inherit `BaseConfig`, use `ConfigField` (not `Field`). Use `depends_on` for conditional field visibility (show/hide fields based on another field's value).
 - Registry keys: kebab-case. Config classes: `{Name}Config`. Files: `{name}_constraint.py` / `{name}_generator.py`
 - **When modifying existing code**: Thoroughly find and update ALL callsites, imports, docstrings, comments, tests, and documentation that reference the changed code. Use sub-agents to search the entire codebase in parallel. Leave no dangling references.
@@ -206,7 +204,7 @@ Other markers: `@pytest.mark.uses_gpu`, `@pytest.mark.slow`, `@pytest.mark.skip_
 Use sub-agents aggressively to parallelize independent work:
 
 - **Codebase exploration**: Launch multiple sub-agents simultaneously to search different areas (e.g., one searching constraints, another searching generators, another reading tests)
-- **Test + lint**: Run `pytest` and `flake8` in parallel sub-agents after making changes
+- **Test + lint**: Run `pytest` and `ruff check` in parallel sub-agents after making changes
 - **Multi-file investigation**: When an issue touches several components, fan out sub-agents to read all relevant files at once rather than reading them sequentially
 - **Fix verification**: Run the specific failing test, the broader component suite, and lint all in parallel
 

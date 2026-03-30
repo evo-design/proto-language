@@ -45,10 +45,8 @@ pytest tests/agent_tests/                 # Agent
 pytest tests/tool_tests/                  # Tool integrations
 pytest tests/e2e_tests/  --e2e           # E2E (requires a cache)
 
-# Linting (CI checks F401 unused imports, F841 unused vars only)
-flake8 proto_language api agent tests
-black --check proto_language api agent tests
-isort --check-only proto_language api agent tests
+# Linting (CI checks F401 unused imports, F841 unused vars, import sorting)
+ruff check proto_language api agent tests
 ```
 
 ## Test File Placement
@@ -164,6 +162,6 @@ Copy this and check off as you go:
 - [ ] Invalid config test included
 - [ ] Metadata propagation test included (for constraints)
 - [ ] Tests pass: `pytest tests/language_tests/{area}_tests/ --cpu -x`
-- [ ] Lint passes: `flake8 tests/`
+- [ ] Lint passes: `ruff check tests/`
 
 If any check fails, fix before proceeding.
