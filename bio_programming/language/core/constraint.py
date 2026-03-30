@@ -228,7 +228,7 @@ class Constraint:
                 return False for unevaluated proposals; scoring constraints
                 return NaN for unevaluated proposals.
         """
-        num_proposals = self._get_effective_num_candidates()
+        num_proposals = self._inputs[0].num_proposals
         logger.debug(f"Constraint.evaluate: {self.label}, proposals={num_proposals}, threshold={self._threshold}")
 
         # Default: evaluate all proposals
@@ -315,14 +315,8 @@ class Constraint:
         # Return tuple of clean Sequence objects
         # Example: sequence_idx=0, segments with sequences=[Seq("AAA"), ...], [Seq("CCC"), ...] → (Seq("AAA"), Seq("CCC"))
         dummy_sequences = []
-        num_candidates = self._get_effective_num_candidates()
         for seg in self._inputs:
-            candidate_idx = self._resolve_segment_candidate_index(
-                segment=seg,
-                sequence_idx=sequence_idx,
-                num_candidates=num_candidates,
-            )
-            original = seg.proposal_sequences[candidate_idx]
+            original = seg.proposal_sequences[sequence_idx]
             # Create clean Sequence with only essential properties
             dummy_seq = Sequence(
                 sequence=original.sequence,
@@ -382,15 +376,9 @@ class Constraint:
         # Skip duplicate segments within the same constraint to avoid overwriting metadata with empty data
         # (e.g., inputs=[protomer, protomer, protomer] for symmetric proteins)
         processed_original_ids = set()
-        num_candidates = self._get_effective_num_candidates()
 
         for seg_idx, (segment, scored_seq) in enumerate(zip(self._inputs, scored_sequence)):
-            candidate_idx = self._resolve_segment_candidate_index(
-                segment=segment,
-                sequence_idx=sequence_idx,
-                num_candidates=num_candidates,
-            )
-            original_seq = segment.proposal_sequences[candidate_idx]
+            original_seq = segment.proposal_sequences[sequence_idx]
             original_id = id(original_seq)
             if original_id in processed_original_ids:
                 continue
@@ -415,40 +403,6 @@ class Constraint:
                 constraint_data["position_in_inputs"] = seg_idx
 
             original_seq._constraints_metadata[self.label] = constraint_data
-
-    def _get_effective_num_candidates(self) -> int:
-        """
-        Return the broadcast-aware candidate count for current segment state.
-
-        Supports mixed candidate pool sizes at evaluation time where fixed-context
-        segments keep a single candidate while optimized segments carry a full pool.
-        """
-        candidate_sizes = [seg.num_proposals for seg in self._inputs]
-        if not candidate_sizes:
-            raise ValueError("Constraint has no input segments.")
-        num_candidates = max(candidate_sizes)
-        invalid_sizes = [size for size in candidate_sizes if size not in (1, num_candidates)]
-        if invalid_sizes:
-            raise ValueError(
-                "All segments must have candidate size 1 or match the maximum candidate count "
-                f"{num_candidates}. Found sizes: {candidate_sizes}"
-            )
-        return num_candidates
-
-    @staticmethod
-    def _resolve_segment_candidate_index(segment: Segment, sequence_idx: int, num_candidates: int) -> int:
-        """
-        Map a global candidate index to a segment-local index with broadcasting.
-        """
-        seg_proposals = segment.num_proposals
-        if seg_proposals == num_candidates:
-            return sequence_idx
-        if seg_proposals == 1:
-            return 0
-        raise ValueError(
-            f"Segment {segment.construct_label}.{segment.label} has {seg_proposals} proposals; "
-            f"expected 1 or {num_candidates}."
-        )
 
     def _validate_constraint(self) -> None:
         """

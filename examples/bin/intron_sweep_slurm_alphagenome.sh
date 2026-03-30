@@ -62,8 +62,6 @@ GENERATE_AGGREGATE_AG_VIS="${GENERATE_AGGREGATE_AG_VIS:-true}"
 GENERATE_AGGREGATE_AG_ST_VIS="${GENERATE_AGGREGATE_AG_ST_VIS:-true}"
 AG_VIS_VIEW_MODE="${AG_VIS_VIEW_MODE:-full}"
 AG_ST_VIS_VIEW_MODE="${AG_ST_VIS_VIEW_MODE:-full}"
-MCMC_CHECKPOINT_INTERVAL="${MCMC_CHECKPOINT_INTERVAL:-1}"
-MCMC_CHECKPOINT_BASENAME="${MCMC_CHECKPOINT_BASENAME:-mcmc_checkpoint.pkl}"
 MCMC_CANDIDATES_PER_RESULT="${MCMC_CANDIDATES_PER_RESULT:-1}"
 DEFAULT_TARGET_ONTOLOGY_TERMS="CL:0002319,CL:0011012,CL:0011020,CL:0000047"
 DEFAULT_OFFTARGET_ONTOLOGY_TERMS="EFO:0002067"
@@ -308,7 +306,6 @@ run_task() {
     local stderr_log="${task_log_dir}/stderr.log"
     local vis_log="${task_log_dir}/visualize_final_aggregate.log"
     local ag_st_vis_log="${task_log_dir}/visualize_ag_st_final_aggregate.log"
-    local checkpoint_path="${run_dir}/${MCMC_CHECKPOINT_BASENAME}"
     local restart_count="${SLURM_RESTART_COUNT:-0}"
     local resolved_vis_plasmid_context_paths="$VIS_PLASMID_CONTEXT_PATHS"
     local resolved_vis_genomic_context_paths="$VIS_GENOMIC_CONTEXT_PATHS"
@@ -345,11 +342,7 @@ run_task() {
         --alphagenome_prediction_timeout "$ALPHAGENOME_PRED_TIMEOUT"
         --alphagenome_device "$ALPHAGENOME_DEVICE"
         --splice_transformer_device "$SPLICE_TRANSFORMER_DEVICE"
-        --mcmc_checkpoint_path "$checkpoint_path"
-        --mcmc_checkpoint_interval "$MCMC_CHECKPOINT_INTERVAL"
         --mcmc_candidates_per_result "$MCMC_CANDIDATES_PER_RESULT"
-        --mcmc_resume true
-        --mcmc_signal_checkpoint true
     )
 
     {
@@ -377,8 +370,6 @@ run_task() {
         echo "ALPHAGENOME_PRED_TIMEOUT=$ALPHAGENOME_PRED_TIMEOUT"
         echo "ALPHAGENOME_DEVICE=$ALPHAGENOME_DEVICE"
         echo "SPLICE_TRANSFORMER_DEVICE=$SPLICE_TRANSFORMER_DEVICE"
-        echo "MCMC_CHECKPOINT_PATH=$checkpoint_path"
-        echo "MCMC_CHECKPOINT_INTERVAL=$MCMC_CHECKPOINT_INTERVAL"
         echo "MCMC_CANDIDATES_PER_RESULT=$MCMC_CANDIDATES_PER_RESULT"
         echo "SLURM_RESTART_COUNT=$restart_count"
         echo "SHARED_RNA_SPLICING_PROCESS=$SHARED_RNA_SPLICING_PROCESS"

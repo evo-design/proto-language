@@ -2,10 +2,8 @@
 from __future__ import annotations
 
 import copy
-import random
 from typing import Tuple
 
-import numpy as np
 import pytest
 from proto_tools.tools.masked_models.masking import MaskingStrategy
 from pydantic import BaseModel
@@ -1185,84 +1183,3 @@ class TestMCMCOptimizer:
         optimizer, _, _, _ = _setup_mcmc_components()
         alpha = optimizer._compute_mcmc_alpha(float('-inf'), 0.5, 1)
         assert alpha == 1.0
-
-    def test_checkpoint_resume_matches_continuous_run(self, tmp_path):
-        """Checkpoint + resume run should match uninterrupted run."""
-        seq_length = 30
-        total_steps = 20
-        split_steps = 8
-        checkpoint_path = tmp_path / "mcmc_checkpoint.pkl"
-
-        random.seed(1234)
-        np.random.seed(1234)
-        baseline_optimizer, _, _, baseline_segment = _setup_mcmc_components(
-            seq_length=seq_length,
-            num_results=1,
-            num_mcmc_steps=total_steps,
-        )
-        baseline_optimizer.run()
-        baseline_final_sequence = baseline_segment.result_sequences[0].sequence
-        baseline_final_energy = baseline_optimizer.energy_scores[0]
-
-        random.seed(1234)
-        np.random.seed(1234)
-        phase1_optimizer, _, _, _ = _setup_mcmc_components(
-            seq_length=seq_length,
-            num_results=1,
-            num_mcmc_steps=split_steps,
-        )
-        phase1_optimizer.configure_checkpointing(
-            checkpoint_path=checkpoint_path,
-            save_interval_steps=1,
-            resume=False,
-        )
-        phase1_optimizer.run()
-        assert checkpoint_path.exists()
-
-        # Use different seeds to ensure restored RNG state comes from checkpoint.
-        random.seed(9999)
-        np.random.seed(9999)
-        resumed_optimizer, _, _, resumed_segment = _setup_mcmc_components(
-            seq_length=seq_length,
-            num_results=1,
-            num_mcmc_steps=total_steps,
-        )
-        resumed_optimizer.configure_checkpointing(
-            checkpoint_path=checkpoint_path,
-            save_interval_steps=1,
-            resume=True,
-        )
-        resumed_optimizer.run()
-
-        assert resumed_segment.result_sequences[0].sequence == baseline_final_sequence
-        assert resumed_optimizer.energy_scores[0] == pytest.approx(baseline_final_energy)
-
-    def test_checkpoint_resume_rejects_num_results_mismatch(self, tmp_path):
-        """Resume should fail if checkpoint and optimizer num_results mismatch."""
-        checkpoint_path = tmp_path / "mcmc_checkpoint.pkl"
-
-        optimizer1, _, _, _ = _setup_mcmc_components(
-            seq_length=20,
-            num_results=1,
-            num_mcmc_steps=3,
-        )
-        optimizer1.configure_checkpointing(
-            checkpoint_path=checkpoint_path,
-            save_interval_steps=1,
-            resume=False,
-        )
-        optimizer1.run()
-        assert checkpoint_path.exists()
-
-        optimizer2, _, _, _ = _setup_mcmc_components(
-            seq_length=20,
-            num_results=2,
-            num_mcmc_steps=3,
-        )
-        optimizer2.configure_checkpointing(
-            checkpoint_path=checkpoint_path,
-            save_interval_steps=1,
-            resume=True,
-        )
-        with pytest.raises(ValueError, match="Checkpoint num_results mismatch"):
-            optimizer2.run()

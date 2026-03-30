@@ -1,5 +1,4 @@
 import math
-import signal
 from pathlib import Path
 from typing import Dict, List, Literal, Optional, Tuple
 
@@ -93,10 +92,6 @@ class ProgramIntronAlphaGenomeArgs(Tap):
 
     splice_transformer_device: str = "cuda"
 
-    mcmc_checkpoint_path: str = ""
-    mcmc_checkpoint_interval: int = 1
-    mcmc_resume: bool = True
-    mcmc_signal_checkpoint: bool = True
     mcmc_num_results: int = 1
     mcmc_candidates_per_result: int = 1
 
@@ -143,10 +138,6 @@ if __name__ == "__main__":
     _enable_mcmc_energy_logging()
 
     print(args)
-    if args.mcmc_checkpoint_interval < 1:
-        raise ValueError(
-            f"mcmc_checkpoint_interval must be >= 1, got {args.mcmc_checkpoint_interval}"
-        )
     if args.mcmc_num_results < 1:
         raise ValueError(f"mcmc_num_results must be >= 1, got {args.mcmc_num_results}")
     if args.mcmc_candidates_per_result < 1:
@@ -700,53 +691,9 @@ if __name__ == "__main__":
             clear_tool_cache=True,
         )
         optimizer_for_logging["instance"] = optimizer
-        if args.mcmc_checkpoint_path:
-            optimizer.configure_checkpointing(
-                checkpoint_path=args.mcmc_checkpoint_path,
-                save_interval_steps=args.mcmc_checkpoint_interval,
-                resume=args.mcmc_resume,
-            )
-            print(
-                "MCMC checkpointing enabled: "
-                f"path={args.mcmc_checkpoint_path}, "
-                f"interval={args.mcmc_checkpoint_interval}, "
-                f"resume={args.mcmc_resume}"
-            )
 
     program_num_results = args.mcmc_num_results if args.intron_generator != "evo2" else 1
     program = Program(optimizers=[optimizer], num_results=program_num_results)
 
-    prior_sigterm_handler = None
-    prior_sigint_handler = None
-    signal_handlers_installed = False
-
-    if (
-        isinstance(optimizer, MCMCOptimizer)
-        and args.mcmc_signal_checkpoint
-        and args.mcmc_checkpoint_path
-    ):
-
-        def _checkpoint_on_signal(signum, _frame) -> None:
-            print(
-                f"Received signal {signum}; attempting checkpoint before exit."
-            )
-            try:
-                optimizer.checkpoint_now()
-                print(f"Wrote checkpoint: {args.mcmc_checkpoint_path}")
-            except Exception as exc:
-                print(f"WARNING: Failed to write checkpoint on signal {signum}: {exc}")
-            raise SystemExit(128 + signum)
-
-        prior_sigterm_handler = signal.getsignal(signal.SIGTERM)
-        prior_sigint_handler = signal.getsignal(signal.SIGINT)
-        signal.signal(signal.SIGTERM, _checkpoint_on_signal)
-        signal.signal(signal.SIGINT, _checkpoint_on_signal)
-        signal_handlers_installed = True
-
-    try:
-        with ToolInstance.persist():
-            program.run()
-    finally:
-        if signal_handlers_installed:
-            signal.signal(signal.SIGTERM, prior_sigterm_handler)
-            signal.signal(signal.SIGINT, prior_sigint_handler)
+    with ToolInstance.persist():
+        program.run()

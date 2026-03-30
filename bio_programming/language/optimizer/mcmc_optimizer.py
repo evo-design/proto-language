@@ -8,11 +8,8 @@ from __future__ import annotations
 import copy
 import logging
 import math
-import os
-import pickle
 import random
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, final
+from typing import Callable, Dict, List, Optional, Tuple, final
 
 import numpy as np
 from pydantic import model_validator
@@ -225,219 +222,6 @@ class MCMCOptimizer(Optimizer):
         self.num_steps: int = config.num_steps
         self.max_temperature: float = config.max_temperature
         self.min_temperature: float = config.min_temperature
-        self._checkpoint_path: Optional[Path] = None
-        self._checkpoint_interval_steps: int = 1
-        self._resume_from_checkpoint: bool = False
-        self._last_completed_step: int = 0
-
-    def configure_checkpointing(
-        self,
-        checkpoint_path: str | Path,
-        save_interval_steps: int = 1,
-        resume: bool = True,
-    ) -> None:
-        """Enable optional MCMC checkpointing and resume support."""
-        if save_interval_steps < 1:
-            raise ValueError(
-                f"save_interval_steps must be >= 1, got {save_interval_steps}"
-            )
-        self._checkpoint_path = Path(checkpoint_path)
-        self._checkpoint_interval_steps = save_interval_steps
-        self._resume_from_checkpoint = resume
-
-    def checkpoint_now(self) -> None:
-        """Persist the most recently completed MCMC step immediately."""
-        if self._checkpoint_path is None:
-            return
-        self._save_checkpoint(self._last_completed_step)
-
-    def _capture_rng_state(self) -> Dict[str, Any]:
-        """Capture RNG state for deterministic resume."""
-        state: Dict[str, Any] = {
-            "python": random.getstate(),
-            "numpy": np.random.get_state(),
-        }
-        try:
-            import torch  # type: ignore
-
-            state["torch_cpu"] = torch.get_rng_state().cpu()
-            if torch.cuda.is_available():
-                state["torch_cuda"] = [s.cpu() for s in torch.cuda.get_rng_state_all()]
-        except Exception:
-            # Torch is optional; do not fail checkpointing if unavailable.
-            pass
-        return state
-
-    def _restore_rng_state(self, state: Dict[str, Any]) -> None:
-        """Restore RNG state captured by _capture_rng_state."""
-        if not state:
-            return
-
-        python_state = state.get("python")
-        if python_state is not None:
-            random.setstate(python_state)
-
-        numpy_state = state.get("numpy")
-        if numpy_state is not None:
-            np.random.set_state(numpy_state)
-
-        try:
-            import torch  # type: ignore
-
-            torch_cpu_state = state.get("torch_cpu")
-            if torch_cpu_state is not None:
-                torch.set_rng_state(torch_cpu_state)
-
-            torch_cuda_state = state.get("torch_cuda")
-            if torch_cuda_state is not None and torch.cuda.is_available():
-                if len(torch_cuda_state) == torch.cuda.device_count():
-                    torch.cuda.set_rng_state_all(torch_cuda_state)
-                else:
-                    logger.warning(
-                        "Skipping CUDA RNG restore: checkpoint has %d devices, runtime has %d devices.",
-                        len(torch_cuda_state),
-                        torch.cuda.device_count(),
-                    )
-        except Exception:
-            # Torch is optional; do not fail resume if unavailable.
-            pass
-
-    def _save_checkpoint(self, step: int) -> None:
-        """Atomically persist MCMC state, including candidate-pool diagnostics."""
-        if self._checkpoint_path is None:
-            return
-
-        checkpoint_state = {
-            "version": 3,
-            "optimizer": self.__class__.__name__,
-            "step": step,
-            "num_steps": self.num_steps,
-            "num_results": self.num_results,
-            "proposals_per_result": self._proposals_per_result,
-            "energy_scores": self.energy_scores[: self.num_results],
-            "result_sequences": [
-                [seq.to_dict() for seq in segment.result_sequences]
-                for segment in self.segments
-            ],
-            "proposal_sequences": [
-                [seq.to_dict() for seq in segment.proposal_sequences]
-                for segment in self.segments
-            ],
-            "proposal_energy_scores": list(self._proposal_energy_scores),
-            "proposal_outcomes": list(self._proposal_outcomes),
-            "rng_state": self._capture_rng_state(),
-        }
-
-        self._checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = self._checkpoint_path.with_suffix(
-            f"{self._checkpoint_path.suffix}.tmp"
-        )
-        with tmp_path.open("wb") as handle:
-            pickle.dump(checkpoint_state, handle, protocol=pickle.HIGHEST_PROTOCOL)
-            handle.flush()
-            os.fsync(handle.fileno())
-        tmp_path.replace(self._checkpoint_path)
-
-    def _load_checkpoint(self) -> int:
-        """Load and restore checkpoint state, returning the last completed step."""
-        if self._checkpoint_path is None:
-            return 0
-
-        with self._checkpoint_path.open("rb") as handle:
-            checkpoint_state = pickle.load(handle)
-
-        if checkpoint_state.get("optimizer") != self.__class__.__name__:
-            raise ValueError(
-                f"Checkpoint optimizer mismatch: expected {self.__class__.__name__}, "
-                f"got {checkpoint_state.get('optimizer')}"
-            )
-
-        checkpoint_num_results = checkpoint_state.get("num_results")
-        if checkpoint_num_results != self.num_results:
-            raise ValueError(
-                f"Checkpoint num_results mismatch: expected {self.num_results}, "
-                f"got {checkpoint_num_results}"
-            )
-
-        result_sequences = checkpoint_state.get("result_sequences")
-        if result_sequences is None:
-            # Backward compatibility with older checkpoints written before the
-            # selected->result API rename.
-            result_sequences = checkpoint_state.get("selected_sequences")
-
-        if not isinstance(result_sequences, list) or len(result_sequences) != len(
-            self.segments
-        ):
-            raise ValueError("Checkpoint result_sequences does not match segment count.")
-
-        for segment, segment_state in zip(self.segments, result_sequences):
-            if len(segment_state) != self.num_results:
-                raise ValueError(
-                    f"Checkpoint result sequence count mismatch for segment "
-                    f"'{segment.label or 'unlabeled'}'."
-                )
-            segment.result_sequences = [Sequence.from_dict(s) for s in segment_state]
-
-        proposal_sequences = checkpoint_state.get("proposal_sequences")
-        if proposal_sequences is None:
-            # Backward compatibility with older checkpoints.
-            proposal_sequences = checkpoint_state.get("candidate_sequences")
-        if (
-            isinstance(proposal_sequences, list)
-            and len(proposal_sequences) == len(self.segments)
-            and all(
-                isinstance(segment_state, list)
-                and len(segment_state) == self.num_proposals
-                for segment_state in proposal_sequences
-            )
-        ):
-            for segment, segment_state in zip(self.segments, proposal_sequences):
-                segment.proposal_sequences = [Sequence.from_dict(s) for s in segment_state]
-        else:
-            # Proposal pool is regenerated from result pool each iteration anyway.
-            self._populate_proposal_sequences()
-
-        energy_scores = checkpoint_state.get("energy_scores")
-        if not isinstance(energy_scores, list) or len(energy_scores) != self.num_results:
-            raise ValueError("Checkpoint energy_scores does not match num_results.")
-        self.energy_scores = energy_scores
-
-        proposal_energy_scores = checkpoint_state.get("proposal_energy_scores")
-        if proposal_energy_scores is None:
-            proposal_energy_scores = checkpoint_state.get("candidate_energy_scores")
-        if (
-            isinstance(proposal_energy_scores, list)
-            and len(proposal_energy_scores) == self.num_proposals
-        ):
-            self._proposal_energy_scores = list(proposal_energy_scores)
-        else:
-            self._proposal_energy_scores = []
-
-        proposal_outcomes = checkpoint_state.get("proposal_outcomes")
-        if proposal_outcomes is None:
-            proposal_outcomes = checkpoint_state.get("candidate_outcomes")
-        if (
-            isinstance(proposal_outcomes, list)
-            and len(proposal_outcomes) == self.num_proposals
-            and all(isinstance(outcome, str) for outcome in proposal_outcomes)
-        ):
-            self._proposal_outcomes = list(proposal_outcomes)
-        else:
-            self._proposal_outcomes = []
-
-        checkpoint_num_steps = checkpoint_state.get("num_steps")
-        if checkpoint_num_steps != self.num_steps:
-            logger.warning(
-                "Checkpoint num_steps=%s differs from current num_steps=%s; "
-                "resuming to current target.",
-                checkpoint_num_steps,
-                self.num_steps,
-            )
-
-        self._restore_rng_state(checkpoint_state.get("rng_state", {}))
-        step = int(checkpoint_state.get("step", 0))
-        self._last_completed_step = max(0, min(step, self.num_steps))
-        return self._last_completed_step
 
     def run(self) -> None:
         """
@@ -456,51 +240,26 @@ class MCMCOptimizer(Optimizer):
             - Snapshots of constructs at tracked timesteps are stored in self.history.
         """
         self._prepare_run()
-        start_step = 0
-        resumed_from_checkpoint = False
 
-        if (
-            self._checkpoint_path is not None
-            and self._resume_from_checkpoint
-            and self._checkpoint_path.exists()
-        ):
-            start_step = self._load_checkpoint()
-            resumed_from_checkpoint = True
-            logger.info(
-                "Loaded MCMC checkpoint at step %d from %s",
-                start_step,
-                self._checkpoint_path,
-            )
+        # Score initial state if sequences are non-empty (skip for autoregressive generators like ProGen2)
+        if any(seq.sequence for segment in self.segments for seq in segment.proposal_sequences):
+            self.score_energy()
         else:
-            # Score initial state if sequences are non-empty (skip for autoregressive generators like ProGen2)
-            if any(seq.sequence for segment in self.segments for seq in segment.proposal_sequences):
-                self.score_energy()
-            else:
-                self.energy_scores = [float('inf')] * self.num_proposals
+            self.energy_scores = [float('inf')] * self.num_proposals
 
-            # Truncate to num_results for initial snapshot (score_energy sets to num_proposals)
-            self.energy_scores = self.energy_scores[:self.num_results]
-            self._last_completed_step = 0
+        # Truncate to num_results for initial snapshot (score_energy sets to num_proposals)
+        self.energy_scores = self.energy_scores[:self.num_results]
 
-            if self.verbose:
-                logger.info("MCMC initialization:")
-                logger.info(f"  num_results={self.num_results}, proposals_per_result={self._proposals_per_result}")
-                logger.info(f"  Initial energy: {self.energy_scores[0]:.4f}")
+        if self.verbose:
+            logger.info("MCMC initialization:")
+            logger.info(f"  num_results={self.num_results}, proposals_per_result={self._proposals_per_result}")
+            logger.info(f"  Initial energy: {self.energy_scores[0]:.4f}")
 
-            # Track initial state
-            self._save_progress_snapshot(time_step=0)
-            if self._checkpoint_path is not None:
-                self._save_checkpoint(step=0)
-
-        if resumed_from_checkpoint and start_step >= self.num_steps:
-            logger.info(
-                "Checkpoint already reached target step (%d); skipping optimization run.",
-                self.num_steps,
-            )
-            return
+        # Track initial state
+        self._save_progress_snapshot(time_step=0)
 
         # MCMC loop
-        for step in range(start_step + 1, self.num_steps + 1):
+        for step in range(1, self.num_steps + 1):
             # 1. Save state of result_sequences to revert if rejected by Metropolis-Hastings acceptance criterion
             old_result_sequences = self._save_sequence_state()
 
@@ -522,12 +281,6 @@ class MCMCOptimizer(Optimizer):
                 self._save_progress_snapshot(time_step=step)
                 self._log_mcmc_progress(step)
 
-            self._last_completed_step = step
-            if (
-                self._checkpoint_path is not None
-                and (step % self._checkpoint_interval_steps == 0 or step == self.num_steps)
-            ):
-                self._save_checkpoint(step=step)
 
     def _save_sequence_state(self) -> List[Tuple[Dict[int, Sequence], float]]:
         """Save state of result sequences.
