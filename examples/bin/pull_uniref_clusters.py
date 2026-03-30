@@ -9,7 +9,6 @@ Input file should have one UniProt ID per line.
 
 import argparse
 import json
-import sys
 import time
 from pathlib import Path
 from urllib.parse import urlencode

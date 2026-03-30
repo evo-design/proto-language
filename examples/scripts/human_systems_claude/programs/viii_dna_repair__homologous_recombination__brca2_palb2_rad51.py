@@ -22,12 +22,12 @@ from typing import Dict, List
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from lib import (
-    load_config,
     gene_ids_to_program,
+    load_config,
     score_complexes_in_program_with_af3,
 )
-from proto_language.language.core import Constraint, Segment
 
+from proto_language.language.core import Constraint, Segment
 
 # =============================================================================
 # CUSTOMIZE HERE: Add row-specific constraints

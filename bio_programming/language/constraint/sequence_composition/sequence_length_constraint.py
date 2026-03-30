@@ -10,20 +10,23 @@ from typing import List, Optional, Tuple
 
 from pydantic import model_validator
 
-from proto_language.language.core import Sequence
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
-from proto_language.utils import calculate_range_deviation, calculate_normalized_deviation
+from proto_language.language.core import Sequence
+from proto_language.utils import (
+    calculate_normalized_deviation,
+    calculate_range_deviation,
+)
 
 
 class SequenceLengthConfig(BaseConfig):
     """Configuration for sequence length constraint.
-    
+
     This class defines configuration parameters for evaluating sequence length
     in DNA, RNA, or protein sequences. The constraint supports two modes:
     range mode (specify acceptable length range) and target mode (specify exact
     target length).
-    
+
     Supports two mutually exclusive modes:
     1. **Range mode**: Specify both min_length and max_length to define an
        acceptable length range. Sequences within this range receive score 0.0,
@@ -31,7 +34,7 @@ class SequenceLengthConfig(BaseConfig):
     2. **Target mode**: Specify target_length for exact length matching. Sequences
        exactly matching the target receive score 0.0, while deviations are penalized
        based on proportional distance from the target.
-    
+
     Attributes:
         min_length (int | None): Minimum acceptable sequence length in nucleotides
             or amino acids. Must be a positive integer. Use together with max_length
@@ -98,7 +101,7 @@ class SequenceLengthConfig(BaseConfig):
 )
 def sequence_length_constraint(input_sequences: List[Tuple[Sequence, ...]], config: SequenceLengthConfig) -> List[float]:
     """Evaluate sequence length against target value or acceptable range.
-    
+
     This constraint function evaluates whether sequences have appropriate lengths.
     It supports two modes: range mode (acceptable length window) and target mode
     (exact length matching).
@@ -123,17 +126,17 @@ def sequence_length_constraint(input_sequences: List[Tuple[Sequence, ...]], conf
     Raises:
         ValueError: If the input list is empty, or if configuration is
             invalid (neither mode specified, both modes specified, or min > max).
-    
+
     Note:
         This function modifies the input sequences by adding metadata to each
         ``Sequence`` object's ``_metadata`` dictionary. Metadata varies by mode:
-        
+
         **For range mode:**
         - ``length``: Integer actual sequence length
         - ``length_mode``: String "range"
         - ``length_min``: Integer minimum acceptable length
         - ``length_max``: Integer maximum acceptable length
-        
+
         **For target mode:**
         - ``length``: Integer actual sequence length
         - ``length_mode``: String "target"
@@ -144,7 +147,7 @@ def sequence_length_constraint(input_sequences: List[Tuple[Sequence, ...]], conf
         >>> seqs = [(Sequence("MVLSP", "protein"),)]
         >>> cfg = SequenceLengthConfig(min_length=4, max_length=10)
         >>> scores = sequence_length_constraint(seqs, cfg)
-        
+
         Target mode (DNA):
         >>> seqs = [(Sequence("ATCGATCG", "dna"),)]
         >>> cfg = SequenceLengthConfig(target_length=8)
@@ -152,11 +155,11 @@ def sequence_length_constraint(input_sequences: List[Tuple[Sequence, ...]], conf
     """
     scores = []
     use_range_mode = config.min_length is not None
-    
+
     for (seq,) in input_sequences:
         actual_length = len(seq.sequence)
         seq._metadata["length"] = actual_length
-        
+
         if use_range_mode:
             # Range mode: check if within [min, max]
             score = calculate_range_deviation(actual_length, config.min_length, config.max_length)
@@ -168,7 +171,7 @@ def sequence_length_constraint(input_sequences: List[Tuple[Sequence, ...]], conf
             score = calculate_normalized_deviation(actual_length, config.target_length)
             seq._metadata["length_mode"] = "target"
             seq._metadata["length_target"] = config.target_length
-        
+
         scores.append(score)
-    
+
     return scores

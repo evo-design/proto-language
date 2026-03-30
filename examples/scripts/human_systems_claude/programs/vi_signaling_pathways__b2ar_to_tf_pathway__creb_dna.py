@@ -1,13 +1,16 @@
 import math
-import random
 from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
 from Bio import SeqIO
-from proto_tools import BORZOI_CONTEXT  # 524,288 bp.
-from proto_tools import BORZOI_OUTPUT  # 6,144 dimensions.
-from proto_tools import BorzoiConfig, BorzoiInput, run_borzoi
+from proto_tools import (
+    BORZOI_CONTEXT,  # 524,288 bp.
+    BORZOI_OUTPUT,  # 6,144 dimensions.
+    BorzoiConfig,
+    BorzoiInput,
+    run_borzoi,
+)
 
 try:
     from proto_tools.tools.causal_models.evo2 import clear_evo2_cache

@@ -16,7 +16,6 @@ from proto_language.language.constraint.sequence_alignment.gap_gini_constraint i
 )
 from proto_language.language.core import Sequence
 
-
 # ============================================================================
 # Unit tests for internal helpers
 # ============================================================================

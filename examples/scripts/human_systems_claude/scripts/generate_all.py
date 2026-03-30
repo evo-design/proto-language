@@ -16,7 +16,7 @@ import json
 import os
 import re
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 import pandas as pd
 
@@ -26,7 +26,6 @@ sys.path.insert(0, PROJECT_ROOT)
 
 # Import stoichiometry directly to avoid loading heavy dependencies
 from lib.stoichiometry import get_stoichiometry
-
 
 # Marker used to detect manual modifications
 # This is the exact content of the default constraint function body (without leading indent on first line)

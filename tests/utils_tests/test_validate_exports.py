@@ -5,14 +5,15 @@ without depending on the real codebase."""
 from __future__ import annotations
 
 import json
+
+# Import the validator functions directly
+import sys
 import textwrap
 import warnings
 from pathlib import Path
 
 import pytest
 
-# Import the validator functions directly
-import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / ".github" / "scripts"))
 from validate_exports import (
     extract_all_list,
@@ -28,7 +29,6 @@ from validate_exports import (
     validate_package_root_exports,
     validate_registry_exports,
 )
-
 
 # =============================================================================
 # Fixtures

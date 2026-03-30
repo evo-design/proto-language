@@ -1,7 +1,9 @@
-import pandas as pd
 import json
-import matplotlib.pyplot as plt
+
 import matplotlib
+import matplotlib.pyplot as plt
+import pandas as pd
+
 matplotlib.use('Agg')
 
 # Set up font - use Liberation Sans (metrically equivalent to Arial)

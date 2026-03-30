@@ -7,23 +7,24 @@ Protein diversity constraint function.
 from __future__ import annotations
 
 from typing import List, Tuple
+
 import numpy as np
 
-from proto_language.language.core import Sequence
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
-from proto_language.utils import MIN_ENERGY, MAX_ENERGY
+from proto_language.language.core import Sequence
+from proto_language.utils import MAX_ENERGY, MIN_ENERGY
 
 
 class ProteinDiversityConfig(BaseConfig):
     """Configuration for protein diversity constraint.
-    
+
     This class defines configuration parameters for evaluating amino acid diversity
     in protein sequences. The constraint measures how many different amino acid
     types are present in the sequence and penalizes sequences with insufficient
     diversity, which may indicate poor protein quality, repetitive sequences, or
     non-functional proteins.
-    
+
     Attributes:
         min_diversity (float): Minimum acceptable amino acid diversity (0.0-1.0).
             Calculated as (unique amino acids) / 20, where 20 is the total number
@@ -31,7 +32,7 @@ class ProteinDiversityConfig(BaseConfig):
             amino acid types must be present. Typical values range from 0.6 (12
             amino acids, lenient) to 0.9 (18 amino acids, strict). Higher values
             enforce more diverse amino acid usage. Default: 0.7.
-    
+
     Note:
         A diversity score of 1.0 means all 20 standard amino acids are present,
         while 0.0 means only one amino acid type is used (homopolymer).
@@ -58,7 +59,7 @@ class ProteinDiversityConfig(BaseConfig):
 )
 def protein_diversity_constraint(input_sequences: List[Tuple[Sequence, ...]], config: ProteinDiversityConfig) -> List[float]:
     """Evaluate amino acid diversity in protein sequences.
-    
+
     This constraint function measures the diversity of amino acid types present
     in protein sequences. It calculates diversity as the fraction of the 20
     standard amino acids that appear in the sequence, and penalizes sequences
@@ -68,7 +69,7 @@ def protein_diversity_constraint(input_sequences: List[Tuple[Sequence, ...]], co
     Args:
         input_sequences (list[tuple[Sequence, ...]]): List of sequence tuples to evaluate.
             Each tuple contains one protein sequence.
-            
+
         config (ProteinDiversityConfig): Configuration object containing
             ``min_diversity`` (minimum acceptable amino acid diversity, default: 0.5).
 
@@ -82,21 +83,21 @@ def protein_diversity_constraint(input_sequences: List[Tuple[Sequence, ...]], co
     Raises:
         AssertionError: If any sequence in the input list is not a protein sequence.
         ValueError: If any sequence has length 0 (empty sequence).
-    
+
     Note:
         This function modifies the input sequences by adding metadata to each
         ``Sequence`` object's ``_metadata`` dictionary with the following keys:
-        
+
         - ``aa_diversity_score``: Float diversity score (0.0-1.0) calculated as
           (unique amino acids) / 20
         - ``unique_amino_acid_count``: Integer count of unique amino acid types
           present in the sequence (0-20)
         - ``unique_amino_acids``: Sorted list of amino acid characters present
           in the sequence
-    
+
     Examples:
         Evaluating protein diversity:
-        
+
         >>> from proto_language.language.core import Sequence, SequenceType
         >>> config = ProteinDiversityConfig(min_diversity=0.5)
         >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", "protein")

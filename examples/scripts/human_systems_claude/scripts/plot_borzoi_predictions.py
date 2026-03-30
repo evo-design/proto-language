@@ -20,13 +20,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from Bio import SeqIO
-from proto_tools import BORZOI_CONTEXT  # 524,288 bp
-from proto_tools import BORZOI_OUTPUT  # 6,144 output bins
 from proto_tools import (
-    BorzoiConfig,
+    BORZOI_CONTEXT,  # 524,288 bp
+    BORZOI_OUTPUT,  # 6,144 output bins
     BorzoiEnsembleConfig,
     BorzoiInput,
-    run_borzoi,
     run_borzoi_ensemble,
 )
 

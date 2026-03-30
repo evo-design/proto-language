@@ -8,10 +8,8 @@ import argparse
 import os
 import shutil
 import subprocess
-import tempfile
 from typing import List
 
-import pandas as pd
 from Bio import SeqIO
 
 DB_PATH = "/large_storage/hielab/brianhie/datasets/uniref50/mmseqs/uniref50_db"

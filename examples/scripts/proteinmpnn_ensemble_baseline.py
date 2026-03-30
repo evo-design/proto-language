@@ -14,17 +14,12 @@ from proto_tools import (
 )
 
 from proto_language.language.core import (
-    Constraint,
-    Construct,
-    Program,
     Segment,
-    Sequence,
 )
 from proto_language.language.generator import (
     ProteinMPNNGenerator,
     ProteinMPNNGeneratorConfig,
 )
-from proto_language.language.optimizer import TopKOptimizer, TopKOptimizerConfig
 
 if __name__ == '__main__':
     n_samples = 200

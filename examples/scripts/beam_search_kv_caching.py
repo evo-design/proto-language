@@ -169,7 +169,6 @@ def main():
     print("Running beam search WITHOUT KV caching...")
     print("-" * 80)
     uncached_times = []
-    uncached_sequences = None
 
     for run in range(NUM_TIMING_RUNS):
         print(f"\nRun {run + 1}/{NUM_TIMING_RUNS}...")
@@ -186,7 +185,6 @@ def main():
             verbose=True,
         )
         uncached_times.append(elapsed)
-        uncached_sequences = sequences
         print(f"  Completed in {elapsed:.2f} seconds")
 
     # Run WITH KV caching

@@ -55,12 +55,12 @@ from proto_tools.tools.sequence_scoring.alphagenome import (
     run_alphagenome_predict_sequences,
 )
 from proto_tools.utils.tool_instance import ToolInstance
+
 from examples.scripts.program_intron_alphagenome import (
     DEFAULT_CELL_ONTOLOGY_TERMS,
     DEFAULT_GENOMIC_CONTEXT_PATHS,
 )
 from examples.scripts.program_intron_design import process_splice_transformer_input
-
 
 DEFAULT_PLASMID_CONTEXT_PATHS = ",".join(
     [

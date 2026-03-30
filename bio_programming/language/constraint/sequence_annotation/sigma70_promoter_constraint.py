@@ -11,26 +11,26 @@ from typing import List, Tuple
 
 import numpy as np
 
-from proto_language.language.core import Sequence
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
+from proto_language.language.core import Sequence
 
 
 class Sigma70PromoterConfig(BaseConfig):
     """Configuration for sigma-70 promoter similarity constraint.
-    
+
     This class defines configuration parameters for evaluating bacterial promoter
     similarity using a position weight matrix (PWM) model of E. coli sigma-70 promoters.
     The model scores promoter elements based on similarity to consensus sequences
     for the -35 and -10 boxes, the spacer distance between them, and
     the total number of matches to consensus. This approach is based on RegulonDB
     experimental data for E. coli sigma-70-dependent promoters.
-    
+
     The scoring combines three components:
     1. PWM score: Similarity to consensus sequences weighted by conservation
     2. Match count: Number of exact matches to consensus (out of 12 positions)
     3. Spacer length: Distance between -35 and -10 boxes
-    
+
     Attributes:
         consensus_35 (str): Consensus sequence for the -35 box.
             This is the upstream promoter element recognized by the sigma-70 subunit
@@ -101,13 +101,13 @@ class Sigma70PromoterConfig(BaseConfig):
         max_spacer (int): Maximum acceptable spacer length in base pairs. Promoters
             with spacers longer than this are not evaluated. Typical range: 19-21 bp
             for sigma-70 promoters. Default: 20.
-    
+
     Note:
         The constraint scans sequences to find the best-scoring promoter within
         the allowed spacer range. For sequences ≤32 bp, it treats the entire
         sequence as a single promoter (first 6 bp = -35, last 6 bp = -10). For
         longer sequences, it scans all possible positions.
-        
+
         The final penalty combines three components:
         1. **Box penalty** = (1 - match_weight) * PWM_penalty + match_weight * match_penalty
         2. **Total penalty** = (1 - spacer_weight) * box_penalty + spacer_weight * spacer_penalty
@@ -203,20 +203,20 @@ class Sigma70PromoterConfig(BaseConfig):
 )
 def sigma70_promoter_constraint(input_sequences: List[Tuple[Sequence, ...]], config: Sigma70PromoterConfig) -> List[float]:
     """Evaluate E. coli sigma-70 promoter similarity using PWM-based scoring.
-    
+
     This constraint function evaluates bacterial promoter similarity by scanning
     DNA sequences for sigma-70-dependent promoter elements. It identifies putative
     -35 and -10 boxes, scores them based on similarity to consensus
     sequences weighted by position-specific conservation probabilities, evaluates
     the spacer distance between them, and combines these scores into an overall
     promoter similarity prediction.
-    
+
     The scoring model is based on RegulonDB experimental data for E. coli sigma-70
     promoters and uses three components:
     1. **PWM score**: Position weight matrix score based on conservation probabilities
     2. **Match count**: Simple count of consensus matches (out of 12 positions)
     3. **Spacer length**: Deviation from optimal 17 bp spacer
-    
+
     The function scans sequences to find the best-scoring promoter configuration
     within the allowed spacer range [min_spacer, max_spacer]. For short sequences
     (≤32 bp), it treats the entire sequence as a fixed promoter. For longer
@@ -227,7 +227,7 @@ def sigma70_promoter_constraint(input_sequences: List[Tuple[Sequence, ...]], con
             should contain potential promoter regions. For best results, use
             sequences 50-100+ bp that may contain -35 and -10 boxes with appropriate
             spacing. Shorter sequences (12-32 bp) are treated as fixed promoters.
-            
+
         config (Sigma70PromoterConfig): Configuration object containing consensus
             sequences, conservation probabilities, spacer parameters, and scoring
             weights. Uses E. coli sigma-70 defaults if not specified.
@@ -239,12 +239,12 @@ def sigma70_promoter_constraint(input_sequences: List[Tuple[Sequence, ...]], con
             The score represents a penalty, so lower values indicate stronger
             predicted promoters. Scores combine PWM similarity, match count, and
             spacer length penalties.
-    
+
     Note:
         This function modifies the input sequences by adding metadata to each
         ``Sequence`` object's ``_metadata`` dictionary under the key ``sigma70``
         with the following fields:
-        
+
         **For valid promoters found:**
         - ``sigma70_score``: Float overall penalty score (0.0-1.0)
         - ``pos``: Integer start position of the -35 box in the sequence
@@ -255,18 +255,18 @@ def sigma70_promoter_constraint(input_sequences: List[Tuple[Sequence, ...]], con
         - ``pwm_penalty``: Float PWM-based penalty component (0.0-1.0)
         - ``match_penalty``: Float match count penalty component (0.0-1.0)
         - ``spacer_penalty``: Float spacer length penalty component (0.0-1.0)
-        
+
         **For sequences too short (<12 bp):**
         - ``sigma70_score``: Float 1.0 (maximum penalty)
         - ``reason``: String "too_short"
-        
+
         **For sequences with invalid spacer (12-32 bp range):**
         - ``sigma70_score``: Float 1.0 (maximum penalty)
         - ``reason``: String "invalid_spacer"
-    
+
     Examples:
         Evaluating a canonical sigma-70 promoter:
-        
+
         >>> from proto_language.language.core import Sequence, SequenceType
         >>> # Strong promoter with consensus -35 (TTGACA) and -10 (TATAAT) boxes
         >>> promoter_seq = Sequence(

@@ -10,12 +10,10 @@ Defaults to HG38 reference genome and peaks corresponding to the Borzoi entry
 from __future__ import annotations
 
 import os
-import sys
-import gzip
+from typing import Optional
+
 import pandas as pd
 from pyfaidx import Fasta
-
-from typing import Optional
 
 HG38_REF_FILE = "/large_storage/hielab/ykhao/datasets/humanCRE/hg38.fa"
 DEFAULT_CREB_PEAK_FILE = "examples/data/ENCFF550TXR.bed.gz"

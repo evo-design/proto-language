@@ -13,15 +13,15 @@ Requirements:
 
 import argparse
 import csv
+import random
+import sys
 from datetime import datetime
-import pandas as pd
 from pathlib import Path
+from typing import Any, Dict, Tuple
+
+import pandas as pd
 import pymol
 from pymol import cmd, stored
-import random
-from typing import Any, Dict, Tuple
-import sys
-
 
 # === FLAT PASTEL PALETTE (26 colors) ===
 FLAT_PALETTE = {

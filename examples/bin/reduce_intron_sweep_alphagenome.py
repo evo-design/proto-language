@@ -23,11 +23,11 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import matplotlib
+
 matplotlib.use("Agg")
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
-
 
 ITERATION_PATTERN = re.compile(
     r"Iteration\s+(\d+)\s+\|\s+energy:\s*([-+0-9.eE]+),\s*T:\s*([-+0-9.eE]+)"

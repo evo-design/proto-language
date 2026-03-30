@@ -5,16 +5,17 @@ This module provides helper functions, mock scoring functions, and fixtures
 used across multiple constraint test files. It does NOT contain actual unit tests.
 """
 from __future__ import annotations
-import pytest
+
 import shutil
 import tempfile
-from typing import List, Tuple
 from pathlib import Path
+from typing import List, Tuple
+
+import pytest
 
 from proto_language.language.core import (
     Sequence,
 )
-
 
 # =============================================================================
 # MOCK SCORING FUNCTIONS FOR TESTING CONSTRAINT EVALUATION
@@ -90,16 +91,16 @@ def mock_multi_input_scoring_function_disjoint(
 ) -> List[float]:
     """
     Mock scoring function for testing multi-input disjoint constraints.
-    
+
     Expects a list of tuples of two sequences each and returns scores based on:
     - Fraction of 'T' in the first sequence of each tuple
     - Fraction of 'C' in the second sequence of each tuple
     Average of these two fractions is returned for each tuple.
-    
+
     Args:
         input_sequences: List of tuples, each containing two Sequence objects
         config: Optional configuration (unused in mock)
-    
+
     Returns:
         List of average scores
     """
@@ -172,7 +173,7 @@ def temp_dir():
     """
     Fixture providing a temporary directory for test files.
     Automatically cleaned up after test completion.
-    
+
     Yields:
         Path object pointing to temporary directory
     """
