@@ -2,10 +2,8 @@
 from __future__ import annotations
 
 import copy
-import random
 from typing import Tuple
 
-import numpy as np
 import pytest
 from proto_tools.tools.masked_models.masking import MaskingStrategy
 from pydantic import BaseModel
