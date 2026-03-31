@@ -17,9 +17,13 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.CI_SUBMODULE_ACCESS }}
-        submodules: recursive
+
+    - name: Checkout submodules
+      env:
+        SUBMODULE_PAT: ${{ secrets.CI_SUBMODULE_ACCESS }}
+      run: |
+        git config --global url."https://x-access-token:${SUBMODULE_PAT}@github.com/".insteadOf "git@github.com:"
+        git submodule update --init --recursive
 
     - name: Verify proto-tools points to latest main
       env:
