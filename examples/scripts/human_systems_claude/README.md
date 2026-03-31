@@ -143,7 +143,7 @@ Each generated program has a `add_custom_constraints()` function where you can a
 ```python
 def add_custom_constraints(gene_id_to_segment: Dict[str, Segment]) -> List[Constraint]:
     constraints = []
-    
+
     # Example: conservation constraint
     from proto_language.language.constraint import residue_constraint
     constraints.append(Constraint(
@@ -151,14 +151,14 @@ def add_custom_constraints(gene_id_to_segment: Dict[str, Segment]) -> List[Const
         function=residue_constraint,
         function_config={'position': 100, 'allowed_residues': ['K', 'R']},
     ))
-    
+
     # Example: cross-protein interaction
     constraints.append(Constraint(
         inputs=[gene_id_to_segment['ORC1'], gene_id_to_segment['ORC2']],
         function=interaction_constraint,
         function_config={'min_contacts': 10},
     ))
-    
+
     return constraints
 ```
 

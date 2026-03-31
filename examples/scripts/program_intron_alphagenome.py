@@ -5,6 +5,15 @@ from typing import Dict, List, Literal, Optional, Tuple
 from proto_tools.utils.tool_instance import ToolInstance
 from tap import Tap
 
+from examples.scripts.program_intron_design import (
+    INTRON_LENGTH,
+    N_STEPS,
+    SAMPLES_PER_ROUND,
+    _enable_mcmc_energy_logging,
+    _get_constraints_metadata,
+    get_initial_intron,
+    process_splice_transformer_input,
+)
 from proto_language.language.constraint import (
     splice_transformer_intron_boundary,
     splice_transformer_specificity,
@@ -26,15 +35,6 @@ from proto_language.language.optimizer import (
     MCMCOptimizerConfig,
     TopKOptimizer,
     TopKOptimizerConfig,
-)
-from examples.scripts.program_intron_design import (
-    INTRON_LENGTH,
-    N_STEPS,
-    SAMPLES_PER_ROUND,
-    _enable_mcmc_energy_logging,
-    _get_constraints_metadata,
-    get_initial_intron,
-    process_splice_transformer_input,
 )
 
 DEFAULT_GENOMIC_CONTEXT_PATHS = ",".join(

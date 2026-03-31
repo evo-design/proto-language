@@ -5,7 +5,8 @@ Note: Heavy dependencies (pymol, proto_language) are loaded lazily
 when base_program functions are called.
 """
 
-from .stoichiometry import get_stoichiometry, expand_gene_ids_by_stoichiometry
+from .stoichiometry import expand_gene_ids_by_stoichiometry, get_stoichiometry
+
 
 # Lazy imports for heavy modules
 def load_config(config_path):

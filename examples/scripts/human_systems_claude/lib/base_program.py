@@ -34,7 +34,6 @@ from proto_language.language.core import (
     Construct,
     Program,
     Segment,
-    Sequence,
 )
 from proto_language.language.generator import ESM3Generator, ESM3GeneratorConfig
 from proto_language.language.optimizer import MCMCOptimizer, MCMCOptimizerConfig
