@@ -8,13 +8,13 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
+from numpy import clip
 from proto_tools import (
     Boltz2Config,
     Boltz2Input,
     StructurePredictionComplex,
     run_boltz2,
 )
-from numpy import clip
 
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint

@@ -9,7 +9,7 @@ description = "A high level programming language for generative biology"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 authors = [
-    {name = "Proto Team"}
+    {name = "Proto Bio Team"}
 ]
 
 requires-python = ">=3.10"

@@ -39,7 +39,7 @@ Follow the setup instructions in the [README](../README.md#setup) to create your
 
 `proto-tools` is a git submodule that tracks the `main` branch. Keep it in sync when pulling changes:
 
-> [!NOTE] **CI / GitHub Actions**: The bio-tools submodule is a private repo. Workflows require a `CI_SUBMODULE_ACCESS` secret. Create a fine-grained PAT (or classic PAT with `repo` scope) that has access to both this repo and `evo-design/proto-tools`, then add it under **Settings → Secrets and variables → Actions** as `CI_SUBMODULE_ACCESS`.
+> [!NOTE] **CI / GitHub Actions**: The proto-tools submodule is a private repo. Workflows require a `CI_SUBMODULE_ACCESS` secret. Create a fine-grained PAT (or classic PAT with `repo` scope) that has access to both this repo and `evo-design/proto-tools`, then add it under **Settings → Secrets and variables → Actions** as `CI_SUBMODULE_ACCESS`.
 
 **When someone else updates the submodule reference:**
 ```bash

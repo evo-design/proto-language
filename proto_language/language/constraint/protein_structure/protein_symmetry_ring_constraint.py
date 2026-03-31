@@ -11,6 +11,7 @@ from io import StringIO
 from typing import List, Optional, Tuple
 
 import numpy as np
+from biotite.structure import get_chains
 from proto_tools import (
     ESMFoldConfig,
     ESMFoldInput,
@@ -25,7 +26,6 @@ from proto_tools import (
     run_esmfold,
     run_prodigal_prediction,
 )
-from biotite.structure import get_chains
 
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
