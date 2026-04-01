@@ -7,7 +7,7 @@ executing them.
 
 Validation is driven by a domain config file (export_config.json). Each domain
 defines an independent validation scope with its own root directory, checks, and
-registry decorators. This avoids hard-coding package structure in Python — adding
+registry decorators. This avoids hard-coding package structure in Python; adding
 or restructuring packages only requires editing the JSON config.
 
 Two checks available per domain:

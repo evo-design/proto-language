@@ -92,7 +92,6 @@ class SeqMotifConfig(BaseConfig):
         Motif names must match exactly with the names in the MEME file (case-sensitive).
         Use the MOTIF lines in the .meme file to identify available motif names.
     """
-    # TODO: Make parameters compatible with client. Ideally no union.
     # Required parameters
     motifs_path: str = ConfigField(
         title="Path to MEME format motif file",

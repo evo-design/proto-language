@@ -657,7 +657,7 @@ class TestTopKOptimizerInternals:
         # Should not crash - returns empty results when no valid proposals found
         optimizer.run()
 
-        # No valid proposals found — empty results (no padding)
+        # No valid proposals found, empty results (no padding)
         assert len(optimizer.energy_scores) == 0
         assert len(segment.result_sequences) == 0
 
@@ -1101,7 +1101,7 @@ class TestTopKTrackingInterval:
             num_results=3,
             verbose=False,
             tracking_interval=5,
-            energy_threshold=100.0,  # Very high — easily met early
+            energy_threshold=100.0,  # Very high, easily met early
         )
         optimizer = TopKOptimizer(
             constructs=[construct],

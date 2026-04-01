@@ -125,7 +125,6 @@ class MMseqsSimilarityConfig(BaseConfig):
         description="ORF prediction tool (DNA only): 'orfipy' (viral) or 'prodigal' (prokaryotic).",  #  Ignored for protein sequences.
         advanced=True,
     )
-    # TODO: These should be the same parameter
     orfipy_config: OrfipyConfig = ConfigField(
         title="ORFipy Configuration",
         default_factory=OrfipyConfig,

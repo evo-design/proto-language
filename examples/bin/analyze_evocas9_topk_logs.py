@@ -8,14 +8,14 @@ which generates Cas9 proposals via TopK optimization on SLURM. Each job writes
 a log file named slurm_evocas9_topk_*_{SLURM_JOB_ID}.log.
 
 The 8-stage filter pipeline:
-  1. orf          — ORF >= 3000 nt
-  2. cas9_phmm   — Cas9 profile HMM match
-  3. crispr_array — Contains CRISPR repeat
-  4. identity     — Sequence identity to SpCas9 within threshold
-  5. gap_gini     — Gap distribution (Gini coefficient)
-  6. domain       — Required domains (RuvC + HNH)
-  7. tracr        — Has tracrRNA
-  8. structure    — AF3 pLDDT / radius of gyration / helix length
+  1. orf          : ORF >= 3000 nt
+  2. cas9_phmm   : Cas9 profile HMM match
+  3. crispr_array : Contains CRISPR repeat
+  4. identity     : Sequence identity to SpCas9 within threshold
+  5. gap_gini     : Gap distribution (Gini coefficient)
+  6. domain       : Required domains (RuvC + HNH)
+  7. tracr        : Has tracrRNA
+  8. structure    : AF3 pLDDT / radius of gyration / helix length
 
 Usage:
     # Auto-discover logs in current directory:

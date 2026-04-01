@@ -15,8 +15,8 @@ proto_language/storage/
 
 Two distinct subsystems live here:
 
-1. **File storage** (`models.py`, `store.py`, `helpers.py`) — Store and retrieve generated files (constraint outputs like PDB structures). Content-addressed by SHA-256 hash.
-2. **File resolution** (`resolver.py`) — Download and cache pre-existing GCS-hosted databases (e.g., MMseqs DBs) to local paths for tool execution. Unrelated to the storage backends.
+1. **File storage** (`models.py`, `store.py`, `helpers.py`): Store and retrieve generated files (constraint outputs like PDB structures). Content-addressed by SHA-256 hash.
+2. **File resolution** (`resolver.py`): Download and cache pre-existing GCS-hosted databases (e.g., MMseqs DBs) to local paths for tool execution. Unrelated to the storage backends.
 
 ## Content-Addressed Storage
 
@@ -24,7 +24,7 @@ Every file is identified by the SHA-256 hash of its content. This gives three pr
 
 - **Deduplication**: Identical content (even from different sequences) is stored once.
 - **Immutability**: A file ID always refers to the same content. Changed content = new hash = new file.
-- **Idempotent writes**: `put()` is safe to call repeatedly — if the file already exists, it's a no-op.
+- **Idempotent writes**: `put()` is safe to call repeatedly. If the file already exists, it's a no-op.
 
 ### Storage layout
 
@@ -56,8 +56,8 @@ Set via environment variables:
 
 GCS credentials are resolved in order:
 
-1. `GOOGLE_APPLICATION_CREDENTIALS_JSON` — JSON string (for containers)
-2. `GOOGLE_APPLICATION_CREDENTIALS` — File path (standard)
+1. `GOOGLE_APPLICATION_CREDENTIALS_JSON`: JSON string (for containers)
+2. `GOOGLE_APPLICATION_CREDENTIALS`: File path (standard)
 3. Default credentials (GCE, Workload Identity, etc.)
 
 ## Usage
@@ -135,7 +135,7 @@ url = store.get_url(file_id)              # Get accessible URL/path
 | `JSON` | `.json` | `application/json` |
 | `FASTA` | `.fasta` | `text/plain` |
 | `HMM` | `.hmm` | `application/octet-stream` |
-| `BINARY` | — | `application/octet-stream` |
+| `BINARY` | N/A | `application/octet-stream` |
 
 Content types are set on GCS uploads so browsers can handle files correctly.
 
@@ -190,14 +190,14 @@ Cache location is controlled by `STORAGE_VOLUME_PATH` (default: `/data`). Files 
 
 - Stores files as plain files on the local filesystem
 - `get_url()` returns the absolute file path as a string
-- `serves_redirect = False` — API endpoint streams content directly
+- `serves_redirect = False`: API endpoint streams content directly
 - Suitable for development and local testing
 
 ### GCSFileStore
 
 - Stores files as blobs in a Google Cloud Storage bucket
 - `get_url()` generates a time-limited signed HTTPS URL (configurable expiry, default 60 min)
-- `serves_redirect = True` — API endpoint redirects clients to the signed URL
+- `serves_redirect = True`: API endpoint redirects clients to the signed URL
 - Uploads include proper `content_type` headers derived from `FileType`
 - Lazy-loads GCS client and bucket on first use
 - Credentials support JSON strings (containers), file paths, and default credentials

@@ -93,7 +93,7 @@ class TestMMseqsSimilarityConstraint:
             # Check metadata - verify results were stored (externalized via store_file)
             constraints = segment.proposal_sequences[0]._constraints_metadata
             assert "mmseqs_results" in constraints["mmseqs_similarity_constraint"]["data"]
-            # Results are externalized — deserialize via get_file_content
+            # Results are externalized; deserialize via get_file_content
             results_ref = constraints["mmseqs_similarity_constraint"]["data"]["mmseqs_results"]
             results = json.loads(get_file_content(results_ref))
             assert len(results) == 1

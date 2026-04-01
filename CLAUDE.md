@@ -4,12 +4,10 @@ proto-language: constraint-based optimization framework for designing biological
 
 ## Architecture
 
-1. **Language core** (`proto_language/language/`) — Constraints, Generators, Optimizers, Programs (DSL)
-2. **Tools** (`proto-tools/`) — 25+ bioinformatics tool wrappers.
+1. **Language core** (`proto_language/language/`): Constraints, Generators, Optimizers, Programs (DSL)
+2. **Tools** (`proto-tools/`): 25+ bioinformatics tool wrappers.
    Git submodule tracking `evo-design/proto-tools` (branch: main).
    Has its own CLAUDE.md, notes/, tests, and CI.
-
-
 
 All three language components (constraints, generators, optimizers) use a registry pattern:
 ```python
@@ -23,8 +21,8 @@ def gc_content_constraint(input_sequences, config) -> List[float]: ...
 
 ## Environment
 
-- **Conda env**: `proto-language` (Python >=3.10). Assumed active — do NOT create/activate venvs.
-- Local dev needs no env vars — sensible defaults are built in.
+- **Conda env**: `proto-language` (Python >=3.10). Assumed active; do NOT create/activate venvs.
+- Local dev needs no env vars; sensible defaults are built in.
 
 ### Environment Variables
 
@@ -47,7 +45,7 @@ pre-commit run --all-files            # All checks
 
 ## Knowledge Management
 
-Three layers for persistent knowledge — put information in the right one:
+Three layers for persistent knowledge. Put information in the right one:
 
 | Layer | Location | Shared? | Best For |
 |-------|----------|---------|----------|
@@ -59,8 +57,8 @@ Three layers for persistent knowledge — put information in the right one:
 
 Team-shared development docs. Read at the start of relevant tasks.
 
-- `dev.md` — Setup, submodule sync, pre-commit hooks, CI checks, docs generation
-- `batching.md` — Batching architecture across generator → tool → GPU boundary
+- `dev.md`: Setup, submodule sync, pre-commit hooks, CI checks, docs generation
+- `batching.md`: Batching architecture across generator → tool → GPU boundary
 
 Update notes/ when you discover something **every developer needs to know** (CI changes, new setup steps, architecture decisions).
 
@@ -97,9 +95,9 @@ The `proto-tools/` submodule has its own CLAUDE.md with its own mappings.
 ## Coding Conventions
 
 - `from __future__ import annotations` at top of every file
-- `logging.getLogger(__name__)` — never `print()`
+- `logging.getLogger(__name__)`, never `print()`
 - Ruff (line length 88, checks F401 + F841 + import sorting)
-- Pydantic v2 for all configs — inherit `BaseConfig`, use `ConfigField` (not `Field`). Use `depends_on` for conditional field visibility (show/hide fields based on another field's value).
+- Pydantic v2 for all configs: inherit `BaseConfig`, use `ConfigField` (not `Field`). Use `depends_on` for conditional field visibility (show/hide fields based on another field's value).
 - Registry keys: kebab-case. Config classes: `{Name}Config`. Files: `{name}_constraint.py` / `{name}_generator.py`
 - **When modifying existing code**: Thoroughly find and update ALL callsites, imports, docstrings, comments, tests, and documentation that reference the changed code. Use sub-agents to search the entire codebase in parallel. Leave no dangling references.
 
@@ -116,7 +114,7 @@ Google style everywhere. Enforced by `tests/test_docstring_consistency.py`.
   """
   ```
 - **One-liners**: Acceptable for simple functions. No structured sections needed.
-- **Multi-line docstrings** (anything with a blank line): Google style — summary line, blank line, then sections as needed: `Args:`, `Returns:`, `Raises:`, `Attributes:`, `Example:`, `Note:`.
+- **Multi-line docstrings** (anything with a blank line): Google style. Summary line, blank line, then sections as needed: `Args:`, `Returns:`, `Raises:`, `Attributes:`, `Example:`, `Note:`.
 - **Types required in docstrings**: Every `Args:`, `Attributes:`, and `Returns:` entry must include the type annotation matching the function signature or class annotation. Use modern Python syntax (`list[str]`, `X | None`). Consistency tests enforce that docstring types match signatures.
   ```python
   Args:
@@ -129,7 +127,7 @@ Google style everywhere. Enforced by `tests/test_docstring_consistency.py`.
   Returns:
       list[float]: Constraint scores for each sequence.
   ```
-- **Pydantic classes**: Always include `Attributes:` section with full descriptions. These intentionally duplicate the short `ConfigField(description=...)` strings — field descriptions are short tooltips for the client UI, while docstring descriptions are longer developer-facing explanations.
+- **Pydantic classes**: Always include `Attributes:` section with full descriptions. These intentionally duplicate the short `ConfigField(description=...)` strings; field descriptions are short tooltips for the client UI, while docstring descriptions are longer developer-facing explanations.
 
 ## Test Conventions
 
@@ -161,21 +159,21 @@ The general rule: if two tasks don't depend on each other's output, run them in 
 
 ### For users (writing programs)
 
-- **write-program** — composing optimization programs in Python (segments, constructs, generators, constraints, optimizers)
+- **write-program**: composing optimization programs in Python (segments, constructs, generators, constraints, optimizers)
 
 ### For developers (extending the framework)
 
 Skills (auto-loaded when relevant):
 
-- **general-dev** — coding conventions, config patterns, registry system, data model, export chains
-- **implement-constraint** — full constraint implementation lifecycle with templates and examples
-- **implement-generator** — full generator implementation lifecycle (ABC contract, categories, templates)
-- **implement-optimizer** — full optimizer implementation lifecycle (dual-pool architecture, templates)
-- **testing** — comprehensive test patterns, fixtures, markers, templates for each component type
+- **general-dev**: coding conventions, config patterns, registry system, data model, export chains
+- **implement-constraint**: full constraint implementation lifecycle with templates and examples
+- **implement-generator**: full generator implementation lifecycle (ABC contract, categories, templates)
+- **implement-optimizer**: full optimizer implementation lifecycle (dual-pool architecture, templates)
+- **testing**: comprehensive test patterns, fixtures, markers, templates for each component type
 
 Commands (invoked with `/command-name [args]`):
 
-- **`/fix-issue <number>`** — full GitHub issue fix lifecycle (read issue, explore, reproduce, fix, test, verify)
+- **`/fix-issue <number>`**: full GitHub issue fix lifecycle (read issue, explore, reproduce, fix, test, verify)
 
 ### In `proto-tools/` submodule
 

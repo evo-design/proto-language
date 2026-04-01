@@ -1112,7 +1112,7 @@ class TestCyclingProposalTracking:
     """Test proposal_results tracking in Cycling history."""
 
     def test_proposal_tracking(self):
-        """History has proposal_results — all accepted when no filter rejects."""
+        """History has proposal_results, all accepted when no filter rejects."""
         components = _setup_cycling_components(
             num_steps=3, num_results=2, include_constraint=True, constraint_passes=True
         )

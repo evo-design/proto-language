@@ -589,7 +589,7 @@ class TestValidateDomain:
             "depth": 0,
         }
         errors, _ = validate_domain(domain, tmp_path, set())
-        # Should only check root — root is clean, so no errors
+        # Should only check root; root is clean, so no errors
         assert len(errors) == 0
 
     def test_exceptions_respected(self, tmp_path):

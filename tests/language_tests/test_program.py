@@ -30,7 +30,7 @@ def _create_simple_program(
 
     Args:
         compute: Compute parameter for Program. Defaults to nullcontext()
-            to avoid auto-detection (no GPU/cloud imports needed).
+            to skip auto-detection.
             Pass compute=None to test auto-detection behavior.
     """
     if compute is _UNSET:
@@ -123,7 +123,7 @@ class TestProgramRestart:
         # After second run(), subsequent optimizers' _initial_state should
         # reflect the second run's initialization (not the first run's).
         # Verify by checking the captured state contains sequences that
-        # differ from the first run's captured state — proving recapture.
+        # differ from the first run's captured state, proving recapture.
         opt1_state = program.optimizers[1]._initial_state
         assert opt1_state is not None, "opt1 should recapture state on second run"
 

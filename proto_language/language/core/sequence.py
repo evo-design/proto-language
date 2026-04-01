@@ -25,7 +25,7 @@ _DEFAULT_PROTEIN_CHARS: FrozenSet[str] = frozenset(PROTEIN_AMINO_ACIDS)
 # Type alias for supported biological sequence types
 SequenceType = Literal["dna", "rna", "protein", "ligand"]
 
-# Reserved keys in the computed .metadata property — user-provided metadata
+# Reserved keys in the computed .metadata property. User-provided metadata
 # should not use these keys as they will be overwritten by identity fields.
 _RESERVED_METADATA_KEYS = frozenset({"sequence", "sequence_length", "constraints"})
 
@@ -210,7 +210,7 @@ class Sequence:
         return new_seq
 
     def to_dict(self) -> Dict[str, Any]:
-        """Serialize Sequence to dictionary for cloud/API communication."""
+        """Serialize Sequence to a dictionary."""
         return {
             "sequence": self._sequence,
             "sequence_type": self.sequence_type,

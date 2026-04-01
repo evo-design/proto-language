@@ -442,7 +442,7 @@ class TestConstraintEdgeCases:
         def collision_scoring_function(input_sequences, config):
             scores = []
             for (seq,) in input_sequences:
-                # Write a reserved key — this should be caught
+                # Write a reserved key (this should be caught)
                 seq._metadata["score"] = 0.5
                 scores.append(0.1)
             return scores

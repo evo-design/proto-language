@@ -108,7 +108,6 @@ class KmerFrequencyConfig(BaseConfig):
     )
 
     # Advanced parameters
-    # TODO: This should be a different constraint
     specific_kmer: Optional[str] = ConfigField(
         title="Specific K-mer",
         default=None,

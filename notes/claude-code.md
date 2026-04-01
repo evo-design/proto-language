@@ -14,7 +14,7 @@ Commands are workflows you invoke with `/command-name`. They orchestrate multi-s
 
 ### Skills
 
-Skills are domain knowledge that Claude loads on demand. You don't invoke them directly — Claude activates them when working on relevant tasks.
+Skills are domain knowledge that Claude loads on demand. You don't invoke them directly; Claude activates them when working on relevant tasks.
 
 **proto-language:**
 
@@ -24,7 +24,7 @@ Skills are domain knowledge that Claude loads on demand. You don't invoke them d
 | `implement-constraint` | Implementing, modifying, or debugging constraints in the DSL |
 | `implement-generator` | Implementing, modifying, or debugging generators |
 | `implement-optimizer` | Implementing, modifying, or debugging optimizers |
-| `testing` | Writing tests — pytest markers, fixtures, CPU/GPU patterns |
+| `testing` | Writing tests: pytest markers, fixtures, CPU/GPU patterns |
 | `write-program` | Composing optimization programs (Segments, Constructs, Programs) |
 
 **proto-tools:**
@@ -53,7 +53,7 @@ This runs through 9 steps automatically:
 1. Creates an isolated git worktree (your current work is untouched)
 2. Reads the issue and comments from GitHub
 3. Investigates the codebase with parallel sub-agents
-4. **Stops and presents findings** — you confirm the interpretation before any code is written
+4. **Stops and presents findings**: you confirm the interpretation before any code is written
 5. Writes a failing test
 6. Implements the fix
 7. Runs the full verification suite
@@ -104,5 +104,5 @@ notes/             → Human documentation (this file, dev.md, batching.md)
 - **Sub-agent parallelism**: Claude can fan out investigation to multiple sub-agents. The `/fix-issue` command does this in Step 2 (codebase exploration). When giving Claude complex tasks, it will parallelize where possible.
 - **Worktrees**: `/fix-issue` creates worktrees under `.claude/worktrees/`. You can have multiple issues in-flight simultaneously without branch switching. Clean up with `git worktree remove .claude/worktrees/issue-<N>`.
 - **Submodule in worktrees**: Worktrees don't auto-initialize submodules. If your fix touches `proto-tools` code, run `git submodule update --init --recursive` inside the worktree before running tests.
-- **Auto-memory**: Claude maintains personal notes across sessions in `~/.claude/projects/.../memory/`. This is per-developer and not committed — it's where Claude remembers debugging patterns and project quirks.
+- **Auto-memory**: Claude maintains personal notes across sessions in `~/.claude/projects/.../memory/`. This is per-developer and not committed. It's where Claude remembers debugging patterns and project quirks.
 - **Squash merge**: Always use squash merge for PRs in `evo-design/*` repos.

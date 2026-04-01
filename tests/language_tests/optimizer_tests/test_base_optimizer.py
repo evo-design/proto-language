@@ -784,7 +784,7 @@ class TestProgressSnapshot:
         segment.result_sequences = segment.result_sequences[:2]
         optimizer.energy_scores = [0.1, 0.5]
 
-        # Should NOT raise — relaxed validation allows partial
+        # Should NOT raise; relaxed validation allows partial
         optimizer._save_progress_snapshot(time_step=1)
         assert len(optimizer.history) == 1
         assert len(optimizer.history[0]["results"]) == 2

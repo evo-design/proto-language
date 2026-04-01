@@ -511,7 +511,7 @@ class TestSortingContent:
         program = Program(optimizers=[opt1], num_results=5)
         program.run_stage(0)
 
-        # MCMC doesn't sort — just verify we have valid energy scores
+        # MCMC doesn't sort, just verify we have valid energy scores
         assert len(opt1.energy_scores) == 5
         assert all(isinstance(e, float) for e in opt1.energy_scores)
 

@@ -366,7 +366,7 @@ class TestMCMCOptimizer:
         assert len(segment.result_sequences) == num_trajectories
 
     def test_history_tracking(self):
-        """Tests that history is properly tracked during MCMC — every step saved."""
+        """Tests that history is properly tracked during MCMC, with every step saved."""
         num_trajectories = 2
         num_steps = 10
         seq_length = 10
@@ -1138,13 +1138,13 @@ class TestMCMCOptimizer:
         assert saved_steps == {0, 3, 6, 9, 10}
 
     def test_track_proposals_default_false(self):
-        """track_proposals defaults to False — no proposal_results in snapshots."""
+        """track_proposals defaults to False, so no proposal_results in snapshots."""
         optimizer, _, _, _ = _setup_mcmc_components(
             seq_length=10,
             num_results=1,
             num_mcmc_steps=3,
         )
-        # Don't set track_proposals — should default to False
+        # Don't set track_proposals; should default to False
         optimizer.run()
 
         for entry in optimizer.history:

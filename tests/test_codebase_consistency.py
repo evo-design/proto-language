@@ -126,7 +126,7 @@ def test_config_consistency(config_model: Type):
             )
 
     # DOCUMENTATION CHECK: Ensure that all fields are mentioned in the docstring
-    # Exclude inherited BaseConfig fields — these are documented once in BaseConfig
+    # Exclude inherited BaseConfig fields (documented once in BaseConfig)
     # and don't need to be re-documented in every subclass.
     standard_base_config_fields = ("verbose", "device", "timeout", "tracking_interval", "track_proposals")
     missing_fields = _find_missing_fields_in_docstring(docstring, config_model.model_fields.keys())

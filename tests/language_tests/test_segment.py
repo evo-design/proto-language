@@ -67,21 +67,21 @@ class TestSegment:
         """Regression: proposals_populated must check ALL proposals (Bug 5)."""
         segment = Segment(sequence="ATCG", sequence_type="dna")
 
-        # One populated, one empty — should be False
+        # One populated, one empty: should be False
         segment.proposal_sequences = [
             Sequence(sequence="ATCG", sequence_type="dna"),
             Sequence(sequence="", sequence_type="dna"),
         ]
         assert not segment.proposals_populated
 
-        # All populated — should be True
+        # All populated: should be True
         segment.proposal_sequences = [
             Sequence(sequence="ATCG", sequence_type="dna"),
             Sequence(sequence="GCTA", sequence_type="dna"),
         ]
         assert segment.proposals_populated
 
-        # All empty — should be False
+        # All empty: should be False
         segment.proposal_sequences = [
             Sequence(sequence="", sequence_type="dna"),
             Sequence(sequence="", sequence_type="dna"),

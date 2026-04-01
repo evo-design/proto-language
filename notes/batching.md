@@ -11,7 +11,7 @@ class Generator(ABC):
     batch_size: int = 1
 ```
 
-The framework splits proposals into chunks of `batch_size` and processes each chunk on GPU (e.g., `BeamSearchOptimizer` reads `generator.batch_size` to chunk proposal generation). All generators default to `batch_size=1` — users increase it via config to enable batching:
+The framework splits proposals into chunks of `batch_size` and processes each chunk on GPU (e.g., `BeamSearchOptimizer` reads `generator.batch_size` to chunk proposal generation). All generators default to `batch_size=1`; users increase it via config to enable batching:
 
 - **ESM2 / ESM3 / Evo2**: `batch_size` config field, default `1`. Set higher (e.g., 8-16) for throughput.
 - **ProteinMPNN / LigandMPNN**: `batch_size` config field, default `1`. Passed through to `InverseFoldingConfig.batch_size` (GPU chunking). The tool-level `num_sequences_per_structure` controls total sequences; `batch_size` controls GPU memory. In single-structure mode the generator sets `num_sequences_per_structure=num_proposals`; in multi-structure mode it uses defaults (1 sequence per structure).
@@ -43,14 +43,14 @@ The full `List[Tuple[Sequence, ...]]` is passed at once. GPU memory management i
 | **ProteinMPNN / LigandMPNN** | Chunks `num_sequences_per_structure` by `batch_size` per structure | `num_sequences_per_structure`, `batch_size` |
 | **ESMFold** | Batches by total residue count | `max_batch_residues` |
 | **BioEmu** | Fixed batch size | `batch_size` |
-| **Boltz2** | Sequential (one complex at a time) | — |
-| **AlphaFold3** | Sequential | — |
-| **Chai-1** | Sequential | — |
-| **MMseqs2** | All at once (CPU) | — |
+| **Boltz2** | Sequential (one complex at a time) | N/A |
+| **AlphaFold3** | Sequential | N/A |
+| **Chai-1** | Sequential | N/A |
+| **MMseqs2** | All at once (CPU) | N/A |
 
 ## Key Code Paths
 
-- **Generator `batch_size`**: `proto_language/language/core/generator.py` — `Generator` base class attribute
-- **`Constraint.evaluate()`**: `proto_language/language/core/constraint.py` — builds `input_sequences_to_evaluate` and calls function once
-- **`score_energy()` two-pass strategy**: `proto_language/language/core/optimizer.py` — filters first, then scorers on surviving proposals
-- **`BoltzBindingStrengthConfig`**: `proto_language/language/constraint/protein_structure/boltz_binding_strength_constraint.py` — no `batch_size` field (removed as dead code)
+- **Generator `batch_size`**: `proto_language/language/core/generator.py`, `Generator` base class attribute
+- **`Constraint.evaluate()`**: `proto_language/language/core/constraint.py`, builds `input_sequences_to_evaluate` and calls function once
+- **`score_energy()` two-pass strategy**: `proto_language/language/core/optimizer.py`, filters first, then scorers on surviving proposals
+- **`BoltzBindingStrengthConfig`**: `proto_language/language/constraint/protein_structure/boltz_binding_strength_constraint.py`, no `batch_size` field (removed as dead code)

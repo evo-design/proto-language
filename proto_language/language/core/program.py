@@ -110,7 +110,9 @@ class Program:
                 always takes priority.
             verbose (bool): If True, print detailed energy score calculations for each constraint
                      for all optimizers.
-            compute (ToolPool | None): Compute backend: 'local' or 'cloud'.
+            compute (ToolPool | None): Context manager for GPU tool execution. If None,
+                auto-detects: uses ToolPool for multi-GPU parallelism when GPUs are
+                available, otherwise runs tools inline.
 
         Raises:
             ValueError: If optimizers list is empty or if optimizers don't share
@@ -132,7 +134,7 @@ class Program:
             elif has_backend:
                 from contextlib import nullcontext
                 logger.debug(
-                    "No local GPUs; external dispatch configured — "
+                    "No local GPUs; external dispatch configured. "
                     "GPU tools will route via _try_dispatch."
                 )
                 compute = nullcontext()

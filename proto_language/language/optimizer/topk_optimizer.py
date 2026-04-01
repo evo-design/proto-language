@@ -108,7 +108,7 @@ class TopKOptimizer(Optimizer):
 
     Generates many proposal sequences and keeps only the top ``k`` by lowest
     energy score. Unlike iterative optimizers (MCMC, beam search), each sampling
-    round starts fresh from the original sequences—there is no state carried
+    round starts fresh from the original sequences. There is no state carried
     between rounds.
 
     Each round:
@@ -203,7 +203,7 @@ class TopKOptimizer(Optimizer):
         # Override base class num_steps for progress tracking
         self.num_steps = self.num_samples // self.samples_per_round
         # Sorted list of energies for result_sequences (ascending order,
-        # parallel to result_sequences — index i matches segment.result_sequences[i])
+        # parallel to result_sequences; index i matches segment.result_sequences[i])
         self._result_energies: list[float] = []
 
     def _insert_into_topk(self, pos: int, proposal_idx: int, energy: float) -> None:

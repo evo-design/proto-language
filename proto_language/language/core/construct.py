@@ -118,7 +118,7 @@ class Construct:
             raise ValueError(f"Segment labels must be unique within a construct. Duplicates: {set(duplicates)}")
 
     def to_dict(self) -> dict:
-        """Serialize Construct to dictionary for cloud/API communication."""
+        """Serialize Construct to a dictionary."""
         return {
             "segments": [segment.to_dict() for segment in self.segments],
             "sequence_type": self.sequence_type,

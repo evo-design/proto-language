@@ -525,7 +525,7 @@ class TestFlattenOptimization:
         rows = flatten_optimization(history)
         assert len(rows) == 1
         row = rows[0]
-        # Both constructs have a segment named "seg" — prefix disambiguates
+        # Both constructs have a segment named "seg"; prefix disambiguates
         assert row["dna_construct.seg.sequence"] == "AAAA"
         assert row["rna_construct.seg.sequence"] == "UUUU"
         assert row["dna_construct.sequence_type"] == "dna"

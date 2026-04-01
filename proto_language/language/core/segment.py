@@ -159,7 +159,7 @@ class Segment:
         return self.result_sequences[index]
 
     def to_dict(self) -> Dict[str, Any]:
-        """Serialize Segment to dictionary for cloud/API communication."""
+        """Serialize Segment to a dictionary."""
         return {
             "original_sequence": self.original_sequence.to_dict(),
             "sequence_length": self.sequence_length,

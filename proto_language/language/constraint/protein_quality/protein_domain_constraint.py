@@ -322,7 +322,7 @@ def _process_dna_sequences(
                 matching_proteins.append(orf.id)
                 all_keywords_found.update(result["keywords_found"])
 
-        # Store metadata — externalize large result lists
+        # Store metadata (externalize large result lists)
         input_sequence._metadata["domain_search_results"] = store_file(
             json.dumps(serializable_results), FileType.JSON
         )
@@ -378,7 +378,7 @@ def _process_protein_sequences(
     # Process results for each sequence
     scores = []
     for input_sequence, result in zip(input_sequences, batch_results):
-        # Store metadata — externalize large result data
+        # Store metadata (externalize large result data)
         # Convert DataFrames to serializable records before storing
         matching_hits = result["matching_hits"]
         all_hits = result["all_hits"]

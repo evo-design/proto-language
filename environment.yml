@@ -4,7 +4,7 @@ channels:
 dependencies:
   - python=3.12
 
-  # Compilers — needed by tool envs that compile from source (TMalign, USalign, flash-attn)
+  # Compilers: needed by tool envs that compile from source (TMalign, USalign, flash-attn)
   - gcc
   - gxx
   - binutils

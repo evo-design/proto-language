@@ -4,8 +4,6 @@ tests/language_tests/test_serialization.py
 Tests roundtrip serialization (to_dict -> from_dict) for Sequence, Segment, and Construct.
 """
 
-# import warnings
-
 from proto_language.language.core import Construct, Segment, Sequence
 from proto_language.language.core.sequence import _DEFAULT_DNA_CHARS
 
@@ -176,24 +174,6 @@ class TestSegmentSerialization:
         assert seq_restored.sequence == "CCO"
         assert seq_restored.sequence_type == "ligand"
         assert seq_restored.valid_chars is None
-
-    # def test_segment_roundtrip_no_warnings(self):
-    #     """Test that Segment.from_dict doesn't emit spurious UserWarnings (B2)."""
-    #     seg = Segment(
-    #         sequence="ATATCG", sequence_type="dna", label="promoter",
-    #         metadata={"custom_key": "custom_value"},
-    #     )
-    #     seg_dict = seg.to_dict()
-
-    #     with warnings.catch_warnings(record=True) as caught:
-    #         warnings.simplefilter("always")
-    #         Segment.from_dict(seg_dict)
-
-    #     user_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
-    #     assert len(user_warnings) == 0, (
-    #         f"Unexpected UserWarnings during deserialization: "
-    #         f"{[str(w.message) for w in user_warnings]}"
-    #     )
 
     def test_valid_chars_preserved_as_frozenset_after_roundtrip(self):
         """Test that valid_chars reuses shared frozenset defaults after roundtrip (B3)."""

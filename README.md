@@ -3,6 +3,7 @@
 [![Unit Tests](https://github.com/evo-design/proto-language/actions/workflows/run-unit-tests.yml/badge.svg)](https://github.com/evo-design/proto-language/actions/workflows/run-unit-tests.yml)
 [![Integration Tests](https://github.com/evo-design/proto-language/actions/workflows/integration_tests.yml/badge.svg)](https://github.com/evo-design/proto-language/actions/workflows/integration_tests.yml)
 [![Lint Check](https://github.com/evo-design/proto-language/actions/workflows/checks.yml/badge.svg)](https://github.com/evo-design/proto-language/actions/workflows/checks.yml)
+[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/evs3Unkegv)
 
 A framework for designing biological sequences (DNA, RNA, proteins) with constraint-based optimization.
 
@@ -100,23 +101,20 @@ claude
 
 ### For users (writing programs)
 
-- **write-program** — composing optimization programs in Python (segments, constructs, generators, constraints, optimizers)
+- **write-program**: composing optimization programs in Python (segments, constructs, generators, constraints, optimizers)
 
 ### For developers (extending the framework)
 
 Skills (auto-loaded when relevant):
 
-- **general-dev** — coding conventions, config patterns, registry system, data model, export chains
-- **implement-constraint** — full constraint implementation lifecycle with templates and examples
-- **implement-generator** — full generator implementation lifecycle (ABC contract, categories, templates)
-- **implement-optimizer** — full optimizer implementation lifecycle (dual-pool architecture, templates)
-- **testing** — comprehensive test patterns, fixtures, markers, templates for each component type
+- **general-dev**: coding conventions, config patterns, registry system, data model, export chains
+- **implement-constraint**: full constraint implementation lifecycle with templates and examples
+- **implement-generator**: full generator implementation lifecycle (ABC contract, categories, templates)
+- **implement-optimizer**: full optimizer implementation lifecycle (dual-pool architecture, templates)
+- **testing**: comprehensive test patterns, fixtures, markers, templates for each component type
 
 Commands (invoked with `/command-name`):
 
-- `**/fix-issue <number>`** — full GitHub issue fix lifecycle (read issue, explore, reproduce, fix, test, verify)
+- **`/fix-issue <number>`**: full GitHub issue fix lifecycle (read issue, explore, reproduce, fix, test, verify)
 
-The `proto-tools/` submodule has its own skills and commands — see its [README](./proto-tools/README.md#using-with-claude-code).
-
-> [!NOTE]
-
+The `proto-tools/` submodule has its own skills and commands; see its [README](./proto-tools/README.md#using-with-claude-code).

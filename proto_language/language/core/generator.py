@@ -35,7 +35,6 @@ class Generator(ABC):
         """
         Initialize the generator with configuration parameters.
         """
-        # TODO: add logic to handle multiple assigned segments (if necessary)
         self._assigned_segment: Optional[Segment] = None
         self.__spec: Optional[GeneratorSpec] = None  # Lazy-loaded via property
 

@@ -17,11 +17,7 @@ class BaseSpec(BaseModel):
     """
     Base specification for registered components.
 
-    This Pydantic model serves dual purposes:
-    1. Internal: Stores component metadata in registry
-    2. API: Automatically serialized by FastAPI to JSON
-
-    Subclasses extend this to add component-specific metadata
+    Subclasses extend this to add component-specific metadata.
 
     Attributes:
         key (str): Unique kebab-case registry identifier.

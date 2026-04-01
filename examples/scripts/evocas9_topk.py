@@ -238,7 +238,7 @@ def cas9_phmm_filter(
     hmm_path = config.get("hmm_path", CAS9_HMM_PATH)
 
     if not Path(hmm_path).exists():
-        logger.warning(f"Cas9 HMM not found: {hmm_path} — passing all")
+        logger.warning(f"Cas9 HMM not found: {hmm_path}, passing all")
         return [0.0] * len(input_sequences)
 
     # Collect proteins from cache
@@ -470,7 +470,7 @@ def domain_filter(
     evalue = config.get("evalue", DOMAIN_EVALUE_THRESHOLD)
 
     if not Path(hmm_path).exists():
-        logger.warning(f"Domain HMM not found: {hmm_path} — passing all")
+        logger.warning(f"Domain HMM not found: {hmm_path}, passing all")
         return [0.0] * len(input_sequences)
 
     dna_seqs = [seq_tuple[0].sequence for seq_tuple in input_sequences]
@@ -706,7 +706,7 @@ def structure_filter(
                 if not alpha_ok:
                     reasons.append(f"alpha={m.longest_alpha_helix}")
                 logger.info(
-                    f"  structure_filter: FAIL — {'; '.join(reasons)}"
+                    f"  structure_filter: FAIL ({'; '.join(reasons)})"
                 )
 
     n_pass = sum(1 for s in scores if s == 0.0)

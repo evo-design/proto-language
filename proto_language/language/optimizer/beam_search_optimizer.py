@@ -555,7 +555,7 @@ class BeamSearchOptimizer(Optimizer):
 
         1. Score each proposal beam (mean or last score, per ``score_by``).
         2. Sort by score and keep the top ``num_results`` beams.
-        3. Update ``_proposal_outcomes`` — result beams get "accepted",
+        3. Update ``_proposal_outcomes``: result beams get "accepted",
            pruned beams get "Beam pruned".
         4. Write all proposal beams to ``proposal_sequences`` and result
            beams to ``result_sequences`` so ``_save_progress_snapshot``

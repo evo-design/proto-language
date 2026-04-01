@@ -201,7 +201,7 @@ class TestGeneratorBase:
         assert all(len(s) == 50 for s in sequences)
         assert all(all(c in "ACGT" for c in s) for s in sequences)
         assert len(set(sequences)) > 1, (
-            "All proposals got the same random sequence — diversity is wasted"
+            "All proposals got the same random sequence, diversity is wasted"
         )
 
     def test_assign_autoregressive_generator_no_random_init(self):

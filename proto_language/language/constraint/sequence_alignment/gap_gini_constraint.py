@@ -265,7 +265,7 @@ def gap_gini_constraint(
         if config.trim_alignment:
             al1, al2 = _trim_alignment(al1, al2)
             if al1 is None:
-                # No overlap after trimming — treat as 0.0 (no gaps)
+                # No overlap after trimming, treat as 0.0 (no gaps)
                 query_seq._metadata["gap_gini"] = 0.0
                 scores.append(MIN_ENERGY)
                 continue

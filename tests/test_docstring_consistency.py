@@ -19,7 +19,7 @@ _ALL_DIRS = ["proto_language", "tests"]
 _SOURCE_DIRS = ["proto_language"]
 
 _EXCLUDE_PATTERNS = [
-    # Git submodule — has its own tests
+    # Git submodule (has its own tests)
     "proto-tools/*",
 ]
 
@@ -219,7 +219,7 @@ def _find_continuation_indent_violations(
             line = lines[i]
             stripped = line.strip()
 
-            # Blank line — skip
+            # Blank line, skip
             if not stripped:
                 i += 1
                 continue
@@ -237,7 +237,7 @@ def _find_continuation_indent_violations(
                 if _is_entry_line(stripped, section_name):
                     in_entry = True
                 elif in_entry:
-                    # Continuation at entry indent — violation
+                    # Continuation at entry indent: violation
                     violations.append((section_name, i + 1, stripped))
             # Lines indented more than entry_indent are fine (proper continuation)
 
@@ -651,7 +651,7 @@ def test_docstring_return_type_matches_signature(
     norm_doc = _normalize_type(doc_return_type)
 
     assert norm_doc == norm_sig, (
-        f"{file_path}::{name}: return type mismatch — "
+        f"{file_path}::{name}: return type mismatch: "
         f"docstring '{doc_return_type}' != signature '{return_type}' "
         f"(normalized: '{norm_doc}' vs '{norm_sig}')"
     )

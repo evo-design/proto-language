@@ -154,9 +154,9 @@ AST-based tool that validates `__init__.py` export chains across both `proto-lan
 
 ### What It Checks
 
-1. **Upward chain completeness** — Every symbol in `__all__` at level N is importable at level N+1
-2. **`__all__` consistency** — Every item in `__all__` is actually imported or defined in that module (catches stale entries)
-3. **Registry registration** — Every `@tool`/`@constraint`/`@generator`/`@optimizer` decorated function is exported by its parent `__init__.py`
+1. **Upward chain completeness**: Every symbol in `__all__` at level N is importable at level N+1
+2. **`__all__` consistency**: Every item in `__all__` is actually imported or defined in that module (catches stale entries)
+3. **Registry registration**: Every `@tool`/`@constraint`/`@generator`/`@optimizer` decorated function is exported by its parent `__init__.py`
 
 ### Running It
 
@@ -197,7 +197,7 @@ pytest --cpu
 pytest --cpu --skip-ci
 ```
 
-**Note:** Tests marked with `@pytest.mark.skip_ci` are skipped when `--skip-ci` is passed. CI does NOT use `--skip-ci` — it runs `pytest --cpu` directly. Use `--skip-ci` locally if you want to skip tests that depend on remote APIs or rate-limited services.
+**Note:** Tests marked with `@pytest.mark.skip_ci` are skipped when `--skip-ci` is passed. CI does NOT use `--skip-ci`; it runs `pytest --cpu` directly. Use `--skip-ci` locally if you want to skip tests that depend on remote APIs or rate-limited services.
 
 **Chimera-only tests:** Tests marked with `@pytest.mark.only_chimera` only run on the Chimera cluster (where `SLURM_CLUSTER_NAME=arc-slurm`). These tests are automatically skipped on other machines.
 
@@ -218,8 +218,8 @@ This CI always runs automatically on pull requests regardless of state.
 **File:** `.github/workflows/checks.yml`
 **Triggers:** On all PR pushes and main branch
 **What it does:** Two parallel jobs:
-1. **Ruff Lint** — checks code style (F401 + F841 + import sorting)
-2. **Validate Export Chains** — verifies `__init__.py` exports are consistent
+1. **Ruff Lint**: checks code style (F401 + F841 + import sorting)
+2. **Validate Export Chains**: verifies `__init__.py` exports are consistent
 
 **Run locally:**
 ```bash
@@ -275,7 +275,7 @@ Documentation reference pages are auto-generated from Python docstrings, field d
 
 ## Batching
 
-`batch_size` defaults to `1` everywhere (tools and generators) — safe by default.
+`batch_size` defaults to `1` everywhere (tools and generators), safe by default.
 The tool layer owns the batching loop; generators/constraints pass all sequences
 plus `batch_size` through. See `.claude/skills/general-dev/SKILL.md` "Batching Architecture"
 for the full data flow diagram.

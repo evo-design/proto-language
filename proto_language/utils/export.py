@@ -130,7 +130,7 @@ def build_proposal_results(
 
     Args:
         constructs (list): List of Construct objects.
-        outcomes (list[str]): Per-proposal outcome — ``"accepted"`` or a rejection reason string.
+        outcomes (list[str]): Per-proposal outcome, either ``"accepted"`` or a rejection reason string.
         energy_scores (list[float] | None): Per-proposal energy scores. Inf/NaN converted to None.
 
     Returns:
@@ -182,11 +182,11 @@ def build_proposal_results(
             )
         if prop_idx >= len(outcomes):
             raise ValueError(
-                f"outcomes has {len(outcomes)} entries but there are {num_proposals} proposals — lengths must match"
+                f"outcomes has {len(outcomes)} entries but there are {num_proposals} proposals; lengths must match"
             )
         if energy_scores is not None and prop_idx >= len(energy_scores):
             raise ValueError(
-                f"energy_scores has {len(energy_scores)} entries but there are {num_proposals} proposals — lengths must match"
+                f"energy_scores has {len(energy_scores)} entries but there are {num_proposals} proposals; lengths must match"
             )
         outcome = outcomes[prop_idx]
         energy = (
@@ -321,7 +321,7 @@ def _flatten_constraint_columns(
 
 
 # =============================================================================
-# Flatten functions — one per table
+# Flatten functions, one per table
 # =============================================================================
 
 
