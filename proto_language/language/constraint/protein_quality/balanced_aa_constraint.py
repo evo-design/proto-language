@@ -188,7 +188,7 @@ def balanced_aa_constraint(input_sequences: list[tuple[Sequence, ...]], config: 
 
     for seq_idx, (input_sequence,) in enumerate(input_sequences):
         seq_str = seq_strings[seq_idx]
-        aa_counts = {
+        aa_counts = {  # type: ignore[assignment]
             aa_alphabet[aa_idx]: int(aa_count_matrix[seq_idx, aa_idx])
             for aa_idx in range(20)
             if aa_count_matrix[seq_idx, aa_idx] > 0
@@ -209,4 +209,4 @@ def balanced_aa_constraint(input_sequences: list[tuple[Sequence, ...]], config: 
         input_sequence._metadata["min_aa_frequency_threshold"] = config.min_aa_frequency
 
     # Return penalty scores
-    return penalties.tolist()
+    return penalties.tolist()  # type: ignore[no-any-return]

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Generic, TypeVar
+from typing import Any, ClassVar, Generic, TypeVar, cast
 
 from pydantic import BaseModel, Field, field_serializer
 
@@ -80,12 +80,12 @@ class BaseRegistry(ABC, Generic[SpecType]):
     - count(): Get number of registered components
     """
 
-    # Subclasses must define their own _registry class variable
-    _registry: ClassVar[dict[str, SpecType]] = {}  # type: ignore[misc]
+    # Any instead of SpecType — mypy can't handle ClassVar with generic type params
+    _registry: ClassVar[dict[str, Any]] = {}
 
     @classmethod
     @abstractmethod
-    def register(cls, key: str, **kwargs):
+    def register(cls, key: str, **kwargs: Any) -> Any:
         """Decorator to register a component. Implemented by subclasses."""
         raise NotImplementedError(f"{cls.__name__}.register() must be implemented by subclass")
 
@@ -112,7 +112,7 @@ class BaseRegistry(ABC, Generic[SpecType]):
             available = ", ".join(sorted(cls._registry.keys())) # List all registered keys
             component_type = cls._component_type() # Get the component type (e.g. "constraint", "generator", "tool")
             raise ValueError(f"Unknown {component_type}: '{key}'. Available {component_type}s: {available}")
-        return cls._registry[key]
+        return cast(SpecType, cls._registry[key])
 
     @classmethod
     def get_schema(cls, key: str) -> dict[str, Any]:

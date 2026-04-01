@@ -6,7 +6,7 @@ and binding site optimization.
 
 from __future__ import annotations
 
-from typing import final
+from typing import Any, final
 
 from proto_tools import (
     InverseFoldingConfig,
@@ -187,7 +187,7 @@ class LigandMPNNGeneratorConfig(BaseConfig):
 
     @field_validator("structure_inputs", mode="before")
     @classmethod
-    def normalize_structure_inputs(cls, v):
+    def normalize_structure_inputs(cls, v: Any) -> Any:
         """Convert various input formats to List[InverseFoldingStructureInput]."""
         if v is None:
             return None
@@ -288,6 +288,7 @@ class LigandMPNNGenerator(Generator):
             ValueError: If no structure_inputs provided and none configured.
         """
         self._validate_generator()
+        assert self._assigned_segment is not None  # noqa: S101 -- mypy type narrowing
         num_proposals = self._assigned_segment.num_proposals
 
         # Normalize and use provided structure_inputs, or fall back to config

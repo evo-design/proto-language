@@ -36,7 +36,7 @@ class Segment:
         sequence: str | None = None,
         length: int | None = None,
         sequence_type: SequenceType = "dna",
-        valid_chars: set[str] | None = None,
+        valid_chars: set[str] | frozenset[str] | None = None,
         label: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
@@ -46,7 +46,7 @@ class Segment:
             sequence (str | None): Optional biological sequence string. If provided, length is inferred.
             length (int | None): Optional desired length for sequences. Required if sequence not provided.
             sequence_type (SequenceType): Type of biological sequence ("dna", "rna", or "protein"). Defaults to "dna".
-            valid_chars (set[str] | None): Optional custom set of valid characters for sequence validation.
+            valid_chars (set[str] | frozenset[str] | None): Optional custom set of valid characters for sequence validation.
             label (str | None): Optional label for this segment (e.g., "promoter", "coding_region").
             metadata (dict[str, Any] | None): Additional data associated with this sequence.
 
@@ -76,6 +76,7 @@ class Segment:
         # If length is provided - set sequence_length accordingly and initial_sequence to empty
         else:
             initial_sequence = ""
+            assert length is not None  # noqa: S101 -- mypy type narrowing
             self.sequence_length = length
 
         # Original sequence is read-only after construction
@@ -100,7 +101,7 @@ class Segment:
         return self._original_sequence.sequence_type
 
     @property
-    def valid_chars(self) -> set[str] | None:
+    def valid_chars(self) -> set[str] | frozenset[str] | None:
         """Valid characters derived from original sequence (read-only)."""
         return self._original_sequence.valid_chars
 

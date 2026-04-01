@@ -83,13 +83,13 @@ def gyration_radius_constraint(
         for seq in sequences:
             pdb_path = seq._metadata.get("pdb_path") or seq._metadata.get("pdb_output")
             if pdb_path is None:
-                pdb_paths.append(None)
+                pdb_paths.append(None)  # type: ignore[arg-type]
             else:
                 pdb_paths.append(str(pdb_path))
 
     # Compute structure metrics for sequences that have PDB paths
-    valid_paths = [p for p in pdb_paths if p is not None]
-    valid_indices = [i for i, p in enumerate(pdb_paths) if p is not None]
+    valid_paths = [p for p in pdb_paths if p is not None]  # type: ignore[redundant-expr]
+    valid_indices = [i for i, p in enumerate(pdb_paths) if p is not None]  # type: ignore[redundant-expr]
 
     metrics_map = {}
     if valid_paths:

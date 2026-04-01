@@ -282,7 +282,7 @@ def sigma70_promoter_constraint(input_sequences: list[tuple[Sequence, ...]], con
     PROBS_10 = np.array(config.probs_10)
     max_pwm = np.prod(PROBS_35) * np.prod(PROBS_10)
 
-    def _score_promoter(box35: str, box10: str, spacer_len: int):
+    def _score_promoter(box35: str, box10: str, spacer_len: int) -> tuple[float, dict[str, str | float | int]]:
         prob_35 = np.prod(
             [
                 prob if b == c else (1.0 - prob)
@@ -326,7 +326,8 @@ def sigma70_promoter_constraint(input_sequences: list[tuple[Sequence, ...]], con
         seq = seq_obj.sequence.upper().replace(" ", "").replace("\n", "")
         seq_len = len(seq)
 
-        best_score, best_info = 1.0, {}
+        best_score: float = 1.0
+        best_info: dict[str, str | float | int] = {}
         if seq_len < 12:
             best_score, best_info = 1.0, {"reason": "too_short"}
         elif seq_len <= 32:  # treat as fixed promoter

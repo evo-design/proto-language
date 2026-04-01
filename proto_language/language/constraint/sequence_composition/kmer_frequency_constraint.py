@@ -98,7 +98,7 @@ class KmerFrequencyConfig(BaseConfig):
     )
 
     @model_validator(mode='after')
-    def validate_config(self):
+    def validate_config(self) -> KmerFrequencyConfig:
         """Validate configuration parameters."""
         # Validate min_value <= max_value
         if self.min_value > self.max_value:

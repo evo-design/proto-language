@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -178,7 +179,7 @@ class Program:
                 segment.construct_label = construct.label
 
         self.current_stage = 0
-        self._stage_results: list[dict] = []
+        self._stage_results: list[dict[str, Any]] = []
         self._validate_program()
         logger.debug(f"Program initialized: optimizers={len(self.optimizers)}, constructs={len(self.constructs)}")
 
@@ -255,7 +256,7 @@ class Program:
                         f"'{prev_construct}' and '{construct.label}'. "
                         "Each segment instance can only belong to one construct."
                     )
-                seen_segments[id(segment)] = construct.label
+                seen_segments[id(segment)] = construct.label or "unlabeled"
 
         # 5. Validate all segments will be populated
         # A segment must have either an input sequence or a generator in some optimizer.
@@ -296,7 +297,7 @@ class Program:
                         )
                     seen_constraints[id(con)] = opt_idx
 
-    def _log_stage_results(self, stage_index: int, results: list) -> None:
+    def _log_stage_results(self, stage_index: int, results: list[dict[str, Any]]) -> None:
         """Log results for a completed optimization stage."""
         logger.debug(f"Final state for optimizer {stage_index + 1}:")
         for result in results:
@@ -388,7 +389,7 @@ class Program:
             self.current_stage = stage_index + 1
 
     @contextmanager
-    def _enter_compute(self):
+    def _enter_compute(self) -> Iterator[None]:
         """Enter compute context if not already active, otherwise no-op.
 
         Checks _active_pool ContextVar to avoid double-entry when
@@ -425,7 +426,7 @@ class Program:
         """Extract results from constructs."""
         return build_results(self.constructs, energy_scores)
 
-    def serialize_state(self) -> dict:
+    def serialize_state(self) -> dict[str, Any]:
         """Serialize minimal program state for persistence between stages.
 
         Only stores what's needed to reconstruct Sequence objects:
@@ -449,11 +450,11 @@ class Program:
 
         return {"segments": segment_states}
 
-    def restore_state(self, state: dict, stage_index: int | None = None) -> None:
+    def restore_state(self, state: dict[str, Any], stage_index: int | None = None) -> None:
         """Restore program state from serialized data.
 
         Args:
-            state (dict): Dictionary returned by serialize_state()
+            state (dict[str, Any]): Dictionary returned by serialize_state()
             stage_index (int | None): Optional stage index to set current_stage to (for resuming from a specific stage)
 
         Raises:
@@ -540,14 +541,12 @@ class Program:
         """
         results = self._results_for_stage(stage)
         history = self._collect_history(stage)
-        filters = {
-            "segments": segments,
-            "result_indices": result_indices,
-            "constraints": constraints,
-            "include_proposals": include_proposals,
-        }
         return export_tables(
-            lambda t: flatten_table(t, results, history, **filters),
+            lambda t: flatten_table(
+                t, results, history,
+                segments=segments, result_indices=result_indices,
+                constraints=constraints, include_proposals=include_proposals,
+            ),
             path, format, table,
         )
 

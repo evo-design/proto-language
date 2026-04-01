@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import final
+from typing import Any, final
 
 from proto_tools import (
     EVO1_MODEL_CHECKPOINTS,
@@ -80,12 +80,12 @@ class Evo1GeneratorConfig(BaseConfig):
 
     @field_validator("prompts", mode="before")
     @classmethod
-    def normalize_prompts(cls, v):
+    def normalize_prompts(cls, v: Any) -> Any:
         """Convert single string to list for consistent handling."""
         return [v] if isinstance(v, str) else v
 
     @model_validator(mode="after")
-    def validate_prompts_length(self):
+    def validate_prompts_length(self) -> Evo1GeneratorConfig:
         """Validate that all prompts have the same length."""
         if len({len(seq) for seq in self.prompts}) != 1:
             raise ValueError(
@@ -128,7 +128,7 @@ class Evo1Generator(Generator):
     """
 
     def __init__(self, config: Evo1GeneratorConfig) -> None:
-        """Initialize Evo1 generator from config."""
+        """Initialize the Evo1 generator with model and sampling configuration."""
         super().__init__()
         self.config = config
         self.prompts = config.prompts
@@ -151,6 +151,7 @@ class Evo1Generator(Generator):
             prepend_prompt (bool | None): Optional override for prepend_prompt setting.
         """
         self._validate_generator()
+        assert self._assigned_segment is not None  # noqa: S101 -- mypy type narrowing
 
         sampling_prompts = prompts if prompts is not None else self._replicate_prompts(self.prompts)
         prepend_prompt = prepend_prompt if prepend_prompt is not None else self.prepend_prompt
@@ -175,7 +176,6 @@ class Evo1Generator(Generator):
         ):
             proposal.sequence = sequence
 
-
         if evo1_output.scores:
             for proposal, score in zip(
                 self._assigned_segment.proposal_sequences, evo1_output.scores, strict=True
@@ -184,6 +184,7 @@ class Evo1Generator(Generator):
 
     def _replicate_prompts(self, prompts: list[str]) -> list[str]:
         """Match prompt count to proposal count, replicating single prompts."""
+        assert self._assigned_segment is not None  # noqa: S101 -- mypy type narrowing
         num_proposals = len(self._assigned_segment.proposal_sequences)
         if len(prompts) == num_proposals:
             return prompts
@@ -195,6 +196,7 @@ class Evo1Generator(Generator):
         self, prompt_length: int, prepend_prompt: bool
     ) -> int:
         """Compute tokens to generate based on segment length and prompt settings."""
+        assert self._assigned_segment is not None  # noqa: S101 -- mypy type narrowing
         segment_length = self._assigned_segment.sequence_length
         num_tokens = ((segment_length - prompt_length) if prepend_prompt else segment_length)
         if num_tokens < 1:

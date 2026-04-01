@@ -169,5 +169,6 @@ Copy this and check off as you go:
 - [ ] Tests cover: init, assign, sample, batch, type validation, config validation
 - [ ] Tests pass: `pytest tests/language_tests/generator_tests/ --cpu -x`
 - [ ] Lint passes: `ruff check proto_language/language/generator/`
+- [ ] Type check passes: `mypy proto_language/language/generator/`
 
 If any check fails, fix before proceeding.

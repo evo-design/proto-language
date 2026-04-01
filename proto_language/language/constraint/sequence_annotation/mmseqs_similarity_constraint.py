@@ -137,7 +137,7 @@ class MMseqsSimilarityConfig(BaseConfig):
     )
 
     @model_validator(mode='after')
-    def validate_similarity_range(self):
+    def validate_similarity_range(self) -> MMseqsSimilarityConfig:
         """Ensure min_similarity does not exceed max_similarity."""
         if self.min_similarity > self.max_similarity:
             raise ValueError(f"min_similarity ({self.min_similarity}) must be <= max_similarity ({self.max_similarity}).")
@@ -265,7 +265,7 @@ def mmseqs_similarity_constraint(input_sequences: list[tuple[Sequence, ...]], co
 
     # Build protein list with mapping back to input sequences
     # protein_data: List of (seq_idx, protein_sequence) tuples
-    protein_data: list[tuple] = []
+    protein_data: list[tuple] = []  # type: ignore[type-arg]
 
     # Get proteins (ORF prediction for DNA, direct for protein)
     if sequence_type == "dna":
@@ -348,7 +348,7 @@ def mmseqs_similarity_constraint(input_sequences: list[tuple[Sequence, ...]], co
 
     # Aggregate hits by input sequence
     # seq_hits[seq_idx] = list of all hits for that input sequence
-    seq_hits: dict = {i: [] for i in range(len(sequences))}
+    seq_hits: dict = {i: [] for i in range(len(sequences))}  # type: ignore[type-arg]
 
     for prot_idx, result in enumerate(mmseqs_result.results):
         seq_idx = protein_to_seq_idx[prot_idx]
@@ -400,6 +400,6 @@ def mmseqs_similarity_constraint(input_sequences: list[tuple[Sequence, ...]], co
             "similarity_compliance_rate": acceptable / num_hits,
         })
 
-        scores.append(MIN_ENERGY if not violations else min(MAX_ENERGY, np.mean(violations)))
+        scores.append(MIN_ENERGY if not violations else min(MAX_ENERGY, np.mean(violations)))  # type: ignore[arg-type]
 
     return scores

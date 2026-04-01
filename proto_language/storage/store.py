@@ -8,6 +8,7 @@ import os
 from abc import ABC, abstractmethod
 from datetime import timedelta
 from pathlib import Path
+from typing import Any
 
 from proto_language.storage.models import FileReference, FileType
 
@@ -243,7 +244,7 @@ class GCSFileStore(FileStore):
         logger.info(f"GCSFileStore initialized for bucket {bucket_name}")
 
     @property
-    def client(self):
+    def client(self) -> Any:
         """Lazy-load GCS client.
 
         Supports credentials via:
@@ -262,7 +263,7 @@ class GCSFileStore(FileStore):
                 from google.oauth2 import service_account
 
                 creds_info = json.loads(creds_json)
-                credentials = service_account.Credentials.from_service_account_info(
+                credentials = service_account.Credentials.from_service_account_info(  # type: ignore[no-untyped-call]
                     creds_info
                 )
                 self._client = storage.Client(credentials=credentials)
@@ -277,7 +278,7 @@ class GCSFileStore(FileStore):
         return self._client
 
     @property
-    def bucket(self):
+    def bucket(self) -> Any:
         """Lazy-load GCS bucket."""
         if self._bucket is None:
             self._bucket = self.client.bucket(self.bucket_name)
@@ -317,12 +318,12 @@ class GCSFileStore(FileStore):
         if not blob.exists():
             raise FileNotFoundError(f"File not found in GCS: {file_id}")
 
-        return blob.download_as_bytes()
+        return blob.download_as_bytes()  # type: ignore[no-any-return]
 
     def exists(self, file_id: str) -> bool:
         """Check if file exists in GCS."""
         blob_path = self._get_blob_path(file_id)
-        return self.bucket.blob(blob_path).exists()
+        return self.bucket.blob(blob_path).exists()  # type: ignore[no-any-return]
 
     def get_url(self, file_id: str) -> str:
         """Generate a time-limited signed URL for the file.
@@ -340,9 +341,9 @@ class GCSFileStore(FileStore):
         blob = self.bucket.blob(blob_path)
         if not blob.exists():
             raise FileNotFoundError(f"File not found in GCS: {file_id}")
-        return blob.generate_signed_url(
+        return str(blob.generate_signed_url(
             expiration=timedelta(minutes=self.signed_url_expiration_minutes)
-        )
+        ))
 
 
 # Module-level singleton for the configured file store

@@ -6,7 +6,7 @@ import copy
 import logging
 import math
 from collections.abc import Callable
-from typing import final
+from typing import Any, final
 
 from pydantic import model_validator
 
@@ -85,7 +85,7 @@ class TopKOptimizerConfig(BaseOptimizerConfig):
     )
 
     @model_validator(mode='after')
-    def validate_params(self):
+    def validate_params(self) -> TopKOptimizerConfig:
         """Validate parameter relationships."""
         # num_results must not exceed num_samples (only validate when num_results is set)
         if self.num_results is not None and self.num_results > self.num_samples:
@@ -156,7 +156,7 @@ class TopKOptimizer(Optimizer):
         generators: list[Generator],
         constraints: list[Constraint],
         config: TopKOptimizerConfig,
-        custom_logging: Callable | None = None,
+        custom_logging: Callable[..., Any] | None = None,
         clear_tool_cache: int | bool | list[str] = 100 * 1024 * 1024,
     ) -> None:
         """Initialize the TopK Optimizer.
@@ -166,7 +166,7 @@ class TopKOptimizer(Optimizer):
             generators (list[Generator]): List of Generator objects for sequence modification.
             constraints (list[Constraint]): List of Constraint objects for evaluation.
             config (TopKOptimizerConfig): Configuration object containing algorithm parameters.
-            custom_logging (Callable | None): Optional callback called at tracked rounds (governed by ``tracking_interval``).
+            custom_logging (Callable[..., Any] | None): Optional callback called at tracked rounds (governed by ``tracking_interval``).
             clear_tool_cache (int | bool | list[str]): (int) Maximum size of cache in bytes, defaults to 100 MB.
                               (bool) Whether to clear the tool cache on each iteration.
                               (List[str]) Restrict clearing cache to a list of tool names.
@@ -231,10 +231,10 @@ class TopKOptimizer(Optimizer):
         """
         # 1. Reset proposal sequences to their initial state
         for seg_idx, segment in enumerate(self.segments):
-            proposals = self._initial_state['segments'][seg_idx]['proposals']
+            proposals = self._initial_state['segments'][seg_idx]['proposals']  # type: ignore[index]
             segment.proposal_sequences = [
                 Sequence.from_dict(proposals[i])
-                for i in range(self.num_proposals)
+                for i in range(self.num_proposals)  # type: ignore[arg-type]
             ]
 
         # 2. Run all generators sequentially
@@ -250,7 +250,7 @@ class TopKOptimizer(Optimizer):
                 continue
             energy = self.energy_scores[proposal_idx]
 
-            if len(self._result_energies) < self.num_results:
+            if len(self._result_energies) < self.num_results:  # type: ignore[operator]
                 pos = bisect.bisect_left(self._result_energies, energy)
                 self._insert_into_topk(pos, proposal_idx, energy)
             elif energy < self._result_energies[-1]:
@@ -297,6 +297,9 @@ class TopKOptimizer(Optimizer):
         - Updates the top-k in result_sequences (in-place)
         """
         self._prepare_run()
+        assert self.num_results is not None  # noqa: S101 -- mypy type narrowing
+        assert self.num_proposals is not None  # noqa: S101 -- mypy type narrowing
+        assert self._initial_state is not None  # noqa: S101 -- mypy type narrowing
 
         # Deferred validation: num_results vs num_samples (num_results may have been set via Program)
         if self.num_results > self.num_samples:
@@ -318,7 +321,7 @@ class TopKOptimizer(Optimizer):
             proposals_generated += self.samples_per_round
 
             # Threshold mode: stop early when all top-k are below threshold
-            if threshold_mode and len(self._result_energies) == self.num_results and self._result_energies[-1] < self.energy_threshold:
+            if threshold_mode and len(self._result_energies) == self.num_results and self._result_energies[-1] < self.energy_threshold:  # type: ignore[operator]
                     threshold_met = True
                     if self.verbose:
                         logger.info(f"Threshold met! Worst in top-{self.num_results}: {self._result_energies[-1]:.6f} < {self.energy_threshold:.6f}")
@@ -392,7 +395,7 @@ class TopKOptimizer(Optimizer):
             if len(self.energy_scores) > 1:
                 logger.debug(f"  Worst in top-k: {worst_in_topk:.6f}")
 
-            if self.num_results <= 20:
+            if self.num_results <= 20:  # type: ignore[operator]
                 logger.debug(f"Top-{self.num_results} constructs:")
                 for i, energy in enumerate(self.energy_scores):
                     logger.debug(f"  Rank {i+1}: Energy={energy:.6f}")

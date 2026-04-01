@@ -30,7 +30,7 @@ logger = getLogger(__name__)
 # Constants
 # ============================================================================
 
-TOOL_AVAILABLE_METRICS: dict[str, set] = {
+TOOL_AVAILABLE_METRICS: dict[str, set] = {  # type: ignore[type-arg]
     "esmfold": {"avg_plddt", "ptm", "avg_pae"},
     "alphafold3": {"avg_plddt", "ptm", "iptm", "avg_pae"},
     "boltz2": {"avg_plddt", "ptm", "iptm", "avg_pae"},
@@ -48,7 +48,7 @@ def _structure_confidence(
     proposals: list[tuple[Sequence, ...]],
     config: StructureBasedConstraintConfig,
     target_metric: str,
-) -> list[float]:
+) -> list[float | None]:
     """Core helper for structure confidence constraints.
 
     Args:
@@ -58,7 +58,7 @@ def _structure_confidence(
         target_metric (str): Metric to extract from structure predictions.
 
     Returns:
-        list[float]: List of raw metrics requested by `target_metric`. Invalid
+        list[float | None]: List of raw metrics requested by `target_metric`. Invalid
             raw metrics are returned as None and should be checked by the caller.
 
     Raises:
@@ -84,7 +84,7 @@ def _structure_confidence(
     output = predict_structures(complexes, config.structure_tool, config.tool_config)
 
     # Extract and return raw requested metric.
-    raw_metrics = []
+    raw_metrics: list[float | None] = []
     for structure, proposal_tuple in zip(output.structures, proposals, strict=False):
         metric_value = structure.metrics.get(target_metric)
 

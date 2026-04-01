@@ -216,7 +216,7 @@ def _prepare_target_structure(
             pdb_content, residue_range[0], residue_range[1]
         )
 
-    return pdb_content
+    return pdb_content  # type: ignore[no-any-return]
 
 
 def _extract_chain_from_pdb(pdb_text: str, chain_id: str) -> str:
@@ -552,7 +552,7 @@ def structure_ensemble_rmsd_constraint(
 
             # Convert to score in [0, 1].
             score = sigmoid_score(
-                rmsd_summary,
+                rmsd_summary,  # type: ignore[arg-type]
                 config.inflection_point_angstroms,
                 config.sigmoid_slope,
             )

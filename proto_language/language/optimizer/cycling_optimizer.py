@@ -47,7 +47,7 @@ class ProteinHunterPipelineConfig(BaseConfig):
         description="Structure prediction tool: 'boltz2', 'chai1', or 'alphafold3'.",
     )
 
-def _create_protein_hunter_conditioning_fn(config: CyclingOptimizerConfig) -> Callable:
+def _create_protein_hunter_conditioning_fn(config: CyclingOptimizerConfig) -> Callable:  # type: ignore[type-arg]
     """Create protein hunter conditioning function (structure prediction -> inverse folding).
 
     The Protein Hunter algorithm predicts 3D structures from current sequences,
@@ -60,12 +60,12 @@ def _create_protein_hunter_conditioning_fn(config: CyclingOptimizerConfig) -> Ca
 
     structure_tool = config.protein_hunter.structure_tool if config.protein_hunter else "boltz2"
 
-    def conditioning_fn(sequences: list[Sequence]) -> list:
+    def conditioning_fn(sequences: list[Sequence]) -> list:  # type: ignore[type-arg]
         complexes = [
             StructurePredictionComplex(chains=[seq.sequence])
             for seq in sequences
         ]
-        return predict_structures(complexes, structure_tool, {}).structures
+        return predict_structures(complexes, structure_tool, {}).structures  # type: ignore[no-any-return]
 
     return conditioning_fn
 
@@ -86,14 +86,14 @@ CYCLING_PIPELINES: dict[str, dict[str, Any]] = {
 def _resolve_conditioning_fn(
     config: CyclingOptimizerConfig,
     generator: Generator,
-    conditioning_fn: Callable | None = None,
-) -> Callable:
+    conditioning_fn: Callable[..., Any] | None = None,
+) -> Callable:  # type: ignore[type-arg]
     """Resolve the conditioning function from either direct parameter or pipeline config.
 
     Args:
         config (CyclingOptimizerConfig): Optimizer config containing optional pipeline specification
         generator (Generator): The generator to validate against pipeline requirements
-        conditioning_fn (Callable | None): Optional directly-provided conditioning function
+        conditioning_fn (Callable[..., Any] | None): Optional directly-provided conditioning function
 
     Returns:
         Callable: The resolved conditioning function
@@ -141,7 +141,7 @@ def _resolve_conditioning_fn(
                 f"Use 'proteinmpnn' or 'ligandmpnn'."
             )
 
-    return pipeline_spec["factory"](config)
+    return pipeline_spec["factory"](config)  # type: ignore[no-any-return]
 
 
 # =============================================================================
@@ -231,7 +231,7 @@ class CyclingOptimizerConfig(BaseOptimizerConfig):
     )
 
     @model_validator(mode="after")
-    def validate_pipeline_config(self):
+    def validate_pipeline_config(self) -> CyclingOptimizerConfig:
         """Validate that pipeline-specific config is provided when pipeline is set."""
         if self.pipeline == "protein-hunter" and self.protein_hunter is None:
             # Auto-create default config if not provided
@@ -304,7 +304,7 @@ class CyclingOptimizer(Optimizer):
         constraints: list[Constraint],
         config: CyclingOptimizerConfig,
         conditioning_fn: Callable[[list[Sequence]], list[Any]] | None = None,
-        custom_logging: Callable[[int, tuple], None] | None = None,
+        custom_logging: Callable[[int, tuple], None] | None = None,  # type: ignore[type-arg]
         clear_tool_cache: int | bool | list[str] = 100 * 1024 * 1024,
     ) -> None:
         """Initialize the Cycling Optimizer.

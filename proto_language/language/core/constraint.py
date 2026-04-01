@@ -133,7 +133,7 @@ class Constraint:
     def __init__(
         self,
         inputs: list[Segment],
-        function: Callable,
+        function: Callable[..., Any],
         function_config: BaseModel | dict[str, Any],
         label: str | None = None,
         threshold: float | None = None,
@@ -144,7 +144,7 @@ class Constraint:
         Args:
             inputs (list[Segment]): List of Segment objects to evaluate. Each proposal is evaluated
                 as a tuple of sequences (one from each segment).
-            function (Callable): The constraint scoring function with signature:
+            function (Callable[..., Any]): The constraint scoring function with signature:
                 (input_sequences: List[Tuple[Sequence, ...]], config) -> List[float]
                 Returns scores between 0.0-1.0 for each proposal.
             function_config (BaseModel | dict[str, Any]): Configuration as Pydantic BaseModel or dict (auto-converted to BaseModel)
@@ -182,14 +182,14 @@ class Constraint:
         return self._inputs
 
     @property
-    def function(self) -> Callable:
+    def function(self) -> Callable[..., Any]:
         """Constraint scoring function (read-only)."""
         return self._function
 
     @property
-    def function_config(self) -> BaseModel:
+    def function_config(self) -> BaseModel | dict[str, Any]:
         """Function configuration (read-only)."""
-        return self._function_config
+        return self._function_config  # type: ignore[no-any-return]
 
     @property
     def threshold(self) -> float | None:
@@ -385,7 +385,7 @@ class Constraint:
                 raise ValueError(f"Constraint '{self.label}' wrote reserved keys to seq._metadata: {collisions}. Change the metadata key.")
 
             # Build structured constraint data
-            constraint_data = {
+            constraint_data: dict[str, Any] = {
                 "score": filter_inf_nan_scores(score),
                 "weight": self._weight,
                 "weighted_score": filter_inf_nan_scores(score * self._weight),

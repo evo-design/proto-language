@@ -145,7 +145,7 @@ class SpliceTransformerSpecificityConfig(BaseConfig):
 
     @field_validator('splice_pos', mode='before')
     @classmethod
-    def convert_splice_pos_to_list(cls, v):
+    def convert_splice_pos_to_list(cls, v: int | list[int]) -> list[int]:
         """Convert single int to list of ints."""
         if isinstance(v, int):
             return [v]

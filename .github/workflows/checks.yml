@@ -20,8 +20,25 @@ jobs:
     - uses: actions/setup-python@v5
       with:
         python-version: "3.12"
+        cache: "pip"
     - run: pip install ruff
     - run: ruff check proto_language tests
+
+  mypy:
+    if: github.event.pull_request.draft == false
+    name: Mypy Type Check
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.CI_SUBMODULE_ACCESS }}
+        submodules: recursive
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        cache: "pip"
+    - run: pip install -e ".[dev]"
+    - run: mypy proto_language/
 
   validate-exports:
     if: github.event.pull_request.draft == false

@@ -347,5 +347,6 @@ Copy this and check off as you go:
 - [ ] Tests cover: parametrized scoring, wrong type, invalid config, metadata, edge cases
 - [ ] Tests pass: `pytest tests/language_tests/constraint_tests/ --cpu -x`
 - [ ] Lint passes: `ruff check proto_language/language/constraint/`
+- [ ] Type check passes: `mypy proto_language/language/constraint/`
 
 If any check fails, fix before proceeding.

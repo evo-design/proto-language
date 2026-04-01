@@ -113,6 +113,7 @@ def _trim_alignment(al1: str, al2: str) -> tuple[str | None, str | None]:
     g2_start, g2_end = _end_gaps(al2)
     if g1_start is None or g2_start is None:
         return None, None
+    assert g1_end is not None and g2_end is not None  # noqa: S101 -- guaranteed when start is not None
 
     trim_start = max(g1_start, g2_start)
     trim_end = max(g1_end, g2_end)

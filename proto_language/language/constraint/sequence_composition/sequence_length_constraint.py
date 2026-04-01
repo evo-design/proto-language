@@ -66,7 +66,7 @@ class SequenceLengthConfig(BaseConfig):
     )
 
     @model_validator(mode='after')
-    def validate_length_config(self):
+    def validate_length_config(self) -> SequenceLengthConfig:
         """Ensure either (min_length + max_length) OR target_length is provided."""
         has_range = self.min_length is not None and self.max_length is not None
         has_target = self.target_length is not None
@@ -77,7 +77,7 @@ class SequenceLengthConfig(BaseConfig):
         if has_range and has_target:
             raise ValueError("Cannot provide both range (min/max) and target_length")
 
-        if has_range and self.min_length > self.max_length:
+        if has_range and self.min_length > self.max_length:  # type: ignore[operator]
             raise ValueError(f"min_length ({self.min_length}) must be <= max_length ({self.max_length})")
 
         return self
@@ -156,13 +156,13 @@ def sequence_length_constraint(input_sequences: list[tuple[Sequence, ...]], conf
 
         if use_range_mode:
             # Range mode: check if within [min, max]
-            score = calculate_range_deviation(actual_length, config.min_length, config.max_length)
+            score = calculate_range_deviation(actual_length, config.min_length, config.max_length)  # type: ignore[arg-type]
             seq._metadata["length_mode"] = "range"
             seq._metadata["length_min"] = config.min_length
             seq._metadata["length_max"] = config.max_length
         else:
             # Target mode: penalize deviation from exact target
-            score = calculate_normalized_deviation(actual_length, config.target_length)
+            score = calculate_normalized_deviation(actual_length, config.target_length)  # type: ignore[arg-type]
             seq._metadata["length_mode"] = "target"
             seq._metadata["length_target"] = config.target_length
 

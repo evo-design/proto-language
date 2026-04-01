@@ -34,7 +34,7 @@ Results = dict[str, Any]  # Output from build_results()
 
 
 def build_results(
-    constructs: list,
+    constructs: list[Any],
     energy_scores: list[float],
 ) -> Results:
     """Build standardized results from live Construct objects.
@@ -43,7 +43,7 @@ def build_results(
     Infinite/NaN energy scores are converted to None for JSON compatibility.
 
     Args:
-        constructs (list): List of Construct objects.
+        constructs (list[Any]): List of Construct objects.
         energy_scores (list[float]): List of energy scores (one per result).
 
     Returns:
@@ -110,7 +110,7 @@ def build_results(
         )
 
     def get_score(i: int) -> float:
-        score = results[i]["energy_score"]
+        score: float | None = results[i]["energy_score"]  # type: ignore[assignment]
         return float("inf") if score is None else score
 
     best_idx = min(range(len(results)), key=get_score) if results else 0
@@ -118,7 +118,7 @@ def build_results(
 
 
 def build_proposal_results(
-    constructs: list,
+    constructs: list[Any],
     outcomes: list[str],
     energy_scores: list[float] | None = None,
 ) -> list[dict[str, Any]]:
@@ -128,7 +128,7 @@ def build_proposal_results(
     with whether it was accepted, the rejection reason (if any), and energy score.
 
     Args:
-        constructs (list): List of Construct objects.
+        constructs (list[Any]): List of Construct objects.
         outcomes (list[str]): Per-proposal outcome, either ``"accepted"`` or a rejection reason string.
         energy_scores (list[float] | None): Per-proposal energy scores. Inf/NaN converted to None.
 
@@ -281,7 +281,7 @@ def _finalize_file_refs(
     ]
 
 
-def _collect_all_columns(rows: list[dict]) -> list[str]:
+def _collect_all_columns(rows: list[dict[str, Any]]) -> list[str]:
     """Collect all unique column names from rows, preserving insertion order."""
     columns = []
     seen = set()
@@ -294,7 +294,7 @@ def _collect_all_columns(rows: list[dict]) -> list[str]:
 
 
 def _flatten_constraint_columns(
-    constraints: dict[str, dict], prefix: str = ""
+    constraints: dict[str, dict[str, Any]], prefix: str = ""
 ) -> dict[str, Any]:
     """Flatten all constraint data with {prefix}{label}.{field} namespacing.
 
@@ -302,7 +302,7 @@ def _flatten_constraint_columns(
     Includes score, weight, weighted_score, all data fields, and multi-segment info.
 
     Args:
-        constraints (dict[str, dict]): Dict mapping constraint labels to their data.
+        constraints (dict[str, dict[str, Any]]): Dict mapping constraint labels to their data.
         prefix (str): Column name prefix (e.g., "promoter." for construct-level).
     """
     flat = {}
@@ -658,12 +658,12 @@ def flatten_table(
 # =============================================================================
 
 
-def to_csv(rows: list[dict], output: Path | IO | None = None) -> str:
+def to_csv(rows: list[dict[str, Any]], output: Path | IO[str] | None = None) -> str:
     """Write rows to CSV format.
 
     Args:
-        rows (list[dict]): List of dicts with consistent keys
-        output (Path | IO | None): Path or file-like object. If None, returns string.
+        rows (list[dict[str, Any]]): List of dicts with consistent keys
+        output (Path | IO[str] | None): Path or file-like object. If None, returns string.
 
     Returns:
         str: CSV string if output is None
@@ -689,12 +689,12 @@ def to_csv(rows: list[dict], output: Path | IO | None = None) -> str:
     return csv_str
 
 
-def to_tsv(rows: list[dict], output: Path | IO | None = None) -> str:
+def to_tsv(rows: list[dict[str, Any]], output: Path | IO[str] | None = None) -> str:
     """Write rows to TSV format.
 
     Args:
-        rows (list[dict]): List of dicts with consistent keys
-        output (Path | IO | None): Path or file-like object. If None, returns string.
+        rows (list[dict[str, Any]]): List of dicts with consistent keys
+        output (Path | IO[str] | None): Path or file-like object. If None, returns string.
 
     Returns:
         str: TSV string if output is None
@@ -723,15 +723,15 @@ def to_tsv(rows: list[dict], output: Path | IO | None = None) -> str:
 
 
 def to_json(
-    rows: list[dict],
-    output: Path | IO | None = None,
+    rows: list[dict[str, Any]],
+    output: Path | IO[str] | None = None,
     indent: int = 2,
 ) -> str:
     """Write rows to JSON format.
 
     Args:
-        rows (list[dict]): List of dicts
-        output (Path | IO | None): Path or file-like object. If None, returns string.
+        rows (list[dict[str, Any]]): List of dicts
+        output (Path | IO[str] | None): Path or file-like object. If None, returns string.
         indent (int): JSON indentation (default 2)
 
     Returns:
@@ -748,12 +748,12 @@ def to_json(
     return json_str
 
 
-def to_xlsx(rows: list[dict], output: Path | IO) -> None:
+def to_xlsx(rows: list[dict[str, Any]], output: Path | IO[bytes]) -> None:
     """Write rows to Excel format (single sheet).
 
     Args:
-        rows (list[dict]): List of dicts with consistent keys
-        output (Path | IO): Path or file-like object (required for xlsx)
+        rows (list[dict[str, Any]]): List of dicts with consistent keys
+        output (Path | IO[bytes]): Path or file-like object (required for xlsx)
 
     """
     from openpyxl import Workbook
@@ -778,11 +778,11 @@ def to_xlsx(rows: list[dict], output: Path | IO) -> None:
         wb.save(output)
 
 
-def to_xlsx_workbook(tables: dict[str, list[dict]], output: Path) -> None:
+def to_xlsx_workbook(tables: dict[str, list[dict[str, Any]]], output: Path) -> None:
     """Write multiple tables as sheets in a single Excel workbook.
 
     Args:
-        tables (dict[str, list[dict]]): Dict mapping sheet names to row lists.
+        tables (dict[str, list[dict[str, Any]]]): Dict mapping sheet names to row lists.
         output (Path): Output file path.
 
     """
@@ -812,14 +812,14 @@ def to_xlsx_workbook(tables: dict[str, list[dict]], output: Path) -> None:
 
 
 def write_export(
-    rows: list[dict],
+    rows: list[dict[str, Any]],
     format: Format,
     path: Path | None = None,
 ) -> str | None:
     """Write rows to the specified format.
 
     Args:
-        rows (list[dict]): List of dicts to export
+        rows (list[dict[str, Any]]): List of dicts to export
         format (Format): Output format ("csv", "tsv", "json", "xlsx")
         path (Path | None): Output path. If None, returns string (not supported for xlsx).
 
@@ -882,7 +882,7 @@ def to_fasta(
     segments: set[str] | None = None,
     result_indices: set[int] | None = None,
     header_format: str = "{construct}_{segment}_result{result_idx}",
-    output: Path | IO | None = None,
+    output: Path | IO[str] | None = None,
 ) -> str:
     """Export sequences in FASTA format for bioinformatics pipelines.
 
@@ -892,7 +892,7 @@ def to_fasta(
         result_indices (set[int] | None): If set, only include these result indices.
         header_format (str): Python format string for FASTA headers. Available
             fields: construct, segment, result_idx, energy_score, sequence_type.
-        output (Path | IO | None): Path or file-like object. If None, returns string.
+        output (Path | IO[str] | None): Path or file-like object. If None, returns string.
 
     Returns:
         str: FASTA string if output is None.

@@ -47,7 +47,7 @@ class Sequence:
         self,
         sequence: str = "",
         sequence_type: SequenceType = "dna",
-        valid_chars: set[str] | None = None,
+        valid_chars: set[str] | frozenset[str] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Initialize a Sequence with sequence data and metadata.
@@ -55,7 +55,7 @@ class Sequence:
         Args:
             sequence (str): The biological sequence string. Defaults to empty string.
             sequence_type (SequenceType): Type of biological sequence ("dna", "rna", or "protein"). Defaults to "dna".
-            valid_chars (set[str] | None): Optional custom set of valid characters for sequence validation.
+            valid_chars (set[str] | frozenset[str] | None): Optional custom set of valid characters for sequence validation.
                 If provided, overrides the default character set for the sequence_type.
             metadata (dict[str, Any] | None): Additional data associated with this sequence.
         """
@@ -104,6 +104,7 @@ class Sequence:
             validate_smiles(sequence)
             return
 
+        assert self._valid_chars is not None  # noqa: S101 -- mypy type narrowing
         invalid_chars = _return_invalid_chars(sequence, self._valid_chars)
         if invalid_chars:
             warnings.warn(
@@ -172,18 +173,18 @@ class Sequence:
         """
         return self._sequence
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: int | slice) -> str:
         """Support subscripting and slicing of the sequence.
 
         Args:
-            key: Index or slice object.
+            key (int | slice): Index or slice object.
 
         Returns:
-            Character at index or substring for slice.
+            str: Character at index or substring for slice.
         """
         return self._sequence[key]
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: dict[int, Any]) -> Sequence:
         """Optimized deepcopy: share stable data, only copy mutable dicts.
 
         - _valid_chars, _sequence_type, _sequence: Immutable, share reference
@@ -232,12 +233,12 @@ class Sequence:
         seq._constraints_metadata = data.get("constraints", {})
         return seq
 
-def create_concatenated_sequence(subsequences: Iterable[Sequence], segment_labels: list[str] | None = None) -> Sequence:
+def create_concatenated_sequence(subsequences: Iterable[Sequence], segment_labels: list[str | None] | None = None) -> Sequence:
     """Concatenate subsequences into a single Sequence object.
 
     Args:
         subsequences (Iterable[Sequence]): Iterable of Sequence objects to concatenate
-        segment_labels (list[str] | None): Optional list of segment labels for metadata nesting
+        segment_labels (list[str | None] | None): Optional list of segment labels for metadata nesting
 
     Returns:
         Sequence: Single Sequence with concatenated content. If segment_labels provided,
@@ -271,12 +272,12 @@ def create_concatenated_sequence(subsequences: Iterable[Sequence], segment_label
 # =============================================================================
 # Sequence Validation Helpers
 # =============================================================================
-def _return_invalid_chars(sequence: str, valid_chars: set[str]) -> set[str]:
+def _return_invalid_chars(sequence: str, valid_chars: set[str] | frozenset[str]) -> set[str]:
     """Return the invalid characters in a sequence given a set of valid characters.
 
     Args:
         sequence (str): The sequence string to validate.
-        valid_chars (set[str]): The set of valid characters.
+        valid_chars (set[str] | frozenset[str]): The set of valid characters.
 
     Returns:
         set[str]: The set of invalid characters.
@@ -376,7 +377,7 @@ def validate_smiles(smiles: str, verbose: bool = True) -> bool:
         bool: True if valid SMILES, False if invalid or RDKit unavailable.
     """
     from rdkit import Chem
-    mol = Chem.MolFromSmiles(smiles)
+    mol: object = Chem.MolFromSmiles(smiles)
     if mol is None:
         if verbose:
             warnings.warn(

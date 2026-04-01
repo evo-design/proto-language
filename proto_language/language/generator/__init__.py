@@ -6,7 +6,10 @@ from proto_language.language.generator.esm2_generator import ESM2Generator, ESM2
 from proto_language.language.generator.esm3_generator import ESM3Generator, ESM3GeneratorConfig
 
 # Language model generators
-from proto_language.language.generator.evo1_generator import Evo1Generator, Evo1GeneratorConfig
+from proto_language.language.generator.evo1_generator import (
+    Evo1Generator,
+    Evo1GeneratorConfig,
+)
 from proto_language.language.generator.evo2_generator import Evo2Generator, Evo2GeneratorConfig
 from proto_language.language.generator.generator_registry import GeneratorRegistry, GeneratorSpec, generator
 from proto_language.language.generator.ligandmpnn_generator import LigandMPNNGenerator, LigandMPNNGeneratorConfig

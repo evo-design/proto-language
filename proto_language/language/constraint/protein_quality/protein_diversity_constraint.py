@@ -126,4 +126,4 @@ def protein_diversity_constraint(input_sequences: list[tuple[Sequence, ...]], co
         input_sequence._metadata["unique_amino_acid_count"] = int(unique_aa_counts[i])
         input_sequence._metadata["unique_amino_acids"] = sorted(set(seq_strings[i]))
 
-    return scores_array.tolist()
+    return scores_array.tolist()  # type: ignore[no-any-return]

@@ -4,6 +4,7 @@ automatic schema generation for API/client integration.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, Field
@@ -87,7 +88,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
     _registry: ClassVar[dict[str, GeneratorSpec]] = {}
 
     @classmethod
-    def register(
+    def register(  # type: ignore[override]
         cls,
         key: str,
         label: str,
@@ -97,7 +98,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
         uses_gpu: bool = False,
         tools_called: list[str] | None = None,
         supported_sequence_types: list[str] | None = None,
-    ):
+    ) -> Callable[[type[Generator]], type[Generator]]:
         """Decorator to register a generator class.
 
         This is the generator-specific implementation of the abstract register()
@@ -116,7 +117,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
                 Empty list means supports all types.
 
         Returns:
-            Decorator that registers the class and returns it unchanged
+            Callable[[type[Generator]], type[Generator]]: Decorator that registers the class and returns it unchanged
 
         Examples:
             >>> @generator(
@@ -137,7 +138,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
             supported_sequence_types = []
         if tools_called is None:
             tools_called = []
-        def decorator(generator_class: type[Generator]):
+        def decorator(generator_class: type[Generator]) -> type[Generator]:
             # Prevent duplicate registration using base class helper
             cls._check_duplicate(key, generator_class.__name__)
 
@@ -194,7 +195,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
         validated_config = spec.config_model(**config_dict)
 
         # Create Generator with validated Pydantic model
-        return spec.generator_class(validated_config)
+        return spec.generator_class(validated_config)  # type: ignore[call-arg]
 
     @classmethod
     def get_key(cls, generator: Generator) -> str:

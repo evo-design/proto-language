@@ -55,12 +55,12 @@ class SpecificKmerConfig(BaseConfig):
 
     @field_validator('kmer', mode='before')
     @classmethod
-    def uppercase_kmer(cls, v):
+    def uppercase_kmer(cls, v: str) -> str:
         """Normalize k-mer to uppercase."""
         return v.upper()
 
     @model_validator(mode='after')
-    def validate_config(self):
+    def validate_config(self) -> SpecificKmerConfig:
         """Validate configuration parameters."""
         if self.min_value > self.max_value:
             raise ValueError(

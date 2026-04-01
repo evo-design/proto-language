@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 from pydantic import field_validator
@@ -112,7 +112,7 @@ class SeqMotifConfig(BaseConfig):
 
     @field_validator('wanted', 'not_wanted', mode='before')
     @classmethod
-    def convert_motif_list(cls, v):
+    def convert_motif_list(cls, v: Any) -> Any:
         """Convert single string to list of strings."""
         if isinstance(v, str):
             return [v]
@@ -241,44 +241,26 @@ def seq_motif_constraint(input_sequences: list[tuple[Sequence, ...]], config: Se
     with open(config.motifs_path) as f:
         motif_names = [line.split()[1] for line in f if line.startswith("MOTIF")]
 
-    # Normalize "all"/"none"
-    wanted = config.wanted
-    not_wanted = config.not_wanted
+    # Normalize "all"/"none" and expand to sets
+    def _resolve_motif_list(raw: list[str] | None) -> set[str]:
+        """Resolve a motif list config value to a concrete set of motif names."""
+        if raw is None:
+            return set()
+        if len(raw) == 1 and raw[0].lower() == "all":
+            return set(motif_names)
+        if len(raw) == 1 and raw[0].lower() == "none":
+            return set()
+        return set(raw)
 
-    if (
-        isinstance(wanted, list)
-        and len(wanted) == 1
-        and wanted[0].lower() in ("all", "none")
-    ):
-        wanted = wanted[0].lower()
-    if (
-        isinstance(not_wanted, list)
-        and len(not_wanted) == 1
-        and not_wanted[0].lower() in ("all", "none")
-    ):
-        not_wanted = not_wanted[0].lower()
-
-    # Expand wanted/not_wanted
-    if wanted == "all":
-        wanted = set(motif_names)
-    elif wanted in (None, "none"):
-        wanted = set()
-    else:
-        wanted = set(wanted)
-
-    if not_wanted == "all":
-        not_wanted = set(motif_names)
-    elif not_wanted in (None, "none"):
-        not_wanted = set()
-    else:
-        not_wanted = set(not_wanted)
+    wanted_set: set[str] = _resolve_motif_list(config.wanted)
+    not_wanted_set: set[str] = _resolve_motif_list(config.not_wanted)
 
     # Exclusive settings to automatically set wanted/unwanted
     if config.exclusive:
-        if wanted and not not_wanted:
-            not_wanted = set(motif_names) - wanted
-        elif not_wanted and not wanted:
-            wanted = set(motif_names) - not_wanted
+        if wanted_set and not not_wanted_set:
+            not_wanted_set = set(motif_names) - wanted_set
+        elif not_wanted_set and not wanted_set:
+            wanted_set = set(motif_names) - not_wanted_set
 
     penalties: list[float] = []
 
@@ -319,7 +301,7 @@ def seq_motif_constraint(input_sequences: list[tuple[Sequence, ...]], config: Se
 
         # Scoring
         details = {}
-        if not wanted and not not_wanted:
+        if not wanted_set and not not_wanted_set:
             if not found:
                 penalty = 0.0
             else:
@@ -333,8 +315,8 @@ def seq_motif_constraint(input_sequences: list[tuple[Sequence, ...]], config: Se
 
             seq_obj._metadata["motif_constraint"] = {
                 "penalty": penalty,
-                "wanted": wanted,
-                "not_wanted": not_wanted,
+                "wanted": wanted_set,
+                "not_wanted": not_wanted_set,
                 "found": found,
                 "details": {},
                 "aggregation_info": {
@@ -350,7 +332,7 @@ def seq_motif_constraint(input_sequences: list[tuple[Sequence, ...]], config: Se
         wanted_penalties = []
 
         # Penalize unwanted motifs (lower e-value = stronger match = higher penalty)
-        for motif in not_wanted:
+        for motif in not_wanted_set:
             if motif in found:
                 e_val = found[motif]
                 if e_val > 0:
@@ -369,7 +351,7 @@ def seq_motif_constraint(input_sequences: list[tuple[Sequence, ...]], config: Se
                 details[motif] = {"penalty": 0.0, "status": "unwanted_absent"}
 
         # Reward wanted motifs (lower e-value = stronger match = lower penalty)
-        for motif in wanted:
+        for motif in wanted_set:
             if motif not in found:
                 wanted_penalties.append(1.0 * config.scale)
                 details[motif] = {"penalty": 1.0 * config.scale, "status": "wanted_missing"}
@@ -390,7 +372,7 @@ def seq_motif_constraint(input_sequences: list[tuple[Sequence, ...]], config: Se
             # Simple average
             all_penalties = unwanted_penalties + wanted_penalties
             if all_penalties:
-                final_penalty = np.mean(all_penalties)
+                final_penalty = float(np.mean(all_penalties))
 
         elif config.aggregation == "max":
             # Strictest, take worst penalty across all methods
@@ -402,7 +384,7 @@ def seq_motif_constraint(input_sequences: list[tuple[Sequence, ...]], config: Se
             # Use specified percentile to aggregate top n% penalties
             all_penalties = unwanted_penalties + wanted_penalties
             if all_penalties:
-                final_penalty = np.percentile(all_penalties, config.percentile_value)
+                final_penalty = float(np.percentile(all_penalties, config.percentile_value))
 
         else:
             # Different strategies for wanted vs unwanted
@@ -416,22 +398,22 @@ def seq_motif_constraint(input_sequences: list[tuple[Sequence, ...]], config: Se
                     unwanted_score = max(unwanted_penalties)
                 elif len(unwanted_penalties) <= 10:
                     # Medium number: use 90th percentile
-                    unwanted_score = np.percentile(unwanted_penalties, 90)
+                    unwanted_score = float(np.percentile(unwanted_penalties, 90))
                 else:
                     # Many motifs: Take average of top 5% worst penalties
                     k = max(1, int(len(unwanted_penalties) * 0.05))
                     top_k = sorted(unwanted_penalties, reverse=True)[:k]
-                    unwanted_score = np.mean(top_k)
+                    unwanted_score = float(np.mean(top_k))
 
             if wanted_penalties:
                 # For wanted: all should be present, so use average
-                wanted_score = np.mean(wanted_penalties)
+                wanted_score = float(np.mean(wanted_penalties))
 
             if unwanted_penalties and wanted_penalties:
                 if config.unwanted_focus:
                     # Give more weight to unwanted motifs when many are scanned
                     total_motifs = len(motif_names)
-                    unwanted_ratio = len(not_wanted) / total_motifs
+                    unwanted_ratio = len(not_wanted_set) / total_motifs
                     # Weight increases with the proportion of unwanted motifs
                     unwanted_weight = 1.0 + unwanted_ratio
                     wanted_weight = 1.0
@@ -451,8 +433,8 @@ def seq_motif_constraint(input_sequences: list[tuple[Sequence, ...]], config: Se
         # Store results in metadata
         seq_obj._metadata["motif_constraint"] = {
             "penalty": penalty,
-            "wanted": wanted,
-            "not_wanted": not_wanted,
+            "wanted": wanted_set,
+            "not_wanted": not_wanted_set,
             "found": found,
             "details": details,
             "aggregation_info": {

@@ -23,7 +23,7 @@ class ConstraintSpec(BaseSpec):
     num_input_sequences_per_tuple: int | None = Field(default=None, description="Number of Sequence objects required in each tuple of input_sequences. If None, any number is allowed.")
 
     # Private field - excluded from serialization
-    function: SkipJsonSchema[Callable] = Field(exclude=True)
+    function: SkipJsonSchema[Callable[..., Any]] = Field(exclude=True)
 
 
 class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
@@ -82,7 +82,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
     _registry: ClassVar[dict[str, ConstraintSpec]] = {}
 
     @classmethod
-    def register(
+    def register(  # type: ignore[override]
         cls,
         key: str,
         label: str,
@@ -93,7 +93,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         category: str | None = None,
         supported_sequence_types: list[str] | None = None,
         num_input_sequences_per_tuple: int | None = None,
-    ):
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Decorator to register a constraint function.
 
         All constraint functions must use the standardized signature:
@@ -111,7 +111,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             num_input_sequences_per_tuple (int | None): Number of Sequence objects required in each tuple of input_sequences. If None, any number is allowed.
 
         Returns:
-            Decorator that registers the function and returns it unchanged
+            Callable[[Callable[..., Any]], Callable[..., Any]]: Decorator that registers the function and returns it unchanged
 
         Examples:
             >>> @constraint(
@@ -132,7 +132,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             supported_sequence_types = []
         if tools_called is None:
             tools_called = []
-        def decorator(func: Callable):
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             # Prevent duplicate registration using base class helper
             cls._check_duplicate(key, func.__name__)
 
@@ -141,9 +141,9 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
                 raise ValueError(f"supported_sequence_types must be non-empty for constraint '{key}'")
 
             # Store metadata as function attributes for Constraint class to use
-            func._constraint_config_class = config
-            func._constraint_supported_sequence_types = supported_sequence_types
-            func._constraint_num_input_sequences_per_tuple = num_input_sequences_per_tuple
+            func._constraint_config_class = config  # type: ignore[attr-defined]
+            func._constraint_supported_sequence_types = supported_sequence_types  # type: ignore[attr-defined]
+            func._constraint_num_input_sequences_per_tuple = num_input_sequences_per_tuple  # type: ignore[attr-defined]
 
             cls._registry[key] = ConstraintSpec(
                 key=key,

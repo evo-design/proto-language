@@ -137,7 +137,7 @@ def protein_repetitiveness_constraint(input_sequences: list[tuple[Sequence, ...]
         input_sequence._metadata["repetitiveness_score"] = float(repetitiveness_scores[i])
         input_sequence._metadata["max_repetitive_fraction"] = float(repetitiveness_scores[i])
 
-    return scores.tolist()
+    return scores.tolist()  # type: ignore[no-any-return]
 
 
 def _calculate_repetitiveness_score(seq: str, min_repeat_length: int = 3) -> float:

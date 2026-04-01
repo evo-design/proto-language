@@ -39,8 +39,10 @@ pytest tests/language_tests/              # Language core
 pytest tests/language_tests/constraint_tests/  # Constraints only
 pytest tests/language_tests/generator_tests/   # Generators only
 pytest tests/language_tests/optimizer_tests/   # Optimizers only
-# Linting (CI checks F401 unused imports, F841 unused vars, import sorting)
+# Linting (22 rule groups, Google-convention pydocstyle)
 ruff check proto_language tests
+# Type checking (strict mode with Pydantic plugin)
+mypy proto_language/
 ```
 
 ## Test File Placement
@@ -150,5 +152,6 @@ Copy this and check off as you go:
 - [ ] Metadata propagation test included (for constraints)
 - [ ] Tests pass: `pytest tests/language_tests/{area}_tests/ --cpu -x`
 - [ ] Lint passes: `ruff check tests/`
+- [ ] Type check passes: `mypy proto_language/`
 
 If any check fails, fix before proceeding.

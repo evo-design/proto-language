@@ -94,7 +94,7 @@ class SpliceTransformerIntronBoundaryConfig(BaseConfig):
 
     @field_validator('donor_pos', 'acceptor_pos', mode='before')
     @classmethod
-    def convert_pos_to_list(cls, v):
+    def convert_pos_to_list(cls, v: int | list[int]) -> list[int]:
         """Convert single int to list of ints."""
         if isinstance(v, int):
             return [v]

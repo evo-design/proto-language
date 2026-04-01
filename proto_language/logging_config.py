@@ -17,7 +17,7 @@ from pathlib import Path
 class ProtoLanguageOnlyFilter(logging.Filter):
     """Filter to only allow logs from proto_language project packages."""
 
-    def filter(self, record):
+    def filter(self, record: logging.LogRecord) -> bool:
         """Return True if the log record belongs to an allowed project package."""
         allowed_prefixes = ("proto_language", "tests")
         return record.name.startswith(allowed_prefixes)
@@ -26,7 +26,7 @@ class ProtoLanguageOnlyFilter(logging.Filter):
 class SelectiveLevelFormatter(logging.Formatter):
     """Formatter that shows level prefix only for WARNING and above."""
 
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         """Prepend the level name for WARNING and above, plain message otherwise."""
         # For WARNING, ERROR, CRITICAL: add level prefix
         if record.levelno >= logging.WARNING:
@@ -59,7 +59,7 @@ def _parse_log_level(level: int | str) -> int:
     if isinstance(level, str):
         level_upper = level.upper()
         if hasattr(logging, level_upper):
-            return getattr(logging, level_upper)
+            return int(getattr(logging, level_upper))
         raise ValueError(
             f"Unknown log level: '{level}'. "
             f"Valid levels: DEBUG, INFO, WARNING, ERROR, CRITICAL"

@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable
+from typing import Any
 
 from proto_language.language.core import Segment, Sequence
-from proto_language.language.core.sequence import create_concatenated_sequence
+from proto_language.language.core.sequence import SequenceType, create_concatenated_sequence
 
 logger = logging.getLogger(__name__)
 
@@ -43,12 +44,12 @@ class Construct:
         logger.debug(f"Created Construct: label={label}, segments={segment_labels}")
 
     @property
-    def sequence_type(self):
+    def sequence_type(self) -> SequenceType:
         """Sequence type derived from segments (read-only)."""
         return self.segments[0].sequence_type
 
     @property
-    def valid_chars(self):
+    def valid_chars(self) -> set[str] | frozenset[str] | None:
         """Valid characters derived from segments (read-only)."""
         return self.segments[0].valid_chars
 
@@ -111,7 +112,7 @@ class Construct:
             duplicates = [label for label in segment_labels if segment_labels.count(label) > 1]
             raise ValueError(f"Segment labels must be unique within a construct. Duplicates: {set(duplicates)}")
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize Construct to a dictionary."""
         return {
             "segments": [segment.to_dict() for segment in self.segments],
@@ -121,7 +122,7 @@ class Construct:
         }
 
     @classmethod
-    def from_dict(cls, data) -> Construct:
+    def from_dict(cls, data: dict[str, Any]) -> Construct:
         """Deserialize Construct from dictionary."""
         segments = [Segment.from_dict(seg_data) for seg_data in data["segments"]]
         return cls(segments=segments, label=data.get("label"))

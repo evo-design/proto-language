@@ -40,6 +40,7 @@ pytest --cpu --skip-ci                # Mimic CI
 pytest --gpu --all                    # GPU + slow + integration tests
 pytest -k "name"                      # Filter by name
 ruff check proto_language tests       # Lint
+mypy proto_language/                  # Type check (strict)
 pre-commit run --all-files            # All checks
 ```
 
@@ -97,6 +98,7 @@ The `proto-tools/` submodule has its own CLAUDE.md with its own mappings.
 - `from __future__ import annotations` only where needed (files using 3.10+ annotation syntax in runtime positions)
 - `logging.getLogger(__name__)`, never `print()`
 - Ruff (line length 120, 22 rule groups with Google-convention pydocstyle — see `pyproject.toml [tool.ruff.lint]` for full config)
+- Mypy (strict mode with Pydantic plugin — see `pyproject.toml [tool.mypy]` for full config). Every `# type: ignore` must include the error code (e.g., `# type: ignore[union-attr]`). Prefer `assert` guards for type narrowing over `# type: ignore`.
 - Pydantic v2 for all configs: inherit `BaseConfig`, use `ConfigField` (not `Field`). Use `depends_on` for conditional field visibility (show/hide fields based on another field's value).
 - Registry keys: kebab-case. Config classes: `{Name}Config`. Files: `{name}_constraint.py` / `{name}_generator.py`
 - **When modifying existing code**: Thoroughly find and update ALL callsites, imports, docstrings, comments, tests, and documentation that reference the changed code. Use sub-agents to search the entire codebase in parallel. Leave no dangling references.

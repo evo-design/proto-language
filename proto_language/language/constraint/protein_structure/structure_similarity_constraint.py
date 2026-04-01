@@ -94,7 +94,7 @@ def _compute_ce_aligned_rmsd(pdb_text1: str, pdb_text2: str) -> dict[str, Any]:
 
 def _filter_pdb_by_plddt(pdb_text: str, threshold: float) -> str:
     """Filters PDB text, keeping only residues with B-factor (pLDDT) >= threshold."""
-    if threshold is None or threshold <= 0:
+    if threshold is None or threshold <= 0:  # type: ignore[redundant-expr]
         return pdb_text
 
     filtered_lines = []
@@ -368,8 +368,8 @@ def _prepare_target_structure(config: StructureSimilarityConfig) -> str | None:
     """
     if config.target_structure is not None:
         if isinstance(config.target_structure, Structure):
-            return config.target_structure.structure_pdb
-        return Structure(config.target_structure).structure_pdb
+            return config.target_structure.structure_pdb  # type: ignore[no-any-return]
+        return Structure(config.target_structure).structure_pdb  # type: ignore[no-any-return]
 
     if config.target_chains is not None:
         if isinstance(config.target_chains, StructurePredictionComplex):
@@ -392,7 +392,7 @@ def _prepare_target_structure(config: StructureSimilarityConfig) -> str | None:
             )
             return None
 
-        return output.structures[0].structure_pdb
+        return output.structures[0].structure_pdb  # type: ignore[no-any-return]
 
     return None
 

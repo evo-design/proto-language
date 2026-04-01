@@ -193,7 +193,7 @@ def protein_symmetry_ring_constraint(input_sequences: list[tuple[Sequence, ...]]
     """
     # Extract sequences from tuples and separate by type
     sequences = [seq for (seq,) in input_sequences]
-    by_type = {"dna": [], "protein": []}
+    by_type = {"dna": [], "protein": []}  # type: ignore[var-annotated]
     for seq in sequences:
         by_type[seq.sequence_type].append(seq)
 
@@ -201,13 +201,13 @@ def protein_symmetry_ring_constraint(input_sequences: list[tuple[Sequence, ...]]
 
     if by_type["protein"]:
         protein_scores = _evaluate_protein_symmetry(by_type["protein"], config)
-        _map_scores_to_original(sequences, by_type["protein"], protein_scores, scores)
+        _map_scores_to_original(sequences, by_type["protein"], protein_scores, scores)  # type: ignore[arg-type]
 
     if by_type["dna"]:
         dna_scores = _evaluate_dna_symmetry(by_type["dna"], config)
-        _map_scores_to_original(sequences, by_type["dna"], dna_scores, scores)
+        _map_scores_to_original(sequences, by_type["dna"], dna_scores, scores)  # type: ignore[arg-type]
 
-    return scores
+    return scores  # type: ignore[return-value]
 
 def _evaluate_protein_symmetry(
     protein_sequences: list[Sequence],
@@ -254,7 +254,7 @@ def _evaluate_protein_symmetry(
 
         if len(centroids) != config.n_replications:
             raise ValueError(f"Expected {config.n_replications} centroids, got {len(centroids)}")
-        centroids = np.vstack(centroids)
+        centroids = np.vstack(centroids)  # type: ignore[assignment]
 
         symmetry_std = float(np.std(distance_func(centroids)))
         normalized_score = min(1.0, symmetry_std / config.max_symmetry_std)
@@ -320,7 +320,7 @@ def _evaluate_dna_symmetry(
                 chain_backbone = get_backbone_atoms(atom_array[atom_array.chain_id == chain_id]).coord
                 centroids.append(get_centroid(chain_backbone))
 
-            centroids = np.vstack(centroids)
+            centroids = np.vstack(centroids)  # type: ignore[assignment]
             symmetry_stds.append(float(np.std(distance_func(centroids))))
 
         best_symmetry_std = min(symmetry_stds)

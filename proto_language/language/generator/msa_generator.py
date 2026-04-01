@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import random
-from typing import final
+from typing import Any, final
 
 from proto_tools import MSA
 from pydantic import ConfigDict, field_validator
@@ -63,7 +63,7 @@ class MSAGeneratorConfig(BaseConfig):
 
     @field_validator("msa", mode="before")
     @classmethod
-    def validate_msa(cls, v):
+    def validate_msa(cls, v: Any) -> Any:
         """Accept MSA object or list of aligned sequences."""
         if isinstance(v, MSA):
             return v
@@ -178,6 +178,7 @@ class MSAGenerator(Generator):
             RuntimeError: If called before assign().
         """
         self._validate_generator()
+        assert self._assigned_segment is not None  # noqa: S101 -- mypy type narrowing
         for sequence in self._assigned_segment.proposal_sequences:
             seq_list = list(sequence.sequence)
 
@@ -188,6 +189,7 @@ class MSAGenerator(Generator):
             for pos in positions_to_mutate:
                 # Sample a character according to the empirical probability distribution
                 probs = self.position_probs[pos]
+                assert probs is not None  # mutable_positions only includes non-None entries  # noqa: S101 -- mypy type narrowing
                 chars = list(probs.keys())
                 weights = list(probs.values())
                 seq_list[pos] = random.choices(chars, weights=weights, k=1)[0]  # noqa: S311 -- non-cryptographic, used for weighted residue sampling

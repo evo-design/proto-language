@@ -349,7 +349,7 @@ class OverallProteinQualityConfig(BaseConfig):
     )
 
     @model_validator(mode='after')
-    def validate_config(self):
+    def validate_config(self) -> OverallProteinQualityConfig:
         """Validate that at least one sub-constraint is specified."""
         sub_config = self.protein_quality_config
         if not any([

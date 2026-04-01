@@ -77,7 +77,7 @@ class Optimizer(ABC):
         proposals_per_result: int = 1,
         num_proposals: int | None = None,
         clear_tool_cache: int | bool | list[str] = 100 * 1024 * 1024,
-        custom_logging: Callable | None = None,
+        custom_logging: Callable[..., Any] | None = None,
     ) -> None:
         """Initialize the Optimizer with dual-pool semantics.
 
@@ -98,7 +98,7 @@ class Optimizer(ABC):
             clear_tool_cache (int | bool | list[str]): Maximum size of cache in bytes, defaults to 100 MB.
                 If bool, whether to clear the tool cache on each iteration.
                 If list[str], restrict clearing to specific tool names.
-            custom_logging (Callable | None): Optional callback with signature ``(step: int, segments: tuple) -> None``.
+            custom_logging (Callable[..., Any] | None): Optional callback with signature ``(step: int, segments: tuple) -> None``.
                 Called at tracked steps only (governed by ``tracking_interval``).
         """
         self.constructs = constructs
@@ -114,7 +114,7 @@ class Optimizer(ABC):
         self.custom_logging = custom_logging
         self.energy_scores: list[float] = []
         self.history: list[dict[str, Any]] = []
-        self._initial_state: dict | None = None  # Captured on first run() for restart
+        self._initial_state: dict[str, Any] | None = None  # Captured on first run() for restart
         self._labels_deduplicated: bool = False
 
         # Per-proposal tracking (set by score_energy / optimizer-specific logic)
@@ -136,7 +136,7 @@ class Optimizer(ABC):
         logger.debug(f"Optimizer initialized: {self.__class__.__name__}, proposals={num_proposals}, results={num_results}")
 
     @property
-    def segments(self):
+    def segments(self) -> tuple[Segment, ...]:
         """All segments from all constructs being optimized."""
         return tuple(seg for construct in self.constructs for seg in construct.segments)
 
@@ -204,7 +204,7 @@ class Optimizer(ABC):
             for i, (p, r) in enumerate(zip(passed, results, strict=True)):
                 if p and not r:
                     self._proposal_outcomes[i] = constraint.label
-            passed = [p and r for p, r in zip(passed, results, strict=True)]
+            passed = [p and bool(r) for p, r in zip(passed, results, strict=True)]
 
         # Pass 2: Score passing proposals (skip rejected proposals for performance)
         all_scores = []
@@ -329,7 +329,7 @@ class Optimizer(ABC):
             if not construct.segments:
                 raise ValueError(f"Construct {i} has no segments")
 
-        assigned_segments: set = set()
+        assigned_segments: set[Segment] = set()
         for i, gen in enumerate(self.generators):
             if not gen._assigned_segment:
                 raise RuntimeError(f"Generator {i} ({gen.__class__.__name__}) has no segment assigned")
@@ -373,7 +373,7 @@ class Optimizer(ABC):
         subclasses with custom ``_validate_optimizer()`` can call it directly.
         """
         if not self._labels_deduplicated:
-            segment_label_counts: dict[tuple, int] = {}  # (base_label, segment_id) -> count
+            segment_label_counts: dict[tuple[str, int], int] = {}  # (base_label, segment_id) -> count
             for constraint in self.constraints:
                 # Capture label before any renaming so multi-segment constraints
                 # use a stable key across all their segments.
@@ -415,9 +415,10 @@ class Optimizer(ABC):
         # Generators must only target the target segment
         for i, gen in enumerate(self.generators):
             if gen._assigned_segment is not target_segment:
+                assigned_label = gen._assigned_segment.label if gen._assigned_segment else "unassigned"
                 raise ValueError(
                     f"Generator {i} ({gen.__class__.__name__}) targets segment "
-                    f"'{gen._assigned_segment.label or 'unlabeled'}', not target segment "
+                    f"'{assigned_label or 'unlabeled'}', not target segment "
                     f"'{target_segment.label or 'unlabeled'}'"
                 )
 
@@ -466,6 +467,9 @@ class Optimizer(ABC):
         """
         # Determine source length from first segment (all segments have same length)
         source_len = len(self.segments[0].result_sequences or [self.segments[0].original_sequence])
+
+        assert self.num_results is not None  # noqa: S101 -- mypy type narrowing
+        assert self.num_proposals is not None  # noqa: S101 -- mypy type narrowing
 
         # Log truncation or expansion with optimizer name for context
         optimizer_name = self.__class__.__name__
@@ -545,6 +549,7 @@ class Optimizer(ABC):
 
     def _restore_initial_state(self) -> None:
         """Restore to captured state via deserialization."""
+        assert self._initial_state is not None  # noqa: S101 -- mypy type narrowing
         for i, seg in enumerate(self.segments):
             state = self._initial_state['segments'][i]
             seg.result_sequences = [Sequence.from_dict(s) for s in state['result']]
@@ -614,14 +619,12 @@ class Optimizer(ABC):
             include_proposals (bool): Include proposal rows (optimization table only).
         """
         results = build_results(self.constructs, self.energy_scores)
-        filters = {
-            "segments": segments,
-            "result_indices": result_indices,
-            "constraints": constraints,
-            "include_proposals": include_proposals,
-        }
         return export_tables(
-            lambda t: flatten_table(t, results, self.history, **filters),
+            lambda t: flatten_table(
+                t, results, self.history,
+                segments=segments, result_indices=result_indices,
+                constraints=constraints, include_proposals=include_proposals,
+            ),
             path, format, table,
         )
 

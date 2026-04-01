@@ -18,12 +18,12 @@ class DependsOn(TypedDict, total=False):
 
     Attributes:
         field (str): Name of the field this dependency targets.
-        value (Union[str, int, float, bool, list]): Required value of the target field for this field to be visible.
+        value (str | int | float | bool | list[Any]): Required value of the target field for this field to be visible.
         not_null (bool): If True, the dependency is satisfied when the target field is not None.
     """
 
     field: str  # Required: sibling field key to watch
-    value: str | int | float | bool | list  # Optional: value(s) to match
+    value: str | int | float | bool | list[Any]  # Optional: value(s) to match
     not_null: bool  # Optional: True means "show when not None"
 
 
@@ -35,7 +35,7 @@ def ConfigField(
     advanced: bool = False,
     hidden: bool = False,
     depends_on: DependsOn | None = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> Any:
     """Custom Field wrapper that automatically adds metadata flags to json_schema_extra.
 

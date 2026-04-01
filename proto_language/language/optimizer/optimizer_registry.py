@@ -4,6 +4,7 @@ automatic schema generation for API/client integration.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import ClassVar
 
 from pydantic import BaseModel, Field
@@ -88,7 +89,7 @@ class OptimizerRegistry(BaseRegistry[OptimizerSpec]):
     _registry: ClassVar[dict[str, OptimizerSpec]] = {}
 
     @classmethod
-    def register(
+    def register(  # type: ignore[override]
         cls,
         key: str,
         label: str,
@@ -96,7 +97,7 @@ class OptimizerRegistry(BaseRegistry[OptimizerSpec]):
         description: str,
         uses_gpu: bool = False,
         targets_single_segment: bool = False,
-    ):
+    ) -> Callable[[type[Optimizer]], type[Optimizer]]:
         """Decorator to register an optimizer class.
 
         This is the optimizer-specific implementation of the abstract register()
@@ -111,7 +112,7 @@ class OptimizerRegistry(BaseRegistry[OptimizerSpec]):
             targets_single_segment (bool): If True, optimizer operates on a single target segment
 
         Returns:
-            Decorator that registers the class and returns it unchanged
+            Callable[[type[Optimizer]], type[Optimizer]]: Decorator that registers the class and returns it unchanged
 
         Examples:
             >>> @optimizer(
@@ -125,7 +126,7 @@ class OptimizerRegistry(BaseRegistry[OptimizerSpec]):
             ...         # Implementation
             ...         pass
         """
-        def decorator(optimizer_class: type[Optimizer]):
+        def decorator(optimizer_class: type[Optimizer]) -> type[Optimizer]:
             # Prevent duplicate registration using base class helper
             cls._check_duplicate(key, optimizer_class.__name__)
 

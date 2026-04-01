@@ -147,7 +147,7 @@ def sigmoid_score(
     # The standard sigmoid 1/(1+e^-x) goes 0->1 as x increases.
     # We use slope * (metric - inflection).
 
-    return 1.0 / (1.0 + np.exp(-slope * (metric - inflection)))
+    return float(1.0 / (1.0 + np.exp(-slope * (metric - inflection))))
 
 
 def inverse_sigmoid_score(
@@ -187,7 +187,7 @@ def inverse_sigmoid_score(
     # Using the property -ln(a/b) = ln(b/a):
     # metric = inflection + (1/slope) * ln(y / (1 - y))  # noqa: ERA001
 
-    return inflection + (np.log(score / (1.0 - score)) / slope)
+    return float(inflection + (np.log(score / (1.0 - score)) / slope))
 
 
 # =============================================================================
@@ -288,7 +288,7 @@ def mask_assigned_positions(
     return "".join(sequence_list)
 
 
-def run_subprocess_command(cmd: list[str], tool_name: str) -> subprocess.CompletedProcess:
+def run_subprocess_command(cmd: list[str], tool_name: str) -> subprocess.CompletedProcess[str]:
     """Run subprocess command with error handling.
 
     Args:
@@ -296,7 +296,7 @@ def run_subprocess_command(cmd: list[str], tool_name: str) -> subprocess.Complet
         tool_name (str): Name of the tool being executed for error messages.
 
     Returns:
-        subprocess.CompletedProcess: CompletedProcess object with stdout/stderr accessible.
+        subprocess.CompletedProcess[str]: CompletedProcess object with stdout/stderr accessible.
 
     Raises:
         RuntimeError: If the subprocess exits with a non-zero return code.

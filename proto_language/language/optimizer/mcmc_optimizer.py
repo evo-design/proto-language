@@ -6,7 +6,7 @@ import logging
 import math
 import random
 from collections.abc import Callable
-from typing import final
+from typing import Any, final
 
 import numpy as np
 from pydantic import model_validator
@@ -108,7 +108,7 @@ class MCMCOptimizerConfig(BaseOptimizerConfig):
         advanced=True,
     )
     @model_validator(mode='after')
-    def validate_cross_field_constraints(self):
+    def validate_cross_field_constraints(self) -> MCMCOptimizerConfig:
         """Validate cross-field constraints."""
         # Validate min_temperature < max_temperature for annealing
         if self.min_temperature >= self.max_temperature:
@@ -181,7 +181,7 @@ class MCMCOptimizer(Optimizer):
         generators: list[Generator],
         constraints: list[Constraint],
         config: MCMCOptimizerConfig,
-        custom_logging: Callable | None = None,
+        custom_logging: Callable[..., Any] | None = None,
         clear_tool_cache: int | bool | list[str] = 100 * 1024 * 1024,
     ) -> None:
         """Initialize the MCMC Optimizer with sub-generators and constraints.
@@ -191,7 +191,7 @@ class MCMCOptimizer(Optimizer):
             generators (list[Generator]): List of Generator objects for sequence modification.
             constraints (list[Constraint]): List of Constraint objects for evaluation.
             config (MCMCOptimizerConfig): Configuration object containing algorithm parameters (temperature, num_steps, etc.).
-            custom_logging (Callable | None): Optional callback called at tracked steps (governed by ``tracking_interval``).
+            custom_logging (Callable[..., Any] | None): Optional callback called at tracked steps (governed by ``tracking_interval``).
             clear_tool_cache (int | bool | list[str]): (int) Maximum size of cache in bytes, defaults to 100 MB.
                               (bool) Whether to clear the tool cache on each iteration.
                               (List[str]) Restrict clearing cache to a list of tool names.
@@ -234,6 +234,8 @@ class MCMCOptimizer(Optimizer):
             - Snapshots of constructs at tracked timesteps are stored in self.history.
         """
         self._prepare_run()
+        assert self.num_results is not None  # noqa: S101 -- mypy type narrowing
+        assert self.num_proposals is not None  # noqa: S101 -- mypy type narrowing
 
         # Score initial state if sequences are non-empty (skip for autoregressive generators like ProGen2)
         if any(seq.sequence for segment in self.segments for seq in segment.proposal_sequences):
@@ -285,7 +287,7 @@ class MCMCOptimizer(Optimizer):
                 - energy: float (energy_scores[result_idx])
         """
         sequence_state = []
-        for result_idx in range(self.num_results):
+        for result_idx in range(self.num_results):  # type: ignore[arg-type]
             segments_dict = {}
             for segment in self.segments:
                 seg_id = id(segment)
@@ -299,6 +301,8 @@ class MCMCOptimizer(Optimizer):
         Updates proposal_sequences in-place.
         Layout: [sequence_0] * proposals_per_result + [sequence_1] * proposals_per_result + ...
         """
+        assert self.num_results is not None  # noqa: S101 -- mypy type narrowing
+        assert self.num_proposals is not None  # noqa: S101 -- mypy type narrowing
         for segment in self.segments:
             for result_idx in range(self.num_results):
                 start_idx = result_idx * self._proposals_per_result
@@ -327,7 +331,7 @@ class MCMCOptimizer(Optimizer):
         """
         outcomes = list(self._proposal_outcomes)
 
-        for result_idx in range(self.num_results):
+        for result_idx in range(self.num_results):  # type: ignore[arg-type]
             old_segments_dict, old_result_energy = old_result_sequences[result_idx]
             proposal_pool_start = result_idx * self._proposals_per_result
             proposal_pool_end = (result_idx + 1) * self._proposals_per_result
@@ -350,7 +354,7 @@ class MCMCOptimizer(Optimizer):
             # 3. Update trajectory state
             if accepted:
                 for segment in self.segments:
-                    segment.result_sequences[result_idx] = copy.deepcopy(segment.proposal_sequences[best_proposal_idx])
+                    segment.result_sequences[result_idx] = copy.deepcopy(segment.proposal_sequences[best_proposal_idx])  # type: ignore[index]
             else:
                 best_energy = old_result_energy
                 for segment in self.segments:
@@ -386,7 +390,7 @@ class MCMCOptimizer(Optimizer):
         """
         if self.num_steps == 1:
             return self.max_temperature
-        return self.max_temperature * (self.min_temperature / self.max_temperature) ** ((step - 1) / (self.num_steps - 1))
+        return self.max_temperature * (self.min_temperature / self.max_temperature) ** ((step - 1) / (self.num_steps - 1))  # type: ignore[no-any-return]
 
     def _compute_mcmc_alpha(self, current_energy: float, proposed_energy: float, step: int) -> float:
         """Compute Metropolis-Hastings acceptance probability: alpha = min(1, exp(-(E_new - E_old) / T)).
@@ -416,7 +420,7 @@ class MCMCOptimizer(Optimizer):
         log_acceptance_ratio = -(proposed_energy - current_energy) / temperature
         # Cap to prevent overflow in exp()
         log_acceptance_ratio = min(log_acceptance_ratio, MAX_EXP_ARG)
-        return min(1.0, np.exp(log_acceptance_ratio))
+        return float(min(1.0, np.exp(log_acceptance_ratio)))
 
     def _log_mcmc_progress(self, step: int) -> None:
         """Log optimization progress."""

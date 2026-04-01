@@ -49,6 +49,8 @@ dev = [
     "pytest-forked",        # Required on Sherlock (exclusive GPU process mode)
     "ruff",
     "mypy",
+    "google-auth",              # mypy needs this installed to type-check storage/store.py
+    "google-cloud-storage",     # mypy needs this installed to type-check storage/resolver.py
     "pre-commit",
     "jupyter",
     "ipykernel",
@@ -89,13 +91,33 @@ log_cli_format = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
 
 [tool.mypy]
 python_version = "3.10"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = false  # Too strict for research code
+plugins = ["pydantic.mypy"]
+strict = true
+warn_unreachable = true
+enable_error_code = ["redundant-expr", "truthy-bool", "ignore-without-code", "deprecated"]
+
+[[tool.mypy.overrides]]
+module = [
+    # Scientific / ML (only modules actually imported from proto_language/)
+    "biotite.*",
+    "rdkit.*",
+    "promoter_calculator.*",
+    # Data / cloud (stubs exist but not installed — add pandas-stubs, types-openpyxl to adopt)
+    "pandas.*",
+    "openpyxl.*",
+    "google.cloud.*",  # google-cloud-storage installed but no py.typed marker
+    # Visualization / other
+    "pymol.*",
+    "vortex.*",
+    # Submodule (proto-tools)
+    "proto_tools.*",
+]
 ignore_missing_imports = true
-check_untyped_defs = true
-warn_redundant_casts = true
-warn_unused_ignores = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
 
 [tool.ruff]
 target-version = "py310"
@@ -171,3 +193,4 @@ ban-relative-imports = "all"
 
 [tool.ruff.format]
 docstring-code-format = true
+
