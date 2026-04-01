@@ -238,10 +238,7 @@ class Evo2Generator(Generator):
     Example:
         >>> from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
         >>> from proto_language.language.core import Segment, SequenceType
-        >>> config = Evo2GeneratorConfig(
-        ...     prompts="ATG",
-        ...     temperature=0.8
-        ... )
+        >>> config = Evo2GeneratorConfig(prompts="ATG", temperature=0.8)
         >>> gen = Evo2Generator(config)
         >>> # Segment length determines how many tokens to generate
         >>> segment = Segment(length=1003, sequence_type="dna")
@@ -324,9 +321,7 @@ class Evo2Generator(Generator):
         generated_sequences = evo2_output.sequences
         self.kv_caches = evo2_output.kv_caches if self.store_kv_cache else []
 
-        for proposal, sequence in zip(
-            self._assigned_segment.proposal_sequences, generated_sequences, strict=True
-        ):
+        for proposal, sequence in zip(self._assigned_segment.proposal_sequences, generated_sequences, strict=True):
             proposal.sequence = sequence
 
     def replicate_cache(self, cache: dict[str, Any], n_replicates: int) -> dict[str, Any]:
@@ -356,56 +351,35 @@ class Evo2Generator(Generator):
                 seqlen_offset=mha.seqlen_offset,
                 batch_size_offset=mha.batch_size_offset,
                 key_value_memory_dict={
-                    key: data.repeat(n_replicates, 1, 1, 1, 1)
-                    for key, data in mha.key_value_memory_dict.items()
+                    key: data.repeat(n_replicates, 1, 1, 1, 1) for key, data in mha.key_value_memory_dict.items()
                 },
             ),
             "hcl": HyenaCascadeIIRInferenceParams(
                 fir_filter_length=hcl.fir_filter_length,
                 state_dim=hcl.state_dim,
                 seqlen_offset=hcl.seqlen_offset,
-                fir_state_dict={
-                    key: data.repeat(n_replicates, 1, 1)
-                    for key, data in hcl.fir_state_dict.items()
-                },
-                state_dict={
-                    key: data.repeat(n_replicates, 1, 1)
-                    for key, data in hcl.state_dict.items()
-                },
+                fir_state_dict={key: data.repeat(n_replicates, 1, 1) for key, data in hcl.fir_state_dict.items()},
+                state_dict={key: data.repeat(n_replicates, 1, 1) for key, data in hcl.state_dict.items()},
             ),
             "hcm": HyenaCascadeFIRInferenceParams(
                 fir_filter_length=hcm.fir_filter_length,
                 seqlen_offset=hcm.seqlen_offset,
                 fir_inner_filter_length=hcm.fir_inner_filter_length,
-                fir_state_dict={
-                    key: data.repeat(n_replicates, 1, 1)
-                    for key, data in hcm.fir_state_dict.items()
-                },
+                fir_state_dict={key: data.repeat(n_replicates, 1, 1) for key, data in hcm.fir_state_dict.items()},
                 fir_inner_state_dict={
-                    key: data.repeat(n_replicates, 1, 1)
-                    for key, data in hcm.fir_inner_state_dict.items()
+                    key: data.repeat(n_replicates, 1, 1) for key, data in hcm.fir_inner_state_dict.items()
                 },
-                state_dict={
-                    key: data.repeat(n_replicates, 1, 1)
-                    for key, data in hcm.state_dict.items()
-                },
+                state_dict={key: data.repeat(n_replicates, 1, 1) for key, data in hcm.state_dict.items()},
             ),
             "hcs": HyenaCascadeFIRInferenceParams(
                 fir_filter_length=hcs.fir_filter_length,
                 seqlen_offset=hcs.seqlen_offset,
                 fir_inner_filter_length=hcs.fir_inner_filter_length,
-                fir_state_dict={
-                    key: data.repeat(n_replicates, 1, 1)
-                    for key, data in hcs.fir_state_dict.items()
-                },
+                fir_state_dict={key: data.repeat(n_replicates, 1, 1) for key, data in hcs.fir_state_dict.items()},
                 fir_inner_state_dict={
-                    key: data.repeat(n_replicates, 1, 1)
-                    for key, data in hcs.fir_inner_state_dict.items()
+                    key: data.repeat(n_replicates, 1, 1) for key, data in hcs.fir_inner_state_dict.items()
                 },
-                state_dict={
-                    key: data.repeat(n_replicates, 1, 1)
-                    for key, data in hcs.state_dict.items()
-                },
+                state_dict={key: data.repeat(n_replicates, 1, 1) for key, data in hcs.state_dict.items()},
             ),
         }
 
@@ -417,21 +391,13 @@ class Evo2Generator(Generator):
             return prompts
         if len(prompts) == 1:
             return prompts * num_proposals
-        raise ValueError(
-            f"Expected 1 or {num_proposals} prompts, got {len(prompts)}"
-        )
+        raise ValueError(f"Expected 1 or {num_proposals} prompts, got {len(prompts)}")
 
-    def _compute_num_tokens(
-        self, prompt_length: int, prepend_prompt: bool
-    ) -> int:
+    def _compute_num_tokens(self, prompt_length: int, prepend_prompt: bool) -> int:
         """Compute tokens to generate based on segment length and prompt settings."""
         assert self._assigned_segment is not None  # noqa: S101 -- mypy type narrowing
         segment_length = self._assigned_segment.sequence_length
-        num_tokens = (
-            (segment_length - prompt_length) if prepend_prompt else segment_length
-        )
+        num_tokens = (segment_length - prompt_length) if prepend_prompt else segment_length
         if num_tokens < 1:
-            raise ValueError(
-                f"Prompt length ({prompt_length}) exceeds segment length ({segment_length})"
-            )
+            raise ValueError(f"Prompt length ({prompt_length}) exceeds segment length ({segment_length})")
         return num_tokens

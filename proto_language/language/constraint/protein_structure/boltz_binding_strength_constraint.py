@@ -139,6 +139,7 @@ class BoltzBindingStrengthConfig(BaseConfig):
           more accurate structure. Values <3 Å indicate high accuracy.
         - **confidence_score**: Boltz's aggregate confidence combining multiple factors.
     """
+
     desired_higher: dict[str, float] = ConfigField(
         default=DEFAULT_DESIRED_HIGHER,
         title="Desired Higher Bound Metrics",
@@ -294,18 +295,13 @@ def boltz_binding_strength_constraint(
     """
     boltz_complexes = [
         StructurePredictionComplex(
-            chains=[
-                {"sequence": s.sequence, "entity_type": s.sequence_type}
-                for s in sequence_tuple
-            ]
+            chains=[{"sequence": s.sequence, "entity_type": s.sequence_type} for s in sequence_tuple]
         )
         for sequence_tuple in input_sequences
     ]
 
     # Prepare inputs for Boltz2
-    inputs = Boltz2Input(
-        complexes=boltz_complexes
-    )
+    inputs = Boltz2Input(complexes=boltz_complexes)
 
     # Run Boltz2
     outputs = run_boltz2(inputs=inputs, config=config.boltz2_config)
@@ -313,7 +309,6 @@ def boltz_binding_strength_constraint(
     # Scoring each complex
     penalties = []
     for seq_obj_tuple, comp, structure in zip(input_sequences, inputs.complexes, outputs.structures, strict=False):
-
         # Determine complex type
         n_chains = comp.num_chains()
         has_ligand = "ligand" in comp.get_entity_type_set()
@@ -437,16 +432,12 @@ def boltz_binding_strength_constraint(
             if not key.endswith("_penalty"):
                 key = f"{key}_penalty"
             if key not in penalties_dict:
-                raise ValueError(
-                    f"Requested component '{config.return_component}' not available."
-                )
+                raise ValueError(f"Requested component '{config.return_component}' not available.")
             penalty = clip(float(penalties_dict[key]), 0.0, 1.0)
         else:
             # Weighted sum
             used_weights = {
-                k: weights[k.replace("_penalty", "")]
-                for k in penalties_dict
-                if k.replace("_penalty", "") in weights
+                k: weights[k.replace("_penalty", "")] for k in penalties_dict if k.replace("_penalty", "") in weights
             }
             wsum = sum(used_weights.values()) or 1.0
             penalty = clip(
@@ -470,9 +461,7 @@ def boltz_binding_strength_constraint(
     return penalties
 
 
-def get_penalty_for_metric(
-    metric_name: str, metric_value: float, config: BoltzBindingStrengthConfig
-) -> float:
+def get_penalty_for_metric(metric_name: str, metric_value: float, config: BoltzBindingStrengthConfig) -> float:
     """Retrieves the penalty for the given metric's value based on the default target.
 
     and tolerance values.
@@ -501,9 +490,7 @@ def get_penalty_for_metric(
         target = config.desired_lower[metric_name]
         tolerance = config.tol_lower[metric_name]
     else:
-        raise ValueError(
-            f"Metric {metric_name} not found in config.desired_higher or config.desired_lower"
-        )
+        raise ValueError(f"Metric {metric_name} not found in config.desired_higher or config.desired_lower")
 
     deviation = (target - metric_value) if higher_is_better else (metric_value - target)
     normalized = deviation / max(tolerance, 1e-9)

@@ -2,6 +2,7 @@
 
 without depending on the real codebase.
 """
+
 import json
 
 # Import the validator functions directly
@@ -58,62 +59,83 @@ def write_init(path: Path, content: str) -> Path:
 
 class TestExtractAllList:
     def test_simple_all(self, tmp_path):
-        init = write_init(tmp_path, '''
+        init = write_init(
+            tmp_path,
+            """
             __all__ = ["Foo", "Bar", "baz"]
-        ''')
+        """,
+        )
         tree = parse_init(init)
         result = extract_all_list(tree)
         assert result == ["Foo", "Bar", "baz"]
 
     def test_no_all(self, tmp_path):
-        init = write_init(tmp_path, '''
+        init = write_init(
+            tmp_path,
+            """
             from .foo import Foo
-        ''')
+        """,
+        )
         tree = parse_init(init)
         result = extract_all_list(tree)
         assert result is None
 
     def test_tuple_all(self, tmp_path):
-        init = write_init(tmp_path, '''
+        init = write_init(
+            tmp_path,
+            """
             __all__ = ("Foo", "Bar")
-        ''')
+        """,
+        )
         tree = parse_init(init)
         result = extract_all_list(tree)
         assert result == ["Foo", "Bar"]
 
     def test_empty_all(self, tmp_path):
-        init = write_init(tmp_path, '''
+        init = write_init(
+            tmp_path,
+            """
             __all__ = []
-        ''')
+        """,
+        )
         tree = parse_init(init)
         result = extract_all_list(tree)
         assert result == []
 
     def test_augmented_assignment_merged(self, tmp_path):
         """__all__ = [...] followed by __all__ += [...] should merge both."""
-        init = write_init(tmp_path, '''
+        init = write_init(
+            tmp_path,
+            """
             __all__ = ["A", "B"]
             __all__ += ["C", "D"]
-        ''')
+        """,
+        )
         tree = parse_init(init)
         result = extract_all_list(tree)
         assert result == ["A", "B", "C", "D"]
 
     def test_augmented_only(self, tmp_path):
         """__all__ += [...] without a base assignment should still return the list."""
-        init = write_init(tmp_path, '''
+        init = write_init(
+            tmp_path,
+            """
             __all__ += ["X"]
-        ''')
+        """,
+        )
         tree = parse_init(init)
         result = extract_all_list(tree)
         assert result == ["X"]
 
     def test_non_string_element_warns(self, tmp_path):
         """Non-string elements in __all__ should produce a warning."""
-        init = write_init(tmp_path, '''
+        init = write_init(
+            tmp_path,
+            """
             SOME_VAR = "dynamic"
             __all__ = ["Foo", SOME_VAR]
-        ''')
+        """,
+        )
         tree = parse_init(init)
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -125,37 +147,49 @@ class TestExtractAllList:
 
 class TestExtractImports:
     def test_relative_imports(self, tmp_path):
-        init = write_init(tmp_path, '''
+        init = write_init(
+            tmp_path,
+            """
             from .foo import Foo, Bar
             from .baz import baz_func
-        ''')
+        """,
+        )
         tree = parse_init(init)
         names, has_wildcard = extract_imports(tree)
         assert names == {"Foo", "Bar", "baz_func"}
         assert not has_wildcard
 
     def test_wildcard_import(self, tmp_path):
-        init = write_init(tmp_path, '''
+        init = write_init(
+            tmp_path,
+            """
             from .tools import *
-        ''')
+        """,
+        )
         tree = parse_init(init)
         _names, has_wildcard = extract_imports(tree)
         assert has_wildcard
 
     def test_aliased_import(self, tmp_path):
-        init = write_init(tmp_path, '''
+        init = write_init(
+            tmp_path,
+            """
             from .foo import Bar as Baz
-        ''')
+        """,
+        )
         tree = parse_init(init)
         names, _ = extract_imports(tree)
         assert "Baz" in names
         assert "Bar" not in names
 
     def test_absolute_import(self, tmp_path):
-        init = write_init(tmp_path, '''
+        init = write_init(
+            tmp_path,
+            """
             import os
             from os.path import join
-        ''')
+        """,
+        )
         tree = parse_init(init)
         names, _ = extract_imports(tree)
         assert "os" in names
@@ -164,7 +198,9 @@ class TestExtractImports:
 
 class TestExtractDefinitions:
     def test_class_and_function(self, tmp_path):
-        init = write_init(tmp_path, '''
+        init = write_init(
+            tmp_path,
+            """
             class FooConfig:
                 pass
 
@@ -172,7 +208,8 @@ class TestExtractDefinitions:
                 pass
 
             CONSTANT = 42
-        ''')
+        """,
+        )
         tree = parse_init(init)
         defs = extract_definitions(tree)
         assert "FooConfig" in defs
@@ -183,37 +220,44 @@ class TestExtractDefinitions:
 class TestExtractDecoratedNames:
     def test_tool_decorator(self, tmp_path):
         py_file = tmp_path / "my_tool.py"
-        py_file.write_text(textwrap.dedent('''
+        py_file.write_text(
+            textwrap.dedent("""
             @tool(key="my-tool", label="My Tool")
             def run_my_tool(inputs, config):
                 pass
-        '''))
+        """)
+        )
         result = extract_decorated_names(py_file, {"tool"})
         assert result == {"run_my_tool": "tool"}
 
     def test_constraint_decorator(self, tmp_path):
         py_file = tmp_path / "my_constraint.py"
-        py_file.write_text(textwrap.dedent('''
+        py_file.write_text(
+            textwrap.dedent("""
             @constraint(key="gc-content", label="GC Content", config=GCContentConfig)
             def gc_content_constraint(input_sequences, config):
                 pass
-        '''))
+        """)
+        )
         result = extract_decorated_names(py_file, {"constraint"})
         assert result == {"gc_content_constraint": "constraint"}
 
     def test_no_match(self, tmp_path):
         py_file = tmp_path / "plain.py"
-        py_file.write_text(textwrap.dedent('''
+        py_file.write_text(
+            textwrap.dedent("""
             @pytest.mark.slow
             def test_something():
                 pass
-        '''))
+        """)
+        )
         result = extract_decorated_names(py_file, {"tool", "constraint"})
         assert result == {}
 
     def test_multiple_decorators(self, tmp_path):
         py_file = tmp_path / "multi.py"
-        py_file.write_text(textwrap.dedent('''
+        py_file.write_text(
+            textwrap.dedent("""
             @tool(key="tool-a")
             def run_tool_a():
                 pass
@@ -224,7 +268,8 @@ class TestExtractDecoratedNames:
 
             def helper():
                 pass
-        '''))
+        """)
+        )
         result = extract_decorated_names(py_file, {"tool"})
         assert result == {"run_tool_a": "tool", "run_tool_b": "tool"}
 
@@ -236,23 +281,29 @@ class TestExtractDecoratedNames:
 
 class TestValidateAllConsistency:
     def test_consistent(self, tmp_path):
-        init = write_init(tmp_path, '''
+        init = write_init(
+            tmp_path,
+            """
             from .foo import Foo
             from .bar import Bar
 
             __all__ = ["Foo", "Bar"]
-        ''')
+        """,
+        )
         tree = parse_init(init)
         all_list = extract_all_list(tree)
         errors = validate_all_consistency(init, tree, all_list)
         assert len(errors) == 0
 
     def test_stale_entry(self, tmp_path):
-        init = write_init(tmp_path, '''
+        init = write_init(
+            tmp_path,
+            """
             from .foo import Foo
 
             __all__ = ["Foo", "Bar"]
-        ''')
+        """,
+        )
         tree = parse_init(init)
         all_list = extract_all_list(tree)
         errors = validate_all_consistency(init, tree, all_list)
@@ -261,12 +312,15 @@ class TestValidateAllConsistency:
         assert "not imported or defined" in errors[0].message
 
     def test_defined_not_imported(self, tmp_path):
-        init = write_init(tmp_path, '''
+        init = write_init(
+            tmp_path,
+            """
             class MyClass:
                 pass
 
             __all__ = ["MyClass"]
-        ''')
+        """,
+        )
         tree = parse_init(init)
         all_list = extract_all_list(tree)
         errors = validate_all_consistency(init, tree, all_list)
@@ -299,16 +353,21 @@ class TestValidateRegistryExports:
         pkg = tmp_path / "pkg"
         pkg.mkdir()
 
-        write_init(pkg, '''
+        write_init(
+            pkg,
+            """
             from .my_tool import run_my_tool
 
             __all__ = ["run_my_tool"]
-        ''')
-        (pkg / "my_tool.py").write_text(textwrap.dedent('''
+        """,
+        )
+        (pkg / "my_tool.py").write_text(
+            textwrap.dedent("""
             @tool(key="my-tool")
             def run_my_tool():
                 pass
-        '''))
+        """)
+        )
 
         parsed = self._build_parsed(pkg)
         decorated_by_file = self._scan_decorated(pkg, {"tool"})
@@ -319,14 +378,19 @@ class TestValidateRegistryExports:
         pkg = tmp_path / "pkg"
         pkg.mkdir()
 
-        write_init(pkg, '''
+        write_init(
+            pkg,
+            """
             __all__ = []
-        ''')
-        (pkg / "my_tool.py").write_text(textwrap.dedent('''
+        """,
+        )
+        (pkg / "my_tool.py").write_text(
+            textwrap.dedent("""
             @tool(key="my-tool")
             def run_my_tool():
                 pass
-        '''))
+        """)
+        )
 
         parsed = self._build_parsed(pkg)
         decorated_by_file = self._scan_decorated(pkg, {"tool"})
@@ -341,28 +405,39 @@ class TestValidateRegistryExports:
         # Sub-package A: has @tool run_foo but does NOT export it
         pkg_a = root / "pkg_a"
         pkg_a.mkdir(parents=True)
-        write_init(pkg_a, '''
+        write_init(
+            pkg_a,
+            """
             __all__ = []
-        ''')
-        (pkg_a / "my_tool.py").write_text(textwrap.dedent('''
+        """,
+        )
+        (pkg_a / "my_tool.py").write_text(
+            textwrap.dedent("""
             @tool(key="foo")
             def run_foo():
                 pass
-        '''))
+        """)
+        )
 
         # Sub-package B: exports run_foo (same name, different package)
         pkg_b = root / "pkg_b"
         pkg_b.mkdir(parents=True)
-        write_init(pkg_b, '''
+        write_init(
+            pkg_b,
+            """
             from .other import run_foo
 
             __all__ = ["run_foo"]
-        ''')
+        """,
+        )
 
         # Root __init__.py
-        write_init(root, '''
+        write_init(
+            root,
+            """
             __all__ = []
-        ''')
+        """,
+        )
 
         parsed = self._build_parsed(root)
         decorated_by_file = self._scan_decorated(root, {"tool"})
@@ -380,12 +455,14 @@ class TestValidateRegistryExports:
 class TestLoadConfig:
     def test_valid_config(self, tmp_path):
         f = tmp_path / "config.json"
-        f.write_text(json.dumps({
-            "domains": [
-                {"name": "Test", "root": "pkg", "checks": ["all_consistency"]}
-            ],
-            "exceptions": {"group": ["Foo"]},
-        }))
+        f.write_text(
+            json.dumps(
+                {
+                    "domains": [{"name": "Test", "root": "pkg", "checks": ["all_consistency"]}],
+                    "exceptions": {"group": ["Foo"]},
+                }
+            )
+        )
         result = load_config(f)
         assert len(result["domains"]) == 1
         assert result["domains"][0]["name"] == "Test"
@@ -417,18 +494,26 @@ class TestLoadExceptions:
         assert result == {"Foo", "Bar"}
 
     def test_grouped_dict(self):
-        result = load_exceptions({"exceptions": {
-            "internal": ["Foo", "Bar"],
-            "constants": ["BAZ"],
-        }})
+        result = load_exceptions(
+            {
+                "exceptions": {
+                    "internal": ["Foo", "Bar"],
+                    "constants": ["BAZ"],
+                }
+            }
+        )
         assert result == {"Foo", "Bar", "BAZ"}
 
     def test_ignores_comment_keys(self):
-        result = load_exceptions({"exceptions": {
-            "_comment": "This is a comment",
-            "_note": "Another underscore key",
-            "real": ["Foo"],
-        }})
+        result = load_exceptions(
+            {
+                "exceptions": {
+                    "_comment": "This is a comment",
+                    "_note": "Another underscore key",
+                    "real": ["Foo"],
+                }
+            }
+        )
         assert result == {"Foo"}
         assert "This is a comment" not in result
         assert "_note" not in result
@@ -469,11 +554,14 @@ class TestValidateDomain:
         """A domain with all_consistency check catches stale __all__ entries."""
         pkg = tmp_path / "pkg"
         pkg.mkdir()
-        write_init(pkg, '''
+        write_init(
+            pkg,
+            """
             from .foo import Foo
 
             __all__ = ["Foo", "Stale"]
-        ''')
+        """,
+        )
         domain = {
             "name": "Test",
             "root": "pkg",
@@ -487,14 +575,19 @@ class TestValidateDomain:
         """A domain with registry_exports check catches unexported decorated functions."""
         pkg = tmp_path / "pkg"
         pkg.mkdir()
-        write_init(pkg, '''
+        write_init(
+            pkg,
+            """
             __all__ = []
-        ''')
-        (pkg / "my_tool.py").write_text(textwrap.dedent('''
+        """,
+        )
+        (pkg / "my_tool.py").write_text(
+            textwrap.dedent("""
             @tool(key="my-tool")
             def run_my_tool():
                 pass
-        '''))
+        """)
+        )
         domain = {
             "name": "Test",
             "root": "pkg",
@@ -509,16 +602,21 @@ class TestValidateDomain:
         """A fully consistent domain produces no errors."""
         pkg = tmp_path / "pkg"
         pkg.mkdir()
-        write_init(pkg, '''
+        write_init(
+            pkg,
+            """
             from .my_tool import run_my_tool
 
             __all__ = ["run_my_tool"]
-        ''')
-        (pkg / "my_tool.py").write_text(textwrap.dedent('''
+        """,
+        )
+        (pkg / "my_tool.py").write_text(
+            textwrap.dedent("""
             @tool(key="my-tool")
             def run_my_tool():
                 pass
-        '''))
+        """)
+        )
         domain = {
             "name": "Test",
             "root": "pkg",
@@ -544,14 +642,19 @@ class TestValidateDomain:
         """A domain with registry_decorators that finds zero matches emits a warning."""
         pkg = tmp_path / "pkg"
         pkg.mkdir()
-        write_init(pkg, '''
+        write_init(
+            pkg,
+            """
             __all__ = []
-        ''')
+        """,
+        )
         # A .py file with no matching decorators
-        (pkg / "plain.py").write_text(textwrap.dedent('''
+        (pkg / "plain.py").write_text(
+            textwrap.dedent("""
             def helper():
                 pass
-        '''))
+        """)
+        )
         domain = {
             "name": "Test",
             "root": "pkg",
@@ -570,15 +673,21 @@ class TestValidateDomain:
         sub.mkdir(parents=True)
 
         # Root init is clean
-        write_init(pkg, '''
+        write_init(
+            pkg,
+            """
             from .sub import Foo
 
             __all__ = ["Foo"]
-        ''')
+        """,
+        )
         # Sub init has a stale entry
-        write_init(sub, '''
+        write_init(
+            sub,
+            """
             __all__ = ["Foo", "Stale"]
-        ''')
+        """,
+        )
 
         domain = {
             "name": "Root Only",
@@ -594,14 +703,19 @@ class TestValidateDomain:
         """Exception symbols are skipped in registry export checks."""
         pkg = tmp_path / "pkg"
         pkg.mkdir()
-        write_init(pkg, '''
+        write_init(
+            pkg,
+            """
             __all__ = []
-        ''')
-        (pkg / "my_tool.py").write_text(textwrap.dedent('''
+        """,
+        )
+        (pkg / "my_tool.py").write_text(
+            textwrap.dedent("""
             @tool(key="my-tool")
             def run_my_tool():
                 pass
-        '''))
+        """)
+        )
         domain = {
             "name": "Test",
             "root": "pkg",
@@ -616,11 +730,14 @@ class TestValidateDomain:
         """Domain with root_search falls back to alternative paths."""
         alt = tmp_path / "alt_location" / "pkg"
         alt.mkdir(parents=True)
-        write_init(alt, '''
+        write_init(
+            alt,
+            """
             from .foo import Foo
 
             __all__ = ["Foo"]
-        ''')
+        """,
+        )
         domain = {
             "name": "Test",
             "root": "primary_pkg",
@@ -636,22 +753,30 @@ class TestValidateDomain:
         pkg.mkdir(parents=True)
 
         # Domain __init__.py exports the symbol (immediate parent is fine)
-        write_init(pkg, '''
+        write_init(
+            pkg,
+            """
             from .gc import gc_content_constraint
 
             __all__ = ["gc_content_constraint"]
-        ''')
-        (pkg / "gc.py").write_text(textwrap.dedent('''
+        """,
+        )
+        (pkg / "gc.py").write_text(
+            textwrap.dedent("""
             @constraint(key="gc-content")
             def gc_content_constraint():
                 pass
-        '''))
+        """)
+        )
 
         # Package root __init__.py does NOT export it
         pkg_root = tmp_path / "bio_prog"
-        write_init(pkg_root, '''
+        write_init(
+            pkg_root,
+            """
             __all__ = ["SomeOtherThing"]
-        ''')
+        """,
+        )
 
         domain = {
             "name": "Constraints",
@@ -670,16 +795,21 @@ class TestValidateDomain:
         """validate_domain without package_root skips the full-chain check."""
         pkg = tmp_path / "pkg"
         pkg.mkdir()
-        write_init(pkg, '''
+        write_init(
+            pkg,
+            """
             from .my_tool import run_my_tool
 
             __all__ = ["run_my_tool"]
-        ''')
-        (pkg / "my_tool.py").write_text(textwrap.dedent('''
+        """,
+        )
+        (pkg / "my_tool.py").write_text(
+            textwrap.dedent("""
             @tool(key="my-tool")
             def run_my_tool():
                 pass
-        '''))
+        """)
+        )
         domain = {
             "name": "Tools",
             "root": "pkg",
@@ -712,17 +842,22 @@ class TestValidatePackageRootExports:
         """Decorated symbol present in package root __all__ → no error."""
         domain_pkg = tmp_path / "domain"
         domain_pkg.mkdir()
-        (domain_pkg / "my_constraint.py").write_text(textwrap.dedent('''
+        (domain_pkg / "my_constraint.py").write_text(
+            textwrap.dedent("""
             @constraint(key="gc")
             def gc_constraint():
                 pass
-        '''))
+        """)
+        )
 
         pkg_root = tmp_path / "pkg_root"
         pkg_root.mkdir()
-        write_init(pkg_root, '''
+        write_init(
+            pkg_root,
+            """
             __all__ = ["gc_constraint"]
-        ''')
+        """,
+        )
 
         decorated_by_file = self._scan_decorated(domain_pkg, {"constraint"})
         errors = validate_package_root_exports(pkg_root, decorated_by_file, set())
@@ -732,17 +867,22 @@ class TestValidatePackageRootExports:
         """Decorated symbol NOT in package root __all__ → error."""
         domain_pkg = tmp_path / "domain"
         domain_pkg.mkdir()
-        (domain_pkg / "my_constraint.py").write_text(textwrap.dedent('''
+        (domain_pkg / "my_constraint.py").write_text(
+            textwrap.dedent("""
             @constraint(key="gc")
             def gc_constraint():
                 pass
-        '''))
+        """)
+        )
 
         pkg_root = tmp_path / "pkg_root"
         pkg_root.mkdir()
-        write_init(pkg_root, '''
+        write_init(
+            pkg_root,
+            """
             __all__ = ["something_else"]
-        ''')
+        """,
+        )
 
         decorated_by_file = self._scan_decorated(domain_pkg, {"constraint"})
         errors = validate_package_root_exports(pkg_root, decorated_by_file, set())
@@ -753,22 +893,29 @@ class TestValidatePackageRootExports:
         """Multiple decorated symbols missing → multiple errors."""
         domain_pkg = tmp_path / "domain"
         domain_pkg.mkdir()
-        (domain_pkg / "a.py").write_text(textwrap.dedent('''
+        (domain_pkg / "a.py").write_text(
+            textwrap.dedent("""
             @constraint(key="a")
             def constraint_a():
                 pass
-        '''))
-        (domain_pkg / "b.py").write_text(textwrap.dedent('''
+        """)
+        )
+        (domain_pkg / "b.py").write_text(
+            textwrap.dedent("""
             @constraint(key="b")
             def constraint_b():
                 pass
-        '''))
+        """)
+        )
 
         pkg_root = tmp_path / "pkg_root"
         pkg_root.mkdir()
-        write_init(pkg_root, '''
+        write_init(
+            pkg_root,
+            """
             __all__ = []
-        ''')
+        """,
+        )
 
         decorated_by_file = self._scan_decorated(domain_pkg, {"constraint"})
         errors = validate_package_root_exports(pkg_root, decorated_by_file, set())
@@ -780,17 +927,22 @@ class TestValidatePackageRootExports:
         """Exception symbol missing from package root → no error."""
         domain_pkg = tmp_path / "domain"
         domain_pkg.mkdir()
-        (domain_pkg / "my_constraint.py").write_text(textwrap.dedent('''
+        (domain_pkg / "my_constraint.py").write_text(
+            textwrap.dedent("""
             @constraint(key="gc")
             def gc_constraint():
                 pass
-        '''))
+        """)
+        )
 
         pkg_root = tmp_path / "pkg_root"
         pkg_root.mkdir()
-        write_init(pkg_root, '''
+        write_init(
+            pkg_root,
+            """
             __all__ = []
-        ''')
+        """,
+        )
 
         decorated_by_file = self._scan_decorated(domain_pkg, {"constraint"})
         errors = validate_package_root_exports(pkg_root, decorated_by_file, {"gc_constraint"})
@@ -800,17 +952,22 @@ class TestValidatePackageRootExports:
         """Package root __init__.py with no __all__ → symbols flagged."""
         domain_pkg = tmp_path / "domain"
         domain_pkg.mkdir()
-        (domain_pkg / "my_constraint.py").write_text(textwrap.dedent('''
+        (domain_pkg / "my_constraint.py").write_text(
+            textwrap.dedent("""
             @constraint(key="gc")
             def gc_constraint():
                 pass
-        '''))
+        """)
+        )
 
         pkg_root = tmp_path / "pkg_root"
         pkg_root.mkdir()
-        write_init(pkg_root, '''
+        write_init(
+            pkg_root,
+            """
             from .sub import something
-        ''')
+        """,
+        )
 
         decorated_by_file = self._scan_decorated(domain_pkg, {"constraint"})
         errors = validate_package_root_exports(pkg_root, decorated_by_file, set())
@@ -821,11 +978,13 @@ class TestValidatePackageRootExports:
         """Package root dir exists but has no __init__.py → symbols flagged."""
         domain_pkg = tmp_path / "domain"
         domain_pkg.mkdir()
-        (domain_pkg / "my_constraint.py").write_text(textwrap.dedent('''
+        (domain_pkg / "my_constraint.py").write_text(
+            textwrap.dedent("""
             @constraint(key="gc")
             def gc_constraint():
                 pass
-        '''))
+        """)
+        )
 
         pkg_root = tmp_path / "pkg_root"
         pkg_root.mkdir()
@@ -840,16 +999,21 @@ class TestValidatePackageRootExports:
         """No decorated symbols in domain → no errors."""
         domain_pkg = tmp_path / "domain"
         domain_pkg.mkdir()
-        (domain_pkg / "helper.py").write_text(textwrap.dedent('''
+        (domain_pkg / "helper.py").write_text(
+            textwrap.dedent("""
             def plain_function():
                 pass
-        '''))
+        """)
+        )
 
         pkg_root = tmp_path / "pkg_root"
         pkg_root.mkdir()
-        write_init(pkg_root, '''
+        write_init(
+            pkg_root,
+            """
             __all__ = []
-        ''')
+        """,
+        )
 
         decorated_by_file = self._scan_decorated(domain_pkg, {"constraint"})
         errors = validate_package_root_exports(pkg_root, decorated_by_file, set())
@@ -860,20 +1024,28 @@ class TestValidatePackageRootExports:
         domain_pkg = tmp_path / "domain"
         sub = domain_pkg / "sub"
         sub.mkdir(parents=True)
-        write_init(sub, '''
+        write_init(
+            sub,
+            """
             __all__ = ["nested_constraint"]
-        ''')
-        (sub / "nested.py").write_text(textwrap.dedent('''
+        """,
+        )
+        (sub / "nested.py").write_text(
+            textwrap.dedent("""
             @constraint(key="nested")
             def nested_constraint():
                 pass
-        '''))
+        """)
+        )
 
         pkg_root = tmp_path / "pkg_root"
         pkg_root.mkdir()
-        write_init(pkg_root, '''
+        write_init(
+            pkg_root,
+            """
             __all__ = []
-        ''')
+        """,
+        )
 
         decorated_by_file = self._scan_decorated(domain_pkg, {"constraint"})
         errors = validate_package_root_exports(pkg_root, decorated_by_file, set())

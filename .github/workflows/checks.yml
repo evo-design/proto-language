@@ -20,6 +20,9 @@ jobs:
     - uses: astral-sh/ruff-action@v3
       with:
         args: check
+    - uses: astral-sh/ruff-action@v3
+      with:
+        args: format --check
 
   mypy:
     if: github.event.pull_request.draft == false

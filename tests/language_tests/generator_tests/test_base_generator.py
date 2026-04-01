@@ -47,9 +47,7 @@ class TestGeneratorBase:
         mock_spec.category = "mutation"
 
         with patch.object(GeneratorRegistry, "get", return_value=mock_spec):
-            with patch.object(
-                GeneratorRegistry, "get_key", return_value="concrete-generator"
-            ):
+            with patch.object(GeneratorRegistry, "get_key", return_value="concrete-generator"):
                 gen.assign(segment)
 
         assert gen._assigned_segment is segment
@@ -59,9 +57,7 @@ class TestGeneratorBase:
         gen = ConcreteGenerator()
         segment = Segment(sequence="CCC", sequence_type="ligand")
 
-        with pytest.raises(
-            ValueError, match="Cannot assign generator to ligand segment"
-        ):
+        with pytest.raises(ValueError, match="Cannot assign generator to ligand segment"):
             gen.assign(segment)
 
     def test_assign_validates_sequence_type(self):
@@ -75,9 +71,7 @@ class TestGeneratorBase:
         mock_spec.category = "mutation"
 
         with patch.object(GeneratorRegistry, "get", return_value=mock_spec):
-            with patch.object(
-                GeneratorRegistry, "get_key", return_value="concrete-generator"
-            ):
+            with patch.object(GeneratorRegistry, "get_key", return_value="concrete-generator"):
                 with pytest.raises(ValueError, match="does not support sequence type"):
                     gen.assign(segment)
 
@@ -90,9 +84,7 @@ class TestGeneratorBase:
         mock_spec.category = "mutation"
 
         with patch.object(GeneratorRegistry, "get", return_value=mock_spec):
-            with patch.object(
-                GeneratorRegistry, "get_key", return_value="concrete-generator"
-            ):
+            with patch.object(GeneratorRegistry, "get_key", return_value="concrete-generator"):
                 # Should work for DNA
                 segment_dna = Segment(sequence="ATCG", sequence_type="dna")
                 gen.assign(segment_dna)
@@ -190,17 +182,13 @@ class TestGeneratorBase:
         gen.assign(segment)
 
         # Set up multiple empty proposals
-        segment.proposal_sequences = [
-            Sequence(sequence="", sequence_type="dna") for _ in range(5)
-        ]
+        segment.proposal_sequences = [Sequence(sequence="", sequence_type="dna") for _ in range(5)]
         gen._validate_generator()
 
         sequences = [s.sequence for s in segment.proposal_sequences]
         assert all(len(s) == 50 for s in sequences)
         assert all(all(c in "ACGT" for c in s) for s in sequences)
-        assert len(set(sequences)) > 1, (
-            "All proposals got the same random sequence, diversity is wasted"
-        )
+        assert len(set(sequences)) > 1, "All proposals got the same random sequence, diversity is wasted"
 
     def test_assign_autoregressive_generator_no_random_init(self):
         """Tests that autoregressive generators don't initialize random sequences."""
@@ -213,19 +201,14 @@ class TestGeneratorBase:
 
         mock_spec = MagicMock(spec=GeneratorSpec)
         mock_spec.supported_sequence_types = []
-        mock_spec.category = (
-            "autoregressive"  # Autoregressive generators don't init random
-        )
+        mock_spec.category = "autoregressive"  # Autoregressive generators don't init random
 
         with patch.object(GeneratorRegistry, "get", return_value=mock_spec):
-            with patch.object(
-                GeneratorRegistry, "get_key", return_value="concrete-generator"
-            ):
+            with patch.object(GeneratorRegistry, "get_key", return_value="concrete-generator"):
                 gen.assign(segment)
 
         # Should still have empty sequence (autoregressive generates from scratch)
         assert segment.original_sequence.sequence == ""
-
 
     def test_validate_generator_empty_proposal_pool_raises(self):
         """Tests that _validate_generator raises on empty proposal_sequences (I7)."""

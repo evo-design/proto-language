@@ -1,4 +1,5 @@
 """Metropolis-Hastings MCMC Optimizer that uses multiple sub-generators as proposal distributions and constraints to define the energy function."""
+
 from __future__ import annotations
 
 import copy
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 # Maximum safe exponent for np.exp() to prevent overflow
 MAX_EXP_ARG = 700.0
+
 
 class MCMCOptimizerConfig(BaseOptimizerConfig):
     """Configuration object for MCMCOptimizer.
@@ -71,12 +73,9 @@ class MCMCOptimizerConfig(BaseOptimizerConfig):
         - Temperature annealing follows exponential decay:
           T(step) = T_max x (T_min / T_max)^(step / num_steps)
     """
+
     # Required parameters
-    num_steps: int = ConfigField(
-        ge=1,
-        title="Num Steps",
-        description="Number of MCMC steps to run."
-    )
+    num_steps: int = ConfigField(ge=1, title="Num Steps", description="Number of MCMC steps to run.")
 
     # Advanced parameters
     num_results: int | None = ConfigField(
@@ -107,12 +106,15 @@ class MCMCOptimizerConfig(BaseOptimizerConfig):
         description="Minimum temperature for annealing",
         advanced=True,
     )
-    @model_validator(mode='after')
+
+    @model_validator(mode="after")
     def validate_cross_field_constraints(self) -> MCMCOptimizerConfig:
         """Validate cross-field constraints."""
         # Validate min_temperature < max_temperature for annealing
         if self.min_temperature >= self.max_temperature:
-            raise ValueError(f"min_temperature ({self.min_temperature}) must be less than max_temperature ({self.max_temperature}) for annealing to work properly")
+            raise ValueError(
+                f"min_temperature ({self.min_temperature}) must be less than max_temperature ({self.max_temperature}) for annealing to work properly"
+            )
 
         return self
 
@@ -147,17 +149,9 @@ class MCMCOptimizer(Optimizer):
 
     Example:
         >>> constructs = [Construct([segment1, segment2])]
-        >>> config = MCMCOptimizerConfig(
-        ...     num_results=1,
-        ...     num_steps=100,
-        ...     max_temperature=0.5,
-        ...     min_temperature=0.001
-        ... )
+        >>> config = MCMCOptimizerConfig(num_results=1, num_steps=100, max_temperature=0.5, min_temperature=0.001)
         >>> mcmc = MCMCOptimizer(
-        ...     constructs=constructs,
-        ...     generators=[mutation_gen],
-        ...     constraints=[gc_constraint],
-        ...     config=config
+        ...     constructs=constructs, generators=[mutation_gen], constraints=[gc_constraint], config=config
         ... )
         >>> mcmc.run()
         >>> final_sequences = mcmc.constructs[0].joined_sequences
@@ -172,6 +166,7 @@ class MCMCOptimizer(Optimizer):
         - When ``proposals_per_result > 1``, generates multiple proposals per
           trajectory, selects the best one, then applies a single MH accept/reject decision
     """
+
     # Class attribute required by OptimizerRegistry
     config_class = MCMCOptimizerConfig
 
@@ -241,10 +236,10 @@ class MCMCOptimizer(Optimizer):
         if any(seq.sequence for segment in self.segments for seq in segment.proposal_sequences):
             self.score_energy()
         else:
-            self.energy_scores = [float('inf')] * self.num_proposals
+            self.energy_scores = [float("inf")] * self.num_proposals
 
         # Truncate to num_results for initial snapshot (score_energy sets to num_proposals)
-        self.energy_scores = self.energy_scores[:self.num_results]
+        self.energy_scores = self.energy_scores[: self.num_results]
 
         if self.verbose:
             logger.info("MCMC initialization:")
@@ -276,7 +271,6 @@ class MCMCOptimizer(Optimizer):
             if step % self.tracking_interval == 0 or step == self.num_steps:
                 self._save_progress_snapshot(time_step=step)
                 self._log_mcmc_progress(step)
-
 
     def _save_sequence_state(self) -> list[tuple[dict[int, Sequence], float]]:
         """Save state of result sequences.
@@ -337,7 +331,7 @@ class MCMCOptimizer(Optimizer):
             proposal_pool_end = (result_idx + 1) * self._proposals_per_result
 
             # 1. Find the best proposal by energy
-            best_energy = float('inf')
+            best_energy = float("inf")
             best_proposal_idx = None
             for proposal_idx in range(proposal_pool_start, proposal_pool_end):
                 if outcomes[proposal_idx] != "accepted":
@@ -375,7 +369,7 @@ class MCMCOptimizer(Optimizer):
         self._proposal_outcomes = outcomes
 
         # 5. Truncate to num_results (score_energy() resizes back each step)
-        self.energy_scores = self.energy_scores[:self.num_results]
+        self.energy_scores = self.energy_scores[: self.num_results]
 
     def _compute_temperature(self, step: int) -> float:
         """Calculate annealed temperature: T(step) = T_max * (T_min/T_max)^((step-1)/(num_steps-1)).
@@ -390,7 +384,9 @@ class MCMCOptimizer(Optimizer):
         """
         if self.num_steps == 1:
             return self.max_temperature
-        return self.max_temperature * (self.min_temperature / self.max_temperature) ** ((step - 1) / (self.num_steps - 1))  # type: ignore[no-any-return]
+        return (  # type: ignore[no-any-return]
+            self.max_temperature * (self.min_temperature / self.max_temperature) ** ((step - 1) / (self.num_steps - 1))
+        )
 
     def _compute_mcmc_alpha(self, current_energy: float, proposed_energy: float, step: int) -> float:
         """Compute Metropolis-Hastings acceptance probability: alpha = min(1, exp(-(E_new - E_old) / T)).
@@ -433,11 +429,7 @@ class MCMCOptimizer(Optimizer):
 
             # Format output based on num_results
             if self.num_results == 1:
-                logger.debug(
-                    f"Iteration {step:4d} | "
-                    f"energy: {best_energy:.6f}, "
-                    f"T: {current_temp:.4f}"
-                )
+                logger.debug(f"Iteration {step:4d} | energy: {best_energy:.6f}, T: {current_temp:.4f}")
             else:
                 logger.debug(
                     f"Iteration {step:4d} | "

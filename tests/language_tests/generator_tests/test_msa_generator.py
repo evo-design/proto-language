@@ -269,9 +269,7 @@ class TestMSAGeneratorSample:
         segment = Segment(sequence="GGGG", sequence_type="dna")
         gen.assign(segment)
 
-        segment.proposal_sequences = [
-            copy.deepcopy(segment.original_sequence) for _ in range(5)
-        ]
+        segment.proposal_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(5)]
         gen.sample()
         mutated_seqs = [s.sequence for s in segment.proposal_sequences]
 

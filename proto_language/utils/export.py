@@ -50,28 +50,34 @@ def build_results(
         Results: Dict with "results" (list of result dicts) and "best_result_idx"::
 
             {
-                "results": [{
-                    "result_idx": 0,
-                    "energy_score": 0.5,
-                    "constructs": [{
-                        "label": "construct_0",
-                        "type": "dna",
-                        "segments": [{
-                            "label": "promoter",
-                            "sequence": "ATCG",
-                            "constraints": {
-                                "gc_content": {
-                                    "score": 0.5,
-                                    "weight": 1.0,
-                                    "weighted_score": 0.5,
-                                    "data": {"gc_content": 50.0}
-                                }
-                            },
-                            "metadata": {}
-                        }]
-                    }]
-                }],
-                "best_result_idx": 0
+                "results": [
+                    {
+                        "result_idx": 0,
+                        "energy_score": 0.5,
+                        "constructs": [
+                            {
+                                "label": "construct_0",
+                                "type": "dna",
+                                "segments": [
+                                    {
+                                        "label": "promoter",
+                                        "sequence": "ATCG",
+                                        "constraints": {
+                                            "gc_content": {
+                                                "score": 0.5,
+                                                "weight": 1.0,
+                                                "weighted_score": 0.5,
+                                                "data": {"gc_content": 50.0},
+                                            }
+                                        },
+                                        "metadata": {},
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+                "best_result_idx": 0,
             }
     """
     if not constructs or not constructs[0].segments:
@@ -135,22 +141,24 @@ def build_proposal_results(
     Returns:
         list[dict[str, Any]]: List of proposal dicts::
 
-            [{
-                "proposal_idx": 0,
-                "accepted": True,
-                "rejected_by": None,
-                "energy_score": 0.42,
-                "constructs": [{
-                    "label": "construct_0",
-                    "type": "dna",
-                    "segments": [{
-                        "label": "promoter",
-                        "sequence": "ATCG",
-                        "constraints": {...},
-                        "metadata": {}
-                    }]
-                }]
-            }, ...]
+            [
+                {
+                    "proposal_idx": 0,
+                    "accepted": True,
+                    "rejected_by": None,
+                    "energy_score": 0.42,
+                    "constructs": [
+                        {
+                            "label": "construct_0",
+                            "type": "dna",
+                            "segments": [
+                                {"label": "promoter", "sequence": "ATCG", "constraints": {...}, "metadata": {}}
+                            ],
+                        }
+                    ],
+                },
+                ...,
+            ]
     """
     if not constructs or not constructs[0].segments:
         return []
@@ -188,11 +196,7 @@ def build_proposal_results(
                 f"energy_scores has {len(energy_scores)} entries but there are {num_proposals} proposals; lengths must match"
             )
         outcome = outcomes[prop_idx]
-        energy = (
-            filter_inf_nan_scores(energy_scores[prop_idx])
-            if energy_scores is not None
-            else None
-        )
+        energy = filter_inf_nan_scores(energy_scores[prop_idx]) if energy_scores is not None else None
         proposal_results.append(
             {
                 "proposal_idx": prop_idx,
@@ -232,9 +236,7 @@ def _serialize_value(value: Any) -> Any:
     return value
 
 
-def _finalize_file_refs(
-    rows: list[dict[str, Any]], *, resolve: bool = False
-) -> list[dict[str, Any]]:
+def _finalize_file_refs(rows: list[dict[str, Any]], *, resolve: bool = False) -> list[dict[str, Any]]:
     """Post-process file references in flattened rows.
 
     When *resolve* is False (default), each file reference dict is replaced
@@ -260,25 +262,14 @@ def _finalize_file_refs(
 
     if not resolve:
         # Fast path: extract URLs, no I/O
-        return [
-            {
-                k: (v.get("url", "") if is_file_reference(v) else v)
-                for k, v in row.items()
-            }
-            for row in rows
-        ]
+        return [{k: (v.get("url", "") if is_file_reference(v) else v) for k, v in row.items()} for row in rows]
 
     # Batch fetch with concurrency, decode once
     store = get_file_store()
-    decoded = {
-        fid: data.decode("utf-8") for fid, data in store.get_batch(file_ids).items()
-    }
+    decoded = {fid: data.decode("utf-8") for fid, data in store.get_batch(file_ids).items()}
 
     # Substitute
-    return [
-        {k: (decoded[v["id"]] if is_file_reference(v) else v) for k, v in row.items()}
-        for row in rows
-    ]
+    return [{k: (decoded[v["id"]] if is_file_reference(v) else v) for k, v in row.items()} for row in rows]
 
 
 def _collect_all_columns(rows: list[dict[str, Any]]) -> list[str]:
@@ -293,9 +284,7 @@ def _collect_all_columns(rows: list[dict[str, Any]]) -> list[str]:
     return columns
 
 
-def _flatten_constraint_columns(
-    constraints: dict[str, dict[str, Any]], prefix: str = ""
-) -> dict[str, Any]:
+def _flatten_constraint_columns(constraints: dict[str, dict[str, Any]], prefix: str = "") -> dict[str, Any]:
     """Flatten all constraint data with {prefix}{label}.{field} namespacing.
 
     Used by flatten_sequences, flatten_constructs, flatten_optimization.
@@ -348,10 +337,7 @@ def flatten_sequences(
     """
     rows = []
     for result_entry in results.get("results", []):
-        if (
-            result_indices is not None
-            and result_entry["result_idx"] not in result_indices
-        ):
+        if result_indices is not None and result_entry["result_idx"] not in result_indices:
             continue
         for construct in result_entry["constructs"]:
             for segment in construct["segments"]:
@@ -397,10 +383,7 @@ def flatten_constraints(
     """
     rows = []
     for result_entry in results.get("results", []):
-        if (
-            result_indices is not None
-            and result_entry["result_idx"] not in result_indices
-        ):
+        if result_indices is not None and result_entry["result_idx"] not in result_indices:
             continue
         for construct in result_entry["constructs"]:
             for segment in construct["segments"]:
@@ -453,10 +436,7 @@ def flatten_constructs(
     """
     rows = []
     for result_entry in results.get("results", []):
-        if (
-            result_indices is not None
-            and result_entry["result_idx"] not in result_indices
-        ):
+        if result_indices is not None and result_entry["result_idx"] not in result_indices:
             continue
         for construct in result_entry["constructs"]:
             row = {
@@ -524,10 +504,7 @@ def flatten_optimization(
     for entry in history:
         timepoint = entry["time_step"]
         for result_entry in entry.get("results", []):
-            if (
-                result_indices is not None
-                and result_entry["result_idx"] not in result_indices
-            ):
+            if result_indices is not None and result_entry["result_idx"] not in result_indices:
                 continue
             row = {
                 "timepoint": timepoint,
@@ -548,11 +525,7 @@ def flatten_optimization(
                 for segment in construct["segments"]:
                     if segments is not None and segment["label"] not in segments:
                         continue
-                    seg = (
-                        f"{con}.{segment['label']}"
-                        if multi_construct
-                        else segment["label"]
-                    )
+                    seg = f"{con}.{segment['label']}" if multi_construct else segment["label"]
                     row[f"{seg}.sequence"] = segment["sequence"]
                     row.update(
                         _flatten_constraint_columns(
@@ -585,11 +558,7 @@ def flatten_optimization(
                     for segment in construct["segments"]:
                         if segments is not None and segment["label"] not in segments:
                             continue
-                        seg = (
-                            f"{con}.{segment['label']}"
-                            if multi_construct
-                            else segment["label"]
-                        )
+                        seg = f"{con}.{segment['label']}" if multi_construct else segment["label"]
                         row[f"{seg}.sequence"] = segment["sequence"]
                         row.update(
                             _flatten_constraint_columns(
@@ -638,19 +607,14 @@ def flatten_table(
         "resolve_files": resolve_files,
     }
     if table == "optimization":
-        return flatten_optimization(
-            history, include_proposals=include_proposals, **filters
-        )
+        return flatten_optimization(history, include_proposals=include_proposals, **filters)
     if table == "sequences":
         return flatten_sequences(results, **filters)
     if table == "constraints":
         return flatten_constraints(results, constraints=constraints, **filters)
     if table == "constructs":
         return flatten_constructs(results, **filters)
-    raise ValueError(
-        f"Unknown table '{table}'. "
-        f"Choose from: sequences, constraints, constructs, optimization"
-    )
+    raise ValueError(f"Unknown table '{table}'. Choose from: sequences, constraints, constructs, optimization")
 
 
 # =============================================================================
@@ -704,9 +668,7 @@ def to_tsv(rows: list[dict[str, Any]], output: Path | IO[str] | None = None) -> 
 
     columns = _collect_all_columns(rows)
     buffer = StringIO()
-    writer = csv.DictWriter(
-        buffer, fieldnames=columns, delimiter="\t", extrasaction="ignore"
-    )
+    writer = csv.DictWriter(buffer, fieldnames=columns, delimiter="\t", extrasaction="ignore")
     writer.writeheader()
     for row in rows:
         writer.writerow({k: row.get(k, "") for k in columns})
@@ -899,10 +861,7 @@ def to_fasta(
     """
     lines: list[str] = []
     for result_entry in results.get("results", []):
-        if (
-            result_indices is not None
-            and result_entry["result_idx"] not in result_indices
-        ):
+        if result_indices is not None and result_entry["result_idx"] not in result_indices:
             continue
         for construct in result_entry["constructs"]:
             for segment in construct["segments"]:

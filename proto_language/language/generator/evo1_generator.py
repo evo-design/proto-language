@@ -88,9 +88,7 @@ class Evo1GeneratorConfig(BaseConfig):
     def validate_prompts_length(self) -> Evo1GeneratorConfig:
         """Validate that all prompts have the same length."""
         if len({len(seq) for seq in self.prompts}) != 1:
-            raise ValueError(
-                f"All prompts must have same length, got: {[len(seq) for seq in self.prompts]}"
-            )
+            raise ValueError(f"All prompts must have same length, got: {[len(seq) for seq in self.prompts]}")
         return self
 
 
@@ -171,15 +169,11 @@ class Evo1Generator(Generator):
         evo1_output = run_evo1_sample(inputs=inputs, config=sample_config)
         generated_sequences = evo1_output.sequences
 
-        for proposal, sequence in zip(
-            self._assigned_segment.proposal_sequences, generated_sequences, strict=True
-        ):
+        for proposal, sequence in zip(self._assigned_segment.proposal_sequences, generated_sequences, strict=True):
             proposal.sequence = sequence
 
         if evo1_output.scores:
-            for proposal, score in zip(
-                self._assigned_segment.proposal_sequences, evo1_output.scores, strict=True
-            ):
+            for proposal, score in zip(self._assigned_segment.proposal_sequences, evo1_output.scores, strict=True):
                 proposal._metadata["evo1_score"] = score
 
     def _replicate_prompts(self, prompts: list[str]) -> list[str]:
@@ -192,13 +186,11 @@ class Evo1Generator(Generator):
             return prompts * num_proposals
         raise ValueError(f"Expected 1 or {num_proposals} prompts, got {len(prompts)}")
 
-    def _compute_num_tokens(
-        self, prompt_length: int, prepend_prompt: bool
-    ) -> int:
+    def _compute_num_tokens(self, prompt_length: int, prepend_prompt: bool) -> int:
         """Compute tokens to generate based on segment length and prompt settings."""
         assert self._assigned_segment is not None  # noqa: S101 -- mypy type narrowing
         segment_length = self._assigned_segment.sequence_length
-        num_tokens = ((segment_length - prompt_length) if prepend_prompt else segment_length)
+        num_tokens = (segment_length - prompt_length) if prepend_prompt else segment_length
         if num_tokens < 1:
             raise ValueError(f"Prompt length ({prompt_length}) exceeds segment length ({segment_length})")
         return num_tokens

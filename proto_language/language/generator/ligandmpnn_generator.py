@@ -206,9 +206,7 @@ class LigandMPNNGeneratorConfig(BaseConfig):
                 # Dict -> InverseFoldingStructureInput
                 result.append(InverseFoldingStructureInput(**item))
             else:
-                raise ValueError(
-                    f"Unsupported structure_inputs item type: {type(item)}"
-                )
+                raise ValueError(f"Unsupported structure_inputs item type: {type(item)}")
         return result
 
 
@@ -271,9 +269,7 @@ class LigandMPNNGenerator(Generator):
         self.device = config.device
         self.verbose = config.verbose
 
-    def sample(
-        self, structure_inputs: list[InverseFoldingStructureInput] | None = None
-    ) -> None:
+    def sample(self, structure_inputs: list[InverseFoldingStructureInput] | None = None) -> None:
         """Generate protein sequences using LigandMPNN and update proposal sequences.
 
         Args:
@@ -299,7 +295,9 @@ class LigandMPNNGenerator(Generator):
         )
 
         if sampling_structure_inputs is None:
-            raise ValueError("No structure_inputs provided. Either pass structure_inputs to sample() or configure structure_inputs in the generator config.")
+            raise ValueError(
+                "No structure_inputs provided. Either pass structure_inputs to sample() or configure structure_inputs in the generator config."
+            )
 
         generated_sequences = []
         all_metrics = []
@@ -311,7 +309,9 @@ class LigandMPNNGenerator(Generator):
         else:
             # N structures: one sequence per structure
             if len(sampling_structure_inputs) != num_proposals:
-                raise ValueError(f"Number of structure_inputs ({len(sampling_structure_inputs)}) must either be 1 or match num_proposals ({num_proposals})")
+                raise ValueError(
+                    f"Number of structure_inputs ({len(sampling_structure_inputs)}) must either be 1 or match num_proposals ({num_proposals})"
+                )
             num_seqs = 1
             bs = 1
 

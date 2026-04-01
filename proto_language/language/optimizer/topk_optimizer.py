@@ -1,4 +1,5 @@
 """TopK Optimizer that runs multiple independent sampling rounds and returns the top-k best constructs."""
+
 from __future__ import annotations
 
 import bisect
@@ -54,6 +55,7 @@ class TopKOptimizerConfig(BaseOptimizerConfig):
         the optimizer may return fewer than ``num_results`` valid results.
 
     """
+
     # Required parameters
     num_samples: int = ConfigField(
         ge=1,
@@ -84,12 +86,14 @@ class TopKOptimizerConfig(BaseOptimizerConfig):
         advanced=True,
     )
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_params(self) -> TopKOptimizerConfig:
         """Validate parameter relationships."""
         # num_results must not exceed num_samples (only validate when num_results is set)
         if self.num_results is not None and self.num_results > self.num_samples:
-            raise ValueError(f"num_results ({self.num_results}) cannot exceed num_samples ({self.num_samples}). Cannot keep more sequences than generated.")
+            raise ValueError(
+                f"num_results ({self.num_results}) cannot exceed num_samples ({self.num_samples}). Cannot keep more sequences than generated."
+            )
         return self
 
 
@@ -130,10 +134,7 @@ class TopKOptimizer(Optimizer):
     Example:
         >>> config = TopKOptimizerConfig(num_samples=100, num_results=10, samples_per_round=10)
         >>> optimizer = TopKOptimizer(
-        ...     constructs=constructs,
-        ...     generators=[mutation_gen],
-        ...     constraints=[gc_constraint],
-        ...     config=config
+        ...     constructs=constructs, generators=[mutation_gen], constraints=[gc_constraint], config=config
         ... )
         >>> optimizer.run()
         >>> best_sequences = optimizer.constructs[0].segments[0].result_sequences
@@ -144,9 +145,10 @@ class TopKOptimizer(Optimizer):
         ...     num_samples=1000,
         ...     num_results=10,
         ...     samples_per_round=10,
-        ...     energy_threshold=0.5  # Stop when all top-10 have energy < 0.5
+        ...     energy_threshold=0.5,  # Stop when all top-10 have energy < 0.5
         ... )
     """
+
     # Class attribute required by OptimizerRegistry
     config_class = TopKOptimizerConfig
 
@@ -194,7 +196,9 @@ class TopKOptimizer(Optimizer):
         self.num_samples: int = config.num_samples
         if self.num_samples % self.samples_per_round != 0:
             self.num_samples = math.ceil(self.num_samples / self.samples_per_round) * self.samples_per_round
-            logger.warning(f"num_samples rounded up to {self.num_samples} (nearest multiple of samples_per_round={self.samples_per_round}).")
+            logger.warning(
+                f"num_samples rounded up to {self.num_samples} (nearest multiple of samples_per_round={self.samples_per_round})."
+            )
 
         # Override base class num_steps for progress tracking
         self.num_steps = self.num_samples // self.samples_per_round
@@ -206,9 +210,7 @@ class TopKOptimizer(Optimizer):
         """Insert a proposal into the sorted top-k at the given position."""
         self._result_energies.insert(pos, energy)
         for segment in self.segments:
-            segment.result_sequences.insert(
-                pos, copy.deepcopy(segment.proposal_sequences[proposal_idx])
-            )
+            segment.result_sequences.insert(pos, copy.deepcopy(segment.proposal_sequences[proposal_idx]))
 
     def _remove_worst_from_topk(self) -> None:
         """Remove the worst (last) entry from the sorted top-k."""
@@ -231,7 +233,7 @@ class TopKOptimizer(Optimizer):
         """
         # 1. Reset proposal sequences to their initial state
         for seg_idx, segment in enumerate(self.segments):
-            proposals = self._initial_state['segments'][seg_idx]['proposals']  # type: ignore[index]
+            proposals = self._initial_state["segments"][seg_idx]["proposals"]  # type: ignore[index]
             segment.proposal_sequences = [
                 Sequence.from_dict(proposals[i])
                 for i in range(self.num_proposals)  # type: ignore[arg-type]
@@ -321,17 +323,25 @@ class TopKOptimizer(Optimizer):
             proposals_generated += self.samples_per_round
 
             # Threshold mode: stop early when all top-k are below threshold
-            if threshold_mode and len(self._result_energies) == self.num_results and self._result_energies[-1] < self.energy_threshold:  # type: ignore[operator]
-                    threshold_met = True
-                    if self.verbose:
-                        logger.info(f"Threshold met! Worst in top-{self.num_results}: {self._result_energies[-1]:.6f} < {self.energy_threshold:.6f}")
-                    # Force a final snapshot if this round wasn't already saved
-                    if not save:
-                        self._save_topk_snapshot(round_num)
-                    break
+            if (
+                threshold_mode
+                and len(self._result_energies) == self.num_results
+                and self._result_energies[-1] < self.energy_threshold  # type: ignore[operator]
+            ):
+                threshold_met = True
+                if self.verbose:
+                    logger.info(
+                        f"Threshold met! Worst in top-{self.num_results}: {self._result_energies[-1]:.6f} < {self.energy_threshold:.6f}"
+                    )
+                # Force a final snapshot if this round wasn't already saved
+                if not save:
+                    self._save_topk_snapshot(round_num)
+                break
 
         if not threshold_met and len(self._result_energies) < self.num_results:
-            logger.warning(f"TopK optimizer completed with only {len(self._result_energies)}/{self.num_results} valid proposals. Filter constraints may be too restrictive or num_samples may not be high enough.")
+            logger.warning(
+                f"TopK optimizer completed with only {len(self._result_energies)}/{self.num_results} valid proposals. Filter constraints may be too restrictive or num_samples may not be high enough."
+            )
 
         # Handoff: set energy_scores to the sorted result energies.
         # May be fewer than k if filter constraints rejected too many proposals.
@@ -357,17 +367,14 @@ class TopKOptimizer(Optimizer):
                 worst_energy = self._result_energies[-1]
                 total_rounds = self.num_samples // self.samples_per_round
                 progress_pct = (round_num / total_rounds) * 100
-                logger.info(f"Round {round_num}/{total_rounds} ({progress_pct:.0f}%): {num_results}/{self.num_results} in top-k, best={best_energy:.4f}, worst={worst_energy:.4f}")
+                logger.info(
+                    f"Round {round_num}/{total_rounds} ({progress_pct:.0f}%): {num_results}/{self.num_results} in top-k, best={best_energy:.4f}, worst={worst_energy:.4f}"
+                )
 
         if self.custom_logging:
             self.custom_logging(round_num, self.segments)
 
-    def _log_optimization_summary(
-        self,
-        threshold_mode: bool,
-        threshold_met: bool,
-        proposals_generated: int
-    ) -> None:
+    def _log_optimization_summary(self, threshold_mode: bool, threshold_met: bool, proposals_generated: int) -> None:
         """Log optimization statistics and results."""
         if not self.verbose:
             return
@@ -398,5 +405,5 @@ class TopKOptimizer(Optimizer):
             if self.num_results <= 20:  # type: ignore[operator]
                 logger.debug(f"Top-{self.num_results} constructs:")
                 for i, energy in enumerate(self.energy_scores):
-                    logger.debug(f"  Rank {i+1}: Energy={energy:.6f}")
+                    logger.debug(f"  Rank {i + 1}: Energy={energy:.6f}")
             logger.debug(f"TopK optimization complete. Returned {len(self.energy_scores)} best constructs.")

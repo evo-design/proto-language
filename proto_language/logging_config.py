@@ -60,10 +60,7 @@ def _parse_log_level(level: int | str) -> int:
         level_upper = level.upper()
         if hasattr(logging, level_upper):
             return int(getattr(logging, level_upper))
-        raise ValueError(
-            f"Unknown log level: '{level}'. "
-            f"Valid levels: DEBUG, INFO, WARNING, ERROR, CRITICAL"
-        )
+        raise ValueError(f"Unknown log level: '{level}'. Valid levels: DEBUG, INFO, WARNING, ERROR, CRITICAL")
     raise TypeError(f"level must be int or str, got {type(level)}")
 
 
@@ -162,13 +159,13 @@ def setup_logging(
 
         # Write header to log file if provided
         if log_file_header:
-            with open(log_file, 'w') as f:
+            with open(log_file, "w") as f:
                 f.write(log_file_header)
             # Use append mode for FileHandler so we don't overwrite the header
-            file_handler = logging.FileHandler(log_file, mode='a')
+            file_handler = logging.FileHandler(log_file, mode="a")
         else:
             # Use write mode as before
-            file_handler = logging.FileHandler(log_file, mode='w')
+            file_handler = logging.FileHandler(log_file, mode="w")
 
         file_handler.setLevel(file_level or logging.DEBUG)
         file_handler.setFormatter(file_formatter)

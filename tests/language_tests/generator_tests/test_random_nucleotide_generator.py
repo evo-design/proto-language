@@ -63,9 +63,7 @@ class TestRandomNucleotideGenerator:
         segment = Segment(sequence="A" * seq_len, sequence_type="dna")
         gen.assign(segment)
 
-        segment.proposal_sequences = [
-            copy.deepcopy(segment.original_sequence) for _ in range(1)
-        ]
+        segment.proposal_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(1)]
         gen.sample()
         mutated_sequence = segment.proposal_sequences[0].sequence
 
@@ -82,9 +80,7 @@ class TestRandomNucleotideGenerator:
         segment = Segment(sequence="A" * 30, sequence_type="dna")
         gen.assign(segment)
 
-        segment.proposal_sequences = [
-            copy.deepcopy(segment.original_sequence) for _ in range(5)
-        ]
+        segment.proposal_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(5)]
         gen.sample()
         mutated_sequences = [s.sequence for s in segment.proposal_sequences]
 
@@ -103,9 +99,7 @@ class TestRandomNucleotideGenerator:
         segment = Segment(sequence="A", sequence_type="dna")
         gen.assign(segment)
 
-        segment.proposal_sequences = [
-            copy.deepcopy(segment.original_sequence) for _ in range(1)
-        ]
+        segment.proposal_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(1)]
         gen.sample()
         mutated_char = segment.proposal_sequences[0].sequence
 
@@ -123,16 +117,12 @@ class TestRandomNucleotideGenerator:
         segment = Segment(sequence="A" * seq_len, sequence_type="dna")
         gen.assign(segment)
 
-        segment.proposal_sequences = [
-            copy.deepcopy(segment.original_sequence) for _ in range(1)
-        ]
+        segment.proposal_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(1)]
         initial_sequence = segment.proposal_sequences[0].sequence
         gen.sample()
         mutated_sequence = segment.proposal_sequences[0].sequence
 
-        diff_count = sum(
-            1 for a, b in zip(initial_sequence, mutated_sequence, strict=False) if a != b
-        )
+        diff_count = sum(1 for a, b in zip(initial_sequence, mutated_sequence, strict=False) if a != b)
         # At most num_mut positions differ (some random replacements may match original)
         assert diff_count <= num_mut
         assert len(mutated_sequence) == seq_len

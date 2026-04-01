@@ -2,6 +2,7 @@
 
 automatic schema generation for API/client integration.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -35,6 +36,7 @@ class OptimizerSpec(BaseSpec):
 
     # Private field - excluded from serialization
     optimizer_class: type[Optimizer] = Field(exclude=True)
+
 
 class OptimizerRegistry(BaseRegistry[OptimizerSpec]):
     """Registry for optimizer discovery and schema generation.
@@ -78,10 +80,7 @@ class OptimizerRegistry(BaseRegistry[OptimizerSpec]):
         >>> from proto_language.language.optimizer import MCMCOptimizer, MCMCOptimizerConfig
         >>> config = MCMCOptimizerConfig(num_results=5, num_steps=100)
         >>> optimizer = MCMCOptimizer(
-        ...     constructs=constructs,
-        ...     generators=generators,
-        ...     constraints=constraints,
-        ...     config=config
+        ...     constructs=constructs, generators=generators, constraints=constraints, config=config
         ... )
     """
 
@@ -126,6 +125,7 @@ class OptimizerRegistry(BaseRegistry[OptimizerSpec]):
             ...         # Implementation
             ...         pass
         """
+
         def decorator(optimizer_class: type[Optimizer]) -> type[Optimizer]:
             # Prevent duplicate registration using base class helper
             cls._check_duplicate(key, optimizer_class.__name__)
@@ -140,6 +140,7 @@ class OptimizerRegistry(BaseRegistry[OptimizerSpec]):
                 targets_single_segment=targets_single_segment,
             )
             return optimizer_class
+
         return decorator
 
     @classmethod

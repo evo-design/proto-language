@@ -1,4 +1,5 @@
 """Tests for constraint registry registration, discovery, schema generation, and factory methods."""
+
 import copy
 
 import pytest
@@ -10,6 +11,7 @@ from proto_language.language.core import Constraint, Segment
 # ============================================================================
 # Test Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def dna_segment():
@@ -26,6 +28,7 @@ def protein_segment():
 # ============================================================================
 # Unit Tests: Registration
 # ============================================================================
+
 
 class TestRegistration:
     """Test constraint registration mechanism."""
@@ -64,6 +67,7 @@ class TestRegistration:
 
     def test_register_returns_original_function(self):
         """Test that register decorator returns the original function unchanged."""
+
         class TestConfig(BaseModel):
             pass
 
@@ -88,6 +92,7 @@ class TestRegistration:
 
     def test_duplicate_registration_raises_error(self):
         """Test that registering same key twice raises ValueError."""
+
         class TestConfig(BaseModel):
             value: int = 1
 
@@ -107,6 +112,7 @@ class TestRegistration:
 
         # Second registration with same key should raise ValueError
         with pytest.raises(ValueError, match="already registered"):
+
             @constraint(
                 key="test-duplicate-check",  # Same key!
                 label="Test Duplicate Check 2",
@@ -124,6 +130,7 @@ class TestRegistration:
 # ============================================================================
 # Unit Tests: Discovery Methods
 # ============================================================================
+
 
 class TestDiscovery:
     """Test constraint discovery methods."""
@@ -184,6 +191,7 @@ class TestDiscovery:
 # Unit Tests: Schema Generation
 # ============================================================================
 
+
 class TestSchemaGeneration:
     """Test JSON schema generation for client integration."""
 
@@ -221,15 +229,14 @@ class TestSchemaGeneration:
 # Unit Tests: Factory Method (create)
 # ============================================================================
 
+
 class TestFactoryMethod:
     """Test Constraint creation from config dicts."""
 
     def test_create_validates_and_creates_constraint(self, dna_segment):
         """Test that create validates config and creates Constraint."""
         constraint = ConstraintRegistry.create(
-            key="gc-content",
-            segments=[dna_segment],
-            config_dict={"min_gc": 40.0, "max_gc": 60.0}
+            key="gc-content", segments=[dna_segment], config_dict={"min_gc": 40.0, "max_gc": 60.0}
         )
 
         assert isinstance(constraint, Constraint)
@@ -244,7 +251,7 @@ class TestFactoryMethod:
             ConstraintRegistry.create(
                 key="gc-content",
                 segments=[dna_segment],
-                config_dict={"min_gc": "invalid", "max_gc": 60.0}  # Wrong type
+                config_dict={"min_gc": "invalid", "max_gc": 60.0},  # Wrong type
             )
 
     def test_create_raises_on_missing_required_params(self, dna_segment):
@@ -253,7 +260,7 @@ class TestFactoryMethod:
             ConstraintRegistry.create(
                 key="gc-content",
                 segments=[dna_segment],
-                config_dict={"min_gc": 40.0}  # Missing max_gc
+                config_dict={"min_gc": 40.0},  # Missing max_gc
             )
 
     def test_create_with_nested_config(self, dna_segment, tmp_path):
@@ -269,14 +276,14 @@ class TestFactoryMethod:
                 "min_similarity": 80.0,
                 "max_similarity": 100.0,
                 "mmseqs_db": str(dummy_db),
-                "mmseqs_config": {"results_dir": ""}
-            }
+                "mmseqs_config": {"results_dir": ""},
+            },
         )
 
         assert isinstance(constraint, Constraint)
         # Nested configs should be Pydantic models, not dicts
-        assert hasattr(constraint.function_config, 'mmseqs_config')
-        assert hasattr(constraint.function_config, 'mmseqs_db')
+        assert hasattr(constraint.function_config, "mmseqs_config")
+        assert hasattr(constraint.function_config, "mmseqs_db")
 
     def test_create_with_label(self, dna_segment):
         """Test that create accepts and sets label."""
@@ -284,7 +291,7 @@ class TestFactoryMethod:
             key="gc-content",
             segments=[dna_segment],
             config_dict={"min_gc": 40.0, "max_gc": 60.0},
-            label="test_gc_label"
+            label="test_gc_label",
         )
 
         assert constraint.label == "test_gc_label"
@@ -294,34 +301,26 @@ class TestFactoryMethod:
         # gc-content only supports dna and rna, not protein
         with pytest.raises(TypeError, match="does not support sequence type"):
             ConstraintRegistry.create(
-                key="gc-content",
-                segments=[protein_segment],
-                config_dict={"min_gc": 40.0, "max_gc": 60.0}
+                key="gc-content", segments=[protein_segment], config_dict={"min_gc": 40.0, "max_gc": 60.0}
             )
 
         # protein-length only supports protein, not dna
         with pytest.raises(TypeError, match="does not support sequence type"):
             ConstraintRegistry.create(
-                key="protein-length",
-                segments=[dna_segment],
-                config_dict={"min_length": 10, "max_length": 500}
+                key="protein-length", segments=[dna_segment], config_dict={"min_length": 10, "max_length": 500}
             )
 
     def test_create_with_compatible_sequence_type(self, dna_segment, protein_segment):
         """Test that create works with compatible sequence types."""
         # gc-content with dna segment
         constraint = ConstraintRegistry.create(
-            key="gc-content",
-            segments=[dna_segment],
-            config_dict={"min_gc": 40.0, "max_gc": 60.0}
+            key="gc-content", segments=[dna_segment], config_dict={"min_gc": 40.0, "max_gc": 60.0}
         )
         assert constraint is not None
 
         # protein-length with protein segment
         constraint = ConstraintRegistry.create(
-            key="protein-length",
-            segments=[protein_segment],
-            config_dict={"min_length": 10, "max_length": 500}
+            key="protein-length", segments=[protein_segment], config_dict={"min_length": 10, "max_length": 500}
         )
         assert constraint is not None
 
@@ -329,6 +328,7 @@ class TestFactoryMethod:
 # ============================================================================
 # Integration Tests
 # ============================================================================
+
 
 class TestIntegration:
     """Integration tests for end-to-end workflows."""
@@ -346,9 +346,7 @@ class TestIntegration:
 
         # 3. Create constraint from user input
         constraint = ConstraintRegistry.create(
-            key="gc-content",
-            segments=[dna_segment],
-            config_dict={"min_gc": 40.0, "max_gc": 60.0}
+            key="gc-content", segments=[dna_segment], config_dict={"min_gc": 40.0, "max_gc": 60.0}
         )
 
         # 4. Create proposals before evaluation (constraints evaluate proposal_sequences)
@@ -397,6 +395,7 @@ class TestIntegration:
 # Test Builtin Constraints
 # ============================================================================
 
+
 class TestBuiltinConstraints:
     """Test that all expected builtin constraints are registered."""
 
@@ -422,7 +421,7 @@ class TestBuiltinConstraints:
             "protein-complexity",
             "balanced-aa",
             "protein-domain",
-            "overall-protein-quality"
+            "overall-protein-quality",
         ]
 
         registered = sorted(ConstraintRegistry._registry.keys())
@@ -440,7 +439,7 @@ class TestBuiltinConstraints:
             "structure-tmscore",
             "protein-symmetry-ring",
             "protein-globularity",
-            "boltz2-binding-strength"
+            "boltz2-binding-strength",
         ]
 
         registered = sorted(ConstraintRegistry._registry.keys())
@@ -453,7 +452,7 @@ class TestBuiltinConstraints:
             "mmseqs-gene-similarity",  # Removed orfipy-mmseqs constraints
             "sigma70-promoter",
             "seq-motif",
-            "promoter-strength"
+            "promoter-strength",
         ]
 
         registered = sorted(ConstraintRegistry._registry.keys())
@@ -470,17 +469,11 @@ class TestBuiltinConstraints:
             "structure-iptm",
             "protein-symmetry-ring",
             "protein-globularity",
-            "boltz2-binding-strength"
+            "boltz2-binding-strength",
         ]
 
         # Constraints that should NOT require GPU
-        cpu_constraints = [
-            "gc-content",
-            "sequence-length",
-            "protein-length",
-            "protein-complexity",
-            "protein-domain"
-        ]
+        cpu_constraints = ["gc-content", "sequence-length", "protein-length", "protein-complexity", "protein-domain"]
 
         all_constraints = ConstraintRegistry.list_all()
         constraints_dict = {spec.key: spec for spec in all_constraints}
@@ -488,24 +481,24 @@ class TestBuiltinConstraints:
         # Check GPU constraints
         for key in gpu_constraints:
             assert key in constraints_dict, f"GPU constraint {key} not registered"
-            assert constraints_dict[key].uses_gpu, \
-                f"Constraint {key} should be marked as uses_gpu=True"
+            assert constraints_dict[key].uses_gpu, f"Constraint {key} should be marked as uses_gpu=True"
 
         # Check CPU constraints
         for key in cpu_constraints:
             assert key in constraints_dict, f"CPU constraint {key} not registered"
-            assert constraints_dict[key].uses_gpu is False, \
-                f"Constraint {key} should be marked as uses_gpu=False"
+            assert constraints_dict[key].uses_gpu is False, f"Constraint {key} should be marked as uses_gpu=False"
 
     def test_supported_sequence_types_field_present(self):
         """Test that all constraints have supported_sequence_types field."""
         all_constraints = ConstraintRegistry.list_all()
 
         for spec in all_constraints:
-            assert hasattr(spec, 'supported_sequence_types'), \
+            assert hasattr(spec, "supported_sequence_types"), (
                 f"Constraint {spec.key} missing supported_sequence_types field"
-            assert isinstance(spec.supported_sequence_types, list), \
+            )
+            assert isinstance(spec.supported_sequence_types, list), (
                 f"Constraint {spec.key} supported_sequence_types should be a list"
+            )
 
     def test_protein_only_constraints_have_correct_types(self):
         """Test that protein-only constraints have correct supported_sequence_types."""
@@ -522,8 +515,9 @@ class TestBuiltinConstraints:
 
         for key in protein_only_constraints:
             assert key in constraints_dict, f"Constraint {key} not registered"
-            assert constraints_dict[key].supported_sequence_types == ["protein"], \
+            assert constraints_dict[key].supported_sequence_types == ["protein"], (
                 f"Constraint {key} should only support protein, got {constraints_dict[key].supported_sequence_types}"
+            )
 
     def test_dna_rna_constraints_have_correct_types(self):
         """Test that DNA/RNA constraints have correct supported_sequence_types."""
@@ -540,16 +534,18 @@ class TestBuiltinConstraints:
 
         for key, expected_types in dna_rna_constraints.items():
             assert key in constraints_dict, f"Constraint {key} not registered"
-            assert set(constraints_dict[key].supported_sequence_types) == set(expected_types), \
+            assert set(constraints_dict[key].supported_sequence_types) == set(expected_types), (
                 f"Constraint {key} should support {expected_types}, got {constraints_dict[key].supported_sequence_types}"
+            )
 
     def test_all_constraints_have_explicit_types(self):
         """Test that all constraints have non-empty supported_sequence_types."""
         all_constraints = ConstraintRegistry.list_all()
 
         for spec in all_constraints:
-            assert len(spec.supported_sequence_types) > 0, \
+            assert len(spec.supported_sequence_types) > 0, (
                 f"Constraint {spec.key} must have non-empty supported_sequence_types"
+            )
 
     def test_structure_constraints_support_protein(self):
         """Test that structure prediction constraints support protein sequences."""
@@ -567,8 +563,9 @@ class TestBuiltinConstraints:
 
         for key in structure_constraints:
             assert key in constraints_dict, f"Constraint {key} not registered"
-            assert "protein" in constraints_dict[key].supported_sequence_types, \
+            assert "protein" in constraints_dict[key].supported_sequence_types, (
                 f"Constraint {key} should support protein, got {constraints_dict[key].supported_sequence_types}"
+            )
 
     def test_boltz_binding_supports_multiple_types(self):
         """Test that boltz2-binding-strength supports multiple sequence types."""
@@ -577,8 +574,9 @@ class TestBuiltinConstraints:
 
         spec = constraints_dict["boltz2-binding-strength"]
         expected_types = {"dna", "rna", "protein", "ligand"}
-        assert set(spec.supported_sequence_types) == expected_types, \
+        assert set(spec.supported_sequence_types) == expected_types, (
             f"boltz2-binding-strength should support {expected_types}, got {spec.supported_sequence_types}"
+        )
 
     def test_config_validation_patterns(self):
         """Test that Pydantic config validation works through registry.
@@ -594,8 +592,8 @@ class TestBuiltinConstraints:
                 segments=[segment],
                 config_dict={
                     "min_gc": "not_a_number",  # Should be float
-                    "max_gc": 60
-                }
+                    "max_gc": 60,
+                },
             )
 
         # Test 2: Missing required parameter
@@ -603,14 +601,12 @@ class TestBuiltinConstraints:
             ConstraintRegistry.create(
                 key="gc-content",
                 segments=[segment],
-                config_dict={"min_gc": 40}  # Missing max_gc
+                config_dict={"min_gc": 40},  # Missing max_gc
             )
 
         # Test 3: Valid config should work
         constraint = ConstraintRegistry.create(
-            key="gc-content",
-            segments=[segment],
-            config_dict={"min_gc": 40, "max_gc": 60}
+            key="gc-content", segments=[segment], config_dict={"min_gc": 40, "max_gc": 60}
         )
         assert constraint.function_config.min_gc == 40
         assert constraint.function_config.max_gc == 60
@@ -622,9 +618,7 @@ class TestBuiltinConstraints:
         # protein-complexity has optional segmasker_path
         # Should work with defaults
         constraint = ConstraintRegistry.create(
-            key="protein-complexity",
-            segments=[segment],
-            config_dict={"max_low_complexity": 0.3}
+            key="protein-complexity", segments=[segment], config_dict={"max_low_complexity": 0.3}
         )
         assert constraint.function_config.max_low_complexity == 0.3
 
@@ -632,10 +626,7 @@ class TestBuiltinConstraints:
         constraint_custom = ConstraintRegistry.create(
             key="protein-complexity",
             segments=[segment],
-            config_dict={
-                "max_low_complexity": 0.3,
-                "segmasker_path": "/custom/path"
-            }
+            config_dict={"max_low_complexity": 0.3, "segmasker_path": "/custom/path"},
         )
         assert constraint_custom.function_config.segmasker_path == "/custom/path"
 
@@ -652,7 +643,7 @@ class TestBuiltinConstraints:
             ConstraintRegistry.create(
                 key="gc-content",
                 segments=[segment],
-                config_dict={"min_gc": 80, "max_gc": 20}  # min > max
+                config_dict={"min_gc": 80, "max_gc": 20},  # min > max
             )
             # If no error, document that this constraint doesn't validate ordering
             # Individual constraints may have domain-specific validators

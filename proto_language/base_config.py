@@ -1,4 +1,5 @@
 """Base configuration classes for all pydantic configs."""
+
 from __future__ import annotations
 
 from typing import Any, TypedDict
@@ -67,9 +68,7 @@ def ConfigField(
         if "field" not in depends_on:
             raise ValueError("depends_on must include a 'field' key")
         if "value" in depends_on and "not_null" in depends_on:
-            raise ValueError(
-                "depends_on cannot specify both 'value' and 'not_null'"
-            )
+            raise ValueError("depends_on cannot specify both 'value' and 'not_null'")
         json_schema_extra["x-depends-on"] = depends_on
 
     kwargs["json_schema_extra"] = json_schema_extra
@@ -87,10 +86,10 @@ class BaseConfig(BaseModel):
     """
 
     model_config = ConfigDict(
-        extra='ignore',              # Ignore unknown fields
-        validate_assignment=True,    # Validate on field updates
-        use_enum_values=True,        # Serialize enums as values
-        validate_default=True,       # Validate default values
+        extra="ignore",  # Ignore unknown fields
+        validate_assignment=True,  # Validate on field updates
+        use_enum_values=True,  # Serialize enums as values
+        validate_default=True,  # Validate default values
     )
 
 
@@ -101,6 +100,7 @@ class BaseConfig(BaseModel):
 
 class BaseOptimizerConfig(BaseConfig):
     """Shared base config for all optimizers."""
+
     tracking_interval: int = ConfigField(
         default=1,
         ge=1,

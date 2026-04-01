@@ -65,6 +65,7 @@ class PromoterStrengthConfig(BaseConfig):
           moderate promoters (3000-10000) get medium penalties (0.5-1.0), weak
           promoters (<3000) get maximum penalty (1.0).
     """
+
     # Advanced parameters
     add_context: bool = ConfigField(
         title="Add Context",
@@ -116,7 +117,9 @@ class PromoterStrengthConfig(BaseConfig):
     supported_sequence_types=["dna"],
     num_input_sequences_per_tuple=1,
 )
-def promoter_strength_constraint(input_sequences: list[tuple[Sequence, ...]], config: PromoterStrengthConfig) -> list[float]:
+def promoter_strength_constraint(
+    input_sequences: list[tuple[Sequence, ...]], config: PromoterStrengthConfig
+) -> list[float]:
     """Evaluate bacterial promoter strength using Salis Lab Promoter Calculator.
 
     This constraint function uses the Salis Lab Promoter Calculator to predict
@@ -181,10 +184,7 @@ def promoter_strength_constraint(input_sequences: list[tuple[Sequence, ...]], co
 
         >>> from proto_language.language.core import Sequence, SequenceType
         >>> # Sequence with strong constitutive promoter
-        >>> promoter_seq = Sequence(
-        ...     "TTGACAATGATACTTAGATTCACTTATAATACTAGTAGGAGGAACTTTATGAAA",
-        ...     "dna"
-        ... )
+        >>> promoter_seq = Sequence("TTGACAATGATACTTAGATTCACTTATAATACTAGTAGGAGGAACTTTATGAAA", "dna")
         >>> config = PromoterStrengthConfig(scoring_type="dG")
         >>> scores = promoter_strength_constraint([promoter_seq], config)
         >>> print(scores[0])  # e.g., 0.15 (strong promoter, dG ≈ -4.5)

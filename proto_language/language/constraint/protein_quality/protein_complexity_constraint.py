@@ -40,6 +40,7 @@ class ProteinComplexityConfig(BaseConfig):
         Install via NCBI BLAST+ toolkit:
         https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/
     """
+
     # Required parameter
     max_low_complexity: float = ConfigField(
         title="Max Low Complexity Fraction",
@@ -69,7 +70,9 @@ class ProteinComplexityConfig(BaseConfig):
     supported_sequence_types=["protein"],
     num_input_sequences_per_tuple=1,
 )
-def protein_complexity_constraint(input_sequences: list[tuple[Sequence, ...]], config: ProteinComplexityConfig) -> list[float]:
+def protein_complexity_constraint(
+    input_sequences: list[tuple[Sequence, ...]], config: ProteinComplexityConfig
+) -> list[float]:
     """Evaluate protein sequence complexity using segmasker to detect low-complexity regions.
 
     This constraint function uses NCBI's segmasker tool to identify low-complexity
@@ -149,9 +152,7 @@ def protein_complexity_constraint(input_sequences: list[tuple[Sequence, ...]], c
     scores = []
     for (seq,), low_complexity_fraction in zip(input_sequences, result.low_complexity_fractions, strict=False):
         seq._metadata["low_complexity_fraction"] = low_complexity_fraction
-        seq._metadata["segmasker_lowercase_count"] = int(
-            low_complexity_fraction * len(seq)
-        )
+        seq._metadata["segmasker_lowercase_count"] = int(low_complexity_fraction * len(seq))
         seq._metadata["segmasker_error"] = False
 
         if low_complexity_fraction <= config.max_low_complexity:

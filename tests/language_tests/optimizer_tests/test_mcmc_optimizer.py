@@ -1,4 +1,5 @@
 """tests/language_tests/optimizer_tests/test_mcmc_optimizer.py."""
+
 from __future__ import annotations
 
 import copy
@@ -94,6 +95,7 @@ class TestMCMCOptimizer:
         # Create a dummy scoring function with required attributes
         def dummy_scoring_func(input_sequences, config=None):
             return [0.0 for _ in input_sequences]
+
         dummy_scoring_func._constraint_config_class = EmptyConfig
         dummy_scoring_func._constraint_supported_sequence_types = ["dna"]
 
@@ -175,9 +177,9 @@ class TestMCMCOptimizer:
         old_result_sequences = optimizer._save_sequence_state()
 
         # Manually set ALL energy scores to inf and nan (so no valid proposals)
-        optimizer.energy_scores[0] = float('inf')
-        optimizer.energy_scores[1] = float('inf')
-        optimizer.energy_scores[2] = float('nan')
+        optimizer.energy_scores[0] = float("inf")
+        optimizer.energy_scores[1] = float("inf")
+        optimizer.energy_scores[2] = float("nan")
 
         # Mutate proposal sequences so we can detect if they get rejected
         segment.proposal_sequences[0].sequence = "AAAAAAAAAA"
@@ -212,9 +214,7 @@ class TestMCMCOptimizer:
 
         # Score initial state
         for i in range(optimizer.num_results):
-            optimizer.segments[0].proposal_sequences[i] = copy.deepcopy(
-                optimizer.segments[0].result_sequences[i]
-            )
+            optimizer.segments[0].proposal_sequences[i] = copy.deepcopy(optimizer.segments[0].result_sequences[i])
         optimizer.score_energy()
         initial_energy = optimizer.energy_scores[0]
         assert initial_energy > 0.99  # Should be max penalty
@@ -237,10 +237,14 @@ class TestMCMCOptimizer:
         construct = Construct([segment])
 
         gc_con = Constraint(
-            [segment], gc_content_constraint, GCContentConfig(min_gc=40.0, max_gc=60.0),
+            [segment],
+            gc_content_constraint,
+            GCContentConfig(min_gc=40.0, max_gc=60.0),
         )
         len_con = Constraint(
-            [segment], sequence_length_constraint, SequenceLengthConfig(target_length=seq_len),
+            [segment],
+            sequence_length_constraint,
+            SequenceLengthConfig(target_length=seq_len),
             weight=2.0,
         )
 
@@ -255,7 +259,7 @@ class TestMCMCOptimizer:
 
         segment.proposal_sequences[0].sequence = "A" * 20  # Violates length and GC
         expected_gc_score = (40 - 0) / 40  # = 1.0
-        expected_len_score = (30 - 20) / 30 # = 0.333
+        expected_len_score = (30 - 20) / 30  # = 0.333
 
         # E = 1.0 * 1.0 + 2.0 * 0.333...
         expected_energy = expected_gc_score * 1.0 + expected_len_score * 2.0
@@ -315,9 +319,7 @@ class TestMCMCOptimizer:
 
     def test_topk_initialization(self):
         """Tests initialization of top-k MCMC with num_trajectories > 1."""
-        optimizer, _, _, _ = _setup_mcmc_components(
-            num_results=3, proposals_per_result=10
-        )
+        optimizer, _, _, _ = _setup_mcmc_components(num_results=3, proposals_per_result=10)
 
         assert optimizer.num_results == 3
         # _proposals_per_result is the number of proposals per result sequence
@@ -393,9 +395,7 @@ class TestMCMCOptimizer:
         num_trajectories = 2
         num_steps = 5
 
-        optimizer, _, _, _ = _setup_mcmc_components(
-            num_results=num_trajectories, num_mcmc_steps=num_steps
-        )
+        optimizer, _, _, _ = _setup_mcmc_components(num_results=num_trajectories, num_mcmc_steps=num_steps)
 
         optimizer.run()
 
@@ -435,9 +435,7 @@ class TestMCMCOptimizer:
         assert min_temperature < step_50_temp < max_temperature
 
         # Temperatures should decrease monotonically
-        temperatures = [
-            optimizer._compute_temperature(step) for step in range(1, num_steps + 1)
-        ]
+        temperatures = [optimizer._compute_temperature(step) for step in range(1, num_steps + 1)]
         for i in range(1, len(temperatures)):
             assert temperatures[i] <= temperatures[i - 1]
 
@@ -532,9 +530,7 @@ class TestMCMCOptimizer:
 
         # Score initial state
         for i in range(optimizer.num_results):
-            optimizer.segments[0].proposal_sequences[i] = copy.deepcopy(
-                optimizer.segments[0].result_sequences[i]
-            )
+            optimizer.segments[0].proposal_sequences[i] = copy.deepcopy(optimizer.segments[0].result_sequences[i])
         optimizer.score_energy()
         initial_best_energy = min(optimizer.energy_scores[:num_trajectories])
 
@@ -608,9 +604,7 @@ class TestMCMCOptimizer:
             constructs=[construct1],
             generators=[proposal_gen1],
             constraints=[constraint1],
-            config=MCMCOptimizerConfig(
-                num_results=1, num_steps=3, verbose=True
-            ),
+            config=MCMCOptimizerConfig(num_results=1, num_steps=3, verbose=True),
         )
 
         with caplog.at_level(logging.DEBUG):
@@ -639,9 +633,7 @@ class TestMCMCOptimizer:
             constructs=[construct2],
             generators=[proposal_gen2],
             constraints=[constraint2],
-            config=MCMCOptimizerConfig(
-                num_results=3, num_steps=3, verbose=True
-            ),
+            config=MCMCOptimizerConfig(num_results=3, num_steps=3, verbose=True),
         )
 
         with caplog.at_level(logging.DEBUG):
@@ -670,6 +662,7 @@ class TestMCMCOptimizer:
         # Create a dummy scoring function with required attributes
         def dummy_scoring_func(input_sequences, config=None):
             return [0.0 for _ in input_sequences]
+
         dummy_scoring_func._constraint_config_class = EmptyConfig
         dummy_scoring_func._constraint_supported_sequence_types = ["dna"]
 
@@ -751,9 +744,7 @@ class TestMCMCOptimizer:
 
     def test_run_restarts_from_initial_state(self):
         """Tests that calling run() twice restarts from initial state."""
-        optimizer, _, _, segment = _setup_mcmc_components(
-            seq_length=20, num_mcmc_steps=5
-        )
+        optimizer, _, _, segment = _setup_mcmc_components(seq_length=20, num_mcmc_steps=5)
 
         # Capture original state before any run
         original_seq = segment.result_sequences[0].sequence
@@ -764,16 +755,16 @@ class TestMCMCOptimizer:
 
         # Verify state was captured with correct content
         assert optimizer._initial_state is not None
-        assert len(optimizer._initial_state['segments']) == 1
+        assert len(optimizer._initial_state["segments"]) == 1
 
         # Verify captured state contains original sequence
-        captured_result = optimizer._initial_state['segments'][0]['result']
+        captured_result = optimizer._initial_state["segments"][0]["result"]
         assert len(captured_result) == 1
-        assert captured_result[0]['sequence'] == original_seq
+        assert captured_result[0]["sequence"] == original_seq
 
         # Verify energy scores were captured (initial state captures full num_proposals before first run)
-        assert 'energy_scores' in optimizer._initial_state
-        assert len(optimizer._initial_state['energy_scores']) == optimizer.num_proposals
+        assert "energy_scores" in optimizer._initial_state
+        assert len(optimizer._initial_state["energy_scores"]) == optimizer.num_proposals
 
         # Manually modify the sequence to verify restore works
         segment.result_sequences[0].sequence = "G" * 20
@@ -811,6 +802,7 @@ class TestMCMCOptimizer:
         # Custom constraint that returns energy = number of G's (so more G's = higher energy)
         def count_g_energy(input_sequences, config=None):
             return [seq.sequence.count("G") / seq_length for (seq,) in input_sequences]
+
         count_g_energy._constraint_config_class = EmptyConfig
         count_g_energy._constraint_supported_sequence_types = ["dna"]
 
@@ -845,9 +837,9 @@ class TestMCMCOptimizer:
         # Set the energy_scores for result sequences (indices 0, 1, 2)
         # This mimics the state after previous iteration where only first num_trajectories
         # entries are the result energies
-        optimizer.energy_scores[0] = 0   # Trajectory 0
+        optimizer.energy_scores[0] = 0  # Trajectory 0
         optimizer.energy_scores[1] = 10  # Trajectory 1
-        optimizer.energy_scores[2] = 5   # Trajectory 2
+        optimizer.energy_scores[2] = 5  # Trajectory 2
 
         # Save state BEFORE populating proposals (this is how the real loop works)
         old_result_sequences = optimizer._save_sequence_state()
@@ -889,8 +881,7 @@ class TestMCMCOptimizer:
 
         # The key test: trajectory 1's result sequence should now be "AAAAAAAAAA"
         assert segment.result_sequences[1].sequence == "A" * seq_length, (
-            f"Trajectory 1 should have accepted from its own pool. "
-            f"Got: {segment.result_sequences[1].sequence}"
+            f"Trajectory 1 should have accepted from its own pool. Got: {segment.result_sequences[1].sequence}"
         )
 
         # Trajectory 0 should still be "AAAAAAAAAA" (no change since its proposals
@@ -983,6 +974,7 @@ class TestMCMCOptimizer:
         # Custom constraint: energy = count of non-A characters
         def count_non_a_energy(input_sequences, config=None):
             return [(seq_length - seq.sequence.count("A")) / seq_length for (seq,) in input_sequences]
+
         count_non_a_energy._constraint_config_class = EmptyConfig
         count_non_a_energy._constraint_supported_sequence_types = ["dna"]
 
@@ -1152,33 +1144,33 @@ class TestMCMCOptimizer:
     def test_mcmc_alpha_inf_inf_returns_zero(self):
         """Inf vs inf should return 0.0 (reject, no improvement) instead of NaN."""
         optimizer, _, _, _ = _setup_mcmc_components()
-        alpha = optimizer._compute_mcmc_alpha(float('inf'), float('inf'), 1)
+        alpha = optimizer._compute_mcmc_alpha(float("inf"), float("inf"), 1)
         assert alpha == 0.0
 
     def test_mcmc_alpha_inf_current_accepts_finite(self):
         """Inf current with finite proposed should return 1.0 (always accept)."""
         optimizer, _, _, _ = _setup_mcmc_components()
-        alpha = optimizer._compute_mcmc_alpha(float('inf'), 0.5, 1)
+        alpha = optimizer._compute_mcmc_alpha(float("inf"), 0.5, 1)
         assert alpha == 1.0
-        alpha = optimizer._compute_mcmc_alpha(float('inf'), 100.0, 1)
+        alpha = optimizer._compute_mcmc_alpha(float("inf"), 100.0, 1)
         assert alpha == 1.0
 
     def test_mcmc_alpha_finite_current_rejects_inf_proposed(self):
         """Finite current with inf proposed should return 0.0 (always reject)."""
         optimizer, _, _, _ = _setup_mcmc_components()
-        alpha = optimizer._compute_mcmc_alpha(0.5, float('inf'), 1)
+        alpha = optimizer._compute_mcmc_alpha(0.5, float("inf"), 1)
         assert alpha == 0.0
-        alpha = optimizer._compute_mcmc_alpha(0.0, float('inf'), 1)
+        alpha = optimizer._compute_mcmc_alpha(0.0, float("inf"), 1)
         assert alpha == 0.0
 
     def test_mcmc_alpha_negative_inf_proposed(self):
         """Negative inf proposed should be rejected (non-finite)."""
         optimizer, _, _, _ = _setup_mcmc_components()
-        alpha = optimizer._compute_mcmc_alpha(0.5, float('-inf'), 1)
+        alpha = optimizer._compute_mcmc_alpha(0.5, float("-inf"), 1)
         assert alpha == 0.0
 
     def test_mcmc_alpha_negative_inf_current(self):
         """Negative inf current with finite proposed should accept."""
         optimizer, _, _, _ = _setup_mcmc_components()
-        alpha = optimizer._compute_mcmc_alpha(float('-inf'), 0.5, 1)
+        alpha = optimizer._compute_mcmc_alpha(float("-inf"), 0.5, 1)
         assert alpha == 1.0

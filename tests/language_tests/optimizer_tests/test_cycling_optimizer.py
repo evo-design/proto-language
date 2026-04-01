@@ -60,9 +60,7 @@ def _setup_cycling_components(
 
     mock_structure = make_mock_structure()
     generator = ProteinMPNNGenerator(
-        ProteinMPNNGeneratorConfig(
-            structure_inputs=InverseFoldingStructureInput(structure=mock_structure)
-        )
+        ProteinMPNNGeneratorConfig(structure_inputs=InverseFoldingStructureInput(structure=mock_structure))
     )
     generator.assign(target_segment)
 
@@ -124,13 +122,9 @@ class TestCyclingOptimizerConfig:
     def test_invalid_config_values(self):
         """Test that invalid config values are rejected."""
         with pytest.raises(ValidationError):
-            CyclingOptimizerConfig(
-                num_steps=0, num_results=1, conditioning_param_name="structure_inputs"
-            )
+            CyclingOptimizerConfig(num_steps=0, num_results=1, conditioning_param_name="structure_inputs")
         with pytest.raises(ValidationError):
-            CyclingOptimizerConfig(
-                num_steps=1, num_results=0, conditioning_param_name="structure_inputs"
-            )
+            CyclingOptimizerConfig(num_steps=1, num_results=0, conditioning_param_name="structure_inputs")
 
     def test_conditioning_field_required(self):
         """Test that conditioning_field is required."""
@@ -165,9 +159,7 @@ class TestCyclingOptimizerValidation:
         components = _setup_cycling_components()
         orphan_segment = Segment(sequence="ACDEFGHIK", sequence_type="protein")
 
-        with pytest.raises(
-            ValueError, match="is not in any of the provided constructs"
-        ):
+        with pytest.raises(ValueError, match="is not in any of the provided constructs"):
             CyclingOptimizer(
                 target_segment=orphan_segment,
                 constructs=[components["construct"]],
@@ -271,9 +263,7 @@ class TestCyclingOptimizerRun:
     def test_run_completes_and_tracks_history(self):
         """Test run completes, calls conditioning_fn, and tracks history."""
         num_steps, num_proposals = 3, 2
-        components = _setup_cycling_components(
-            num_steps=num_steps, num_results=num_proposals
-        )
+        components = _setup_cycling_components(num_steps=num_steps, num_results=num_proposals)
 
         # Track conditioning function calls
         call_count = [0]
@@ -329,16 +319,11 @@ class TestCyclingOptimizerRun:
             conditioning_fn=components["conditioning_fn"],
         )
 
-        original_seqs = [
-            copy.deepcopy(s.sequence)
-            for s in components["target_segment"].result_sequences
-        ]
+        original_seqs = [copy.deepcopy(s.sequence) for s in components["target_segment"].result_sequences]
         optimizer.run()
 
         # All should stay unchanged in result_sequences since constraint fails all
-        for i, result_seq in enumerate(
-            components["target_segment"].result_sequences
-        ):
+        for i, result_seq in enumerate(components["target_segment"].result_sequences):
             assert result_seq.sequence == original_seqs[i]
 
     def test_partial_filter_acceptance(self):
@@ -347,11 +332,7 @@ class TestCyclingOptimizerRun:
         construct = Construct([target_segment])
 
         generator = ProteinMPNNGenerator(
-            ProteinMPNNGeneratorConfig(
-                structure_inputs=InverseFoldingStructureInput(
-                    structure=make_mock_structure()
-                )
-            )
+            ProteinMPNNGeneratorConfig(structure_inputs=InverseFoldingStructureInput(structure=make_mock_structure()))
         )
         generator.assign(target_segment)
 
@@ -394,9 +375,7 @@ class TestCyclingOptimizerRun:
             conditioning_fn=conditioning_fn,
         )
 
-        original_seqs = [
-            copy.deepcopy(s.sequence) for s in target_segment.result_sequences
-        ]
+        original_seqs = [copy.deepcopy(s.sequence) for s in target_segment.result_sequences]
         optimizer.run()
 
         # Proposal 0 passed → result updated
@@ -480,11 +459,7 @@ class TestAcceptPatternBehavior:
         construct = Construct([target_segment])
 
         generator = ProteinMPNNGenerator(
-            ProteinMPNNGeneratorConfig(
-                structure_inputs=InverseFoldingStructureInput(
-                    structure=make_mock_structure()
-                )
-            )
+            ProteinMPNNGeneratorConfig(structure_inputs=InverseFoldingStructureInput(structure=make_mock_structure()))
         )
         generator.assign(target_segment)
 
@@ -527,9 +502,7 @@ class TestAcceptPatternBehavior:
             conditioning_fn=conditioning_fn,
         )
 
-        original_seqs = [
-            copy.deepcopy(s.sequence) for s in target_segment.result_sequences
-        ]
+        original_seqs = [copy.deepcopy(s.sequence) for s in target_segment.result_sequences]
         optimizer.run()
 
         # Result sequences should be unchanged (all rejected)
@@ -545,11 +518,7 @@ class TestAcceptPatternBehavior:
         construct = Construct([target_segment])
 
         generator = ProteinMPNNGenerator(
-            ProteinMPNNGeneratorConfig(
-                structure_inputs=InverseFoldingStructureInput(
-                    structure=make_mock_structure()
-                )
-            )
+            ProteinMPNNGeneratorConfig(structure_inputs=InverseFoldingStructureInput(structure=make_mock_structure()))
         )
         generator.assign(target_segment)
 
@@ -612,11 +581,7 @@ class TestAcceptPatternBehavior:
         construct = Construct([target_segment])
 
         generator = ProteinMPNNGenerator(
-            ProteinMPNNGeneratorConfig(
-                structure_inputs=InverseFoldingStructureInput(
-                    structure=make_mock_structure()
-                )
-            )
+            ProteinMPNNGeneratorConfig(structure_inputs=InverseFoldingStructureInput(structure=make_mock_structure()))
         )
         generator.assign(target_segment)
 
@@ -660,11 +625,7 @@ class TestAcceptPatternBehavior:
         construct = Construct([target_segment])
 
         generator = ProteinMPNNGenerator(
-            ProteinMPNNGeneratorConfig(
-                structure_inputs=InverseFoldingStructureInput(
-                    structure=make_mock_structure()
-                )
-            )
+            ProteinMPNNGeneratorConfig(structure_inputs=InverseFoldingStructureInput(structure=make_mock_structure()))
         )
         generator.assign(target_segment)
 
@@ -751,24 +712,19 @@ class TestCyclingOptimizerGPU:
         seq_length = len(chain_seq)
 
         # Inverse folding generators auto-initialize to "X" when no sequence provided
-        target_segment = Segment(sequence= "X" * seq_length, sequence_type="protein")
+        target_segment = Segment(sequence="X" * seq_length, sequence_type="protein")
         construct = Construct([target_segment])
 
         generator = ProteinMPNNGenerator(
-                ProteinMPNNGeneratorConfig(
-                structure_inputs=InverseFoldingStructureInput(
-                    structure=pdb_structure, chain_ids=["A"]
-                ),
+            ProteinMPNNGeneratorConfig(
+                structure_inputs=InverseFoldingStructureInput(structure=pdb_structure, chain_ids=["A"]),
                 temperature=0.1,
             )
         )
         generator.assign(target_segment)
 
         def structure_conditioning_fn(sequences):
-            complexes = [
-                StructurePredictionComplex(chains=[seq.sequence])
-                for seq in sequences
-            ]
+            complexes = [StructurePredictionComplex(chains=[seq.sequence]) for seq in sequences]
             return predict_structures(complexes, "chai1", {}).structures
 
         config = CyclingOptimizerConfig(
@@ -802,14 +758,12 @@ class TestCyclingOptimizerGPU:
         seq_length = len(chain_seq)
 
         # Inverse folding generators auto-initialize to "X" when no sequence provided
-        target_segment = Segment(sequence= "X" * seq_length, sequence_type="protein")
+        target_segment = Segment(sequence="X" * seq_length, sequence_type="protein")
         construct = Construct([target_segment])
 
         generator = ProteinMPNNGenerator(
             ProteinMPNNGeneratorConfig(
-                structure_inputs=InverseFoldingStructureInput(
-                    structure=pdb_structure, chain_ids=["A"]
-                ),
+                structure_inputs=InverseFoldingStructureInput(structure=pdb_structure, chain_ids=["A"]),
                 temperature=0.1,
             )
         )
@@ -829,10 +783,7 @@ class TestCyclingOptimizerGPU:
         )
 
         def structure_conditioning_fn(sequences):
-            complexes = [
-                StructurePredictionComplex(chains=[seq.sequence])
-                for seq in sequences
-            ]
+            complexes = [StructurePredictionComplex(chains=[seq.sequence]) for seq in sequences]
             return predict_structures(complexes, "chai1", {}).structures
 
         config = CyclingOptimizerConfig(
@@ -872,8 +823,8 @@ class TestCyclingOptimizerRestart:
         # Mock the generator.sample to track calls and modify sequences
         call_count = [0]
         # Valid 20-char protein sequences for each call
-        protein_seqs = ["MKTAYIAKQRQISFVKSHFS", "GPLAFVTNLTGLRSQNEEIR",
-                        "YWDEIKNPLGRAVTYDKWFP", "HCLQMNSGVEATRIDFWYKP"]
+        protein_seqs = ["MKTAYIAKQRQISFVKSHFS", "GPLAFVTNLTGLRSQNEEIR", "YWDEIKNPLGRAVTYDKWFP", "HCLQMNSGVEATRIDFWYKP"]
+
         def mock_sample(structure_inputs=None):
             call_count[0] += 1
             for c in components["target_segment"].proposal_sequences:
@@ -934,23 +885,23 @@ class TestCyclingOptimizerRestart:
 
         # Verify state was captured
         assert optimizer._initial_state is not None
-        assert len(optimizer._initial_state['segments']) == 1
+        assert len(optimizer._initial_state["segments"]) == 1
 
         # Verify captured state contains actual sequence content (using index 0)
-        captured_result = optimizer._initial_state['segments'][0]['result']
-        captured_proposals = optimizer._initial_state['segments'][0]['proposals']
+        captured_result = optimizer._initial_state["segments"][0]["result"]
+        captured_proposals = optimizer._initial_state["segments"][0]["proposals"]
 
         assert len(captured_result) == len(original_result)
         assert len(captured_proposals) == len(original_proposals)
 
         # Verify sequences match
         for orig, captured in zip(original_result, captured_result, strict=False):
-            assert orig.sequence == captured['sequence']
-            assert orig.sequence_type == captured['sequence_type']
+            assert orig.sequence == captured["sequence"]
+            assert orig.sequence_type == captured["sequence_type"]
 
         for orig, captured in zip(original_proposals, captured_proposals, strict=False):
-            assert orig.sequence == captured['sequence']
-            assert orig.sequence_type == captured['sequence_type']
+            assert orig.sequence == captured["sequence"]
+            assert orig.sequence_type == captured["sequence_type"]
 
 
 # =============================================================================
@@ -1019,7 +970,7 @@ class TestCyclingOptimizerPipelineResolution:
             num_results=2,
             conditioning_param_name="structure_inputs",
         )
-        object.__setattr__(config, 'pipeline', 'nonexistent-pipeline')
+        object.__setattr__(config, "pipeline", "nonexistent-pipeline")
 
         with pytest.raises(ValueError, match="Unknown pipeline"):
             CyclingOptimizer(

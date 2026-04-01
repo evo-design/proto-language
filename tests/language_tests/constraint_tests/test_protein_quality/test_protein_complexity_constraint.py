@@ -22,7 +22,7 @@ class TestProteinComplexityConstraint:
             (0.4, 0.3, 0.1428571428571429),  # Above range: (0.4-0.3)/(1.0-0.3) = 0.1/0.7
             (0.0, 0.3, 0.0),  # Perfect complexity
         ],
-        ids=["within_range", "above_range", "perfect"]
+        ids=["within_range", "above_range", "perfect"],
     )
     def test_scoring_logic(self, low_complexity_fraction, max_low_complexity, expected_score):
         """Test the scoring logic with mocked segmasker output."""
@@ -30,7 +30,9 @@ class TestProteinComplexityConstraint:
         config = ProteinComplexityConfig(max_low_complexity=max_low_complexity)
 
         # Mock run_segmasker
-        with patch('proto_language.language.constraint.protein_quality.protein_complexity_constraint.run_segmasker') as mock_seg:
+        with patch(
+            "proto_language.language.constraint.protein_quality.protein_complexity_constraint.run_segmasker"
+        ) as mock_seg:
             mock_output = SegmaskerOutput(
                 tool_id="segmasker",
                 execution_time=0.1,
@@ -38,7 +40,7 @@ class TestProteinComplexityConstraint:
                 low_complexity_fractions=[low_complexity_fraction],
                 low_complexity_counts=[int(low_complexity_fraction * 16)],
                 sequence_lengths=[16],
-                errors=[]
+                errors=[],
             )
             mock_seg.return_value = mock_output
 
@@ -67,7 +69,9 @@ class TestProteinComplexityConstraint:
         segment = Segment(sequence="MKTAYIAKQRQISFVK", sequence_type="protein")
         config = ProteinComplexityConfig(max_low_complexity=0.3)
 
-        with patch('proto_language.language.constraint.protein_quality.protein_complexity_constraint.run_segmasker') as mock_seg:
+        with patch(
+            "proto_language.language.constraint.protein_quality.protein_complexity_constraint.run_segmasker"
+        ) as mock_seg:
             mock_output = SegmaskerOutput(
                 tool_id="segmasker",
                 execution_time=0.0,
@@ -75,7 +79,7 @@ class TestProteinComplexityConstraint:
                 low_complexity_fractions=[],
                 low_complexity_counts=[],
                 sequence_lengths=[],
-                errors=["Segmasker execution failed"]
+                errors=["Segmasker execution failed"],
             )
             mock_seg.return_value = mock_output
 

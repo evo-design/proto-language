@@ -1,4 +1,5 @@
 """Protein structure constraints (confidence, similarity, symmetry, globularity, gyration radius)."""
+
 from proto_language.language.constraint.protein_structure.boltz_binding_strength_constraint import (
     boltz_binding_strength_constraint,
 )

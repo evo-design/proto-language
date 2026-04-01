@@ -102,9 +102,7 @@ def _select_track_columns(
 
     strand_symbol = _strand_to_symbol(strand)
     if not metadata_records:
-        raise ValueError(
-            "SPLICE_SITE_USAGE metadata is missing; cannot apply strand-specific track selection."
-        )
+        raise ValueError("SPLICE_SITE_USAGE metadata is missing; cannot apply strand-specific track selection.")
 
     selected_indices: list[int] = []
     for idx, row in enumerate(metadata_records):
@@ -114,9 +112,7 @@ def _select_track_columns(
             selected_indices.append(idx)
 
     if not selected_indices:
-        raise ValueError(
-            f"No SPLICE_SITE_USAGE tracks matched strand='{strand_symbol}' in metadata."
-        )
+        raise ValueError(f"No SPLICE_SITE_USAGE tracks matched strand='{strand_symbol}' in metadata.")
 
     return matrix[:, selected_indices], selected_indices
 
@@ -127,9 +123,7 @@ def _integrate_cassette_into_context(
 ) -> tuple[str, int]:
     """Center-replace genomic sequence span with cassette, preserving total length."""
     if len(cassette_sequence) > len(genomic_context):
-        raise ValueError(
-            f"Cassette length {len(cassette_sequence)} exceeds context length {len(genomic_context)}."
-        )
+        raise ValueError(f"Cassette length {len(cassette_sequence)} exceeds context length {len(genomic_context)}.")
 
     insert_start = (len(genomic_context) - len(cassette_sequence)) // 2
     insert_end = insert_start + len(cassette_sequence)
@@ -182,9 +176,7 @@ class AlphaGenomeSpliceSiteUsageConfig(BaseConfig):
     )
     splice_pos: list[int] = ConfigField(
         title="Splice Position(s)",
-        description=(
-            "0-indexed position(s) in the concatenated target to evaluate."
-        ),
+        description=("0-indexed position(s) in the concatenated target to evaluate."),
     )
     direction: Literal["max", "min"] = ConfigField(
         title="Optimization Direction",
@@ -282,35 +274,24 @@ def alphagenome_splice_site_usage(
     # 1. Concatenate 3-part tuples into target sequences.
     target_seqs = []
     for left_flank, intron_core, right_flank in input_sequences:
-        target_seqs.append(
-            left_flank.sequence + intron_core.sequence + right_flank.sequence
-        )
+        target_seqs.append(left_flank.sequence + intron_core.sequence + right_flank.sequence)
 
     # 2. Validate target lengths are consistent (batch requirement).
     target_lengths = {len(t) for t in target_seqs}
     if len(target_lengths) != 1:
-        raise ValueError(
-            "AlphaGenome SSU scoring requires equal-length target sequences in a batch."
-        )
+        raise ValueError("AlphaGenome SSU scoring requires equal-length target sequences in a batch.")
     target_length = target_lengths.pop()
 
     # 3. Validate splice_pos against target length.
-    invalid_positions = [
-        pos for pos in config.splice_pos if pos < 0 or pos >= target_length
-    ]
+    invalid_positions = [pos for pos in config.splice_pos if pos < 0 or pos >= target_length]
     if invalid_positions:
-        raise ValueError(
-            f"splice_pos values {invalid_positions} are out of bounds "
-            f"for target length {target_length}."
-        )
+        raise ValueError(f"splice_pos values {invalid_positions} are out of bounds for target length {target_length}.")
 
     # 4. Build integrated sequences via cassette insertion.
     integrated_seqs = []
     insert_start_ref = None
     for target_seq in target_seqs:
-        cassette = (
-            config.cassette_left_context + target_seq + config.cassette_right_context
-        )
+        cassette = config.cassette_left_context + target_seq + config.cassette_right_context
         integrated, insert_start = _integrate_cassette_into_context(
             genomic_context=config.genomic_context,
             cassette_sequence=cassette,
@@ -344,9 +325,7 @@ def alphagenome_splice_site_usage(
 
     # 6. Extract scores and propagate metadata.
     scores: list[float] = []
-    for (left_flank, intron_core, right_flank), output in zip(
-        input_sequences, outputs, strict=True
-    ):
+    for (left_flank, intron_core, right_flank), output in zip(input_sequences, outputs, strict=True):
         integrated_length = len(config.genomic_context)
 
         payload = _extract_splice_site_usage_track_payload(output.result)

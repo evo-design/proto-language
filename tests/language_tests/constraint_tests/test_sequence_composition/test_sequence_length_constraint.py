@@ -1,4 +1,5 @@
 """tests/language_tests/constraint_tests/test_sequence_composition/test_sequence_length_constraint.py."""
+
 import pytest
 
 from proto_language.language.constraint import sequence_length_constraint
@@ -36,8 +37,14 @@ class TestSequenceLengthConstraint:
         assert constraint_match.evaluate()[0] == 0.0
         assert abs(constraint_short.evaluate()[0] - 0.5) < 1e-9
         assert abs(constraint_long.evaluate()[0] - 1.0) < 1e-9
-        assert seg_match.proposal_sequences[0]._constraints_metadata["sequence_length_constraint"]["data"]["length"] == target_len
-        assert seg_short.proposal_sequences[0]._constraints_metadata["sequence_length_constraint"]["data"]["length"] == target_len // 2
+        assert (
+            seg_match.proposal_sequences[0]._constraints_metadata["sequence_length_constraint"]["data"]["length"]
+            == target_len
+        )
+        assert (
+            seg_short.proposal_sequences[0]._constraints_metadata["sequence_length_constraint"]["data"]["length"]
+            == target_len // 2
+        )
 
     @pytest.mark.parametrize(
         "seq_str, target_len, expected_score",

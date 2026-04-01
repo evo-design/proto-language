@@ -35,6 +35,7 @@ class MaxHomopolymerConfig(BaseConfig):
             - PCR primers: 5-8 (prevent polymerase slippage)
             - Protein sequences: 5+ (avoid excessive amino acid repeats)
     """
+
     # Required parameters
     max_length: int = ConfigField(
         title="Max Homopolymer Length",
@@ -53,7 +54,9 @@ class MaxHomopolymerConfig(BaseConfig):
     supported_sequence_types=["dna", "rna", "protein"],
     num_input_sequences_per_tuple=1,
 )
-def max_homopolymer_constraint(input_sequences: list[tuple[Sequence, ...]], config: MaxHomopolymerConfig) -> list[float]:
+def max_homopolymer_constraint(
+    input_sequences: list[tuple[Sequence, ...]], config: MaxHomopolymerConfig
+) -> list[float]:
     """Penalize sequences containing homopolymers longer than specified maximum.
 
     This constraint function identifies the longest homopolymer (consecutive run
@@ -103,9 +106,7 @@ def max_homopolymer_constraint(input_sequences: list[tuple[Sequence, ...]], conf
         if len(seq.sequence) <= 1:
             longest_homopolymer = len(seq.sequence)
         else:
-            homopolymer_lengths = [
-                len(list(group)) for _, group in itertools.groupby(seq.sequence)
-            ]
+            homopolymer_lengths = [len(list(group)) for _, group in itertools.groupby(seq.sequence)]
             longest_homopolymer = max(homopolymer_lengths)
 
         seq._metadata["max_homopolymer_length"] = longest_homopolymer

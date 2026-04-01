@@ -133,7 +133,9 @@ class Optimizer(ABC):
         if self.num_results is not None:
             self._resolve_num_results(self.num_results)
 
-        logger.debug(f"Optimizer initialized: {self.__class__.__name__}, proposals={num_proposals}, results={num_results}")
+        logger.debug(
+            f"Optimizer initialized: {self.__class__.__name__}, proposals={num_proposals}, results={num_results}"
+        )
 
     @property
     def segments(self) -> tuple[Segment, ...]:
@@ -179,9 +181,7 @@ class Optimizer(ABC):
         """
         self._validate_optimizer()
 
-        num_sequences = (
-            len(self.segments[0].proposal_sequences) if self.segments else 0
-        )
+        num_sequences = len(self.segments[0].proposal_sequences) if self.segments else 0
         passed = [True] * num_sequences
 
         # Separate constraints into filters and scoring constraints
@@ -199,7 +199,7 @@ class Optimizer(ABC):
         self._proposal_outcomes = ["accepted"] * num_sequences
         for idx, constraint in enumerate(filters):
             if self.verbose:
-                logger.info(f"Filter {idx+1}: {constraint.label}")
+                logger.info(f"Filter {idx + 1}: {constraint.label}")
             results = constraint.evaluate(mask=passed, verbose=self.verbose)
             for i, (p, r) in enumerate(zip(passed, results, strict=True)):
                 if p and not r:
@@ -210,7 +210,7 @@ class Optimizer(ABC):
         all_scores = []
         for idx, constraint in enumerate(scorers):
             if self.verbose:
-                logger.info(f"Constraint {idx+1}: {constraint.label}")
+                logger.info(f"Constraint {idx + 1}: {constraint.label}")
             all_scores.append(constraint.evaluate(mask=passed, verbose=self.verbose))
 
         # Warn if no scoring constraints exist (all are filters)
@@ -343,13 +343,17 @@ class Optimizer(ABC):
         seen_gen_ids: set[int] = set()
         for gen in self.generators:
             if id(gen) in seen_gen_ids:
-                raise ValueError(f"Generator '{gen.__class__.__name__}' appears multiple times. Each instance can only be used once.")
+                raise ValueError(
+                    f"Generator '{gen.__class__.__name__}' appears multiple times. Each instance can only be used once."
+                )
             seen_gen_ids.add(id(gen))
 
         seen_con_ids: set[int] = set()
         for con in self.constraints:
             if id(con) in seen_con_ids:
-                raise ValueError(f"Constraint '{con.label}' appears multiple times. Each instance can only be used once.")
+                raise ValueError(
+                    f"Constraint '{con.label}' appears multiple times. Each instance can only be used once."
+                )
             seen_con_ids.add(id(con))
 
         # 5. Ensure unique constraint labels per segment (required for metadata namespacing)
@@ -408,8 +412,7 @@ class Optimizer(ABC):
         """
         if target_segment not in self.segments:
             raise ValueError(
-                f"target_segment '{target_segment.label or 'unlabeled'}' "
-                "is not in any of the provided constructs"
+                f"target_segment '{target_segment.label or 'unlabeled'}' is not in any of the provided constructs"
             )
 
         # Generators must only target the target segment
@@ -448,10 +451,7 @@ class Optimizer(ABC):
             if segment is target_segment:
                 continue
             source = segment.result_sequences or [segment.original_sequence]
-            segment.proposal_sequences = [
-                copy.deepcopy(source[i % len(source)])
-                for i in range(target_size)
-            ]
+            segment.proposal_sequences = [copy.deepcopy(source[i % len(source)]) for i in range(target_size)]
 
     def _initialize_sequence_pools(self) -> None:
         """Initialize sequence pools from previous optimizer's results or original sequence.
@@ -484,23 +484,19 @@ class Optimizer(ABC):
                 f"sequences by cycling through the existing {source_len} sequences and duplicating until {self.num_results} starting sequences for this optimizer are populated."
             )
         else:
-            logger.info(f"Handoff to {optimizer_name}: Starting sequences for current optimizer are populated by {source_len} sequences from previous optimizer.")
+            logger.info(
+                f"Handoff to {optimizer_name}: Starting sequences for current optimizer are populated by {source_len} sequences from previous optimizer."
+            )
 
         for segment in self.segments:
             # Source: previous optimizer's results or original sequence
             source = segment.result_sequences or [segment.original_sequence]
 
             # Result pool: cycle through source to preserve diversity
-            segment.result_sequences = [
-                copy.deepcopy(source[i % len(source)])
-                for i in range(self.num_results)
-            ]
+            segment.result_sequences = [copy.deepcopy(source[i % len(source)]) for i in range(self.num_results)]
 
             # Proposal pool: cycle through source to preserve diversity
-            segment.proposal_sequences = [
-                copy.deepcopy(source[i % len(source)])
-                for i in range(self.num_proposals)
-            ]
+            segment.proposal_sequences = [copy.deepcopy(source[i % len(source)]) for i in range(self.num_proposals)]
 
     def _resolve_num_results(self, num_results: int) -> None:
         """Resolve num_results and initialize sequence pools.
@@ -528,7 +524,9 @@ class Optimizer(ABC):
     def _prepare_run(self) -> None:
         """Call at start of run(). Validates state, captures on first run, restores on subsequent."""
         if self.num_results is None:
-            raise RuntimeError("num_results must be set. Set it via the optimizer config or use Program(num_results=...).")
+            raise RuntimeError(
+                "num_results must be set. Set it via the optimizer config or use Program(num_results=...)."
+            )
         if self._initial_state is None:
             self._capture_initial_state()
         else:
@@ -537,24 +535,24 @@ class Optimizer(ABC):
     def _capture_initial_state(self) -> None:
         """Capture current segment and optimizer state via serialization."""
         self._initial_state = {
-            'segments': [
+            "segments": [
                 {
-                    'result': [seq.to_dict() for seq in seg.result_sequences],
-                    'proposals': [seq.to_dict() for seq in seg.proposal_sequences],
+                    "result": [seq.to_dict() for seq in seg.result_sequences],
+                    "proposals": [seq.to_dict() for seq in seg.proposal_sequences],
                 }
                 for seg in self.segments
             ],
-            'energy_scores': self.energy_scores.copy(),
+            "energy_scores": self.energy_scores.copy(),
         }
 
     def _restore_initial_state(self) -> None:
         """Restore to captured state via deserialization."""
         assert self._initial_state is not None  # noqa: S101 -- mypy type narrowing
         for i, seg in enumerate(self.segments):
-            state = self._initial_state['segments'][i]
-            seg.result_sequences = [Sequence.from_dict(s) for s in state['result']]
-            seg.proposal_sequences = [Sequence.from_dict(s) for s in state['proposals']]
-        self.energy_scores = self._initial_state['energy_scores'].copy()
+            state = self._initial_state["segments"][i]
+            seg.result_sequences = [Sequence.from_dict(s) for s in state["result"]]
+            seg.proposal_sequences = [Sequence.from_dict(s) for s in state["proposals"]]
+        self.energy_scores = self._initial_state["energy_scores"].copy()
         self._proposal_outcomes = []
         self._proposal_energy_scores = []
         self._labels_deduplicated = False
@@ -573,15 +571,21 @@ class Optimizer(ABC):
         expected_len = len(self.segments[0].result_sequences)
         for segment in self.segments:
             if len(segment.result_sequences) != expected_len:
-                raise RuntimeError(f"result_sequences length mismatch: segment '{segment.label or 'unlabeled'}' has {len(segment.result_sequences)}, expected {expected_len}")
+                raise RuntimeError(
+                    f"result_sequences length mismatch: segment '{segment.label or 'unlabeled'}' has {len(segment.result_sequences)}, expected {expected_len}"
+                )
         if len(self.energy_scores) != expected_len:
-            raise RuntimeError(f"energy_scores has length {len(self.energy_scores)}, expected {expected_len} (matching result_sequences)")
+            raise RuntimeError(
+                f"energy_scores has length {len(self.energy_scores)}, expected {expected_len} (matching result_sequences)"
+            )
 
         result = build_results(self.constructs, self.energy_scores)
         result["time_step"] = time_step
 
         if self.track_proposals and self._proposal_outcomes:
-            result["proposal_results"] = build_proposal_results(self.constructs, self._proposal_outcomes, self._proposal_energy_scores)
+            result["proposal_results"] = build_proposal_results(
+                self.constructs, self._proposal_outcomes, self._proposal_energy_scores
+            )
 
         self.history.append(result)
 
@@ -593,9 +597,7 @@ class Optimizer(ABC):
         self,
         path: Path | str = "./results",
         format: Literal["csv", "tsv", "json", "xlsx"] = "csv",
-        table: Literal[
-            "sequences", "constraints", "constructs", "optimization"
-        ] | None = None,
+        table: Literal["sequences", "constraints", "constructs", "optimization"] | None = None,
         segments: set[str] | None = None,
         result_indices: set[int] | None = None,
         constraints: set[str] | None = None,
@@ -621,11 +623,17 @@ class Optimizer(ABC):
         results = build_results(self.constructs, self.energy_scores)
         return export_tables(
             lambda t: flatten_table(
-                t, results, self.history,
-                segments=segments, result_indices=result_indices,
-                constraints=constraints, include_proposals=include_proposals,
+                t,
+                results,
+                self.history,
+                segments=segments,
+                result_indices=result_indices,
+                constraints=constraints,
+                include_proposals=include_proposals,
             ),
-            path, format, table,
+            path,
+            format,
+            table,
         )
 
     def to_dataframe(
@@ -647,15 +655,17 @@ class Optimizer(ABC):
             result_indices (set[int] | None): Indices of specific results to include, or None for all.
             include_proposals (bool): Whether to include proposal sequences alongside accepted results.
         """
-        return pd.DataFrame(flatten_table(
-            table,
-            build_results(self.constructs, self.energy_scores),
-            self.history,
-            segments=segments,
-            result_indices=result_indices,
-            constraints=constraints,
-            include_proposals=include_proposals,
-        ))
+        return pd.DataFrame(
+            flatten_table(
+                table,
+                build_results(self.constructs, self.energy_scores),
+                self.history,
+                segments=segments,
+                result_indices=result_indices,
+                constraints=constraints,
+                include_proposals=include_proposals,
+            )
+        )
 
     def to_fasta(
         self,

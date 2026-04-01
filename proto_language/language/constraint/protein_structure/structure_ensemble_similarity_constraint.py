@@ -36,6 +36,7 @@ logger = getLogger(__name__)
 # PyMOL RMSD Computation
 # ============================================================================
 
+
 def _compute_pymol_aligned_rmsd(
     target_pdb_text: str,
     mobile_pdb_text: str,
@@ -70,13 +71,13 @@ def _compute_pymol_aligned_rmsd(
         ) from e
 
     # Initialize PyMOL in quiet mode without GUI.
-    pymol.finish_launching(['pymol', '-qc'])
+    pymol.finish_launching(["pymol", "-qc"])
     cmd.reinitialize()
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.pdb', delete=False) as f1:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".pdb", delete=False) as f1:
         f1.write(target_pdb_text)
         tmp_target = f1.name
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.pdb', delete=False) as f2:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".pdb", delete=False) as f2:
         f2.write(mobile_pdb_text)
         tmp_mobile = f2.name
 
@@ -92,13 +93,13 @@ def _compute_pymol_aligned_rmsd(
         )
 
         return {
-            'rmsd': result[0],
-            'aligned_atoms': result[1],
-            'alignment_cycles': result[2],
+            "rmsd": result[0],
+            "aligned_atoms": result[1],
+            "alignment_cycles": result[2],
         }
     except Exception as e:
         logger.warning(f"PyMOL alignment failed: {e}, returning very bad RMSD value")
-        return {'rmsd': 999.0, 'aligned_atoms': 0, 'alignment_cycles': 0}
+        return {"rmsd": 999.0, "aligned_atoms": 0, "alignment_cycles": 0}
     finally:
         if os.path.exists(tmp_target):
             os.unlink(tmp_target)
@@ -140,7 +141,7 @@ def _compute_ensemble_rmsds(
             target_selection=target_selection,
             mobile_selection=mobile_selection,
         )
-        rmsds.append(result['rmsd'])
+        rmsds.append(result["rmsd"])
 
     return rmsds
 
@@ -184,6 +185,7 @@ def _summarize_rmsds(
 # Target Structure Preparation
 # ============================================================================
 
+
 def _prepare_target_structure(
     target_structure: Structure | str,
     residue_range: tuple[int, int] | None = None,
@@ -212,9 +214,7 @@ def _prepare_target_structure(
 
     # Extract residue range if requested.
     if residue_range is not None:
-        pdb_content = _extract_residue_range_from_pdb(
-            pdb_content, residue_range[0], residue_range[1]
-        )
+        pdb_content = _extract_residue_range_from_pdb(pdb_content, residue_range[0], residue_range[1])
 
     return pdb_content  # type: ignore[no-any-return]
 
@@ -231,17 +231,17 @@ def _extract_chain_from_pdb(pdb_text: str, chain_id: str) -> str:
     """
     extracted_lines = []
     for line in pdb_text.splitlines():
-        if line.startswith(('ATOM', 'HETATM')):
+        if line.startswith(("ATOM", "HETATM")):
             if len(line) >= 22 and line[21] == chain_id:
                 extracted_lines.append(line)
-        elif line.startswith('TER'):
+        elif line.startswith("TER"):
             # Include TER records for the correct chain
             if len(line) >= 22 and line[21] == chain_id:
                 extracted_lines.append(line)
-        elif line.startswith('END'):
+        elif line.startswith("END"):
             extracted_lines.append(line)
             break
-        elif not line.startswith(('ATOM', 'HETATM', 'TER')):
+        elif not line.startswith(("ATOM", "HETATM", "TER")):
             # Keep header lines
             extracted_lines.append(line)
 
@@ -265,7 +265,7 @@ def _extract_residue_range_from_pdb(
     """
     extracted_lines = []
     for line in pdb_text.splitlines():
-        if line.startswith(('ATOM', 'HETATM')):
+        if line.startswith(("ATOM", "HETATM")):
             try:
                 # Residue number is in columns 23-26 (indices 22:26)
                 res_num = int(line[22:26].strip())
@@ -274,9 +274,9 @@ def _extract_residue_range_from_pdb(
             except ValueError:
                 # Keep line if parsing fails
                 extracted_lines.append(line)
-        elif line.startswith('END'):
+        elif line.startswith("END"):
             extracted_lines.append(line)
-        elif not line.startswith(('ATOM', 'HETATM', 'TER')):
+        elif not line.startswith(("ATOM", "HETATM", "TER")):
             # Keep header lines
             extracted_lines.append(line)
 
@@ -286,6 +286,7 @@ def _extract_residue_range_from_pdb(
 # ============================================================================
 # Configuration
 # ============================================================================
+
 
 class StructureEnsembleSimilarityConfig(BaseConfig):
     """Configuration for structure ensemble similarity constraints.
@@ -345,10 +346,7 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
     # Target specification (required)
     target_structure: Structure | str = ConfigField(
         title="Target Structure",
-        description=(
-            "Target structure: a Structure object, file path (.pdb/.cif), "
-            "or raw PDB/CIF content string."
-        ),
+        description=("Target structure: a Structure object, file path (.pdb/.cif), or raw PDB/CIF content string."),
     )
 
     # Target subsetting
@@ -414,9 +412,7 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
 
     @field_validator("target_residue_range", "proposal_residue_range", mode="after")
     @classmethod
-    def validate_residue_range(
-        cls, v: tuple[int, int] | None
-    ) -> tuple[int, int] | None:
+    def validate_residue_range(cls, v: tuple[int, int] | None) -> tuple[int, int] | None:
         """Validate residue ranges."""
         if v is not None:
             start, end = v
@@ -430,6 +426,7 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
 # ============================================================================
 # Constraint Implementation
 # ============================================================================
+
 
 @constraint(
     key="structure-ensemble-rmsd",
@@ -493,18 +490,13 @@ def structure_ensemble_rmsd_constraint(
                 # Convert from 1-indexed to 0-indexed for Python slicing.
                 proposal_sequence = seq.sequence[start_res - 1 : end_res]
                 if config.verbose:
-                    logger.info(
-                        f"Using residue range {start_res}-{end_res}: "
-                        f"{len(proposal_sequence)} residues"
-                    )
+                    logger.info(f"Using residue range {start_res}-{end_res}: {len(proposal_sequence)} residues")
 
             # Configure and run ensemble prediction.
 
             bioemu_input = BioEmuInput(
                 complexes=[
-                    StructurePredictionComplex(
-                        chains=[{"sequence": proposal_sequence, "entity_type": "protein"}]
-                    )
+                    StructurePredictionComplex(chains=[{"sequence": proposal_sequence, "entity_type": "protein"}])
                 ]
             )
 
@@ -542,13 +534,8 @@ def structure_ensemble_rmsd_constraint(
             rmsd_summary = _summarize_rmsds(rmsds, config.rmsd_aggregation)
 
             if config.verbose:
-                logger.info(
-                    f"RMSD summary ({config.rmsd_aggregation}): {rmsd_summary:.2f} Å"
-                )
-                logger.info(
-                    f"RMSD stats: min={np.min(rmsds):.2f}, "
-                    f"mean={np.mean(rmsds):.2f}, max={np.max(rmsds):.2f}"
-                )
+                logger.info(f"RMSD summary ({config.rmsd_aggregation}): {rmsd_summary:.2f} Å")
+                logger.info(f"RMSD stats: min={np.min(rmsds):.2f}, mean={np.mean(rmsds):.2f}, max={np.max(rmsds):.2f}")
 
             # Convert to score in [0, 1].
             score = sigmoid_score(
@@ -558,20 +545,22 @@ def structure_ensemble_rmsd_constraint(
             )
 
             rmsd_arr = np.array(rmsds)
-            seq._metadata.update({
-                "ensemble_rmsd_summary": rmsd_summary,
-                "ensemble_rmsd_aggregation": config.rmsd_aggregation,
-                "ensemble_rmsd_all": rmsds,
-                "ensemble_rmsd_min": float(np.min(rmsd_arr)),
-                "ensemble_rmsd_mean": float(np.mean(rmsd_arr)),
-                "ensemble_rmsd_median": float(np.median(rmsd_arr)),
-                "ensemble_rmsd_p10": float(np.percentile(rmsd_arr, 10)),
-                "ensemble_rmsd_std": float(np.std(rmsd_arr)),
-                "ensemble_size": len(rmsds),
-                "ensemble_score": score,
-                "pct_within_2A": float(np.mean(rmsd_arr < 2.0) * 100),
-                "pct_within_3A": float(np.mean(rmsd_arr < 3.0) * 100),
-            })
+            seq._metadata.update(
+                {
+                    "ensemble_rmsd_summary": rmsd_summary,
+                    "ensemble_rmsd_aggregation": config.rmsd_aggregation,
+                    "ensemble_rmsd_all": rmsds,
+                    "ensemble_rmsd_min": float(np.min(rmsd_arr)),
+                    "ensemble_rmsd_mean": float(np.mean(rmsd_arr)),
+                    "ensemble_rmsd_median": float(np.median(rmsd_arr)),
+                    "ensemble_rmsd_p10": float(np.percentile(rmsd_arr, 10)),
+                    "ensemble_rmsd_std": float(np.std(rmsd_arr)),
+                    "ensemble_size": len(rmsds),
+                    "ensemble_score": score,
+                    "pct_within_2A": float(np.mean(rmsd_arr < 2.0) * 100),
+                    "pct_within_3A": float(np.mean(rmsd_arr < 3.0) * 100),
+                }
+            )
 
             scores.append(score)
 

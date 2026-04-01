@@ -16,10 +16,7 @@ from proto_language.language.constraint.sequence_annotation.promoter_strength_co
 )
 from proto_language.language.core import Constraint, Segment
 
-PATCH_TARGET = (
-    "proto_language.language.constraint.sequence_annotation"
-    ".promoter_strength_constraint.promoter_calculator"
-)
+PATCH_TARGET = "proto_language.language.constraint.sequence_annotation.promoter_strength_constraint.promoter_calculator"
 
 
 def _mock_result(dG_total=-4.0, Tx_rate=15000.0, strand="+"):
@@ -44,15 +41,14 @@ def _evaluate(segment, config, mock_return):
 
 
 class TestPromoterStrengthConstraint:
-
     @pytest.mark.parametrize(
         "dG, lo, hi",
         [
-            (0.5, 1.0, 1.0),      # positive dG
-            (-1.0, 1.0, 1.0),     # weak (above -1.5 threshold)
-            (-2.0, 0.5, 1.0),     # moderate (-1.5 to -3.0)
-            (-4.0, 0.0, 0.5),     # strong (below -3.0)
-            (-10.0, 0.0, 0.0),    # very strong, clamped to 0.0
+            (0.5, 1.0, 1.0),  # positive dG
+            (-1.0, 1.0, 1.0),  # weak (above -1.5 threshold)
+            (-2.0, 0.5, 1.0),  # moderate (-1.5 to -3.0)
+            (-4.0, 0.0, 0.5),  # strong (below -3.0)
+            (-10.0, 0.0, 0.0),  # very strong, clamped to 0.0
         ],
     )
     def test_dG_scoring(self, dG, lo, hi):
@@ -64,8 +60,8 @@ class TestPromoterStrengthConstraint:
     @pytest.mark.parametrize(
         "tx_rate, lo, hi",
         [
-            (1000.0, 1.0, 1.0),   # weak (below 3000)
-            (8000.0, 0.0, 1.0),   # moderate (3000-10000)
+            (1000.0, 1.0, 1.0),  # weak (below 3000)
+            (8000.0, 0.0, 1.0),  # moderate (3000-10000)
             (30000.0, 0.0, 0.5),  # strong (above 20000)
         ],
     )

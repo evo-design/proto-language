@@ -88,6 +88,7 @@ class MMseqsSimilarityConfig(BaseConfig):
         - [0, 40]: Low similarity filter, for novelty/uniqueness constraints
         - [80, 100]: High similarity filter, for functional conservation requirements
     """
+
     # Required parameters
     min_similarity: float = ConfigField(
         title="Min Acceptable Percent Identity",
@@ -136,11 +137,13 @@ class MMseqsSimilarityConfig(BaseConfig):
         depends_on={"field": "orf_predictor", "value": "prodigal"},
     )
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_similarity_range(self) -> MMseqsSimilarityConfig:
         """Ensure min_similarity does not exceed max_similarity."""
         if self.min_similarity > self.max_similarity:
-            raise ValueError(f"min_similarity ({self.min_similarity}) must be <= max_similarity ({self.max_similarity}).")
+            raise ValueError(
+                f"min_similarity ({self.min_similarity}) must be <= max_similarity ({self.max_similarity})."
+            )
         return self
 
 
@@ -154,7 +157,9 @@ class MMseqsSimilarityConfig(BaseConfig):
     supported_sequence_types=["dna", "protein"],
     num_input_sequences_per_tuple=1,
 )
-def mmseqs_similarity_constraint(input_sequences: list[tuple[Sequence, ...]], config: MMseqsSimilarityConfig) -> list[float]:
+def mmseqs_similarity_constraint(
+    input_sequences: list[tuple[Sequence, ...]], config: MMseqsSimilarityConfig
+) -> list[float]:
     """Evaluate sequence similarity using MMseqs2 protein database search.
 
     This constraint function evaluates whether protein sequences (or proteins
@@ -231,9 +236,7 @@ def mmseqs_similarity_constraint(input_sequences: list[tuple[Sequence, ...]], co
         >>> from proto_language.language.core import Sequence, SequenceType
         >>> protein_seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", "protein")
         >>> config = MMseqsSimilarityConfig(
-        ...     min_similarity=10.0,
-        ...     max_similarity=30.0,
-        ...     mmseqs_db="/data/databases/uniref90"
+        ...     min_similarity=10.0, max_similarity=30.0, mmseqs_db="/data/databases/uniref90"
         ... )
         >>> scores = mmseqs_similarity_constraint([protein_seq], config)
         >>> if scores[0] == 0.0:
@@ -244,14 +247,11 @@ def mmseqs_similarity_constraint(input_sequences: list[tuple[Sequence, ...]], co
 
         >>> from proto_tools import MmseqsSearchProteinsConfig
         >>> mmseqs_cfg = MmseqsSearchProteinsConfig(
-        ...     threads=32,         # Use 32 CPU cores
-        ...     sensitivity=7.5     # Most sensitive
+        ...     threads=32,  # Use 32 CPU cores
+        ...     sensitivity=7.5,  # Most sensitive
         ... )
         >>> config = MMseqsSimilarityConfig(
-        ...     min_similarity=20.0,
-        ...     max_similarity=60.0,
-        ...     mmseqs_db="/data/databases/trembl",
-        ...     mmseqs_config=mmseqs_cfg
+        ...     min_similarity=20.0, max_similarity=60.0, mmseqs_db="/data/databases/trembl", mmseqs_config=mmseqs_cfg
         ... )
         >>> scores = mmseqs_similarity_constraint([protein_seq], config)
     """
@@ -270,8 +270,7 @@ def mmseqs_similarity_constraint(input_sequences: list[tuple[Sequence, ...]], co
     # Get proteins (ORF prediction for DNA, direct for protein)
     if sequence_type == "dna":
         sequences_clean = [
-            "".join(c for c in seq.sequence.upper() if c in DNA_NUCLEOTIDES)
-            for (seq,) in input_sequences
+            "".join(c for c in seq.sequence.upper() if c in DNA_NUCLEOTIDES) for (seq,) in input_sequences
         ]
 
         if config.orf_predictor == "prodigal":
@@ -281,9 +280,9 @@ def mmseqs_similarity_constraint(input_sequences: list[tuple[Sequence, ...]], co
 
             for seq_idx, orfs_list in enumerate(result.predicted_orfs):
                 orf_dicts = [orf.model_dump() for orf in orfs_list]
-                sequences[seq_idx]._metadata["prodigal_orfs"] = store_file(
-                    json.dumps(orf_dicts), FileType.JSON
-                ) if orf_dicts else None
+                sequences[seq_idx]._metadata["prodigal_orfs"] = (
+                    store_file(json.dumps(orf_dicts), FileType.JSON) if orf_dicts else None
+                )
                 protein_data.extend((seq_idx, orf.amino_acid_sequence) for orf in orfs_list)
 
         else:  # orfipy
@@ -293,9 +292,9 @@ def mmseqs_similarity_constraint(input_sequences: list[tuple[Sequence, ...]], co
 
             for seq_idx, orfs_list in enumerate(result.predicted_orfs):
                 orf_dicts = [orf.model_dump() for orf in orfs_list]
-                sequences[seq_idx]._metadata["orfipy_orfs"] = store_file(
-                    json.dumps(orf_dicts), FileType.JSON
-                ) if orf_dicts else None
+                sequences[seq_idx]._metadata["orfipy_orfs"] = (
+                    store_file(json.dumps(orf_dicts), FileType.JSON) if orf_dicts else None
+                )
                 protein_data.extend((seq_idx, orf.amino_acid_sequence) for orf in orfs_list)
 
     else:  # PROTEIN sequences - use directly
@@ -304,19 +303,21 @@ def mmseqs_similarity_constraint(input_sequences: list[tuple[Sequence, ...]], co
             sequences[seq_idx]._metadata["direct_protein"] = {
                 "id": f"protein_{seq_idx}",
                 "sequence": seq.sequence,
-                "length": len(seq.sequence)
+                "length": len(seq.sequence),
             }
 
     # Handle case where no proteins were found
     if not protein_data:
         for seq in sequences:
-            seq._metadata.update({
-                "mmseqs_results": None,
-                "unique_orfs_with_hits": 0,
-                "orfs_with_acceptable_similarity": 0,
-                "total_orfs_with_hits": 0,
-                "similarity_compliance_rate": 0.0,
-            })
+            seq._metadata.update(
+                {
+                    "mmseqs_results": None,
+                    "unique_orfs_with_hits": 0,
+                    "orfs_with_acceptable_similarity": 0,
+                    "total_orfs_with_hits": 0,
+                    "similarity_compliance_rate": 0.0,
+                }
+            )
         return [MAX_ENERGY] * len(sequences)
 
     # Extract protein sequences for MMseqs search
@@ -335,15 +336,17 @@ def mmseqs_similarity_constraint(input_sequences: list[tuple[Sequence, ...]], co
 
     if not mmseqs_result.success:
         for seq in sequences:
-            seq._metadata.update({
-                "mmseqs_error": True,
-                "mmseqs_error_messages": mmseqs_result.errors,
-                "mmseqs_results": None,
-                "unique_orfs_with_hits": 0,
-                "orfs_with_acceptable_similarity": 0,
-                "total_orfs_with_hits": 0,
-                "similarity_compliance_rate": 0.0,
-            })
+            seq._metadata.update(
+                {
+                    "mmseqs_error": True,
+                    "mmseqs_error_messages": mmseqs_result.errors,
+                    "mmseqs_results": None,
+                    "unique_orfs_with_hits": 0,
+                    "orfs_with_acceptable_similarity": 0,
+                    "total_orfs_with_hits": 0,
+                    "similarity_compliance_rate": 0.0,
+                }
+            )
         return [MAX_ENERGY] * len(sequences)
 
     # Aggregate hits by input sequence
@@ -353,11 +356,13 @@ def mmseqs_similarity_constraint(input_sequences: list[tuple[Sequence, ...]], co
     for prot_idx, result in enumerate(mmseqs_result.results):
         seq_idx = protein_to_seq_idx[prot_idx]
         for hit in result.hits:
-            seq_hits[seq_idx].append({
-                "target_id": hit.target_id,
-                "pident": hit.pident,
-                "evalue": hit.evalue,
-            })
+            seq_hits[seq_idx].append(
+                {
+                    "target_id": hit.target_id,
+                    "pident": hit.pident,
+                    "evalue": hit.evalue,
+                }
+            )
 
     # Score each sequence
     scores = []
@@ -365,19 +370,21 @@ def mmseqs_similarity_constraint(input_sequences: list[tuple[Sequence, ...]], co
         hits = seq_hits[seq_idx]
         num_hits = len(hits)
 
-        seq._metadata.update({
-            "mmseqs_results": store_file(
-                json.dumps(hits), FileType.JSON
-            ) if hits else None,
-            "unique_orfs_with_hits": num_hits,
-        })
+        seq._metadata.update(
+            {
+                "mmseqs_results": store_file(json.dumps(hits), FileType.JSON) if hits else None,
+                "unique_orfs_with_hits": num_hits,
+            }
+        )
 
         if num_hits == 0:
-            seq._metadata.update({
-                "orfs_with_acceptable_similarity": 0,
-                "total_orfs_with_hits": 0,
-                "similarity_compliance_rate": 0.0,
-            })
+            seq._metadata.update(
+                {
+                    "orfs_with_acceptable_similarity": 0,
+                    "total_orfs_with_hits": 0,
+                    "similarity_compliance_rate": 0.0,
+                }
+            )
             scores.append(MAX_ENERGY)
             continue
 
@@ -390,15 +397,17 @@ def mmseqs_similarity_constraint(input_sequences: list[tuple[Sequence, ...]], co
             if config.min_similarity <= pident <= config.max_similarity:
                 acceptable += 1
             else:
-                violations.append(calculate_percentage_range_deviation(
-                    pident, config.min_similarity, config.max_similarity
-                ))
+                violations.append(
+                    calculate_percentage_range_deviation(pident, config.min_similarity, config.max_similarity)
+                )
 
-        seq._metadata.update({
-            "orfs_with_acceptable_similarity": acceptable,
-            "total_orfs_with_hits": num_hits,
-            "similarity_compliance_rate": acceptable / num_hits,
-        })
+        seq._metadata.update(
+            {
+                "orfs_with_acceptable_similarity": acceptable,
+                "total_orfs_with_hits": num_hits,
+                "similarity_compliance_rate": acceptable / num_hits,
+            }
+        )
 
         scores.append(MIN_ENERGY if not violations else min(MAX_ENERGY, np.mean(violations)))  # type: ignore[arg-type]
 

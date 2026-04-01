@@ -1,4 +1,5 @@
 """tests/language_tests/constraint_tests/test_base_constraint.py."""
+
 from __future__ import annotations
 
 import copy
@@ -35,13 +36,17 @@ def _make_segment_with_proposals(sequences: list[str], seq_type: str = "dna") ->
 # TESTS FOR CONSTRAINT EVALUATION MODES
 # =============================================================================
 
+
 class TestConstraintEvaluation:
     """Tests for constraint evaluation with different input configurations."""
 
-    @pytest.mark.parametrize("sequences,expected_scores", [
-        (["ACTGACTG"], [0.25]),  # Single sequence: 2 T's out of 8
-        (["ACTGACTG", "TCTGTCTG", "TTTGTTTG", "TTTTTTTT"], [0.25, 0.5, 0.75, 1.0]),  # Batch
-    ])
+    @pytest.mark.parametrize(
+        "sequences,expected_scores",
+        [
+            (["ACTGACTG"], [0.25]),  # Single sequence: 2 T's out of 8
+            (["ACTGACTG", "TCTGTCTG", "TTTGTTTG", "TTTTTTTT"], [0.25, 0.5, 0.75, 1.0]),  # Batch
+        ],
+    )
     def test_constraint_evaluation_contiguous(self, sequences, expected_scores):
         """Tests constraint evaluation with single and batched sequences."""
         segment = _make_segment_with_proposals(sequences, "dna")
@@ -122,6 +127,7 @@ class TestConstraintEvaluation:
 # =============================================================================
 # TESTS FOR INPUT VALIDATION
 # =============================================================================
+
 
 class TestConstraintValidation:
     """Tests for constraint input validation."""
@@ -204,6 +210,7 @@ class TestConstraintValidation:
 # TESTS FOR CUSTOM LABEL HANDLING
 # =============================================================================
 
+
 class TestConstraintLabel:
     """Tests for custom label functionality."""
 
@@ -215,7 +222,7 @@ class TestConstraintLabel:
             inputs=[segment],
             function=mock_single_input_scoring_function,
             function_config=MockConstraintConfig(),
-            label="my_custom_label"
+            label="my_custom_label",
         )
         constraint.evaluate()
 
@@ -230,6 +237,7 @@ class TestConstraintLabel:
 # =============================================================================
 # TESTS FOR MASK-BASED EVALUATION
 # =============================================================================
+
 
 class TestConstraintMask:
     """Tests for mask-based selective evaluation."""
@@ -252,9 +260,9 @@ class TestConstraintMask:
         assert len(scores) == 5
         assert scores[0] == pytest.approx(0.875)  # 7/8
         assert math.isnan(scores[1])  # Skipped
-        assert scores[2] == pytest.approx(1.0)    # 8/8
+        assert scores[2] == pytest.approx(1.0)  # 8/8
         assert math.isnan(scores[3])  # Skipped
-        assert scores[4] == pytest.approx(0.5)    # 4/8
+        assert scores[4] == pytest.approx(0.5)  # 4/8
 
         # Verify metadata only propagated to evaluated proposals (nested under "constraints")
         constraint_label = "mock_multi_input_scoring_function"
@@ -301,13 +309,16 @@ class TestConstraintMask:
 # TESTS FOR THRESHOLD-BASED FILTERING
 # =============================================================================
 
+
 class TestConstraintThreshold:
     """Tests for threshold-based filtering functionality."""
 
     def test_threshold_converts_scores_to_boolean(self):
         """Test that threshold converts float scores to boolean filters."""
+
         def mock_scoring(input_sequences, config=None):
             return [len(seq_tuple[0].sequence) / 10.0 for seq_tuple in input_sequences]
+
         mock_scoring._constraint_config_class = MockConstraintConfig
         mock_scoring._constraint_supported_sequence_types = ["dna"]
 
@@ -328,8 +339,10 @@ class TestConstraintThreshold:
 
     def test_no_threshold_returns_float_scores(self):
         """Test that constraints without threshold return float scores."""
+
         def mock_scoring(input_sequences, config=None):
             return [0.4, 0.8]
+
         mock_scoring._constraint_config_class = MockConstraintConfig
         mock_scoring._constraint_supported_sequence_types = ["dna"]
 
@@ -351,6 +364,7 @@ class TestConstraintThreshold:
 # TESTS FOR WEIGHT PARAMETER
 # =============================================================================
 
+
 class TestConstraintWeight:
     """Tests for weight parameter functionality."""
 
@@ -367,8 +381,10 @@ class TestConstraintWeight:
 
     def test_weight_multiplies_scores(self):
         """Test that weight correctly multiplies raw scores."""
+
         def mock_scoring(input_sequences, config=None):
             return [0.2, 0.5]
+
         mock_scoring._constraint_config_class = MockConstraintConfig
         mock_scoring._constraint_supported_sequence_types = ["dna"]
 
@@ -402,6 +418,7 @@ class TestConstraintWeight:
 # =============================================================================
 # EDGE CASE TESTS
 # =============================================================================
+
 
 class TestConstraintEdgeCases:
     """Tests for edge cases and boundary conditions."""
@@ -437,6 +454,7 @@ class TestConstraintEdgeCases:
 
     def test_reserved_key_collision_raises_error(self):
         """Test that writing a reserved key to seq._metadata raises ValueError."""
+
         def collision_scoring_function(input_sequences, config):
             scores = []
             for (seq,) in input_sequences:
@@ -460,8 +478,10 @@ class TestConstraintEdgeCases:
 
     def test_out_of_range_scores_warn(self, caplog):
         """Test that constraint scores outside [0, 1] log a warning."""
+
         def negative_scoring(input_sequences, config=None):
             return [-0.5, 1.5, 0.5]
+
         negative_scoring._constraint_config_class = MockConstraintConfig
         negative_scoring._constraint_supported_sequence_types = ["dna"]
 
@@ -475,6 +495,7 @@ class TestConstraintEdgeCases:
         )
 
         import logging
+
         with caplog.at_level(logging.WARNING):
             scores = constraint.evaluate()
 
@@ -487,6 +508,7 @@ class TestConstraintEdgeCases:
 
     def test_non_reserved_key_allowed(self):
         """Test that writing non-reserved keys to seq._metadata works fine."""
+
         def safe_scoring_function(input_sequences, config):
             scores = []
             for (seq,) in input_sequences:

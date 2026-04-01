@@ -2,6 +2,7 @@
 
 Represents a single DNA, RNA, protein, or ligand sequence with validation and metadata.
 """
+
 from __future__ import annotations
 
 import copy
@@ -86,7 +87,8 @@ class Sequence:
             if collisions:
                 warnings.warn(
                     f"Metadata contains reserved keys {collisions} that will be "
-                    f"overwritten by identity fields in the .metadata property.", stacklevel=2
+                    f"overwritten by identity fields in the .metadata property.",
+                    stacklevel=2,
                 )
 
     def _validate_sequence(self, sequence: str) -> None:
@@ -109,7 +111,8 @@ class Sequence:
         if invalid_chars:
             warnings.warn(
                 f"Invalid characters found: {', '.join(invalid_chars)}. "
-                f"Valid characters are: {', '.join(sorted(self._valid_chars))}", stacklevel=2
+                f"Valid characters are: {', '.join(sorted(self._valid_chars))}",
+                stacklevel=2,
             )
 
     @property
@@ -233,7 +236,10 @@ class Sequence:
         seq._constraints_metadata = data.get("constraints", {})
         return seq
 
-def create_concatenated_sequence(subsequences: Iterable[Sequence], segment_labels: list[str | None] | None = None) -> Sequence:
+
+def create_concatenated_sequence(
+    subsequences: Iterable[Sequence], segment_labels: list[str | None] | None = None
+) -> Sequence:
     """Concatenate subsequences into a single Sequence object.
 
     Args:
@@ -258,7 +264,9 @@ def create_concatenated_sequence(subsequences: Iterable[Sequence], segment_label
     # Merge segment metadata if labels provided
     if segment_labels:
         if len(segment_labels) != len(seq_list):
-            raise ValueError(f"Length mismatch: {len(segment_labels)} labels provided but {len(seq_list)} sequences to concatenate")
+            raise ValueError(
+                f"Length mismatch: {len(segment_labels)} labels provided but {len(seq_list)} sequences to concatenate"
+            )
         segments_metadata = {
             label: {
                 **copy.deepcopy(seq._metadata),
@@ -268,6 +276,7 @@ def create_concatenated_sequence(subsequences: Iterable[Sequence], segment_label
         }
         joined_seq._metadata["segments"] = segments_metadata
     return joined_seq
+
 
 # =============================================================================
 # Sequence Validation Helpers
@@ -377,13 +386,11 @@ def validate_smiles(smiles: str, verbose: bool = True) -> bool:
         bool: True if valid SMILES, False if invalid or RDKit unavailable.
     """
     from rdkit import Chem
+
     mol: object = Chem.MolFromSmiles(smiles)
     if mol is None:
         if verbose:
-            warnings.warn(
-                f"RDKit could not parse SMILES: '{smiles}'. "
-                "This may not be a valid molecule.", stacklevel=2
-            )
+            warnings.warn(f"RDKit could not parse SMILES: '{smiles}'. This may not be a valid molecule.", stacklevel=2)
         return False
     return True
 

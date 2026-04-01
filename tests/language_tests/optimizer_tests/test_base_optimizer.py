@@ -1,4 +1,5 @@
 """tests/language_tests/optimizer_tests/test_base_optimizer.py."""
+
 from __future__ import annotations
 
 import logging
@@ -19,6 +20,7 @@ from proto_language.language.core import (
 # Concrete implementation for testing the abstract base class
 class ConcreteOptimizer(Optimizer):
     """Concrete implementation of Optimizer for testing purposes."""
+
     def __init__(
         self,
         constructs: list[Construct],
@@ -50,6 +52,7 @@ class ConcreteOptimizer(Optimizer):
 
 class MockGenerator(Generator):
     """Minimal mock generator for testing."""
+
     def __init__(self):
         super().__init__()
         self._assigned_segment = None
@@ -384,9 +387,7 @@ class TestOptimizerValidation:
         constraint_b.weight = 1.0
         constraint_b.evaluate.return_value = [1.0, 1.0, 1.0, 1.0]
 
-        ConcreteOptimizer(
-            [construct], [gen1, gen2], [constraint_a, constraint_b], 4, 2
-        )
+        ConcreteOptimizer([construct], [gen1, gen2], [constraint_a, constraint_b], 4, 2)
 
         # constraint_a collides with constraint_b on seg1 → constraint_b gets renamed
         assert constraint_a.label == "score"
@@ -568,7 +569,7 @@ class TestFilterConstraints:
         scoring_constraint.label = "ScoringConstraint"
         scoring_constraint.threshold = None
         scoring_constraint.weight = 1.0
-        scoring_constraint.evaluate.return_value = [10.0, float('nan'), 20.0]
+        scoring_constraint.evaluate.return_value = [10.0, float("nan"), 20.0]
 
         optimizer = ConcreteOptimizer(
             constructs=[construct],
@@ -599,7 +600,7 @@ class TestFilterConstraints:
         scoring_constraint.inputs = [segment]
         scoring_constraint.label = "ScoringConstraint"
         scoring_constraint.threshold = None
-        scoring_constraint.evaluate.return_value = [1.0, float('nan'), 1.0]
+        scoring_constraint.evaluate.return_value = [1.0, float("nan"), 1.0]
 
         optimizer = ConcreteOptimizer(
             constructs=[construct],
@@ -613,7 +614,7 @@ class TestFilterConstraints:
 
         # Verify scoring constraint received mask reflecting filter rejection
         _, kwargs = scoring_constraint.evaluate.call_args
-        assert kwargs['mask'] == [True, False, True]
+        assert kwargs["mask"] == [True, False, True]
 
     def test_filter_only_constraints_warns(self, caplog):
         """Tests that filter-only constraints (no scoring constraints) logs a warning."""
@@ -648,7 +649,7 @@ class TestFilterConstraints:
         constraint.threshold = None
         constraint.weight = 1.0
         # Bug: returns NaN for proposal 1 even though it wasn't filtered
-        constraint.evaluate.return_value = [1.0, float('nan'), 1.0]
+        constraint.evaluate.return_value = [1.0, float("nan"), 1.0]
 
         optimizer = ConcreteOptimizer(
             constructs=[construct],
@@ -702,14 +703,10 @@ class TestFilterConstraints:
         assert any("Proposal 0" in m and "ACCEPTED" in m for m in caplog.messages)
         # Proposal 1 rejected by pLDDT Filter only (Length Filter never evaluated it)
         assert any(
-            "Proposal 1" in m and "REJECTED by pLDDT Filter" in m and "Length Filter" not in m
-            for m in caplog.messages
+            "Proposal 1" in m and "REJECTED by pLDDT Filter" in m and "Length Filter" not in m for m in caplog.messages
         )
         # Proposal 2 rejected by Length Filter only (pLDDT Filter passed it)
-        assert any(
-            "Proposal 2" in m and "REJECTED by Length Filter" in m and "pLDDT" not in m
-            for m in caplog.messages
-        )
+        assert any("Proposal 2" in m and "REJECTED by Length Filter" in m and "pLDDT" not in m for m in caplog.messages)
 
 
 class TestToolCacheClearing:
@@ -719,7 +716,7 @@ class TestToolCacheClearing:
         """Tests different cache clearing configurations."""
         construct, generator, constraint, _ = _setup_optimizer_components()
 
-        with patch('proto_language.language.core.optimizer.ToolCache') as MockCache:
+        with patch("proto_language.language.core.optimizer.ToolCache") as MockCache:
             mock_cache = MockCache.return_value
             mock_cache.current_size = 200
 
@@ -801,8 +798,8 @@ class TestStateRestartBehavior:
         optimizer._prepare_run()
 
         assert optimizer._initial_state is not None
-        assert 'segments' in optimizer._initial_state
-        assert 'energy_scores' in optimizer._initial_state
+        assert "segments" in optimizer._initial_state
+        assert "energy_scores" in optimizer._initial_state
 
     def test_prepare_run_restores_state_on_subsequent_calls(self):
         """Tests that _prepare_run restores state on subsequent calls."""
@@ -843,7 +840,7 @@ class TestStateRestartBehavior:
         segment.proposal_sequences[0].sequence = "XXXX"
 
         # Captured state should be unchanged (now stored as serialized dicts)
-        captured_seq = optimizer._initial_state['segments'][0]['proposals'][0]['sequence']
+        captured_seq = optimizer._initial_state["segments"][0]["proposals"][0]["sequence"]
         assert captured_seq == "ATCG"
 
     def test_labels_deduplicated_resets_on_restore(self):
@@ -864,9 +861,7 @@ class TestStateRestartBehavior:
         constraint2.weight = 1.0
         constraint2.evaluate.return_value = [1.0, 1.0]
 
-        optimizer = ConcreteOptimizer(
-            [construct], [generator], [constraint1, constraint2], 2, 2
-        )
+        optimizer = ConcreteOptimizer([construct], [generator], [constraint1, constraint2], 2, 2)
 
         # After init, labels deduplicated and flag is set
         assert optimizer._labels_deduplicated is True
@@ -903,9 +898,7 @@ class TestProposalTracking:
         filter2.weight = 1.0
         filter2.evaluate.return_value = [True, False, True]  # Proposal 1 fails
 
-        optimizer = ConcreteOptimizer(
-            [construct], [generator], [filter1, filter2], 3, 2
-        )
+        optimizer = ConcreteOptimizer([construct], [generator], [filter1, filter2], 3, 2)
         optimizer.score_energy()
 
         assert optimizer._proposal_outcomes == ["accepted", "Filter2", "Filter1"]
@@ -1070,7 +1063,11 @@ class TestOptimizerExport:
             config_dict={"min_gc": 0, "max_gc": 100},
         )
         self.optimizer = ConcreteOptimizer(
-            [construct], [generator], [constraint], num_proposals=2, num_results=2,
+            [construct],
+            [generator],
+            [constraint],
+            num_proposals=2,
+            num_results=2,
         )
         segment.proposal_sequences = [Sequence("ATCGATCG"), Sequence("GCTAGCTA")]
         self.optimizer.score_energy()
@@ -1091,12 +1088,15 @@ class TestOptimizerExport:
         content = path.read_text()
         assert "result_idx" in content and "sequence" in content
 
-    @pytest.mark.parametrize("table,expected_col", [
-        ("sequences", "sequence"),
-        ("constraints", "constraint"),
-        ("constructs", "full_sequence"),
-        ("optimization", "timepoint"),
-    ])
+    @pytest.mark.parametrize(
+        "table,expected_col",
+        [
+            ("sequences", "sequence"),
+            ("constraints", "constraint"),
+            ("constructs", "full_sequence"),
+            ("optimization", "timepoint"),
+        ],
+    )
     def test_to_dataframe(self, table, expected_col):
         """to_dataframe dispatches correctly to each table."""
         df = self.optimizer.to_dataframe(table=table)

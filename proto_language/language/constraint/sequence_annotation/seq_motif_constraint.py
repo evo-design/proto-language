@@ -88,6 +88,7 @@ class SeqMotifConfig(BaseConfig):
         Motif names must match exactly with the names in the MEME file (case-sensitive).
         Use the MOTIF lines in the .meme file to identify available motif names.
     """
+
     # Required parameters
     motifs_path: str = ConfigField(
         title="Path to MEME format motif file",
@@ -110,7 +111,7 @@ class SeqMotifConfig(BaseConfig):
         examples=[["motif1", "motif2"], ["all"], ["none"]],
     )
 
-    @field_validator('wanted', 'not_wanted', mode='before')
+    @field_validator("wanted", "not_wanted", mode="before")
     @classmethod
     def convert_motif_list(cls, v: Any) -> Any:
         """Convert single string to list of strings."""
@@ -230,7 +231,7 @@ def seq_motif_constraint(input_sequences: list[tuple[Sequence, ...]], config: Se
         ...     motifs_path="/data/jaspar_vertebrates.meme",
         ...     meme_bin_path="/usr/local/meme/bin",
         ...     wanted=["SP1", "lacI"],  # Must have these motifs
-        ...     aggregation="average"
+        ...     aggregation="average",
         ... )
         >>> scores = seq_motif_constraint([promoter_seq], config)
         >>> print(scores[0])  # e.g., 0.15 (both motifs found with good E-values)
@@ -420,9 +421,9 @@ def seq_motif_constraint(input_sequences: list[tuple[Sequence, ...]], config: Se
                 else:
                     unwanted_weight = 1.0
                     wanted_weight = 1.0
-                final_penalty = (
-                    unwanted_weight * unwanted_score + wanted_weight * wanted_score
-                ) / (unwanted_weight + wanted_weight)
+                final_penalty = (unwanted_weight * unwanted_score + wanted_weight * wanted_score) / (
+                    unwanted_weight + wanted_weight
+                )
             elif unwanted_penalties:
                 final_penalty = unwanted_score
             else:

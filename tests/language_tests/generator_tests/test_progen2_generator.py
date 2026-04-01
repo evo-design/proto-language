@@ -1,4 +1,5 @@
 """tests/language_tests/generator_tests/test_progen2_generator.py."""
+
 import copy
 
 import pytest
@@ -62,7 +63,9 @@ class TestProGen2Generator:
 
         expected_length = 120
         segment_two_proposals = Segment(length=expected_length, sequence_type="protein")
-        segment_two_proposals.proposal_sequences = [copy.deepcopy(segment_two_proposals.original_sequence) for _ in range(2)]
+        segment_two_proposals.proposal_sequences = [
+            copy.deepcopy(segment_two_proposals.original_sequence) for _ in range(2)
+        ]
         progen2_generator.assign(segment_two_proposals)
 
         with pytest.raises(ValueError, match="Expected 1 or"):

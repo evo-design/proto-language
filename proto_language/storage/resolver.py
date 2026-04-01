@@ -105,8 +105,7 @@ def resolve_file(reference: str) -> Path:
         logger.info(f"Downloaded to volume: {cache_path}")
     else:
         raise ValueError(
-            f"Unsupported reference: {reference}. "
-            "Only gcs://, gs://, or absolute local paths are supported"
+            f"Unsupported reference: {reference}. Only gcs://, gs://, or absolute local paths are supported"
         )
 
     return cache_path

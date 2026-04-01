@@ -38,17 +38,13 @@ class TestRandomProteinGenerator:
         segment = Segment(sequence="A" * seq_len, sequence_type="protein")
         gen.assign(segment)
 
-        segment.proposal_sequences = [
-            copy.deepcopy(segment.original_sequence) for _ in range(1)
-        ]
+        segment.proposal_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(1)]
         initial_sequence = segment.proposal_sequences[0].sequence
         gen.sample()
         mutated_sequence = segment.proposal_sequences[0].sequence
 
         assert len(mutated_sequence) == seq_len
-        diff_count = sum(
-            1 for a, b in zip(initial_sequence, mutated_sequence, strict=False) if a != b
-        )
+        diff_count = sum(1 for a, b in zip(initial_sequence, mutated_sequence, strict=False) if a != b)
         assert diff_count == 1
 
     def test_sample_batch(self):
@@ -60,9 +56,7 @@ class TestRandomProteinGenerator:
         segment = Segment(sequence="A" * 30, sequence_type="protein")
         gen.assign(segment)
 
-        segment.proposal_sequences = [
-            copy.deepcopy(segment.original_sequence) for _ in range(5)
-        ]
+        segment.proposal_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(5)]
         gen.sample()
         mutated_sequences = [s.sequence for s in segment.proposal_sequences]
 

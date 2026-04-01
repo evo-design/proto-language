@@ -44,16 +44,10 @@ class StructureBasedConstraintConfig(BaseConfig):
 
     Example:
         >>> # Using dict (will be converted to ESMFoldConfig)
-        >>> config = MyConstraintConfig(
-        ...     structure_tool="esmfold",
-        ...     tool_config={"device": "cuda"}
-        ... )
+        >>> config = MyConstraintConfig(structure_tool="esmfold", tool_config={"device": "cuda"})
         >>>
         >>> # Using typed config
-        >>> config = MyConstraintConfig(
-        ...     structure_tool="esmfold",
-        ...     tool_config=ESMFoldConfig(device="cuda")
-        ... )
+        >>> config = MyConstraintConfig(structure_tool="esmfold", tool_config=ESMFoldConfig(device="cuda"))
 
     Note:
         The tool_config is automatically validated to ensure it matches the

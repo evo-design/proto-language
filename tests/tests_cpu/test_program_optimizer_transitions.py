@@ -46,6 +46,7 @@ from proto_language.language.optimizer import (
 # Mock Generators
 # =============================================================================
 
+
 class MockAutoregressiveGenerator(Generator):
     """Mock autoregressive generator for BeamSearch testing without GPU."""
 
@@ -72,9 +73,7 @@ class MockAutoregressiveGenerator(Generator):
         for prompt in prompts:
             new_seq = "".join(random.choice("ATCG") for _ in range(num_tokens))  # noqa: S311 -- non-cryptographic, test mock
             sequences.append(prompt + new_seq if prepend_prompt else new_seq)
-        self._assigned_segment.proposal_sequences = [
-            Sequence(sequence=seq, sequence_type="dna") for seq in sequences
-        ]
+        self._assigned_segment.proposal_sequences = [Sequence(sequence=seq, sequence_type="dna") for seq in sequences]
         if self.use_kv_caching:
             mock_mha = Mock()
             mock_mha.key_value_memory_dict = {0: Mock(shape=(1, 2, 3))}
@@ -110,9 +109,12 @@ class MockCyclingGenerator(Generator):
 # Helper Functions
 # =============================================================================
 
+
 def create_topk_optimizer(construct, segment, num_samples=20, num_results=3, num_mutations=3):
     """Create a TopK optimizer."""
-    gen = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=num_mutations)))
+    gen = RandomNucleotideGenerator(
+        RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=num_mutations))
+    )
     gen.assign(segment)
     constraint = Constraint(
         inputs=[segment],
@@ -129,7 +131,9 @@ def create_topk_optimizer(construct, segment, num_samples=20, num_results=3, num
 
 def create_mcmc_optimizer(construct, segment, num_results=3, num_steps=10, num_mutations=2):
     """Create an MCMC optimizer."""
-    gen = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=num_mutations)))
+    gen = RandomNucleotideGenerator(
+        RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=num_mutations))
+    )
     gen.assign(segment)
     constraint = Constraint(
         inputs=[segment],
@@ -199,6 +203,7 @@ def create_cycling_optimizer(construct, segment, num_results=3, num_steps=5):
 # =============================================================================
 # Test Classes for All 16 Permutations
 # =============================================================================
+
 
 class TestTopKTransitions:
     """Tests 1-4: Transitions FROM TopK."""
@@ -496,6 +501,7 @@ class TestCyclingOptimizerTransitions:
 # =============================================================================
 # Content Verification Tests
 # =============================================================================
+
 
 class TestSortingContent:
     """Verify optimizer sorting behavior after Program.run_stage."""

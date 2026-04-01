@@ -34,23 +34,16 @@ class GCContentConfig(BaseConfig):
             or have very high melting temperatures. Higher values are more permissive.
 
     """
+
     # Required parameters
     min_gc: float = ConfigField(
-        ge=0,
-        le=100,
-        title="Min GC",
-        description="Minimum acceptable GC content percentage (0-100)",
-        examples=[35]
+        ge=0, le=100, title="Min GC", description="Minimum acceptable GC content percentage (0-100)", examples=[35]
     )
     max_gc: float = ConfigField(
-        ge=0,
-        le=100,
-        title="Max GC",
-        description="Maximum acceptable GC content percentage (0-100)",
-        examples=[70]
+        ge=0, le=100, title="Max GC", description="Maximum acceptable GC content percentage (0-100)", examples=[70]
     )
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_gc_range(self) -> GCContentConfig:
         """Ensure min_gc <= max_gc."""
         if self.min_gc > self.max_gc:
@@ -115,15 +108,11 @@ def gc_content_constraint(input_sequences: list[tuple[Sequence, ...]], config: G
             scores.append(MAX_ENERGY)
             continue
 
-        gc_content = (
-            100.0
-            * sum(nt in "GC" for nt in seq.sequence.upper())
-            / max(len(seq.sequence), 1)
-        )
+        gc_content = 100.0 * sum(nt in "GC" for nt in seq.sequence.upper()) / max(len(seq.sequence), 1)
 
         seq._metadata["gc_content"] = gc_content
 
         deviation = calculate_percentage_range_deviation(gc_content, config.min_gc, config.max_gc)
-        scores.append(min(MAX_ENERGY,deviation))
+        scores.append(min(MAX_ENERGY, deviation))
 
     return scores

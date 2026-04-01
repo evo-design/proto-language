@@ -39,6 +39,7 @@ ATOM     25  N   ARG C   3       4.509  10.101   0.000  1.00 90.00           N
 ATOM     26  CA  ARG C   3       3.958  11.451   0.000  1.00 90.00           C
 ATOM     27  C   ARG C   3       4.509  12.451   0.000  1.00 90.00           C"""
 
+
 class TestProteinGlobularityConstraint:
     """tests/language_tests/constraint_tests/test_protein_structure/test_protein_globularity_constraint.py.
 
@@ -51,7 +52,9 @@ class TestProteinGlobularityConstraint:
         config = ProteinGlobularityConfig()
 
         # Mock a compact globular structure (low std of distances)
-        with patch('proto_language.language.constraint.protein_structure.protein_globularity_constraint.run_esmfold') as mock_run:
+        with patch(
+            "proto_language.language.constraint.protein_structure.protein_globularity_constraint.run_esmfold"
+        ) as mock_run:
             # Create mock structure with PDB output
             mock_structure = MockStructure(
                 structure_content=mock_pdb,
@@ -153,7 +156,9 @@ class TestProteinGlobularityConstraint:
         """Test that n_replications correctly replicates the sequence."""
         segment = Segment(sequence="MKTAYIAK", sequence_type="protein")
         config = ProteinGlobularityConfig(n_replications=3)
-        with patch('proto_language.language.constraint.protein_structure.protein_globularity_constraint.run_esmfold') as mock_run:
+        with patch(
+            "proto_language.language.constraint.protein_structure.protein_globularity_constraint.run_esmfold"
+        ) as mock_run:
             # Create mock structure
             mock_structure = MockStructure(
                 structure_content=mock_pdb,
@@ -182,7 +187,7 @@ class TestProteinGlobularityConstraint:
 
             # Verify sequence was replicated 3 times
             mock_run.assert_called_once()
-            passed_input = mock_run.call_args.kwargs['inputs']  # Function called with keyword args
+            passed_input = mock_run.call_args.kwargs["inputs"]  # Function called with keyword args
             assert [chain.sequence for chain in passed_input.complexes[0].chains] == [
                 "MKTAYIAK",
                 "MKTAYIAK",

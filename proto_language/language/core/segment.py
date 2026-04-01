@@ -132,10 +132,7 @@ class Segment:
         Only checks original sequence (original user input) and result sequences (previous optimization results).
         Proposal sequences are not considered because they the staging area for optimizations.
         """
-        return bool(
-            self._original_sequence.sequence or
-            (self.result_sequences and self.result_sequences[0].sequence)
-        )
+        return bool(self._original_sequence.sequence or (self.result_sequences and self.result_sequences[0].sequence))
 
     @property
     def proposals_populated(self) -> bool:

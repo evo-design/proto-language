@@ -1,4 +1,5 @@
 """tests/language_tests/constraint_tests/test_protein_quality/test_protein_repetitiveness_constraint.py."""
+
 from proto_language.language.constraint import protein_repetitiveness_constraint
 from proto_language.language.constraint.protein_quality.protein_repetitiveness_constraint import (
     ProteinRepetitivenessConfig,
@@ -10,8 +11,7 @@ from proto_language.language.core import Constraint, Segment
 class TestProteinRepetitivenessConstraint:
     def test_non_repetitive_protein(self):
         """Test protein with low repetitiveness."""
-        segment = Segment(sequence="MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMF", sequence_type="protein"
-        )
+        segment = Segment(sequence="MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMF", sequence_type="protein")
         config = ProteinRepetitivenessConfig(max_repetitiveness=0.5, min_repeat_length=3)
 
         constraint = Constraint(

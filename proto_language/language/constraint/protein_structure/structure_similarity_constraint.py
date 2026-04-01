@@ -39,6 +39,7 @@ logger = getLogger(__name__)
 # Metrics and scoring utils
 # ============================================================================
 
+
 def _compute_ce_aligned_rmsd(pdb_text1: str, pdb_text2: str) -> dict[str, Any]:
     """Compute CE-aligned RMSD using PyMOL's cealign.
 
@@ -55,13 +56,13 @@ def _compute_ce_aligned_rmsd(pdb_text1: str, pdb_text2: str) -> dict[str, Any]:
         ) from e
 
     # Initialize PyMOL in quiet mode without GUI.
-    pymol.finish_launching(['pymol', '-qc'])
+    pymol.finish_launching(["pymol", "-qc"])
     cmd.reinitialize()
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.pdb', delete=False) as f1:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".pdb", delete=False) as f1:
         f1.write(pdb_text1)
         tmp1 = f1.name
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.pdb', delete=False) as f2:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".pdb", delete=False) as f2:
         f2.write(pdb_text2)
         tmp2 = f2.name
 
@@ -75,14 +76,14 @@ def _compute_ce_aligned_rmsd(pdb_text1: str, pdb_text2: str) -> dict[str, Any]:
         result = cmd.cealign("ref", "mobile")
 
         return {
-            'rmsd': result['RMSD'],
-            'aligned_length': result['alignment_length'],
-            'alignment_score': result.get('raw_score', None)
+            "rmsd": result["RMSD"],
+            "aligned_length": result["alignment_length"],
+            "alignment_score": result.get("raw_score", None),
         }
     except Exception as e:
         logger.warning(f"PyMOL alignment failed: {e}, returning very bad RMSD value")
         # Return bad values on failure.
-        return {'rmsd': 999.0, 'aligned_length': 0}
+        return {"rmsd": 999.0, "aligned_length": 0}
     finally:
         if os.path.exists(tmp1):
             os.unlink(tmp1)
@@ -118,6 +119,7 @@ def _filter_pdb_by_plddt(pdb_text: str, threshold: float) -> str:
 # ============================================================================
 # Configuration
 # ============================================================================
+
 
 class StructureSimilarityConfig(StructureBasedConstraintConfig):
     """Base configuration for structure similarity constraints.
@@ -330,19 +332,16 @@ class StructureTMScoreConfig(StructureSimilarityConfig):
             structure has a confidence below this threshold, the constraint may return
             a default/penalty score or log a warning. Default is 0.6.
     """
+
     plddt_threshold: float | None = ConfigField(
         title="pLDDT Threshold",
         default=None,
         description="Ignore residues in the proposal with pLDDT < threshold (e.g. 70).",
     )
-    tm_score_normalization: Literal[
-        "structure1", "structure2", "max", "min", "mean"
-    ] = ConfigField(
+    tm_score_normalization: Literal["structure1", "structure2", "max", "min", "mean"] = ConfigField(
         title="TM-score Normalization",
         default="mean",
-        description=(
-            "How to handle the two TM-scores returned by TMalign/USalign."
-        ),
+        description=("How to handle the two TM-scores returned by TMalign/USalign."),
     )
 
     @model_validator(mode="after")
@@ -361,6 +360,7 @@ class StructureTMScoreConfig(StructureSimilarityConfig):
 # Constraints
 # ============================================================================
 
+
 def _prepare_target_structure(config: StructureSimilarityConfig) -> str | None:
     """Resolve the target structure to a PDB string.
 
@@ -377,10 +377,7 @@ def _prepare_target_structure(config: StructureSimilarityConfig) -> str | None:
         else:
             from proto_language.language.core import detect_sequence_type
 
-            chains = [
-                {"sequence": seq, "entity_type": detect_sequence_type(seq)}
-                for seq in config.target_chains
-            ]
+            chains = [{"sequence": seq, "entity_type": detect_sequence_type(seq)} for seq in config.target_chains]
             complexes = [StructurePredictionComplex(chains=chains)]
 
         output = predict_structures(complexes, config.structure_tool, config.tool_config)
@@ -408,9 +405,7 @@ def _prepare_target_structure(config: StructureSimilarityConfig) -> str | None:
     supported_sequence_types=["protein", "rna", "dna", "ligand"],
     num_input_sequences_per_tuple=None,
 )
-def structure_rmsd_constraint(
-    input_sequences: list[tuple[Sequence, ...]], config: StructureRMSDConfig
-) -> list[float]:
+def structure_rmsd_constraint(input_sequences: list[tuple[Sequence, ...]], config: StructureRMSDConfig) -> list[float]:
     """Predicts structure of input proposals and compares RMSD against a target.
 
     Returns a score 0-1 (0 is perfect match).
@@ -425,10 +420,7 @@ def structure_rmsd_constraint(
     structure_complexes = []
     for proposal_tuple in input_sequences:
         # Extract sequences and types
-        chains = [
-            {"sequence": s.sequence, "entity_type": s.sequence_type}
-            for s in proposal_tuple
-        ]
+        chains = [{"sequence": s.sequence, "entity_type": s.sequence_type} for s in proposal_tuple]
         structure_complexes.append(StructurePredictionComplex(chains=chains))
 
     # Run prediction on proposals.
@@ -442,19 +434,19 @@ def structure_rmsd_constraint(
     scores = []
     for proposal_structure, proposal_tuple in zip(results.structures, input_sequences, strict=False):
         rmsd_data = _compute_ce_aligned_rmsd(target_pdb, proposal_structure.structure_pdb)
-        rmsd_val = rmsd_data['rmsd']
+        rmsd_val = rmsd_data["rmsd"]
 
-        score = sigmoid_score(
-            rmsd_val, config.inflection_point_angstroms, config.sigmoid_slope
-        )
+        score = sigmoid_score(rmsd_val, config.inflection_point_angstroms, config.sigmoid_slope)
 
         # Metadata storage (attach to the first sequence in the tuple to ensure visibility)
         if proposal_tuple:
-            proposal_tuple[0]._metadata.update({
-                "rmsd_val": rmsd_val,
-                "rmsd_score": score,
-                "pdb_output": store_file(proposal_structure.structure_pdb, FileType.PDB),
-            })
+            proposal_tuple[0]._metadata.update(
+                {
+                    "rmsd_val": rmsd_val,
+                    "rmsd_score": score,
+                    "pdb_output": store_file(proposal_structure.structure_pdb, FileType.PDB),
+                }
+            )
 
         scores.append(score)
 
@@ -477,7 +469,14 @@ def _count_pdb_chains(pdb_text: str) -> int:
     config=StructureTMScoreConfig,
     description="Compare structure TM-score against a target. Returns 1 - TMscore.",
     uses_gpu=True,
-    tools_called=["esmfold-prediction", "alphafold3-prediction", "boltz2-prediction", "chai1-prediction", "tmalign-alignment", "usalign-alignment"],
+    tools_called=[
+        "esmfold-prediction",
+        "alphafold3-prediction",
+        "boltz2-prediction",
+        "chai1-prediction",
+        "tmalign-alignment",
+        "usalign-alignment",
+    ],
     category="protein_structure",
     supported_sequence_types=["protein", "rna", "dna", "ligand"],
     num_input_sequences_per_tuple=None,
@@ -512,10 +511,7 @@ def structure_tmscore_constraint(
     # Prepare proposals.
     structure_complexes = []
     for proposal_tuple in input_sequences:
-        chains = [
-            {"sequence": s.sequence, "entity_type": s.sequence_type}
-            for s in proposal_tuple
-        ]
+        chains = [{"sequence": s.sequence, "entity_type": s.sequence_type} for s in proposal_tuple]
         structure_complexes.append(StructurePredictionComplex(chains=chains))
 
     # Run prediction on proposals.
@@ -533,12 +529,8 @@ def structure_tmscore_constraint(
         # Apply pLDDT filtering at the constraint level before alignment.
         proposal_pdb = proposal_structure.structure_pdb
         if config.plddt_threshold is not None:
-            proposal_pdb = _filter_pdb_by_plddt(
-                proposal_pdb, config.plddt_threshold
-            )
-            if not any(
-                line.startswith("ATOM") for line in proposal_pdb.splitlines()
-            ):
+            proposal_pdb = _filter_pdb_by_plddt(proposal_pdb, config.plddt_threshold)
+            if not any(line.startswith("ATOM") for line in proposal_pdb.splitlines()):
                 scores.append(1.0)
                 continue
 
@@ -580,18 +572,18 @@ def structure_tmscore_constraint(
         elif config.tm_score_normalization == "mean":
             tm_val = (s1 + s2) / 2.0
         else:
-            raise ValueError(
-                f"Invalid TMscore normalization: {config.tm_score_normalization}"
-            )
+            raise ValueError(f"Invalid TMscore normalization: {config.tm_score_normalization}")
 
         score = 1.0 - tm_val
 
         if proposal_tuple:
-            proposal_tuple[0]._metadata.update({
-                "tm_score_raw": tm_val,
-                "tm_score_inverted": score,
-                "pdb_output": store_file(proposal_structure.structure_pdb, FileType.PDB),
-            })
+            proposal_tuple[0]._metadata.update(
+                {
+                    "tm_score_raw": tm_val,
+                    "tm_score_inverted": score,
+                    "pdb_output": store_file(proposal_structure.structure_pdb, FileType.PDB),
+                }
+            )
 
         scores.append(score)
 

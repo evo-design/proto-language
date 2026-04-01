@@ -1,4 +1,5 @@
 """RNA secondary structure similarity constraints."""
+
 from proto_language.language.constraint.rna_secondary_structure.structure_similarity_constraint import (
     RNABasePairSimilarityConfig,
     RNAFeatureSimilarityConfig,

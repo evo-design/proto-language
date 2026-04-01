@@ -76,8 +76,7 @@ class TestConstraintWithMocks:
     def mock_bioemu(self):
         """Mock run_bioemu to avoid GPU requirement."""
         with patch(
-            "proto_language.language.constraint.protein_structure."
-            "structure_ensemble_similarity_constraint.run_bioemu"
+            "proto_language.language.constraint.protein_structure.structure_ensemble_similarity_constraint.run_bioemu"
         ) as mock:
             # Create mock ensemble with 3 frames
             mock_structure = MagicMock()

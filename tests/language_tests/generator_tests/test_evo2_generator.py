@@ -1,4 +1,5 @@
 """tests/language_tests/generator_tests/test_evo2_generator.py."""
+
 import copy
 from unittest.mock import MagicMock, patch
 
@@ -63,7 +64,9 @@ class TestEvo2Generator:
         evo2_generator_single = Evo2Generator(config_single)
 
         segment_two_proposals = Segment(length=expected_length, sequence_type="dna")
-        segment_two_proposals.proposal_sequences = [copy.deepcopy(segment_two_proposals.original_sequence) for _ in range(2)]
+        segment_two_proposals.proposal_sequences = [
+            copy.deepcopy(segment_two_proposals.original_sequence) for _ in range(2)
+        ]
         evo2_generator_single.assign(segment_two_proposals)
         evo2_generator_single.sample()
 
@@ -72,7 +75,9 @@ class TestEvo2Generator:
         evo2_generator_multi = Evo2Generator(config_multi)
 
         segment_two_proposals2 = Segment(length=expected_length, sequence_type="dna")
-        segment_two_proposals2.proposal_sequences = [copy.deepcopy(segment_two_proposals2.original_sequence) for _ in range(2)]
+        segment_two_proposals2.proposal_sequences = [
+            copy.deepcopy(segment_two_proposals2.original_sequence) for _ in range(2)
+        ]
         evo2_generator_multi.assign(segment_two_proposals2)
 
         with pytest.raises(ValueError, match="Expected 1 or"):

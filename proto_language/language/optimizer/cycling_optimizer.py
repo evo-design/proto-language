@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 # Predefined Pipelines
 # =============================================================================
 
+
 class ProteinHunterPipelineConfig(BaseConfig):
     """Configuration for the protein-hunter pipeline.
 
@@ -41,11 +42,13 @@ class ProteinHunterPipelineConfig(BaseConfig):
     Attributes:
         structure_tool (Literal['boltz2', 'chai1', 'alphafold3']): Structure prediction tool to use. Options: "boltz2", "chai1", "alphafold3".
     """
+
     structure_tool: Literal["boltz2", "chai1", "alphafold3"] = ConfigField(
         default="boltz2",
         title="Structure Tool",
         description="Structure prediction tool: 'boltz2', 'chai1', or 'alphafold3'.",
     )
+
 
 def _create_protein_hunter_conditioning_fn(config: CyclingOptimizerConfig) -> Callable:  # type: ignore[type-arg]
     """Create protein hunter conditioning function (structure prediction -> inverse folding).
@@ -61,10 +64,7 @@ def _create_protein_hunter_conditioning_fn(config: CyclingOptimizerConfig) -> Ca
     structure_tool = config.protein_hunter.structure_tool if config.protein_hunter else "boltz2"
 
     def conditioning_fn(sequences: list[Sequence]) -> list:  # type: ignore[type-arg]
-        complexes = [
-            StructurePredictionComplex(chains=[seq.sequence])
-            for seq in sequences
-        ]
+        complexes = [StructurePredictionComplex(chains=[seq.sequence]) for seq in sequences]
         return predict_structures(complexes, structure_tool, {}).structures  # type: ignore[no-any-return]
 
     return conditioning_fn
@@ -82,6 +82,7 @@ CYCLING_PIPELINES: dict[str, dict[str, Any]] = {
 # =============================================================================
 # Predefined Pipeline Helpers
 # =============================================================================
+
 
 def _resolve_conditioning_fn(
     config: CyclingOptimizerConfig,
@@ -122,16 +123,14 @@ def _resolve_conditioning_fn(
 
     # Validate pipeline exists
     if config.pipeline not in CYCLING_PIPELINES:
-        raise ValueError(
-            f"Unknown pipeline '{config.pipeline}'. "
-            f"Available: {list(CYCLING_PIPELINES.keys())}"
-        )
+        raise ValueError(f"Unknown pipeline '{config.pipeline}'. Available: {list(CYCLING_PIPELINES.keys())}")
 
     # Validate generator category matches pipeline requirements
     pipeline_spec = CYCLING_PIPELINES[config.pipeline]
     required_category = pipeline_spec.get("required_generator_category")
     if required_category:
         from proto_language.language.generator import GeneratorRegistry
+
         generator_key = GeneratorRegistry.get_key(generator)
         actual_category = GeneratorRegistry.get(generator_key).category
         if actual_category != required_category:
@@ -147,6 +146,7 @@ def _resolve_conditioning_fn(
 # =============================================================================
 # Config
 # =============================================================================
+
 
 class CyclingOptimizerConfig(BaseOptimizerConfig):
     """Configuration for CyclingOptimizer.
@@ -238,6 +238,7 @@ class CyclingOptimizerConfig(BaseOptimizerConfig):
             self.protein_hunter = ProteinHunterPipelineConfig()
         return self
 
+
 @optimizer(
     key="cycling",
     label="Cycling Optimizer",
@@ -273,7 +274,6 @@ class CyclingOptimizer(Optimizer):
         >>> def my_conditioning_fn(sequences):
         ...     # Process sequences and return conditioning data
         ...     return [process(seq) for seq in sequences]
-        ...
         >>> optimizer = CyclingOptimizer(
         ...     target_segment=segment,
         ...     constructs=[construct],
@@ -383,7 +383,9 @@ class CyclingOptimizer(Optimizer):
 
             # Validate conditioning_fn returned the correct number of items
             if len(conditioning_data) != self.num_proposals:
-                raise ValueError(f"conditioning_fn returned {len(conditioning_data)} items, expected {self.num_proposals}. The conditioning function must return one conditioning item per proposal.")
+                raise ValueError(
+                    f"conditioning_fn returned {len(conditioning_data)} items, expected {self.num_proposals}. The conditioning function must return one conditioning item per proposal."
+                )
 
             # 2. Generate proposals into proposal_sequences
             self.generator.sample(**{self.conditioning_param_name: conditioning_data})
@@ -395,11 +397,15 @@ class CyclingOptimizer(Optimizer):
                 for i in range(self.num_proposals):
                     # accept
                     if self._proposal_outcomes[i] == "accepted":
-                        self.target_segment.result_sequences[i] = copy.deepcopy(self.target_segment.proposal_sequences[i])
-                    else: # reject
+                        self.target_segment.result_sequences[i] = copy.deepcopy(
+                            self.target_segment.proposal_sequences[i]
+                        )
+                    else:  # reject
                         self.energy_scores[i] = prev_energies[i]
             else:
-                self.target_segment.result_sequences = [copy.deepcopy(seq) for seq in self.target_segment.proposal_sequences]
+                self.target_segment.result_sequences = [
+                    copy.deepcopy(seq) for seq in self.target_segment.proposal_sequences
+                ]
                 self.energy_scores = [0] * self.num_proposals
                 self._proposal_outcomes = ["accepted"] * self.num_proposals
                 self._proposal_energy_scores = [0] * self.num_proposals

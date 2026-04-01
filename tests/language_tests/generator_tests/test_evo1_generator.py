@@ -1,4 +1,5 @@
 """tests/language_tests/generator_tests/test_evo1_generator.py."""
+
 import copy
 from unittest.mock import MagicMock, patch
 
@@ -28,9 +29,7 @@ class TestEvo1Generator:
         assert gen.batch_size == 2
 
         segment = Segment(length=expected_length, sequence_type="dna")
-        segment.proposal_sequences = [
-            copy.deepcopy(segment.original_sequence) for _ in range(3)
-        ]
+        segment.proposal_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(3)]
         gen.assign(segment)
         assert gen._assigned_segment is segment
 
@@ -48,9 +47,7 @@ class TestEvo1Generator:
         gen = Evo1Generator(config)
 
         segment = Segment(length=104, sequence_type="dna")
-        segment.proposal_sequences = [
-            copy.deepcopy(segment.original_sequence) for _ in range(2)
-        ]
+        segment.proposal_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(2)]
         gen.assign(segment)
 
         with pytest.raises(ValueError, match="Expected 1 or"):

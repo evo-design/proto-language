@@ -59,6 +59,7 @@ class ProteinGlobularityConfig(BaseConfig):
             The ``complexes`` field is set programmatically and should not be
             specified here. Default: ESMFoldConfig().
     """
+
     # Required parameter
     n_replications: int = ConfigField(
         title="Number of Replications",
@@ -93,7 +94,9 @@ class ProteinGlobularityConfig(BaseConfig):
     supported_sequence_types=["dna", "protein"],
     num_input_sequences_per_tuple=1,
 )
-def protein_globularity_constraint(input_sequences: list[tuple[Sequence, ...]], config: ProteinGlobularityConfig) -> list[float]:
+def protein_globularity_constraint(
+    input_sequences: list[tuple[Sequence, ...]], config: ProteinGlobularityConfig
+) -> list[float]:
     """Encourage compact, globular protein structures using ESMFold.
 
     This constraint function uses ESMFold to predict protein 3D structures
@@ -182,9 +185,7 @@ def protein_globularity_constraint(input_sequences: list[tuple[Sequence, ...]], 
     return _evaluate_dna_globularity(sequences, config)
 
 
-def _evaluate_protein_globularity(
-    protein_sequences: list[Sequence], config: ProteinGlobularityConfig
-) -> list[float]:
+def _evaluate_protein_globularity(protein_sequences: list[Sequence], config: ProteinGlobularityConfig) -> list[float]:
     """Evaluate protein globularity directly."""
     # Create complexes with n_replications of each protein sequence
     complexes = [
@@ -198,14 +199,10 @@ def _evaluate_protein_globularity(
     esmfold_input = ESMFoldInput(complexes=complexes)
 
     # Run ESMFold
-    output = run_esmfold(
-        inputs=esmfold_input, config=config.esmfold_config
-    )
+    output = run_esmfold(inputs=esmfold_input, config=config.esmfold_config)
 
     scores = []
-    for protein_seq, comp, structure in zip(
-        protein_sequences, complexes, output.structures, strict=False
-    ):
+    for protein_seq, comp, structure in zip(protein_sequences, complexes, output.structures, strict=False):
         protein_seq._metadata.update(
             {
                 "avg_plddt": structure.avg_plddt,
@@ -229,30 +226,24 @@ def _evaluate_protein_globularity(
     return scores
 
 
-def _evaluate_dna_globularity(
-    dna_sequences: list[Sequence],
-    config: ProteinGlobularityConfig
-) -> list[float]:
+def _evaluate_dna_globularity(dna_sequences: list[Sequence], config: ProteinGlobularityConfig) -> list[float]:
     """Evaluate DNA sequences via Prodigal then globularity."""
     prodigal_result = run_prodigal_prediction(
-        ProdigalInput(input_sequences=[seq.sequence for seq in dna_sequences]),
-        ProdigalConfig()
+        ProdigalInput(input_sequences=[seq.sequence for seq in dna_sequences]), ProdigalConfig()
     )
 
     scores = []
 
     for dna_seq, proteins_list, num_genes in zip(
-        dna_sequences,
-        prodigal_result.predicted_orfs,
-        prodigal_result.num_orfs_per_sequence, strict=False
+        dna_sequences, prodigal_result.predicted_orfs, prodigal_result.num_orfs_per_sequence, strict=False
     ):
         orf_dicts = [orf.model_dump() for orf in proteins_list]
-        dna_seq._metadata.update({
-            "prodigal_proteins": store_file(
-                json.dumps(orf_dicts), FileType.JSON
-            ) if orf_dicts else None,
-            "prodigal_protein_count": num_genes
-        })
+        dna_seq._metadata.update(
+            {
+                "prodigal_proteins": store_file(json.dumps(orf_dicts), FileType.JSON) if orf_dicts else None,
+                "prodigal_protein_count": num_genes,
+            }
+        )
 
         if num_genes == 0 or len(proteins_list) == 0:
             scores.append(MAX_ENERGY)
@@ -260,9 +251,7 @@ def _evaluate_dna_globularity(
 
         protein_seqs = [orf.amino_acid_sequence for orf in proteins_list]
         complexes = [
-            StructurePredictionComplex(
-                chains=[{"sequence": seq, "entity_type": "protein"}] * config.n_replications
-            )
+            StructurePredictionComplex(chains=[{"sequence": seq, "entity_type": "protein"}] * config.n_replications)
             for seq in protein_seqs
         ]
 

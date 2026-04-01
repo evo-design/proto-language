@@ -28,10 +28,7 @@ def store_file(
     Example:
         >>> from proto_language.storage import store_file, FileType
         >>> # In a constraint:
-        >>> seq._metadata["pdb_output"] = store_file(
-        ...     structure.structure_pdb,
-        ...     FileType.PDB
-        ... )
+        >>> seq._metadata["pdb_output"] = store_file(structure.structure_pdb, FileType.PDB)
     """
     store = get_file_store()
     ref = store.put(content, file_type)
@@ -68,9 +65,7 @@ def get_file_content(ref_or_content: dict[str, Any] | str) -> str:
         file_id = ref_or_content["id"]
         return store.get(file_id).decode("utf-8")
 
-    raise ValueError(
-        f"Expected a string or file reference dictionary, got {type(ref_or_content)}"
-    )
+    raise ValueError(f"Expected a string or file reference dictionary, got {type(ref_or_content)}")
 
 
 def get_file_content_bytes(ref_or_content: dict[str, Any] | bytes) -> bytes:
@@ -97,9 +92,7 @@ def get_file_content_bytes(ref_or_content: dict[str, Any] | bytes) -> bytes:
         file_id = ref_or_content["id"]
         return store.get(file_id)
 
-    raise ValueError(
-        f"Expected bytes or file reference dictionary, got {type(ref_or_content)}"
-    )
+    raise ValueError(f"Expected bytes or file reference dictionary, got {type(ref_or_content)}")
 
 
 def is_file_reference(value: Any) -> bool:

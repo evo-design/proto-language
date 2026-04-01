@@ -183,16 +183,12 @@ def _extract_track_matrix(
             track_payload = value
             break
     if track_payload is None:
-        raise ValueError(
-            f"AlphaGenome prediction payload missing requested output '{requested_output}'."
-        )
+        raise ValueError(f"AlphaGenome prediction payload missing requested output '{requested_output}'.")
 
     arrays: list[np.ndarray] = []
     _collect_value_arrays(track_payload, arrays)
     if not arrays:
-        raise ValueError(
-            f"Unable to extract numeric values for requested output '{requested_output}'."
-        )
+        raise ValueError(f"Unable to extract numeric values for requested output '{requested_output}'.")
 
     matrix = max(arrays, key=lambda a: (a.shape[0], a.size))
     if matrix.ndim == 1:
@@ -206,10 +202,7 @@ def _extract_track_matrix(
     key="alphagenome-interval-track",
     label="AlphaGenome Interval Track",
     config=AlphaGenomeIntervalTrackConfig,
-    description=(
-        "Score AlphaGenome track signal over one or more intervals by minimizing "
-        "or maximizing mean value."
-    ),
+    description=("Score AlphaGenome track signal over one or more intervals by minimizing or maximizing mean value."),
     uses_gpu=True,
     tools_called=["alphagenome-predict-sequences"],
     category="sequence annotation",
@@ -229,9 +222,7 @@ def alphagenome_interval_track_constraint(
     for sequence_length in sequence_lengths:
         for interval in config.intervals:
             if interval[1] > sequence_length:
-                raise ValueError(
-                    f"interval {interval} exceeds sequence length {sequence_length}."
-                )
+                raise ValueError(f"interval {interval} exceeds sequence length {sequence_length}.")
 
     prediction_config = AlphaGenomePredictSequencesConfig(
         model_version=config.model_version,
@@ -243,9 +234,7 @@ def alphagenome_interval_track_constraint(
     )
 
     batch_output = run_alphagenome_predict_sequences(
-        AlphaGenomePredictSequencesInput(
-            sequences=[sequence.sequence for sequence in sequences]
-        ),
+        AlphaGenomePredictSequencesInput(sequences=[sequence.sequence for sequence in sequences]),
         prediction_config,
     )
     outputs = batch_output.results
@@ -276,9 +265,7 @@ def alphagenome_interval_track_constraint(
             score = float(1.0 - maximize_sigmoid_value)
         else:
             maximize_sigmoid_value = math.nan
-            minimize_clipped_signal = float(
-                min(max(mean_signal, 0.0), config.minimize_threshold_value)
-            )
+            minimize_clipped_signal = float(min(max(mean_signal, 0.0), config.minimize_threshold_value))
             score = float(minimize_clipped_signal / config.minimize_threshold_value)
 
         sequence._metadata.update(

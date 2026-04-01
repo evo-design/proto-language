@@ -122,9 +122,7 @@ class TestBoltzBindingStrengthConstraint:
             recycling_steps=3,
             diffusion_samples=1,
         )
-        config = BoltzBindingStrengthConfig(
-            desired_higher=desired_higher, boltz2_config=boltz2_cfg
-        )
+        config = BoltzBindingStrengthConfig(desired_higher=desired_higher, boltz2_config=boltz2_cfg)
         assert config.desired_higher["iptm"] == 0.95
         for key, value in DEFAULT_DESIRED_HIGHER.items():
             if key != "iptm":
@@ -151,7 +149,6 @@ class TestBoltzBindingStrengthConstraint:
             "proto_language.language.constraint.protein_structure.boltz_binding_strength_constraint.run_boltz2",
             return_value=mock_protein_protein_ligand_output,
         ):
-
             _ = constraint.evaluate()
 
     def test_with_protein_protein_complex(self):
@@ -160,15 +157,12 @@ class TestBoltzBindingStrengthConstraint:
         protein2 = Segment(sequence="MVLSEGEWQLVLHVWAK", sequence_type="protein")
         complex_list = [protein1, protein2]
 
-        constraint = ConstraintRegistry.create(
-            key="boltz2-binding-strength", segments=complex_list, config_dict={}
-        )
+        constraint = ConstraintRegistry.create(key="boltz2-binding-strength", segments=complex_list, config_dict={})
 
         with patch(
             "proto_language.language.constraint.protein_structure.boltz_binding_strength_constraint.run_boltz2",
             return_value=mock_protein_protein_output,
         ):
-
             _ = constraint.evaluate()
 
     def test_with_monomer(self):
@@ -176,13 +170,10 @@ class TestBoltzBindingStrengthConstraint:
         protein = Segment(sequence="MKTAYIAKQRQISFVK", sequence_type="protein")
         complex_list = [protein]
 
-        constraint = ConstraintRegistry.create(
-            key="boltz2-binding-strength", segments=complex_list, config_dict={}
-        )
+        constraint = ConstraintRegistry.create(key="boltz2-binding-strength", segments=complex_list, config_dict={})
 
         with patch(
             "proto_language.language.constraint.protein_structure.boltz_binding_strength_constraint.run_boltz2",
             return_value=mock_monomer_output,
         ):
-
             _ = constraint.evaluate()

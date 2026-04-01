@@ -23,12 +23,7 @@ class TestKmerFrequencyConstraint:
         # ATCGATCG has AT, TC, CG, GA dinucleotides
         seq = Segment(sequence="ATCGATCG", sequence_type="dna")
 
-        config = KmerFrequencyConfig(
-            k=2,
-            scoring_mode="frequency",
-            min_value=0.0,
-            max_value=0.3
-        )
+        config = KmerFrequencyConfig(k=2, scoring_mode="frequency", min_value=0.0, max_value=0.3)
 
         constraint = Constraint(
             inputs=[seq],
@@ -75,12 +70,7 @@ class TestKmerFrequencyConstraint:
         """Test k-mer frequency on protein sequences."""
         seq = Segment(sequence="MVLSPADKTNVKAAW", sequence_type="protein")
 
-        config = KmerFrequencyConfig(
-            k=2,
-            scoring_mode="frequency",
-            min_value=0.0,
-            max_value=0.5
-        )
+        config = KmerFrequencyConfig(k=2, scoring_mode="frequency", min_value=0.0, max_value=0.5)
 
         constraint = Constraint(
             inputs=[seq],
@@ -103,12 +93,7 @@ class TestKmerFrequencyConstraint:
         """Test sequences shorter than k."""
         seq = Segment(sequence="AT", sequence_type="dna")
 
-        config = KmerFrequencyConfig(
-            k=4,
-            scoring_mode="frequency",
-            min_value=0.0,
-            max_value=0.5
-        )
+        config = KmerFrequencyConfig(k=4, scoring_mode="frequency", min_value=0.0, max_value=0.5)
 
         constraint = Constraint(
             inputs=[seq],
@@ -125,12 +110,7 @@ class TestKmerFrequencyConstraint:
 
         # min_value > max_value should fail
         with pytest.raises(ValidationError):
-            KmerFrequencyConfig(
-                k=2,
-                scoring_mode="frequency",
-                min_value=0.8,
-                max_value=0.2
-            )
+            KmerFrequencyConfig(k=2, scoring_mode="frequency", min_value=0.8, max_value=0.2)
 
     def test_registry_integration(self):
         """Test that constraint is properly registered."""

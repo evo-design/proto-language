@@ -31,6 +31,7 @@ class SpecificKmerConfig(BaseConfig):
         max_value (float): Maximum acceptable frequency or deviation. Must be >= 0
             and >= min_value. Capped at 1.0 for frequency mode.
     """
+
     kmer: str = ConfigField(
         title="K-mer",
         description="The specific k-mer to evaluate (e.g., 'CG', 'GATC', 'ATG')",
@@ -53,27 +54,21 @@ class SpecificKmerConfig(BaseConfig):
         description="Maximum acceptable frequency/deviation based on scoring_mode",
     )
 
-    @field_validator('kmer', mode='before')
+    @field_validator("kmer", mode="before")
     @classmethod
     def uppercase_kmer(cls, v: str) -> str:
         """Normalize k-mer to uppercase."""
         return v.upper()
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_config(self) -> SpecificKmerConfig:
         """Validate configuration parameters."""
         if self.min_value > self.max_value:
-            raise ValueError(
-                f"min_value ({self.min_value}) must be <= max_value ({self.max_value})"
-            )
+            raise ValueError(f"min_value ({self.min_value}) must be <= max_value ({self.max_value})")
         if self.scoring_mode == "frequency" and self.max_value > 1.0:
-            raise ValueError(
-                f"For frequency mode, max_value must be <= 1.0, got {self.max_value}"
-            )
+            raise ValueError(f"For frequency mode, max_value must be <= 1.0, got {self.max_value}")
         if not 1 <= len(self.kmer) <= 8:
-            raise ValueError(
-                f"K-mer length must be between 1 and 8, got {len(self.kmer)}"
-            )
+            raise ValueError(f"K-mer length must be between 1 and 8, got {len(self.kmer)}")
         return self
 
 
@@ -143,8 +138,7 @@ def specific_kmer_constraint(input_sequences: list[tuple[Sequence, ...]], config
         valid_chars = seq.valid_chars
         if valid_chars is None or not all(c in valid_chars for c in config.kmer):
             raise ValueError(
-                f"K-mer '{config.kmer}' contains characters invalid for "
-                f"sequence type '{seq.sequence_type}'"
+                f"K-mer '{config.kmer}' contains characters invalid for sequence type '{seq.sequence_type}'"
             )
 
         kmer_count = _count_overlapping(seq_str, config.kmer)
@@ -152,9 +146,7 @@ def specific_kmer_constraint(input_sequences: list[tuple[Sequence, ...]], config
 
         if config.scoring_mode == "frequency":
             frequency = kmer_count / total_positions
-            score = calculate_range_deviation(
-                frequency, config.min_value, config.max_value, _FRACTIONAL_EPSILON
-            )
+            score = calculate_range_deviation(frequency, config.min_value, config.max_value, _FRACTIONAL_EPSILON)
             seq._metadata[f"{config.kmer}_frequency"] = frequency
 
         else:
@@ -164,9 +156,7 @@ def specific_kmer_constraint(input_sequences: list[tuple[Sequence, ...]], config
             expected_occurrences = expected_freq * total_positions
             usage_deviation = kmer_count / expected_occurrences if expected_occurrences > 0 else 0
 
-            score = calculate_range_deviation(
-                usage_deviation, config.min_value, config.max_value, _FRACTIONAL_EPSILON
-            )
+            score = calculate_range_deviation(usage_deviation, config.min_value, config.max_value, _FRACTIONAL_EPSILON)
             seq._metadata[f"{config.kmer}_usage_deviation"] = usage_deviation
             seq._metadata[f"{config.kmer}_count"] = kmer_count
             seq._metadata[f"{config.kmer}_expected"] = float(expected_occurrences)

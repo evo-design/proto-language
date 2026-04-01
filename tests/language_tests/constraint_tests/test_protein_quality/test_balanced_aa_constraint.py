@@ -1,4 +1,5 @@
 """tests/language_tests/constraint_tests/test_protein_quality/test_balanced_aa_constraint.py."""
+
 import pytest
 
 from proto_language.language.constraint import balanced_aa_constraint
@@ -13,8 +14,7 @@ class TestBalancedAAConstraint:
     def test_balanced_protein(self):
         """Test protein with balanced amino acid frequencies."""
         # Create a relatively balanced sequence
-        segment = Segment(sequence="MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHF", sequence_type="protein"
-        )
+        segment = Segment(sequence="MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHF", sequence_type="protein")
         config = BalancedAaConfig(min_aa_frequency=0.02, max_underrepresented_count=10)
 
         constraint = Constraint(

@@ -39,10 +39,7 @@ def _mock_metrics_output(gyration_radius, longest_alpha_helix=5):
     )
 
 
-PATCH_TARGET = (
-    "proto_language.language.constraint.protein_structure"
-    ".gyration_radius_constraint.run_structure_metrics"
-)
+PATCH_TARGET = "proto_language.language.constraint.protein_structure.gyration_radius_constraint.run_structure_metrics"
 
 
 class TestGyrationRadiusConstraint:
@@ -123,9 +120,7 @@ class TestGyrationRadiusConstraint:
         config = GyrationRadiusConfig(max_gyration_radius=50.0)
 
         with patch(PATCH_TARGET) as mock_run:
-            mock_run.return_value = _mock_metrics_output(
-                gyration_radius=30.0, longest_alpha_helix=12
-            )
+            mock_run.return_value = _mock_metrics_output(gyration_radius=30.0, longest_alpha_helix=12)
             gyration_radius_constraint([(seq,)], config)
 
         assert seq._metadata["gyration_radius"] == 30.0

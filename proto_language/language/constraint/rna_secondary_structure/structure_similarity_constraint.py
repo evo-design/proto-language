@@ -22,6 +22,7 @@ logger = getLogger(__name__)
 # Helper Functions
 # =============================================================================
 
+
 def _fold_sequences(
     sequences: list[str],
     temperature: float = 37.0,
@@ -46,9 +47,9 @@ def _get_base_pairs(structure: str) -> set[tuple[int, int]]:
     pairs = set()
     stack = []
     for i, char in enumerate(structure):
-        if char == '(':
+        if char == "(":
             stack.append(i)
-        elif char == ')':
+        elif char == ")":
             if stack:
                 pairs.add((stack.pop(), i))
             else:
@@ -68,21 +69,21 @@ def _extract_structural_motifs(structure: str) -> list[str]:
     # 1. Stem-loop patterns
     i = 0
     while i < len(structure):
-        if structure[i] == '(':
+        if structure[i] == "(":
             stem_count = 1
             i += 1
 
-            while i < len(structure) and structure[i] == '(':
+            while i < len(structure) and structure[i] == "(":
                 stem_count += 1
                 i += 1
 
             loop_count = 0
-            while i < len(structure) and structure[i] == '.':
+            while i < len(structure) and structure[i] == ".":
                 loop_count += 1
                 i += 1
 
             close_count = 0
-            while i < len(structure) and structure[i] == ')':
+            while i < len(structure) and structure[i] == ")":
                 close_count += 1
                 i += 1
 
@@ -98,32 +99,32 @@ def _extract_structural_motifs(structure: str) -> list[str]:
     bulge_pattern = ""
     in_stem = False
     for char in structure:
-        if char == '(':
+        if char == "(":
             if not in_stem:
-                bulge_pattern = '('
+                bulge_pattern = "("
                 in_stem = True
             else:
                 bulge_pattern += char
-        elif char == ')':
+        elif char == ")":
             bulge_pattern += char
-            if bulge_pattern.count('(') == bulge_pattern.count(')'):
-                dots = bulge_pattern.count('.')
-                stems = bulge_pattern.count('(')
+            if bulge_pattern.count("(") == bulge_pattern.count(")"):
+                dots = bulge_pattern.count(".")
+                stems = bulge_pattern.count("(")
                 if dots > 0 and stems > 1:
                     motifs.append(f"BULGE_{stems}:{dots}")
                 bulge_pattern = ""
                 in_stem = False
-        elif char == '.' and in_stem:
+        elif char == "." and in_stem:
             bulge_pattern += char
 
     # 3. Nesting depth
     max_depth = 0
     current_depth = 0
     for char in structure:
-        if char == '(':
+        if char == "(":
             current_depth += 1
             max_depth = max(max_depth, current_depth)
-        elif char == ')':
+        elif char == ")":
             current_depth -= 1
     if max_depth > 0:
         motifs.append(f"DEPTH_{max_depth}")
@@ -131,7 +132,7 @@ def _extract_structural_motifs(structure: str) -> list[str]:
     # 4. Unpaired regions
     current_unpaired = 0
     for char in structure:
-        if char == '.':
+        if char == ".":
             current_unpaired += 1
         else:
             if current_unpaired >= 3:
@@ -177,7 +178,7 @@ def _extract_structure_features(structure: str, mfe: float) -> np.ndarray:
     loops = []
     current_loop = 0
     for char in structure:
-        if char == '.':
+        if char == ".":
             current_loop += 1
         else:
             if current_loop > 0:
@@ -197,27 +198,30 @@ def _extract_structure_features(structure: str, mfe: float) -> np.ndarray:
     num_hairpins = 0
     for i, j in pairs:
         if j > i + 1:  # There's space for a loop
-            loop_region = structure[i+1:j]
-            if all(c == '.' for c in loop_region):
+            loop_region = structure[i + 1 : j]
+            if all(c == "." for c in loop_region):
                 num_hairpins += 1
 
-    return np.array([
-        length,
-        num_pairs,
-        pairing_ratio,
-        avg_stem_length,
-        avg_loop_length,
-        max_stem_length,
-        num_stems,
-        mfe,
-        mfe_per_nt,
-        num_hairpins,
-    ])
+    return np.array(
+        [
+            length,
+            num_pairs,
+            pairing_ratio,
+            avg_stem_length,
+            avg_loop_length,
+            max_stem_length,
+            num_stems,
+            mfe,
+            mfe_per_nt,
+            num_hairpins,
+        ]
+    )
 
 
 # =============================================================================
 # Config Classes
 # =============================================================================
+
 
 class RNAStructureConstraintBaseConfig(BaseConfig):
     """Base configuration for RNA secondary structure constraints.
@@ -340,6 +344,7 @@ class RNABasePairSimilarityConfig(RNAStructureConstraintBaseConfig):
 # Constraint 1: Structural Property Similarity
 # =============================================================================
 
+
 @constraint(
     key="rna-property-similarity",
     label="RNA Structural Property Similarity",
@@ -373,7 +378,7 @@ def rna_property_similarity_constraint(
         return [1.0] * len(input_sequences)
 
     ref_len = len(ref_structure)
-    ref_pairs = ref_structure.count('(')
+    ref_pairs = ref_structure.count("(")
     ref_ratio = ref_pairs / ref_len if ref_len > 0 else 0
 
     # Fold all proposals
@@ -387,7 +392,7 @@ def rna_property_similarity_constraint(
             continue
 
         cand_len = len(cand_structure)
-        cand_pairs = cand_structure.count('(')
+        cand_pairs = cand_structure.count("(")
         cand_ratio = cand_pairs / cand_len if cand_len > 0 else 0
 
         # Length similarity
@@ -400,12 +405,14 @@ def rna_property_similarity_constraint(
         similarity = config.length_weight * length_sim + (1 - config.length_weight) * pairing_sim
 
         # Store metadata
-        seq._metadata.update({
-            "rna_property_similarity": similarity,
-            "length_similarity": length_sim,
-            "pairing_ratio_similarity": pairing_sim,
-            "structure": cand_structure,
-        })
+        seq._metadata.update(
+            {
+                "rna_property_similarity": similarity,
+                "length_similarity": length_sim,
+                "pairing_ratio_similarity": pairing_sim,
+                "structure": cand_structure,
+            }
+        )
 
         # Return 1 - similarity (constraint convention: lower is better)
         scores.append(1.0 - similarity)
@@ -416,6 +423,7 @@ def rna_property_similarity_constraint(
 # =============================================================================
 # Constraint 2: Structural Motif Similarity
 # =============================================================================
+
 
 @constraint(
     key="rna-motif-similarity",
@@ -471,13 +479,15 @@ def rna_motif_similarity_constraint(
             similarity = intersection / union if union > 0 else 0.0
 
         # Store metadata
-        seq._metadata.update({
-            "rna_motif_similarity": similarity,
-            "ref_motifs": list(ref_motifs),
-            "cand_motifs": list(cand_motifs),
-            "shared_motifs": list(ref_motifs & cand_motifs),
-            "structure": cand_structure,
-        })
+        seq._metadata.update(
+            {
+                "rna_motif_similarity": similarity,
+                "ref_motifs": list(ref_motifs),
+                "cand_motifs": list(cand_motifs),
+                "shared_motifs": list(ref_motifs & cand_motifs),
+                "structure": cand_structure,
+            }
+        )
 
         scores.append(1.0 - similarity)
 
@@ -487,6 +497,7 @@ def rna_motif_similarity_constraint(
 # =============================================================================
 # Constraint 3: Feature Vector Similarity
 # =============================================================================
+
 
 @constraint(
     key="rna-feature-similarity",
@@ -540,13 +551,15 @@ def rna_feature_similarity_constraint(
             similarity = float(np.dot(ref_features, cand_features) / (ref_norm * cand_norm))
 
         # Store metadata
-        seq._metadata.update({
-            "rna_feature_similarity": similarity,
-            "ref_features": ref_features.tolist(),
-            "cand_features": cand_features.tolist(),
-            "structure": cand_structure,
-            "mfe": cand_mfe,
-        })
+        seq._metadata.update(
+            {
+                "rna_feature_similarity": similarity,
+                "ref_features": ref_features.tolist(),
+                "cand_features": cand_features.tolist(),
+                "structure": cand_structure,
+                "mfe": cand_mfe,
+            }
+        )
 
         scores.append(1.0 - similarity)
 
@@ -556,6 +569,7 @@ def rna_feature_similarity_constraint(
 # =============================================================================
 # Constraint 4: Base Pair Similarity
 # =============================================================================
+
 
 @constraint(
     key="rna-basepair-similarity",
@@ -618,12 +632,14 @@ def rna_basepair_similarity_constraint(
                 similarity = intersection / union if union > 0 else 0.0
 
         # Store metadata
-        seq._metadata.update({
-            "rna_basepair_similarity": similarity,
-            "num_ref_pairs": len(ref_pairs),
-            "num_cand_pairs": len(_get_base_pairs(cand_structure)),
-            "structure": cand_structure,
-        })
+        seq._metadata.update(
+            {
+                "rna_basepair_similarity": similarity,
+                "num_ref_pairs": len(ref_pairs),
+                "num_cand_pairs": len(_get_base_pairs(cand_structure)),
+                "structure": cand_structure,
+            }
+        )
 
         scores.append(1.0 - similarity)
 

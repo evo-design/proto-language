@@ -1,4 +1,5 @@
 """Represents a full biological construct composed of multiple segments."""
+
 from __future__ import annotations
 
 import logging

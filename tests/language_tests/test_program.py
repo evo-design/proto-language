@@ -71,15 +71,11 @@ class TestProgramRestart:
 
         # First run
         program.run()
-        first_run_sequences = [
-            seq.sequence for seq in program.constructs[0].segments[0].result_sequences
-        ]
+        first_run_sequences = [seq.sequence for seq in program.constructs[0].segments[0].result_sequences]
 
         # Second run should restart from original state
         program.run()
-        second_run_sequences = [
-            seq.sequence for seq in program.constructs[0].segments[0].result_sequences
-        ]
+        second_run_sequences = [seq.sequence for seq in program.constructs[0].segments[0].result_sequences]
 
         # Verify sequences were modified from original (mutations applied)
         assert len(first_run_sequences) == 2
@@ -100,9 +96,7 @@ class TestProgramRestart:
 
         # First run through both stages
         program.run()
-        first_run_sequences = [
-            seq.sequence for seq in segment.result_sequences
-        ]
+        first_run_sequences = [seq.sequence for seq in segment.result_sequences]
         assert len(first_run_sequences) == 2
         assert any(seq != original_seq for seq in first_run_sequences)
 
@@ -112,9 +106,7 @@ class TestProgramRestart:
         # Second run: opt1._initial_state must be cleared so it recaptures
         # from opt0's fresh output instead of using stale first-run state.
         program.run()
-        second_run_sequences = [
-            seq.sequence for seq in segment.result_sequences
-        ]
+        second_run_sequences = [seq.sequence for seq in segment.result_sequences]
         assert len(second_run_sequences) == 2
         assert any(seq != original_seq for seq in second_run_sequences)
 
@@ -148,16 +140,16 @@ class TestProgramRestart:
 
         # Verify captured state contains original sequence (using index 0)
         segment = program.constructs[0].segments[0]
-        assert len(program.optimizers[0]._initial_state['segments']) == 1
-        captured_state = program.optimizers[0]._initial_state['segments'][0]
-        captured_result = captured_state['result']
-        captured_proposals = captured_state['proposals']
+        assert len(program.optimizers[0]._initial_state["segments"]) == 1
+        captured_state = program.optimizers[0]._initial_state["segments"][0]
+        captured_result = captured_state["result"]
+        captured_proposals = captured_state["proposals"]
 
         # Verify captured sequences match original (cycled to num_results=2)
         assert len(captured_result) == 2  # Cycled from single source to num_results=2
-        assert all(s['sequence'] == original_seq for s in captured_result)
+        assert all(s["sequence"] == original_seq for s in captured_result)
         assert len(captured_proposals) > 0
-        assert all(c['sequence'] == original_seq for c in captured_proposals)
+        assert all(c["sequence"] == original_seq for c in captured_proposals)
 
         # Manually modify sequences to all G's to verify restore works
         for seq in segment.result_sequences:
@@ -169,15 +161,11 @@ class TestProgramRestart:
         program.run()
 
         # Sequences should not remain as all G's (they were restored before running)
-        current_sequences = [
-            seq.sequence for seq in segment.result_sequences
-        ]
+        current_sequences = [seq.sequence for seq in segment.result_sequences]
         assert any(seq != "G" * 20 for seq in current_sequences)
 
         # Verify proposals were also restored (and mutations applied)
-        proposal_sequences = [
-            seq.sequence for seq in segment.proposal_sequences
-        ]
+        proposal_sequences = [seq.sequence for seq in segment.proposal_sequences]
         assert any(seq != "G" * 20 for seq in proposal_sequences)
 
 
@@ -186,10 +174,14 @@ def _make_topk(segment, construct, num_results=None):
     gen = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1)))
     gen.assign(segment)
     constraint = ConstraintRegistry.create(
-        key="gc-content", segments=[segment], config_dict={"min_gc": 0, "max_gc": 100},
+        key="gc-content",
+        segments=[segment],
+        config_dict={"min_gc": 0, "max_gc": 100},
     )
     return TopKOptimizer(
-        constructs=[construct], generators=[gen], constraints=[constraint],
+        constructs=[construct],
+        generators=[gen],
+        constraints=[constraint],
         config=TopKOptimizerConfig(num_samples=6, num_results=num_results),
     )
 
@@ -362,7 +354,9 @@ class TestRunStageRestart:
         construct = Construct([segment])
 
         # Stage 1: uses gc-content constraint with label "gc_stage_1"
-        gen1 = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1)))
+        gen1 = RandomNucleotideGenerator(
+            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
+        )
         gen1.assign(segment)
         constraint1 = ConstraintRegistry.create(
             key="gc-content",
@@ -378,7 +372,9 @@ class TestRunStageRestart:
         )
 
         # Stage 2: uses gc-content constraint with label "gc_stage_2"
-        gen2 = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1)))
+        gen2 = RandomNucleotideGenerator(
+            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
+        )
         gen2.assign(segment)
         constraint2 = ConstraintRegistry.create(
             key="gc-content",
@@ -407,10 +403,8 @@ class TestRunStageRestart:
 
         # Verify stage 1 metadata is cleared and only stage 2 metadata exists
         seq = segment.result_sequences[0]
-        assert "gc_stage_1" not in seq._constraints_metadata, \
-            "Stage 1 constraint metadata should be cleared"
-        assert "gc_stage_2" in seq._constraints_metadata, \
-            "Stage 2 constraint metadata should be present"
+        assert "gc_stage_1" not in seq._constraints_metadata, "Stage 1 constraint metadata should be cleared"
+        assert "gc_stage_2" in seq._constraints_metadata, "Stage 2 constraint metadata should be present"
 
     def test_get_stage_results_raises_for_unrun_stage(self):
         """Test that get_stage_results raises IndexError for unrun stages."""
@@ -462,7 +456,9 @@ class TestProgramValidation:
         construct1 = Construct([segment1], label="c1")
         construct2 = Construct([segment2], label="c2")
 
-        gen1 = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1)))
+        gen1 = RandomNucleotideGenerator(
+            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
+        )
         gen1.assign(segment1)
         constraint1 = ConstraintRegistry.create(
             key="gc-content", segments=[segment1], config_dict={"min_gc": 0, "max_gc": 100}
@@ -474,7 +470,9 @@ class TestProgramValidation:
             config=TopKOptimizerConfig(num_samples=3, num_results=2),
         )
 
-        gen2 = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1)))
+        gen2 = RandomNucleotideGenerator(
+            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
+        )
         gen2.assign(segment1)
         constraint2 = ConstraintRegistry.create(
             key="gc-content", segments=[segment1], config_dict={"min_gc": 0, "max_gc": 100}
@@ -497,7 +495,9 @@ class TestProgramValidation:
         segment2 = Segment(sequence="ATGCATGCATGCATGCATGC", sequence_type="dna")
         construct2 = Construct([segment2])
 
-        gen1 = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1)))
+        gen1 = RandomNucleotideGenerator(
+            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
+        )
         gen1.assign(segment1)
         constraint1 = ConstraintRegistry.create(
             key="gc-content", segments=[segment1], config_dict={"min_gc": 0, "max_gc": 100}
@@ -509,7 +509,9 @@ class TestProgramValidation:
             config=TopKOptimizerConfig(num_samples=3, num_results=2),
         )
 
-        gen2 = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1)))
+        gen2 = RandomNucleotideGenerator(
+            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
+        )
         gen2.assign(segment2)
         constraint2 = ConstraintRegistry.create(
             key="gc-content", segments=[segment2], config_dict={"min_gc": 0, "max_gc": 100}
@@ -531,9 +533,13 @@ class TestProgramValidation:
         construct1 = Construct([segment1], label="same_label")
         construct2 = Construct([segment2], label="same_label")
 
-        gen1 = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1)))
+        gen1 = RandomNucleotideGenerator(
+            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
+        )
         gen1.assign(segment1)
-        gen2 = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1)))
+        gen2 = RandomNucleotideGenerator(
+            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
+        )
         gen2.assign(segment2)
         constraint1 = ConstraintRegistry.create(
             key="gc-content", segments=[segment1], config_dict={"min_gc": 0, "max_gc": 100}
@@ -557,7 +563,9 @@ class TestProgramValidation:
         construct1 = Construct([shared_segment], label="c1")
         construct2 = Construct([shared_segment], label="c2")  # Same segment instance!
 
-        gen1 = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1)))
+        gen1 = RandomNucleotideGenerator(
+            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
+        )
         gen1.assign(shared_segment)
         constraint = ConstraintRegistry.create(
             key="gc-content", segments=[shared_segment], config_dict={"min_gc": 0, "max_gc": 100}
@@ -578,7 +586,9 @@ class TestProgramValidation:
         segment2 = Segment(sequence_type="dna", length=20)  # No input sequence
         construct = Construct([segment1, segment2])
 
-        gen = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1)))
+        gen = RandomNucleotideGenerator(
+            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
+        )
         gen.assign(segment1)  # Only segment1 has generator
         constraint = ConstraintRegistry.create(
             key="gc-content", segments=[segment1], config_dict={"min_gc": 0, "max_gc": 100}
@@ -598,7 +608,9 @@ class TestProgramValidation:
         segment = Segment(sequence="ATGCATGCATGCATGCATGC", sequence_type="dna")
         construct = Construct([segment])
 
-        shared_gen = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1)))
+        shared_gen = RandomNucleotideGenerator(
+            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
+        )
         shared_gen.assign(segment)
 
         constraint1 = ConstraintRegistry.create(
@@ -628,9 +640,13 @@ class TestProgramValidation:
         segment = Segment(sequence="ATGCATGCATGCATGCATGC", sequence_type="dna")
         construct = Construct([segment])
 
-        gen1 = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1)))
+        gen1 = RandomNucleotideGenerator(
+            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
+        )
         gen1.assign(segment)
-        gen2 = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1)))
+        gen2 = RandomNucleotideGenerator(
+            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
+        )
         gen2.assign(segment)
 
         shared_constraint = ConstraintRegistry.create(
@@ -694,18 +710,14 @@ class TestSerializeRestoreState:
         # Run stage 0 and serialize
         program.run_stage(0)
         state = program.serialize_state()
-        stage0_sequences = [
-            seq.sequence for seq in program.constructs[0].segments[0].result_sequences
-        ]
+        stage0_sequences = [seq.sequence for seq in program.constructs[0].segments[0].result_sequences]
 
         # Create fresh program and restore
         fresh_program = _create_simple_program(num_stages=2, sequence=original_seq)
         fresh_program.restore_state(state)
 
         # Verify sequences were restored
-        restored_sequences = [
-            seq.sequence for seq in fresh_program.constructs[0].segments[0].result_sequences
-        ]
+        restored_sequences = [seq.sequence for seq in fresh_program.constructs[0].segments[0].result_sequences]
         assert restored_sequences == stage0_sequences
 
     def test_restore_state_validates_segment_count(self):
@@ -729,9 +741,7 @@ class TestSerializeRestoreState:
         program1 = _create_simple_program(num_stages=2, sequence=original_seq)
         program1.run_stage(0)
         state = program1.serialize_state()
-        stage0_sequences = [
-            seq.sequence for seq in program1.constructs[0].segments[0].result_sequences
-        ]
+        stage0_sequences = [seq.sequence for seq in program1.constructs[0].segments[0].result_sequences]
 
         # Restore and run stage 1
         program2 = _create_simple_program(num_stages=2, sequence=original_seq)
@@ -739,9 +749,7 @@ class TestSerializeRestoreState:
         program2.current_stage = 1  # API tracks this in DB, not in serialized state
 
         # Verify state was restored before running stage 1
-        pre_stage1_sequences = [
-            seq.sequence for seq in program2.constructs[0].segments[0].result_sequences
-        ]
+        pre_stage1_sequences = [seq.sequence for seq in program2.constructs[0].segments[0].result_sequences]
         assert pre_stage1_sequences == stage0_sequences
 
         # Run stage 1
@@ -827,12 +835,15 @@ class TestProgramExport:
         with pytest.raises(ValueError, match="Unknown table"):
             self.program.export(path=tmp_path / "x.csv", table="nonexistent")
 
-    @pytest.mark.parametrize("table,expected_col", [
-        ("sequences", "sequence"),
-        ("constraints", "constraint"),
-        ("constructs", "full_sequence"),
-        ("optimization", "timepoint"),
-    ])
+    @pytest.mark.parametrize(
+        "table,expected_col",
+        [
+            ("sequences", "sequence"),
+            ("constraints", "constraint"),
+            ("constructs", "full_sequence"),
+            ("optimization", "timepoint"),
+        ],
+    )
     def test_to_dataframe_all_tables(self, table, expected_col):
         """to_dataframe dispatches correctly to each table."""
         df = self.program.to_dataframe(table=table)
@@ -865,6 +876,7 @@ class TestProgramCompute:
     def test_compute_defaults_to_toolpool_when_backend_and_gpus(self, mock_pool_cls, _mock_gpus):
         """Default compute=None resolves to ToolPool() when dispatch configured and GPUs available."""
         from proto_tools.tools.tool_registry import ToolRegistry
+
         ToolRegistry._dispatch_configured = True
         try:
             program = _create_simple_program(compute=None)
@@ -879,6 +891,7 @@ class TestProgramCompute:
         from contextlib import nullcontext
 
         from proto_tools.tools.tool_registry import ToolRegistry
+
         ToolRegistry._dispatch_configured = True
         try:
             program = _create_simple_program(compute=None)
@@ -898,6 +911,7 @@ class TestProgramCompute:
     def test_compute_defaults_to_nullcontext_when_nothing(self, _mock_gpus):
         """Default compute=None resolves to nullcontext() when no dispatch and no GPUs."""
         from contextlib import nullcontext
+
         program = _create_simple_program(compute=None)
         assert isinstance(program.compute, nullcontext)
 

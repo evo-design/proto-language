@@ -23,9 +23,7 @@ def is_on_chimera() -> bool:
 
 
 # Helper to create a mock generator spec for patching
-def _create_mock_generator_spec(
-    category: str = "autoregressive", sequence_types: list | None = None
-):
+def _create_mock_generator_spec(category: str = "autoregressive", sequence_types: list | None = None):
     """Create a mock GeneratorSpec with the given category."""
     mock_spec = Mock()
     mock_spec.category = category
@@ -159,7 +157,6 @@ def pytest_runtest_logreport(report):
         if report.passed:
             logger.debug(f"TEST PASSED: {report.nodeid}")
         elif report.failed:
-
             logger.error(f"TEST FAILED: {report.nodeid}")
             if report.longrepr:
                 # Use DEBUG level to keep it file-only, but prefix with ERROR for visibility in logs
@@ -175,15 +172,15 @@ def pytest_sessionfinish(session, exitstatus):
     num_collected = len(test_reports)
 
     # Count passed and failed tests from the terminal reporter
-    if hasattr(session.config, 'pluginmanager'):
-        terminalreporter = session.config.pluginmanager.get_plugin('terminalreporter')
+    if hasattr(session.config, "pluginmanager"):
+        terminalreporter = session.config.pluginmanager.get_plugin("terminalreporter")
         if terminalreporter:
             stats = terminalreporter.stats
 
-            passed = len(stats.get('passed', []))
-            failed = len(stats.get('failed', []))
-            skipped = len(stats.get('skipped', []))
-            errors = len(stats.get('error', []))
+            passed = len(stats.get("passed", []))
+            failed = len(stats.get("failed", []))
+            skipped = len(stats.get("skipped", []))
+            errors = len(stats.get("error", []))
 
             # Build summary message
             summary_lines = [
@@ -200,13 +197,13 @@ def pytest_sessionfinish(session, exitstatus):
             # Add list of failed tests if any
             if failed > 0:
                 summary_lines.append("\nFailed tests:")
-                failed_reports = stats.get('failed', [])
+                failed_reports = stats.get("failed", [])
                 summary_lines.extend(f"  - {report.nodeid}" for report in failed_reports)
 
             # Add list of error tests if any
             if errors > 0:
                 summary_lines.append("\nTests with errors:")
-                error_reports = stats.get('error', [])
+                error_reports = stats.get("error", [])
                 summary_lines.extend(f"  - {report.nodeid}" for report in error_reports)
 
             summary_lines.append("=" * 80)
@@ -226,18 +223,14 @@ def pytest_collection_modifyitems(config, items):
 
     # Skip tests marked with skip_ci when running in GitHub Actions or --skip-ci is specified
     if os.getenv("GITHUB_ACTIONS") == "true" or config.getoption("--skip-ci"):
-        skip_ci = pytest.mark.skip(
-            reason="Skipped in CI environment (GitHub Actions or --skip-ci)"
-        )
+        skip_ci = pytest.mark.skip(reason="Skipped in CI environment (GitHub Actions or --skip-ci)")
         for item in items:
             if "skip_ci" in item.keywords:
                 item.add_marker(skip_ci)
 
     # Skip only_chimera tests when not on Chimera cluster
     if not is_on_chimera():
-        skip_not_chimera = pytest.mark.skip(
-            reason="Test requires Chimera cluster (SLURM_CLUSTER_NAME != 'arc-slurm')"
-        )
+        skip_not_chimera = pytest.mark.skip(reason="Test requires Chimera cluster (SLURM_CLUSTER_NAME != 'arc-slurm')")
         for item in items:
             if "only_chimera" in item.keywords:
                 item.add_marker(skip_not_chimera)
@@ -262,26 +255,20 @@ def pytest_collection_modifyitems(config, items):
 
     if run_slow_only:
         # When --slow is specified, skip tests NOT marked as slow
-        skip_non_slow = pytest.mark.skip(
-            reason="--slow specified, skipping non-slow tests"
-        )
+        skip_non_slow = pytest.mark.skip(reason="--slow specified, skipping non-slow tests")
         for item in items:
             if "slow" not in item.keywords:
                 item.add_marker(skip_non_slow)
     elif not run_all:
         # By default (no --all flag), skip slow tests
-        skip_slow = pytest.mark.skip(
-            reason="slow test (use --all to run, or --slow to run only slow tests)"
-        )
+        skip_slow = pytest.mark.skip(reason="slow test (use --all to run, or --slow to run only slow tests)")
         for item in items:
             if "slow" in item.keywords:
                 item.add_marker(skip_slow)
 
     # Skip integration tests unless --integration or --all
     if not config.getoption("--integration") and not run_all:
-        skip_integration = pytest.mark.skip(
-            reason="integration test (use --integration or --all to run)"
-        )
+        skip_integration = pytest.mark.skip(reason="integration test (use --integration or --all to run)")
         for item in items:
             if "integration" in item.keywords:
                 item.add_marker(skip_integration)
@@ -313,9 +300,9 @@ def setup_test_logging(request):
     if k_expression:
         # Sanitize the -k expression to make it filename-safe
         # Replace spaces with underscores, remove special characters
-        sanitized = re.sub(r'[^\w\s-]', '', k_expression)  # Remove special chars except spaces, hyphens, underscores
-        sanitized = re.sub(r'\s+', '_', sanitized)  # Replace spaces with underscores
-        sanitized = sanitized.strip('_')  # Remove leading/trailing underscores
+        sanitized = re.sub(r"[^\w\s-]", "", k_expression)  # Remove special chars except spaces, hyphens, underscores
+        sanitized = re.sub(r"\s+", "_", sanitized)  # Replace spaces with underscores
+        sanitized = sanitized.strip("_")  # Remove leading/trailing underscores
         log_filename = f"pytest_{sanitized}.log"
     else:
         # Use timestamp for the log file
@@ -398,7 +385,5 @@ def temp_pdb_file():
 
 @pytest.fixture(scope="session")
 def toy_json():
-    with open(
-        os.path.join(os.path.dirname(__file__), "../examples/jsons/toy.json")
-    ) as f:
+    with open(os.path.join(os.path.dirname(__file__), "../examples/jsons/toy.json")) as f:
         return json.load(f)

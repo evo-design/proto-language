@@ -41,6 +41,7 @@ class SequenceLengthConfig(BaseConfig):
             (alternative to min/max range). Must be a positive integer. Cannot be
             used together with min_length/max_length. Default: None.
     """
+
     # Required parameters
     min_length: int | None = ConfigField(
         title="Minimum Acceptable Length",
@@ -65,7 +66,7 @@ class SequenceLengthConfig(BaseConfig):
         advanced=True,
     )
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_length_config(self) -> SequenceLengthConfig:
         """Ensure either (min_length + max_length) OR target_length is provided."""
         has_range = self.min_length is not None and self.max_length is not None
@@ -93,7 +94,9 @@ class SequenceLengthConfig(BaseConfig):
     supported_sequence_types=["dna", "rna", "protein"],
     num_input_sequences_per_tuple=1,
 )
-def sequence_length_constraint(input_sequences: list[tuple[Sequence, ...]], config: SequenceLengthConfig) -> list[float]:
+def sequence_length_constraint(
+    input_sequences: list[tuple[Sequence, ...]], config: SequenceLengthConfig
+) -> list[float]:
     """Evaluate sequence length against target value or acceptable range.
 
     This constraint function evaluates whether sequences have appropriate lengths.

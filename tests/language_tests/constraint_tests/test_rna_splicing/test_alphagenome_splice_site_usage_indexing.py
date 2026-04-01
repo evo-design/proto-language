@@ -28,6 +28,7 @@ def _get_intron_design():
     global _intron_design  # noqa: PLW0603
     if _intron_design is None:
         from examples.scripts import program_intron_design
+
         _intron_design = program_intron_design
     return _intron_design
 

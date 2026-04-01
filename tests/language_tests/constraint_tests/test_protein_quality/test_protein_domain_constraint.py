@@ -12,19 +12,14 @@ from proto_language.language.constraint.protein_quality.protein_domain_constrain
 )
 from proto_language.language.core import Constraint, Segment
 
-TEST_HMM = (
-    Path(__file__).parent.parent.parent.parent / "dummy_data" / "test_multiple_hmm.hmm"
-)
+TEST_HMM = Path(__file__).parent.parent.parent.parent / "dummy_data" / "test_multiple_hmm.hmm"
 
 # Load test sequence and properly close the file handle
-TEST_FASTA_PATH = (
-    Path(__file__).parent.parent.parent.parent
-    / "dummy_data"
-    / "test_sequences_for_pyhmmer.fasta"
-)
+TEST_FASTA_PATH = Path(__file__).parent.parent.parent.parent / "dummy_data" / "test_sequences_for_pyhmmer.fasta"
 with open(TEST_FASTA_PATH) as fasta_file:
     sequence_iterator = SeqIO.parse(fasta_file, "fasta")
     SAMPLE_SEQUENCE = next(str(seq.seq) for seq in sequence_iterator)
+
 
 class TestProteinDomainConstraint:
     """Tests for Protein Domain constraint."""
@@ -42,8 +37,7 @@ class TestProteinDomainConstraint:
     @pytest.mark.integration
     def test_scoring_algorithm_matching_domain(self):
         """Test protein sequence with matching domain and metadata."""
-        segment = Segment(sequence=SAMPLE_SEQUENCE, sequence_type="protein"
-        )
+        segment = Segment(sequence=SAMPLE_SEQUENCE, sequence_type="protein")
         config = ProteinDomainConfig(hmm_db=str(TEST_HMM), keywords=["kinase"])
 
         constraint = Constraint(
@@ -53,19 +47,16 @@ class TestProteinDomainConstraint:
         )
         scores = constraint.evaluate()
 
-        assert (
-            scores[0] == 0.0
-        ), f"Keyword should be found, score should be 0.0, but got {scores[0]}"
+        assert scores[0] == 0.0, f"Keyword should be found, score should be 0.0, but got {scores[0]}"
 
         # Check constraint-specific metadata
         constraints = segment.proposal_sequences[0]._constraints_metadata
-        assert (
-            "domain_keywords_found" in constraints["protein_domain_constraint"]["data"]
-        ), f"Metadata should contain domain keywords found, but got {constraints}"
-        assert (
-            "kinase"
-            in constraints["protein_domain_constraint"]["data"]["domain_keywords_found"]
-        ), f"Keyword should be found in metadata, but got {constraints['protein_domain_constraint']['data']['domain_keywords_found']}"
+        assert "domain_keywords_found" in constraints["protein_domain_constraint"]["data"], (
+            f"Metadata should contain domain keywords found, but got {constraints}"
+        )
+        assert "kinase" in constraints["protein_domain_constraint"]["data"]["domain_keywords_found"], (
+            f"Keyword should be found in metadata, but got {constraints['protein_domain_constraint']['data']['domain_keywords_found']}"
+        )
 
     @pytest.mark.integration
     def test_protein_sequence_without_matching_domain(self):
@@ -82,9 +73,7 @@ class TestProteinDomainConstraint:
 
         # Evaluate the constraint
         scores = constraint.evaluate()
-        assert (
-            scores[0] == 1.0
-        ), f"Keyword should NOT be found, score should be 1.0, but got {scores[0]}"
+        assert scores[0] == 1.0, f"Keyword should NOT be found, score should be 1.0, but got {scores[0]}"
 
         # Check constraint-specific metadata
         constraints = segment.proposal_sequences[0]._constraints_metadata
@@ -115,13 +104,9 @@ class TestProteinDomainConstraint:
     def test_hmm_db_not_found(self):
         """Test error when HMM database doesn't exist (constraint-specific error handling)."""
         segment = Segment(sequence="MKTAYIAKQRQISFVK", sequence_type="protein")
-        config = ProteinDomainConfig(
-            hmm_db="/nonexistent/path.hmm", keywords=["kinase"]
-        )
+        config = ProteinDomainConfig(hmm_db="/nonexistent/path.hmm", keywords=["kinase"])
 
-        with patch(
-            "proto_language.language.constraint.protein_quality.protein_domain_constraint.Path"
-        ) as mock_path:
+        with patch("proto_language.language.constraint.protein_quality.protein_domain_constraint.Path") as mock_path:
             mock_path_inst = Mock()
             mock_path_inst.exists.return_value = False
             mock_path.return_value = mock_path_inst
@@ -166,7 +151,6 @@ class TestProteinDomainConstraint:
                 "proto_language.language.constraint.protein_quality.protein_domain_constraint.run_prodigal_prediction"
             ) as mock_prodigal,
         ):
-
             mock_prodigal.return_value = mock_prodigal_output
 
             constraint = Constraint(
@@ -189,9 +173,12 @@ class TestProteinDomainConstraint:
         mock_prodigal_output.predicted_orfs = [[]]
         mock_prodigal_output.num_orfs_per_sequence = [0]
 
-        with patch('proto_language.language.constraint.protein_quality.protein_domain_constraint.Path') as mock_path, \
-             patch('proto_language.language.constraint.protein_quality.protein_domain_constraint.run_prodigal_prediction') as mock_prodigal:
-
+        with (
+            patch("proto_language.language.constraint.protein_quality.protein_domain_constraint.Path") as mock_path,
+            patch(
+                "proto_language.language.constraint.protein_quality.protein_domain_constraint.run_prodigal_prediction"
+            ) as mock_prodigal,
+        ):
             mock_path_inst = Mock()
             mock_path_inst.exists.return_value = True
             mock_path.return_value = mock_path_inst

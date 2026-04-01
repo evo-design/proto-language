@@ -100,10 +100,7 @@ class BeamSearchOptimizerConfig(BaseOptimizerConfig):
     """
 
     # Required parameters
-    prompt: str = ConfigField(
-        title="Prompt",
-        description="The prompt to start the beam search (e.g. ATCG)"
-    )
+    prompt: str = ConfigField(title="Prompt", description="The prompt to start the beam search (e.g. ATCG)")
     num_results: int | None = ConfigField(
         default=None,
         ge=1,
@@ -189,12 +186,7 @@ class BeamSearchOptimizer(Optimizer):
         >>> generator = Evo2Generator(config=gen_config)
         >>> segment = Segment(length=10000, sequence_type="dna")
         >>> construct = Construct([segment])
-        >>> config = BeamSearchOptimizerConfig(
-        ...     prompt="ATCG",
-        ...     beam_length=2000,
-        ...     num_results=5,
-        ...     proposals_per_result=10
-        ... )
+        >>> config = BeamSearchOptimizerConfig(prompt="ATCG", beam_length=2000, num_results=5, proposals_per_result=10)
         >>> beam_search = BeamSearchOptimizer(
         ...     target_segment=segment,
         ...     constructs=[construct],
@@ -233,7 +225,9 @@ class BeamSearchOptimizer(Optimizer):
                               (List[str]) Restrict clearing cache to a list of tool names.
         """
         if len(generators) != 1:
-            raise ValueError(f"BeamSearchOptimizer only supports one generator, but currently has {len(generators)} generators.")
+            raise ValueError(
+                f"BeamSearchOptimizer only supports one generator, but currently has {len(generators)} generators."
+            )
         generator = generators[0]
         generator.assign(target_segment)
 
@@ -304,12 +298,14 @@ class BeamSearchOptimizer(Optimizer):
 
         # KV caching support (if enabled)
         if self.use_kv_caching:
-            if not hasattr(self.generator, 'replicate_cache') or not callable(getattr(self.generator, 'replicate_cache', None)):
+            if not hasattr(self.generator, "replicate_cache") or not callable(
+                getattr(self.generator, "replicate_cache", None)
+            ):
                 raise ValueError(
                     f"Generator '{self.generator.__class__.__name__}' does not support KV caching (missing replicate_cache method). "
                     f"Set use_kv_caching=False or use a generator that supports KV caching."
                 )
-            if not hasattr(self.generator, 'kv_caches'):
+            if not hasattr(self.generator, "kv_caches"):
                 raise ValueError(
                     f"Generator '{self.generator.__class__.__name__}' does not support KV caching (missing kv_caches attribute). "
                     f"Set use_kv_caching=False or use a generator that supports KV caching."
@@ -346,12 +342,10 @@ class BeamSearchOptimizer(Optimizer):
         self._prepare_run()
 
         # BeamSearch always starts from its configured prompt.
-        if any(
-            seq.sequence
-            for seg in self.segments
-            for seq in seg.result_sequences
-        ):
-            logger.warning("BeamSearchOptimizer starts from its configured prompt and overwrites existing sequences/prompts")
+        if any(seq.sequence for seg in self.segments for seq in seg.result_sequences):
+            logger.warning(
+                "BeamSearchOptimizer starts from its configured prompt and overwrites existing sequences/prompts"
+            )
 
         # BeamSearch starts from empty prompt; no meaningful initial snapshot
         self.energy_scores = [float("inf")] * self.num_results  # type: ignore[operator]
@@ -386,8 +380,8 @@ class BeamSearchOptimizer(Optimizer):
         # snapshot, so no additional snapshot needed)
         self.target_segment.result_sequences = [
             Sequence(
-                sequence=beam.running_sequence if self.prepend_prompt else beam.running_sequence[len(self.prompt):],
-                sequence_type=self.target_segment.sequence_type
+                sequence=beam.running_sequence if self.prepend_prompt else beam.running_sequence[len(self.prompt) :],
+                sequence_type=self.target_segment.sequence_type,
             )
             for beam in self.beams
         ]
@@ -429,8 +423,7 @@ class BeamSearchOptimizer(Optimizer):
 
             # Resize proposal pool to match batch for zip(strict=True) compatibility
             self.target_segment.proposal_sequences = [
-                Sequence(sequence="", sequence_type=self.target_segment.sequence_type)
-                for _ in range(batch_count)
+                Sequence(sequence="", sequence_type=self.target_segment.sequence_type) for _ in range(batch_count)
             ]
             self._sync_proposal_pools(self.target_segment)
 
@@ -451,15 +444,19 @@ class BeamSearchOptimizer(Optimizer):
                 generated_seq = self.target_segment.proposal_sequences[i].sequence
                 new_prompt = generated_seq if prepend_prompt else beam.running_sequence + generated_seq
 
-                proposals.append(BeamState(
-                    running_sequence=new_prompt,
-                    kv_cache=kv_caches[i],
-                    beam_scores=beam.beam_scores.copy(),
-                ))
+                proposals.append(
+                    BeamState(
+                        running_sequence=new_prompt,
+                        kv_cache=kv_caches[i],
+                        beam_scores=beam.beam_scores.copy(),
+                    )
+                )
 
         return proposals
 
-    def _generate_and_score_with_resampling(self, prepend_prompt: bool = False, num_tokens: int | None = None) -> list[BeamState]:
+    def _generate_and_score_with_resampling(
+        self, prepend_prompt: bool = False, num_tokens: int | None = None
+    ) -> list[BeamState]:
         """Generate and score proposals, resampling beams until each has valid proposals.
 
         Args:
@@ -498,8 +495,11 @@ class BeamSearchOptimizer(Optimizer):
 
         # Resample beams until each has proposals_per_result valid proposals
         for attempt in range(1, self.max_resample_attempts + 1):
-            beams_to_resample = [b for b in range(self.num_results)  # type: ignore[arg-type]
-                                if len(beam_proposals[b]) < self._proposals_per_result]
+            beams_to_resample = [
+                b
+                for b in range(self.num_results)  # type: ignore[arg-type]
+                if len(beam_proposals[b]) < self._proposals_per_result
+            ]
 
             if not beams_to_resample:
                 break  # All beams have enough valid proposals
@@ -525,8 +525,11 @@ class BeamSearchOptimizer(Optimizer):
                         beam_proposals[beam_idx].append(proposal)
 
         # Verify each beam has at least proposals_per_result valid proposals
-        insufficient_beams = [b for b in range(self.num_results)  # type: ignore[arg-type]
-                             if len(beam_proposals[b]) < self._proposals_per_result]
+        insufficient_beams = [
+            b
+            for b in range(self.num_results)  # type: ignore[arg-type]
+            if len(beam_proposals[b]) < self._proposals_per_result
+        ]
         if insufficient_beams:
             counts = {b: len(beam_proposals[b]) for b in insufficient_beams}
             raise RuntimeError(
@@ -538,9 +541,9 @@ class BeamSearchOptimizer(Optimizer):
         all_valid_proposals = []
         for beam_idx in range(self.num_results):  # type: ignore[arg-type]
             # Sort by most recent score and take top proposals_per_result
-            sorted_proposals = sorted(
-                beam_proposals[beam_idx], key=lambda b: b.beam_scores[-1]
-            )[: self._proposals_per_result]
+            sorted_proposals = sorted(beam_proposals[beam_idx], key=lambda b: b.beam_scores[-1])[
+                : self._proposals_per_result
+            ]
             all_valid_proposals.extend(sorted_proposals)
 
         return all_valid_proposals
@@ -560,16 +563,13 @@ class BeamSearchOptimizer(Optimizer):
             proposal_beams (list[BeamState]): All valid proposal BeamStates from expansion.
         """
         # 1. Score each proposal beam
-        scored_proposals = [
-            (i, beam, self._get_aggregated_score(beam))
-            for i, beam in enumerate(proposal_beams)
-        ]
+        scored_proposals = [(i, beam, self._get_aggregated_score(beam)) for i, beam in enumerate(proposal_beams)]
 
         # 2. Sort by score and keep top num_results
         sorted_proposals = sorted(scored_proposals, key=lambda x: x[2])
-        result_indices = {orig_idx for orig_idx, _, _ in sorted_proposals[:self.num_results]}
-        self.beams = [beam for _, beam, _ in sorted_proposals[:self.num_results]]
-        self.energy_scores = [score for _, _, score in sorted_proposals[:self.num_results]]
+        result_indices = {orig_idx for orig_idx, _, _ in sorted_proposals[: self.num_results]}
+        self.beams = [beam for _, beam, _ in sorted_proposals[: self.num_results]]
+        self.energy_scores = [score for _, _, score in sorted_proposals[: self.num_results]]
 
         # 3. Update _proposal_outcomes and _proposal_energy_scores
         self._proposal_outcomes = ["Beam pruned"] * len(proposal_beams)
@@ -580,7 +580,7 @@ class BeamSearchOptimizer(Optimizer):
         # 4. Write proposal_sequences and result_sequences for snapshot
         self.target_segment.proposal_sequences = [
             Sequence(
-                sequence=beam.running_sequence if self.prepend_prompt else beam.running_sequence[len(self.prompt):],
+                sequence=beam.running_sequence if self.prepend_prompt else beam.running_sequence[len(self.prompt) :],
                 sequence_type=self.target_segment.sequence_type,
             )
             for beam in proposal_beams
@@ -588,7 +588,7 @@ class BeamSearchOptimizer(Optimizer):
         self._sync_proposal_pools(self.target_segment)
         self.target_segment.result_sequences = [
             Sequence(
-                sequence=beam.running_sequence if self.prepend_prompt else beam.running_sequence[len(self.prompt):],
+                sequence=beam.running_sequence if self.prepend_prompt else beam.running_sequence[len(self.prompt) :],
                 sequence_type=self.target_segment.sequence_type,
             )
             for beam in self.beams
@@ -596,13 +596,13 @@ class BeamSearchOptimizer(Optimizer):
 
         if self.verbose:
             logger.info(f"Selected top {self.num_results} beams:")
-            for i, beam, score in sorted_proposals[:self.num_results]:
+            for i, beam, score in sorted_proposals[: self.num_results]:
                 logger.info(f"  [{i}] score={score:.4f}, prompt_len={len(beam.running_sequence)}")
 
     def _get_aggregated_score(self, beam: BeamState) -> float:
         """Get aggregated score for a beam based on score_by setting."""
         if not beam.beam_scores:
-            return float('inf')
+            return float("inf")
         return float(np.mean(beam.beam_scores)) if self.score_by == "mean" else beam.beam_scores[-1]
 
     ###########
@@ -619,7 +619,9 @@ class BeamSearchOptimizer(Optimizer):
             for i, beam in enumerate(self.beams):
                 agg_score = self._get_aggregated_score(beam)
                 last_score = beam.beam_scores[-1] if beam.beam_scores else float("inf")
-                logger.debug(f"  [{i}] agg={agg_score:.4f}, last={last_score:.4f}, len={len(beam.running_sequence)}: '{beam.running_sequence}'")
+                logger.debug(
+                    f"  [{i}] agg={agg_score:.4f}, last={last_score:.4f}, len={len(beam.running_sequence)}: '{beam.running_sequence}'"
+                )
 
         if self.custom_logging:
             self.custom_logging(beam_num, self.segments)
@@ -633,7 +635,7 @@ class BeamSearchOptimizer(Optimizer):
     def _log_cache_state(self, kv_cache: dict[str, Any] | None) -> None:
         """Log KV cache state for debugging."""
         if kv_cache:
-            kv = next(iter(kv_cache['mha'].key_value_memory_dict.values()))
+            kv = next(iter(kv_cache["mha"].key_value_memory_dict.values()))
             logger.debug(f"  Cache: KV shape={kv.shape}, seqlen_offset={kv_cache['mha'].seqlen_offset}")
         else:
             logger.debug("  Cache: None (first beam, will build cache)")

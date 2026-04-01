@@ -1,4 +1,5 @@
 """tests/language_tests/generator_tests/test_proteinmpnn_generator.py."""
+
 import copy
 
 import pytest
@@ -67,9 +68,7 @@ class TestProteinMPNNGenerator:
 
         segment = Segment(sequence="AGSVL", sequence_type="protein")
         generator.assign(segment)
-        segment.proposal_sequences = [
-            copy.deepcopy(segment.original_sequence) for _ in range(num_proposals)
-        ]
+        segment.proposal_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(num_proposals)]
 
         generator.sample()
 
@@ -90,9 +89,7 @@ class TestProteinMPNNGenerator:
 
         segment = Segment(sequence="AGSVL", sequence_type="protein")
         generator.assign(segment)
-        segment.proposal_sequences = [
-            copy.deepcopy(segment.original_sequence) for _ in range(num_proposals)
-        ]
+        segment.proposal_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(num_proposals)]
 
         assert generator.batch_size == 2
 
@@ -110,9 +107,7 @@ class TestProteinMPNNGeneratorValidation:
     @pytest.mark.parametrize("sequence_type", ["dna", "rna"])
     def test_rejects_non_protein_segment(self, temp_pdb_file, sequence_type):
         """ProteinMPNN should reject non-protein segments."""
-        generator = ProteinMPNNGenerator(
-            ProteinMPNNGeneratorConfig(structure_inputs=temp_pdb_file)
-        )
+        generator = ProteinMPNNGenerator(ProteinMPNNGeneratorConfig(structure_inputs=temp_pdb_file))
         segment = Segment(length=50, sequence_type=sequence_type)
 
         with pytest.raises(ValueError) as exc_info:
@@ -122,21 +117,15 @@ class TestProteinMPNNGeneratorValidation:
 
     def test_rejects_ligand_segment(self, temp_pdb_file):
         """ProteinMPNN should reject ligand segments (ligands cannot be mutated)."""
-        generator = ProteinMPNNGenerator(
-            ProteinMPNNGeneratorConfig(structure_inputs=temp_pdb_file)
-        )
+        generator = ProteinMPNNGenerator(ProteinMPNNGeneratorConfig(structure_inputs=temp_pdb_file))
         segment = Segment(sequence="CCC", sequence_type="ligand")
 
-        with pytest.raises(
-            ValueError, match="Cannot assign generator to ligand segment"
-        ):
+        with pytest.raises(ValueError, match="Cannot assign generator to ligand segment"):
             generator.assign(segment)
 
     def test_pdb_content_string(self, sample_pdb_content):
         """Should accept PDB content as a string (not just file path)."""
-        generator = ProteinMPNNGenerator(
-            ProteinMPNNGeneratorConfig(structure_inputs=sample_pdb_content)
-        )
+        generator = ProteinMPNNGenerator(ProteinMPNNGeneratorConfig(structure_inputs=sample_pdb_content))
 
         # Structure should be resolved automatically
         assert len(generator.structure_inputs) == 1
@@ -144,16 +133,12 @@ class TestProteinMPNNGeneratorValidation:
 
     def test_structure_without_chain_ids_defaults_to_all(self, temp_pdb_file):
         """When chain_ids is not specified, should default to all chains."""
-        generator = ProteinMPNNGenerator(
-            ProteinMPNNGeneratorConfig(structure_inputs=temp_pdb_file)
-        )
+        generator = ProteinMPNNGenerator(ProteinMPNNGeneratorConfig(structure_inputs=temp_pdb_file))
 
         # chain_ids should be populated with all available chains
         assert len(generator.structure_inputs) == 1
         assert generator.structure_inputs[0].chain_ids is not None
-        assert generator.structure_inputs[0].chain_ids == [
-            "A"
-        ]  # Only chain A in sample PDB
+        assert generator.structure_inputs[0].chain_ids == ["A"]  # Only chain A in sample PDB
 
     def test_structure_input_with_chain_ids(self, temp_pdb_file):
         """Should accept InverseFoldingStructureInput with chain_ids."""

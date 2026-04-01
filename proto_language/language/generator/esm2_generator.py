@@ -160,7 +160,5 @@ class ESM2Generator(Generator):
         result = run_esm2_sample(inputs=esm2_input, config=config)
         mutated_sequences = result.sequences
 
-        for proposal, sequence in zip(
-            self._assigned_segment.proposal_sequences, mutated_sequences, strict=True
-        ):
+        for proposal, sequence in zip(self._assigned_segment.proposal_sequences, mutated_sequences, strict=True):
             proposal.sequence = sequence

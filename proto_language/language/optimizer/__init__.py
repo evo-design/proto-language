@@ -1,4 +1,5 @@
 """Optimizer registry and all registered optimization strategies."""
+
 # Registry and base infrastructure
 from proto_language.base_config import BaseOptimizerConfig
 from proto_language.language.optimizer.beam_search_optimizer import (

@@ -79,7 +79,7 @@ class TestMultipleOptimizers:
         assert len(final_sequences) > 0
 
         # Verify energy scores come from final optimizer
-        assert hasattr(program, 'energy_scores')
+        assert hasattr(program, "energy_scores")
         assert len(program.energy_scores) > 0
 
     def test_three_optimizers_sequential(self):
@@ -89,9 +89,7 @@ class TestMultipleOptimizers:
 
         optimizers = []
         for i in range(3):
-            gen_config = RandomNucleotideGeneratorConfig(
-                masking_strategy=MaskingStrategy(num_mutations=5)
-            )
+            gen_config = RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=5))
             gen = RandomNucleotideGenerator(gen_config)
             gen.assign(segment)
 
@@ -126,9 +124,7 @@ class TestMultipleOptimizers:
         # Create two optimizers with different numbers of steps
         optimizers = []
         for _i, num_steps in enumerate([3, 5]):
-            gen_config = RandomNucleotideGeneratorConfig(
-                masking_strategy=MaskingStrategy(num_mutations=1)
-            )
+            gen_config = RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
             gen = RandomNucleotideGenerator(gen_config)
             gen.assign(segment)
 
@@ -293,9 +289,7 @@ class TestMultipleOptimizers:
 
         optimizers = []
         for _ in range(2):
-            gen_config = RandomNucleotideGeneratorConfig(
-                masking_strategy=MaskingStrategy(num_mutations=1)
-            )
+            gen_config = RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
             gen = RandomNucleotideGenerator(gen_config)
             gen.assign(segment)
 

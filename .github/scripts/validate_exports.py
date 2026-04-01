@@ -29,6 +29,7 @@ Usage:
 
 Exit codes: 0 = pass, 1 = errors found.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -133,9 +134,7 @@ def extract_definitions(tree: ast.Module) -> set[str]:
     return defs
 
 
-def extract_decorated_names(
-    py_path: Path, decorator_names: set[str]
-) -> dict[str, str]:
+def extract_decorated_names(py_path: Path, decorator_names: set[str]) -> dict[str, str]:
     """Find all functions/classes decorated with any of the given decorator names.
 
     Scans a .py file. Returns a dict of {function_name: decorator_name}.
@@ -252,9 +251,7 @@ def resolve_domain_root(domain: dict, repo_root: Path) -> Path | None:
     return None
 
 
-def validate_all_consistency(
-    init_path: Path, tree: ast.Module, all_list: list[str]
-) -> list[ValidationError]:
+def validate_all_consistency(init_path: Path, tree: ast.Module, all_list: list[str]) -> list[ValidationError]:
     """Check that every entry in __all__ is actually imported or defined in this module.
 
     Catches stale __all__ entries that reference removed symbols.
@@ -299,10 +296,7 @@ def validate_registry_exports(
                 errors.append(
                     ValidationError(
                         symbol=name,
-                        message=(
-                            f"decorated with @{dec_name} "
-                            f"but not in __all__ of {_rel(parent_init)}"
-                        ),
+                        message=(f"decorated with @{dec_name} but not in __all__ of {_rel(parent_init)}"),
                         file=py_file,
                     )
                 )
@@ -340,10 +334,7 @@ def validate_package_root_exports(
                 errors.append(
                     ValidationError(
                         symbol=name,
-                        message=(
-                            f"decorated with @{dec_name} "
-                            f"but not in __all__ of {_rel(pkg_root_init)}"
-                        ),
+                        message=(f"decorated with @{dec_name} but not in __all__ of {_rel(pkg_root_init)}"),
                         file=py_file,
                     )
                 )
@@ -391,10 +382,7 @@ def validate_domain(
         domain_errors.append(
             ValidationError(
                 symbol=name,
-                message=(
-                    f"domain root not found: {domain['root']} "
-                    f"(config may be stale after package restructuring)"
-                ),
+                message=(f"domain root not found: {domain['root']} (config may be stale after package restructuring)"),
                 file=repo_root / domain["root"] / "__init__.py",
             )
         )
@@ -456,9 +444,7 @@ def validate_domain(
     if "registry_exports" in checks and decorator_names:
         if verbose:
             print(f"    Checking registry decorators: {decorator_names}")
-        errors = validate_registry_exports(
-            parsed, decorated_by_file, exceptions
-        )
+        errors = validate_registry_exports(parsed, decorated_by_file, exceptions)
         domain_errors.extend(errors)
 
         # Safety: warn if zero decorated functions found (possible stale config)
@@ -476,9 +462,7 @@ def validate_domain(
         pkg_root_dir = repo_root / package_root_path
         if verbose:
             print(f"    Checking package root exports: {_rel(pkg_root_dir)}")
-        errors = validate_package_root_exports(
-            pkg_root_dir, decorated_by_file, exceptions
-        )
+        errors = validate_package_root_exports(pkg_root_dir, decorated_by_file, exceptions)
         domain_errors.extend(errors)
 
     return domain_errors, domain_warnings
@@ -491,9 +475,7 @@ def validate_domain(
 
 def main() -> int:
     """Validate export chain consistency (config-driven)."""
-    parser = argparse.ArgumentParser(
-        description="Validate export chain consistency (config-driven)."
-    )
+    parser = argparse.ArgumentParser(description="Validate export chain consistency (config-driven).")
     parser.add_argument(
         "--config",
         type=Path,
@@ -506,9 +488,7 @@ def main() -> int:
         default=None,
         help="Validate only the named domain (e.g. 'Tools', 'Constraints').",
     )
-    parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Show all checks, not just errors."
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Show all checks, not just errors.")
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -525,9 +505,7 @@ def main() -> int:
         if args.domain and domain["name"] != args.domain:
             continue
 
-        errors, domain_warnings = validate_domain(
-            domain, REPO_ROOT, exceptions, args.verbose
-        )
+        errors, domain_warnings = validate_domain(domain, REPO_ROOT, exceptions, args.verbose)
         all_errors.extend(errors)
         all_warnings.extend(domain_warnings)
 

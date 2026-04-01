@@ -1,4 +1,5 @@
 """Generator registry and all registered sequence generators."""
+
 # Masking strategies (re-exported for convenience)
 from proto_tools.tools.masked_models.masking import MaskingStrategy
 

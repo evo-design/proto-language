@@ -37,6 +37,7 @@ class BalancedAaConfig(BaseConfig):
             values enforce stricter amino acid diversity requirements. Default: 3.
 
     """
+
     # Required parameters
     min_aa_frequency: float = ConfigField(
         title="Min Acceptable AA Frequency",
@@ -169,22 +170,10 @@ def balanced_aa_constraint(input_sequences: list[tuple[Sequence, ...]], config: 
                 deficits[seq_idx] = weighted_deficit / underrepresented_totals[seq_idx]
 
         # Calculate penalties for all sequences
-        count_penalties = np.where(
-            max_possible_excess > 0,
-            excess_counts / max_possible_excess,
-            1.0
-        )
-        severity_penalties = np.where(
-            config.min_aa_frequency > 0,
-            deficits / config.min_aa_frequency,
-            0.0
-        )
+        count_penalties = np.where(max_possible_excess > 0, excess_counts / max_possible_excess, 1.0)
+        severity_penalties = np.where(config.min_aa_frequency > 0, deficits / config.min_aa_frequency, 0.0)
 
-        penalties = np.where(
-            excess_mask,
-            np.minimum(1.0, count_penalties * (1.0 + severity_penalties)),
-            0.0
-        )
+        penalties = np.where(excess_mask, np.minimum(1.0, count_penalties * (1.0 + severity_penalties)), 0.0)
 
     for seq_idx, (input_sequence,) in enumerate(input_sequences):
         seq_str = seq_strings[seq_idx]
@@ -195,11 +184,7 @@ def balanced_aa_constraint(input_sequences: list[tuple[Sequence, ...]], config: 
         }
 
         # Get underrepresented AAs for sequences
-        underrepresented_aas = [
-            aa_alphabet[aa_idx]
-            for aa_idx in range(20)
-            if underrepresented_mask[seq_idx, aa_idx]
-        ]
+        underrepresented_aas = [aa_alphabet[aa_idx] for aa_idx in range(20) if underrepresented_mask[seq_idx, aa_idx]]
 
         # Store metadata
         input_sequence._metadata["underrepresented_aa_score"] = float(underrepresented_scores[seq_idx])

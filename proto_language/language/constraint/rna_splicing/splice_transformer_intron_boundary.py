@@ -4,6 +4,7 @@ Accepts three segments (left_flank, intron_core, right_flank), concatenates
 them into a single 1-kb target sequence, and scores donor/acceptor splice
 sites. Metadata is propagated back to all three input segments.
 """
+
 from __future__ import annotations
 
 import logging
@@ -74,6 +75,7 @@ class SpliceTransformerIntronBoundaryConfig(BaseConfig):
         scores indicate stronger predicted splice sites. Authentic splice sites
         typically have scores > 0.5, while non-splice positions have scores near 0.
     """
+
     # Required parameters
     left_context: str = ConfigField(
         title="Left Context",
@@ -92,7 +94,7 @@ class SpliceTransformerIntronBoundaryConfig(BaseConfig):
         description="0-indexed position(s) into input_sequence of expected acceptor",
     )
 
-    @field_validator('donor_pos', 'acceptor_pos', mode='before')
+    @field_validator("donor_pos", "acceptor_pos", mode="before")
     @classmethod
     def convert_pos_to_list(cls, v: int | list[int]) -> list[int]:
         """Convert single int to list of ints."""
@@ -150,24 +152,18 @@ def splice_transformer_intron_boundary(
     # Concatenate 3-part tuples into target sequences for batched inference.
     target_seqs = []
     for left_flank, intron_core, right_flank in input_sequences:
-        target_seqs.append(
-            left_flank.sequence + intron_core.sequence + right_flank.sequence
-        )
+        target_seqs.append(left_flank.sequence + intron_core.sequence + right_flank.sequence)
 
     target_lengths = {len(t) for t in target_seqs}
     if len(target_lengths) != 1:
-        raise ValueError(
-            "SpliceTransformer intron-boundary scoring requires equal-length target sequences in a batch."
-        )
+        raise ValueError("SpliceTransformer intron-boundary scoring requires equal-length target sequences in a batch.")
 
     splice_transformer_input = SpliceTransformerInput(
         target_seqs=target_seqs,
         left_contexts=[config.left_context] * len(target_seqs),
         right_contexts=[config.right_context] * len(target_seqs),
     )
-    splice_transformer_config = config.splice_transformer_config.model_copy(
-        update={"context_length": context_length}
-    )
+    splice_transformer_config = config.splice_transformer_config.model_copy(update={"context_length": context_length})
 
     output = run_splice_transformer(
         splice_transformer_input,
@@ -176,24 +172,18 @@ def splice_transformer_intron_boundary(
 
     if output.shape[0] != len(target_seqs):
         raise ValueError(
-            "SpliceTransformer batch size mismatch: "
-            f"{output.shape[0]} outputs for {len(target_seqs)} inputs."
+            f"SpliceTransformer batch size mismatch: {output.shape[0]} outputs for {len(target_seqs)} inputs."
         )
 
     scores = []
     for batch_idx, (left_flank, intron_core, right_flank) in enumerate(input_sequences):
         if output.shape[1] != len(target_seqs[batch_idx]):
             raise ValueError(
-                "SpliceTransformer output length mismatch: "
-                f"{output.shape[1]} != {len(target_seqs[batch_idx])}."
+                f"SpliceTransformer output length mismatch: {output.shape[1]} != {len(target_seqs[batch_idx])}."
             )
 
-        donor_prob = float(
-            output[batch_idx, config.donor_pos, SpliceTransformerType.DONOR.value].mean()
-        )
-        acceptor_prob = float(
-            output[batch_idx, config.acceptor_pos, SpliceTransformerType.ACCEPTOR.value].mean()
-        )
+        donor_prob = float(output[batch_idx, config.donor_pos, SpliceTransformerType.DONOR.value].mean())
+        acceptor_prob = float(output[batch_idx, config.acceptor_pos, SpliceTransformerType.ACCEPTOR.value].mean())
         score = 1.0 - ((donor_prob + acceptor_prob) / 2.0)
 
         metadata = {

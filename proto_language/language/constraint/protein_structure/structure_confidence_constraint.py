@@ -36,7 +36,7 @@ TOOL_AVAILABLE_METRICS: dict[str, set] = {  # type: ignore[type-arg]
     "boltz2": {"avg_plddt", "ptm", "iptm", "avg_pae"},
     "chai1": {"avg_plddt", "ptm", "iptm", "avg_pae"},
 }
-PAE_MAXIMUM: float = 31.75 # Angstroms.
+PAE_MAXIMUM: float = 31.75  # Angstroms.
 
 
 # ============================================================================
@@ -74,10 +74,7 @@ def _structure_confidence(
     # Build complexes from proposal tuples.
     complexes = []
     for proposal_tuple in proposals:
-        chains = [
-            {"sequence": seq.sequence, "entity_type": seq.sequence_type}
-            for seq in proposal_tuple
-        ]
+        chains = [{"sequence": seq.sequence, "entity_type": seq.sequence_type} for seq in proposal_tuple]
         complexes.append(StructurePredictionComplex(chains=chains))
 
     # Run structure prediction.
@@ -89,20 +86,19 @@ def _structure_confidence(
         metric_value = structure.metrics.get(target_metric)
 
         if metric_value is None:
-            logger.warning(
-                f"Metric '{target_metric}' not found in structure output, "
-                f"returning worst score."
-            )
+            logger.warning(f"Metric '{target_metric}' not found in structure output, returning worst score.")
             raw_metrics.append(None)
             continue
 
         # Attach metadata to first sequence in tuple for visibility.
         if proposal_tuple:
-            proposal_tuple[0]._metadata.update({
-                target_metric: metric_value,
-                "pdb_output": store_file(structure.structure_pdb, FileType.PDB),
-                "structure_tool": config.structure_tool,
-            })
+            proposal_tuple[0]._metadata.update(
+                {
+                    target_metric: metric_value,
+                    "pdb_output": store_file(structure.structure_pdb, FileType.PDB),
+                    "structure_tool": config.structure_tool,
+                }
+            )
 
         raw_metrics.append(metric_value)
 
@@ -153,15 +149,15 @@ def structure_plddt_constraint(
         ...     function_config={"structure_tool": "esmfold"},
         ... )
     """
-    raw_metrics =  _structure_confidence(input_sequences, config, "avg_plddt")
+    raw_metrics = _structure_confidence(input_sequences, config, "avg_plddt")
     scores = []
     for metric in raw_metrics:
         if metric is None:
-            scores.append(1.)
+            scores.append(1.0)
             continue
         # Each structure predictor returns differently normalized pLDDTs.
-        normalized = metric / 100. if config.structure_tool == "alphafold3" else metric
-        scores.append(1. - normalized)
+        normalized = metric / 100.0 if config.structure_tool == "alphafold3" else metric
+        scores.append(1.0 - normalized)
     return scores
 
 
@@ -207,7 +203,7 @@ def structure_ptm_constraint(
     """
     raw_metrics = _structure_confidence(input_sequences, config, "ptm")
     # pTM is pretty standard, just return 1 minus the raw metric.
-    return [ 1. - metric if metric is not None else 1. for metric in raw_metrics ]
+    return [1.0 - metric if metric is not None else 1.0 for metric in raw_metrics]
 
 
 @constraint(
@@ -271,7 +267,7 @@ def structure_iptm_constraint(
     """
     raw_metrics = _structure_confidence(input_sequences, config, "iptm")
     # ipTM is pretty standard, just return 1 minus the raw metric.
-    return [ 1. - metric if metric is not None else 1. for metric in raw_metrics ]
+    return [1.0 - metric if metric is not None else 1.0 for metric in raw_metrics]
 
 
 @constraint(
@@ -322,8 +318,5 @@ def structure_pae_constraint(
         ...     },
         ... )
     """
-    raw_metrics =  _structure_confidence(input_sequences, config, "avg_pae")
-    return [
-        min(metric / PAE_MAXIMUM, 1.) if metric is not None else 1.
-        for metric in raw_metrics
-    ]
+    raw_metrics = _structure_confidence(input_sequences, config, "avg_pae")
+    return [min(metric / PAE_MAXIMUM, 1.0) if metric is not None else 1.0 for metric in raw_metrics]

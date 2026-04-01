@@ -71,6 +71,7 @@ class ProteinSymmetryRingConfig(BaseConfig):
             The ``complexes`` field is set programmatically and should not be
             specified here. Default: ESMFoldConfig().
     """
+
     # Required parameters
     n_replications: int = ConfigField(
         default=3,
@@ -113,7 +114,9 @@ class ProteinSymmetryRingConfig(BaseConfig):
     supported_sequence_types=["dna", "protein"],
     num_input_sequences_per_tuple=1,
 )
-def protein_symmetry_ring_constraint(input_sequences: list[tuple[Sequence, ...]], config: ProteinSymmetryRingConfig) -> list[float]:
+def protein_symmetry_ring_constraint(
+    input_sequences: list[tuple[Sequence, ...]], config: ProteinSymmetryRingConfig
+) -> list[float]:
     """Constrain proteins to form symmetric ring-like multimeric structures using ESMFold.
 
     This constraint function uses ESMFold to predict multimeric protein
@@ -184,7 +187,7 @@ def protein_symmetry_ring_constraint(input_sequences: list[tuple[Sequence, ...]]
         >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", "protein")
         >>> config = ProteinSymmetryRingConfig(
         ...     n_replications=6,  # Hexamer
-        ...     max_symmetry_std=10.0
+        ...     max_symmetry_std=10.0,
         ... )
         >>> scores = protein_symmetry_ring_constraint([(seq,)], config)
         >>> print(scores[0])  # e.g., 0.35 (3.5 Å std / 10.0 Å max)
@@ -209,16 +212,13 @@ def protein_symmetry_ring_constraint(input_sequences: list[tuple[Sequence, ...]]
 
     return scores  # type: ignore[return-value]
 
-def _evaluate_protein_symmetry(
-    protein_sequences: list[Sequence],
-    config: ProteinSymmetryRingConfig
-) -> list[float]:
+
+def _evaluate_protein_symmetry(protein_sequences: list[Sequence], config: ProteinSymmetryRingConfig) -> list[float]:
     """Evaluate protein ring symmetry directly."""
     # Create complexes with n_replications of each protein sequence
     complexes = [
         StructurePredictionComplex(
-            chains=[{"sequence": seq.sequence, "entity_type": "protein"}]
-            * config.n_replications
+            chains=[{"sequence": seq.sequence, "entity_type": "protein"}] * config.n_replications
         )
         for seq in protein_sequences
     ]
@@ -265,31 +265,26 @@ def _evaluate_protein_symmetry(
 
     return scores
 
-def _evaluate_dna_symmetry(
-    dna_sequences: list[Sequence],
-    config: ProteinSymmetryRingConfig
-) -> list[float]:
+
+def _evaluate_dna_symmetry(dna_sequences: list[Sequence], config: ProteinSymmetryRingConfig) -> list[float]:
     """Evaluate DNA sequences via Prodigal then symmetry."""
     prodigal_result = run_prodigal_prediction(
-        ProdigalInput(input_sequences=[seq.sequence for seq in dna_sequences]),
-        ProdigalConfig()
+        ProdigalInput(input_sequences=[seq.sequence for seq in dna_sequences]), ProdigalConfig()
     )
 
     distance_func = pairwise_distances if config.all_to_all_protomer_symmetry else adjacent_distances
     scores = []
 
     for dna_seq, proteins_list, num_genes in zip(
-        dna_sequences,
-        prodigal_result.predicted_orfs,
-        prodigal_result.num_orfs_per_sequence, strict=False
+        dna_sequences, prodigal_result.predicted_orfs, prodigal_result.num_orfs_per_sequence, strict=False
     ):
         orf_dicts = [orf.model_dump() for orf in proteins_list]
-        dna_seq._metadata.update({
-            "prodigal_proteins": store_file(
-                json.dumps(orf_dicts), FileType.JSON
-            ) if orf_dicts else None,
-            "prodigal_protein_count": num_genes
-        })
+        dna_seq._metadata.update(
+            {
+                "prodigal_proteins": store_file(json.dumps(orf_dicts), FileType.JSON) if orf_dicts else None,
+                "prodigal_protein_count": num_genes,
+            }
+        )
 
         # If there are no genes predicted, score is MAX_ENERGY
         if num_genes == 0 or len(proteins_list) == 0:
@@ -299,9 +294,7 @@ def _evaluate_dna_symmetry(
         # Create complexes with n_replications of each protein sequence
         protein_seqs = [orf.amino_acid_sequence for orf in proteins_list]
         complexes = [
-            StructurePredictionComplex(
-                chains=[{"sequence": seq, "entity_type": "protein"}] * config.n_replications
-            )
+            StructurePredictionComplex(chains=[{"sequence": seq, "entity_type": "protein"}] * config.n_replications)
             for seq in protein_seqs
         ]
 
@@ -337,7 +330,7 @@ def _map_scores_to_original(
     all_sequences: list[Sequence],
     subset_sequences: list[Sequence],
     subset_scores: list[float],
-    scores: list[float | None]
+    scores: list[float | None],
 ) -> None:
     """Map subset scores back to original sequence order."""
     subset_idx = 0

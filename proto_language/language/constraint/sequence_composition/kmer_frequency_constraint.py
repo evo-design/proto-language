@@ -73,6 +73,7 @@ class KmerFrequencyConfig(BaseConfig):
         The constraint returns the maximum deviation across all k-mers as the penalty
         score. To evaluate a single specific k-mer, use specific_kmer_constraint instead.
     """
+
     # Required parameters
     k: int = ConfigField(
         title="K-mer Length",
@@ -97,20 +98,16 @@ class KmerFrequencyConfig(BaseConfig):
         description="Maximum acceptable frequency/deviation based on scoring_mode",
     )
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_config(self) -> KmerFrequencyConfig:
         """Validate configuration parameters."""
         # Validate min_value <= max_value
         if self.min_value > self.max_value:
-            raise ValueError(
-                f"min_value ({self.min_value}) must be <= max_value ({self.max_value})"
-            )
+            raise ValueError(f"min_value ({self.min_value}) must be <= max_value ({self.max_value})")
 
         # Validate frequency mode range
         if self.scoring_mode == "frequency" and self.max_value > 1.0:
-            raise ValueError(
-                f"For frequency mode, max_value must be <= 1.0, got {self.max_value}"
-            )
+            raise ValueError(f"For frequency mode, max_value must be <= 1.0, got {self.max_value}")
 
         return self
 
@@ -187,7 +184,7 @@ def kmer_frequency_constraint(input_sequences: list[tuple[Sequence, ...]], confi
         ...     k=3,
         ...     scoring_mode="usage_deviation",
         ...     min_value=0.5,  # Allow some underrepresentation
-        ...     max_value=2.0   # Allow some overrepresentation
+        ...     max_value=2.0,  # Allow some overrepresentation
         ... )
         >>> scores = kmer_frequency_constraint([(coding_seq,)], config)
         >>> deviations = coding_seq._metadata["3mer_usage_deviations"]
@@ -225,13 +222,10 @@ def kmer_frequency_constraint(input_sequences: list[tuple[Sequence, ...]], confi
         else:
             indices = np.arange(len(seq_arr) - config.k + 1)[:, None] + np.arange(config.k)
             kmer_chars = seq_arr[indices]
-            extracted_kmers = np.array([''.join(kmer) for kmer in kmer_chars])
+            extracted_kmers = np.array(["".join(kmer) for kmer in kmer_chars])
 
         # Filter to only valid k-mers (all characters in valid_bases)
-        valid_mask = np.array([
-            all(char in valid_bases for char in kmer)
-            for kmer in extracted_kmers
-        ])
+        valid_mask = np.array([all(char in valid_bases for char in kmer) for kmer in extracted_kmers])
         valid_kmers = extracted_kmers[valid_mask]
 
         if len(valid_kmers) == 0:
@@ -264,18 +258,14 @@ def kmer_frequency_constraint(input_sequences: list[tuple[Sequence, ...]], confi
             score = float(max_dev)
 
             # Store frequency metadata
-            seq._metadata[f"{config.k}mer_frequencies"] = {
-                kmers[i]: float(freqs[i]) for i in range(len(kmers))
-            }
+            seq._metadata[f"{config.k}mer_frequencies"] = {kmers[i]: float(freqs[i]) for i in range(len(kmers))}
 
         else:
             # USAGE DEVIATION MODE: usage deviation evaluation
             seq_length = len(seq)
 
             # Calculate nucleotide frequencies
-            nucleotide_freqs = {
-                nt: str(seq).count(nt) / seq_length for nt in valid_bases
-            }
+            nucleotide_freqs = {nt: str(seq).count(nt) / seq_length for nt in valid_bases}
 
             usage_deviations = np.zeros(len(kmers), dtype=float)
 

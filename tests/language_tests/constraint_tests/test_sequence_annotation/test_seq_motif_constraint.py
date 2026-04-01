@@ -40,14 +40,14 @@ class TestSeqMotifConstraint:
             SeqMotifConfig(
                 motifs_path="/path/to/motifs.meme",
                 meme_bin_path="/usr/bin",
-                percentile_value=150.0  # > 100
+                percentile_value=150.0,  # > 100
             )
 
         with pytest.raises(Exception):  # Pydantic ValidationError
             SeqMotifConfig(
                 motifs_path="/path/to/motifs.meme",
                 meme_bin_path="/usr/bin",
-                percentile_value=-10.0  # < 0
+                percentile_value=-10.0,  # < 0
             )
 
     def test_no_motifs_wanted_or_unwanted(self):
@@ -55,16 +55,19 @@ class TestSeqMotifConstraint:
         segment = Segment(sequence="ATCGATCGATCG", sequence_type="dna")
         config = SeqMotifConfig(
             motifs_path="/tmp/motifs.meme",  # noqa: S108 -- test fixture with deterministic path
-            meme_bin_path="/usr/bin"
+            meme_bin_path="/usr/bin",
         )
 
         # Mock motif file reading
         motif_file_content = "MOTIF motif1\nMOTIF motif2"
 
-        with patch('builtins.open', mock_open(read_data=motif_file_content)), \
-             patch('proto_language.language.constraint.sequence_annotation.seq_motif_constraint.subprocess.run') as _, \
-             patch('proto_language.language.constraint.sequence_annotation.seq_motif_constraint.tempfile.TemporaryDirectory') as mock_temp:
-
+        with (
+            patch("builtins.open", mock_open(read_data=motif_file_content)),
+            patch("proto_language.language.constraint.sequence_annotation.seq_motif_constraint.subprocess.run") as _,
+            patch(
+                "proto_language.language.constraint.sequence_annotation.seq_motif_constraint.tempfile.TemporaryDirectory"
+            ) as mock_temp,
+        ):
             # Setup mock temp directory
             mock_temp_dir = "/tmp/test_temp"  # noqa: S108 -- test fixture with deterministic path
             mock_temp_inst = Mock()
@@ -73,7 +76,7 @@ class TestSeqMotifConstraint:
             mock_temp.return_value = mock_temp_inst
 
             # Mock FIMO output (no hits)
-            with patch('os.path.exists') as mock_exists:
+            with patch("os.path.exists") as mock_exists:
                 mock_exists.return_value = False
 
                 constraint = Constraint(
@@ -92,7 +95,7 @@ class TestSeqMotifConstraint:
         config = SeqMotifConfig(
             motifs_path="/tmp/motifs.meme",  # noqa: S108 -- test fixture with deterministic path
             meme_bin_path="/usr/bin",
-            wanted=["motif1"]
+            wanted=["motif1"],
         )
 
         # Mock motif file and FIMO results
@@ -100,10 +103,13 @@ class TestSeqMotifConstraint:
         fimo_results = "motif_id\tsequence_name\tp-value\tq-value\tstart\tstop\tstrand\tscore\tmotif_alt_id\tsequence\n"
         fimo_results += "motif1\tquery\t1e-5\t0.001\t1\t10\t+\t10.0\n"
 
-        with patch('builtins.open', mock_open(read_data=motif_file_content)), \
-             patch('proto_language.language.constraint.sequence_annotation.seq_motif_constraint.subprocess.run') as _, \
-             patch('proto_language.language.constraint.sequence_annotation.seq_motif_constraint.tempfile.TemporaryDirectory') as mock_temp:
-
+        with (
+            patch("builtins.open", mock_open(read_data=motif_file_content)),
+            patch("proto_language.language.constraint.sequence_annotation.seq_motif_constraint.subprocess.run") as _,
+            patch(
+                "proto_language.language.constraint.sequence_annotation.seq_motif_constraint.tempfile.TemporaryDirectory"
+            ) as mock_temp,
+        ):
             mock_temp_dir = "/tmp/test_temp"  # noqa: S108 -- test fixture with deterministic path
             mock_temp_inst = Mock()
             mock_temp_inst.__enter__ = Mock(return_value=mock_temp_dir)
@@ -111,8 +117,7 @@ class TestSeqMotifConstraint:
             mock_temp.return_value = mock_temp_inst
 
             # Mock FIMO output file
-            with patch('os.path.exists') as mock_exists, \
-                 patch('builtins.open', mock_open(read_data=fimo_results)):
+            with patch("os.path.exists") as mock_exists, patch("builtins.open", mock_open(read_data=fimo_results)):
                 mock_exists.return_value = True
 
                 constraint = Constraint(
@@ -132,24 +137,24 @@ class TestSeqMotifConstraint:
         config_all = SeqMotifConfig(
             motifs_path="/tmp/motifs.meme",  # noqa: S108 -- test fixture with deterministic path
             meme_bin_path="/usr/bin",
-            wanted="all"
+            wanted="all",
         )
-        assert config_all.wanted == ['all']
+        assert config_all.wanted == ["all"]
 
         # Test 'none' keyword for wanted motifs
         config_none = SeqMotifConfig(
             motifs_path="/tmp/motifs.meme",  # noqa: S108 -- test fixture with deterministic path
             meme_bin_path="/usr/bin",
-            wanted="none"
+            wanted="none",
         )
-        assert config_none.wanted == ['none']
+        assert config_none.wanted == ["none"]
 
         # Test exclusive mode
         config_exclusive = SeqMotifConfig(
             motifs_path="/tmp/motifs.meme",  # noqa: S108 -- test fixture with deterministic path
             meme_bin_path="/usr/bin",
             wanted=["motif1"],
-            exclusive=True
+            exclusive=True,
         )
         assert config_exclusive.exclusive
 
@@ -158,6 +163,6 @@ class TestSeqMotifConstraint:
             config = SeqMotifConfig(
                 motifs_path="/tmp/motifs.meme",  # noqa: S108 -- test fixture with deterministic path
                 meme_bin_path="/usr/bin",
-                aggregation=agg
+                aggregation=agg,
             )
             assert config.aggregation == agg

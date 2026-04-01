@@ -39,6 +39,7 @@ class ProteinRepetitivenessConfig(BaseConfig):
             from this length up to ``min_repeat_length + 7`` to find the most
             repetitive pattern. Default: 1.
     """
+
     # Required parameters
     max_repetitiveness: float = ConfigField(
         title="Max Repetitiveness Fraction",
@@ -67,7 +68,9 @@ class ProteinRepetitivenessConfig(BaseConfig):
     supported_sequence_types=["protein"],
     num_input_sequences_per_tuple=1,
 )
-def protein_repetitiveness_constraint(input_sequences: list[tuple[Sequence, ...]], config: ProteinRepetitivenessConfig) -> list[float]:
+def protein_repetitiveness_constraint(
+    input_sequences: list[tuple[Sequence, ...]], config: ProteinRepetitivenessConfig
+) -> list[float]:
     """Evaluate protein sequence repetitiveness based on k-mer frequency analysis.
 
     This constraint function analyzes protein sequences for repetitive content by
@@ -122,15 +125,14 @@ def protein_repetitiveness_constraint(input_sequences: list[tuple[Sequence, ...]
     """
     # Extract sequence strings from tuples
     seq_strings = [seq.sequence for (seq,) in input_sequences]
-    repetitiveness_scores = np.array([
-        _calculate_repetitiveness_score(s, config.min_repeat_length)
-        for s in seq_strings
-    ])
+    repetitiveness_scores = np.array(
+        [_calculate_repetitiveness_score(s, config.min_repeat_length) for s in seq_strings]
+    )
     excess = repetitiveness_scores - config.max_repetitiveness
     scores = np.where(
         repetitiveness_scores <= config.max_repetitiveness,
         MIN_ENERGY,
-        np.minimum(MAX_ENERGY, excess / (1.0 - config.max_repetitiveness))
+        np.minimum(MAX_ENERGY, excess / (1.0 - config.max_repetitiveness)),
     )
 
     for i, (input_sequence,) in enumerate(input_sequences):

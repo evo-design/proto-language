@@ -40,6 +40,7 @@ pytest --cpu --skip-ci                # Mimic CI
 pytest --gpu --all                    # GPU + slow + integration tests
 pytest -k "name"                      # Filter by name
 ruff check proto_language tests       # Lint
+ruff format proto_language tests      # Format (enforced in CI)
 mypy proto_language/                  # Type check (strict)
 ```
 

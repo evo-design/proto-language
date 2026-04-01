@@ -69,9 +69,7 @@ def calculate_range_deviation(actual: float, min_val: float, max_val: float, eps
     return min(MAX_ENERGY, (actual - max_val) / max(max_val, epsilon))
 
 
-def calculate_percentage_range_deviation(
-    actual: float, min_val: float, max_val: float
-) -> float:
+def calculate_percentage_range_deviation(actual: float, min_val: float, max_val: float) -> float:
     """Calculate deviation from acceptable range for percentage-based constraints (0-100%).
 
     Args:
@@ -229,9 +227,7 @@ def mask_k(sequence: str, k: int, mask_str: str = "_", fixed_indices: list[int] 
     return "".join(sequence_list)
 
 
-def mask_p(
-    sequence: str, p: float, mask_str: str = "_", fixed_indices: list[int] | None = None
-) -> str:
+def mask_p(sequence: str, p: float, mask_str: str = "_", fixed_indices: list[int] | None = None) -> str:
     """Mask a random fraction of positions in a sequence.
 
     Args:
@@ -260,10 +256,7 @@ def mask_p(
     return mask_k(sequence, k, mask_str, fixed_indices)
 
 
-
-def mask_assigned_positions(
-    sequence: str, inds_to_mask: list[int], mask_str: str = "_"
-) -> str:
+def mask_assigned_positions(sequence: str, inds_to_mask: list[int], mask_str: str = "_") -> str:
     """Returns a masked version of the sequence where the positions in inds_to_mask.
 
     are replaced with the mask_str.
@@ -304,8 +297,7 @@ def run_subprocess_command(cmd: list[str], tool_name: str) -> subprocess.Complet
     proc = subprocess.run(cmd, capture_output=True, text=True, check=False)  # noqa: S603
     if proc.returncode != 0:
         raise RuntimeError(
-            f"{tool_name} failed (exit {proc.returncode})\n"
-            f"STDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
+            f"{tool_name} failed (exit {proc.returncode})\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
         )
     return proc
 
@@ -325,8 +317,6 @@ def resolve_sequence_ids(sequences: list[str], ids: list[str] | None) -> list[st
     """
     if ids is not None:
         if len(ids) != len(sequences):
-            raise ValueError(
-                f"sequence_ids length ({len(ids)}) must match sequences length ({len(sequences)})"
-            )
+            raise ValueError(f"sequence_ids length ({len(ids)}) must match sequences length ({len(sequences)})")
         return ids
     return [f"seq_{i}" for i in range(len(sequences))]

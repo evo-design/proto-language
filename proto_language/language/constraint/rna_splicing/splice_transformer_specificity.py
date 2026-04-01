@@ -4,6 +4,7 @@ Accepts three segments (left_flank, intron_core, right_flank), concatenates
 them into a single 1-kb target sequence, and scores tissue-specific splice
 site usage. Metadata is propagated back to all three input segments.
 """
+
 from __future__ import annotations
 
 import logging
@@ -143,7 +144,7 @@ class SpliceTransformerSpecificityConfig(BaseConfig):
         advanced=True,
     )
 
-    @field_validator('splice_pos', mode='before')
+    @field_validator("splice_pos", mode="before")
     @classmethod
     def convert_splice_pos_to_list(cls, v: int | list[int]) -> list[int]:
         """Convert single int to list of ints."""
@@ -187,31 +188,27 @@ def splice_transformer_specificity(
         return []
 
     if len(config.left_context) != len(config.right_context):
-        raise ValueError(f"Left/right context lengths must match: {len(config.left_context)} != {len(config.right_context)}")
+        raise ValueError(
+            f"Left/right context lengths must match: {len(config.left_context)} != {len(config.right_context)}"
+        )
     context_length = len(config.left_context)
     tissue_channel_index = SPLICE_TISSUE_CHANNEL_INDEX[config.tissue]
 
     # Concatenate 3-part tuples into target sequences for batched inference.
     target_seqs = []
     for left_flank, intron_core, right_flank in input_sequences:
-        target_seqs.append(
-            left_flank.sequence + intron_core.sequence + right_flank.sequence
-        )
+        target_seqs.append(left_flank.sequence + intron_core.sequence + right_flank.sequence)
 
     target_lengths = {len(t) for t in target_seqs}
     if len(target_lengths) != 1:
-        raise ValueError(
-            "SpliceTransformer specificity requires equal-length target sequences in a batch."
-        )
+        raise ValueError("SpliceTransformer specificity requires equal-length target sequences in a batch.")
 
     splice_transformer_input = SpliceTransformerInput(
         target_seqs=target_seqs,
         left_contexts=[config.left_context] * len(target_seqs),
         right_contexts=[config.right_context] * len(target_seqs),
     )
-    splice_transformer_config = config.splice_transformer_config.model_copy(
-        update={"context_length": context_length}
-    )
+    splice_transformer_config = config.splice_transformer_config.model_copy(update={"context_length": context_length})
 
     output = run_splice_transformer(
         splice_transformer_input,
@@ -220,24 +217,20 @@ def splice_transformer_specificity(
 
     if output.shape[0] != len(target_seqs):
         raise ValueError(
-            "SpliceTransformer batch size mismatch: "
-            f"{output.shape[0]} outputs for {len(target_seqs)} inputs."
+            f"SpliceTransformer batch size mismatch: {output.shape[0]} outputs for {len(target_seqs)} inputs."
         )
 
     scores = []
     for batch_idx, (left_flank, intron_core, right_flank) in enumerate(input_sequences):
         if output.shape[1] != len(target_seqs[batch_idx]):
             raise ValueError(
-                "SpliceTransformer output length mismatch: "
-                f"{output.shape[1]} != {len(target_seqs[batch_idx])}."
+                f"SpliceTransformer output length mismatch: {output.shape[1]} != {len(target_seqs[batch_idx])}."
             )
 
         if tissue_channel_index is None:
             raw_score = float(output[batch_idx, config.splice_pos, 3:].mean())
         else:
-            raw_score = float(
-                output[batch_idx, config.splice_pos, tissue_channel_index].mean()
-            )
+            raw_score = float(output[batch_idx, config.splice_pos, tissue_channel_index].mean())
 
         if config.direction == "max":
             score = 1.0 - raw_score
@@ -245,8 +238,7 @@ def splice_transformer_specificity(
             score = raw_score
         else:
             raise ValueError(
-                f"Invalid SpliceTransformer specificity direction: {config.direction}, "
-                "must be either 'max' or 'min'."
+                f"Invalid SpliceTransformer specificity direction: {config.direction}, must be either 'max' or 'min'."
             )
 
         metadata = {

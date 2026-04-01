@@ -273,9 +273,7 @@ class TestFlattenSequences:
     def test_constraint_columns_present(self, sample_results):
         """Constraint fields use {label}.{field} namespacing."""
         rows = flatten_sequences(sample_results)
-        promoter_row = next(
-            r for r in rows if r["segment"] == "promoter" and r["result_idx"] == 0
-        )
+        promoter_row = next(r for r in rows if r["segment"] == "promoter" and r["result_idx"] == 0)
 
         # All constraint fields present
         assert promoter_row["gc_content_constraint.score"] == 0.1
@@ -288,17 +286,13 @@ class TestFlattenSequences:
     def test_metadata_prefix(self, sample_results):
         """User metadata uses metadata.{key} prefix."""
         rows = flatten_sequences(sample_results)
-        promoter_row = next(
-            r for r in rows if r["segment"] == "promoter" and r["result_idx"] == 0
-        )
+        promoter_row = next(r for r in rows if r["segment"] == "promoter" and r["result_idx"] == 0)
         assert promoter_row["metadata.source"] == "synthetic"
 
     def test_correct_values(self, sample_results):
         """Spot-check specific values."""
         rows = flatten_sequences(sample_results)
-        cds_result1 = next(
-            r for r in rows if r["segment"] == "cds" and r["result_idx"] == 1
-        )
+        cds_result1 = next(r for r in rows if r["segment"] == "cds" and r["result_idx"] == 1)
         assert cds_result1["sequence"] == "CCGGCCGG"
         assert cds_result1["energy_score"] == 0.3
         assert cds_result1["gc_content_constraint.gc_content"] == 75.0
@@ -339,9 +333,7 @@ class TestFlattenConstraints:
         gc_row = next(
             r
             for r in rows
-            if r["constraint"] == "gc_content_constraint"
-            and r["result_idx"] == 0
-            and r["segment"] == "promoter"
+            if r["constraint"] == "gc_content_constraint" and r["result_idx"] == 0 and r["segment"] == "promoter"
         )
         assert gc_row["gc_content"] == 50.0
         assert gc_row["score"] == 0.1
@@ -914,9 +906,7 @@ class TestFiltering:
             k
             for r in rows
             for k in r
-            if not k.startswith(
-                ("timepoint", "result_idx", "energy_score", "sequence_type", "stage")
-            )
+            if not k.startswith(("timepoint", "result_idx", "energy_score", "sequence_type", "stage"))
         }
         assert all(k.startswith("promoter.") for k in non_fixed_keys)
 
@@ -1333,10 +1323,7 @@ class TestSegmentBoundaries:
         # promoter is first: [0:8]
         assert row["promoter.start"] == 0
         assert row["promoter.end"] == 8
-        assert (
-            full[row["promoter.start"] : row["promoter.end"]]
-            == row["promoter.sequence"]
-        )
+        assert full[row["promoter.start"] : row["promoter.end"]] == row["promoter.sequence"]
 
         # cds follows: [8:16]
         assert row["cds.start"] == 8
@@ -1368,9 +1355,7 @@ class TestBuildProposalResults:
 
         segment = MagicMock(spec=Segment)
         segment.label = "promoter"
-        segment.proposal_sequences = [
-            Sequence(seq, sequence_type="dna") for seq in proposal_sequences
-        ]
+        segment.proposal_sequences = [Sequence(seq, sequence_type="dna") for seq in proposal_sequences]
         construct = MagicMock(spec=Construct)
         construct.label = "construct_0"
         construct.sequence_type = "dna"
@@ -1578,9 +1563,7 @@ class TestFlattenOptimizationProposals:
     def test_include_proposals_false_unchanged(self, history_with_proposals):
         """include_proposals=False produces identical output to default (no new columns)."""
         rows_default = flatten_optimization(history_with_proposals)
-        rows_false = flatten_optimization(
-            history_with_proposals, include_proposals=False
-        )
+        rows_false = flatten_optimization(history_with_proposals, include_proposals=False)
         assert rows_default == rows_false
         assert all("pool" not in r for r in rows_default)
 
@@ -1610,11 +1593,7 @@ class TestFlattenOptimizationProposals:
     def test_proposal_constraint_data_exported(self, history_with_proposals):
         """Constraint data on proposal rows is properly flattened."""
         rows = flatten_optimization(history_with_proposals, include_proposals=True)
-        rejected_cand = next(
-            r
-            for r in rows
-            if r.get("pool") == "proposal" and r.get("proposal_idx") == 1
-        )
+        rejected_cand = next(r for r in rows if r.get("pool") == "proposal" and r.get("proposal_idx") == 1)
         assert rejected_cand["seg.GC Filter.score"] == 1.0
         assert rejected_cand["seg.GC Filter.gc_content"] == 100.0
 

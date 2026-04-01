@@ -1,4 +1,5 @@
 """tests/language_tests/test_construct.py."""
+
 import pytest
 
 from proto_language.language.core import Construct, Segment, Sequence

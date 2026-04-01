@@ -69,9 +69,7 @@ class MSAGeneratorConfig(BaseConfig):
             return v
         if isinstance(v, list):
             return MSA(v)
-        raise ValueError(
-            f"msa must be an MSA object or list of aligned sequences, got {type(v)}"
-        )
+        raise ValueError(f"msa must be an MSA object or list of aligned sequences, got {type(v)}")
 
 
 @generator(
@@ -133,9 +131,7 @@ class MSAGenerator(Generator):
     def _compute_position_probabilities(self) -> None:
         """Compute empirical probability distribution for each position in the MSA."""
         for position in range(self.msa.alignment_length):
-            probs = self.msa.get_position_frequencies(
-                position, include_gaps=self.include_gaps
-            )
+            probs = self.msa.get_position_frequencies(position, include_gaps=self.include_gaps)
 
             if not probs:
                 # All gaps at this position - cannot mutate
@@ -189,7 +185,7 @@ class MSAGenerator(Generator):
             for pos in positions_to_mutate:
                 # Sample a character according to the empirical probability distribution
                 probs = self.position_probs[pos]
-                assert probs is not None  # mutable_positions only includes non-None entries  # noqa: S101 -- mypy type narrowing
+                assert probs is not None  # noqa: S101 -- mypy type narrowing; mutable_positions only includes non-None entries
                 chars = list(probs.keys())
                 weights = list(probs.values())
                 seq_list[pos] = random.choices(chars, weights=weights, k=1)[0]  # noqa: S311 -- non-cryptographic, used for weighted residue sampling

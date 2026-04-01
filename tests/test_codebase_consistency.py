@@ -1,4 +1,5 @@
 """consistency."""
+
 from __future__ import annotations
 
 import inspect
@@ -21,6 +22,7 @@ MAX_FIELD_TITLE_LENGTH = 31
 # Defines the maximum length of a field description in characters
 MAX_FIELD_DESCRIPTION_LENGTH = 100
 
+
 def list_of_all_config_models() -> list[type]:
     """List of all config models of registered components."""
     return [
@@ -32,6 +34,7 @@ def list_of_all_config_models() -> list[type]:
             *ToolRegistry.list_all(),
         ]
     ]
+
 
 @pytest.mark.parametrize("config_model", list_of_all_config_models())
 def test_config_consistency(config_model: type):
@@ -55,13 +58,12 @@ def test_config_consistency(config_model: type):
 
     # Ensure all fields are defined consistently
     for field_name, field_info in config_model.model_fields.items():
-
         # TITLE: Ensure title is explicitly provided and is under 45 characters
         title = field_info.title
         assert title is not None, f"{config_model.__name__}.{field_name} is missing title. "
-        assert (
-            len(title) <= MAX_FIELD_TITLE_LENGTH
-        ), f"{config_model.__name__}.{field_name} title is too long (currently {len(title)} characters, must be under {MAX_FIELD_TITLE_LENGTH} characters). "
+        assert len(title) <= MAX_FIELD_TITLE_LENGTH, (
+            f"{config_model.__name__}.{field_name} title is too long (currently {len(title)} characters, must be under {MAX_FIELD_TITLE_LENGTH} characters). "
+        )
 
         # DESCRIPTION: Must exist and be concise (~15 words / ~90 chars for tooltip)
         description_error = _field_description_is_valid(field_info.description)
@@ -78,9 +80,7 @@ def test_config_consistency(config_model: type):
             ann_args = get_args(annotation)
 
             # Optional[...] is Union[..., None]; X | None is types.UnionType
-            is_optional = (
-                origin in (Union, types.UnionType) and type(None) in ann_args
-            )
+            is_optional = origin in (Union, types.UnionType) and type(None) in ann_args
 
             if not is_optional:
                 raise TypeError(
@@ -149,22 +149,16 @@ def test_tool_input_and_output_consistency(tool_input: type, tool_output: type):
     for consistency of the API and client.
     """
     # Ensure tool input inherits from BaseToolInput
-    assert issubclass(
-        tool_input, BaseToolInput
-    ), f"Tool input {tool_input} is not a subclass of BaseToolInput"
+    assert issubclass(tool_input, BaseToolInput), f"Tool input {tool_input} is not a subclass of BaseToolInput"
     # Ensure tool output inherits from BaseToolOutput
-    assert issubclass(
-        tool_output, BaseToolOutput
-    ), f"Tool output {tool_output} is not a subclass of BaseToolOutput"
+    assert issubclass(tool_output, BaseToolOutput), f"Tool output {tool_output} is not a subclass of BaseToolOutput"
 
     # Ensure docstring exists and is not empty for both tool input and output
     input_docstring = tool_input.__doc__
     assert input_docstring is not None, f"Tool input {tool_input.__name__} is missing docstring. "
     assert len(input_docstring) > 0, f"Tool input {tool_input.__name__} docstring is empty. "
     output_docstring = tool_output.__doc__
-    assert (
-        output_docstring is not None
-    ), f"Tool output {tool_output.__name__} is missing docstring. "
+    assert output_docstring is not None, f"Tool output {tool_output.__name__} is missing docstring. "
     assert len(output_docstring) > 0, f"Tool output {tool_output.__name__} docstring is empty. "
 
     # Iterate through input fields and ensure they are defined consistently
@@ -230,10 +224,7 @@ def test_depends_on_references_valid_field(config_model: type):
             continue
 
         ref_field = x_dep.get("field")
-        assert ref_field is not None, (
-            f"{config_model.__name__}.{field_name}: "
-            "x-depends-on is missing the 'field' key."
-        )
+        assert ref_field is not None, f"{config_model.__name__}.{field_name}: x-depends-on is missing the 'field' key."
 
         assert ref_field in properties, (
             f"{config_model.__name__}.{field_name}: "
@@ -254,37 +245,50 @@ def test_depends_on_references_valid_field(config_model: type):
 # ConfigField depends_on serialization
 # ---------------------------------------------------------------------------
 
+
 class _DependsOnModel(LanguageBaseConfig):
     """Shared test model for depends_on parametrized tests."""
+
     mode: str = ConfigField(default="basic", title="Mode", description="Operating mode.")
     target: str | None = ConfigField(default=None, title="Target", description="Optional target.")
     enabled: bool = ConfigField(default=False, title="Enabled", description="Toggle.")
     with_value: str = ConfigField(
-        default="off", title="With Value", description="Single value.",
+        default="off",
+        title="With Value",
+        description="Single value.",
         depends_on={"field": "mode", "value": "advanced"},
     )
     with_list: int = ConfigField(
-        default=1, title="With List", description="List value.",
+        default=1,
+        title="With List",
+        description="List value.",
         depends_on={"field": "mode", "value": ["a", "b"]},
     )
     with_not_null: str = ConfigField(
-        default="x", title="With Not Null", description="Not null.",
+        default="x",
+        title="With Not Null",
+        description="Not null.",
         depends_on={"field": "target", "not_null": True},
     )
     with_truthy: str = ConfigField(
-        default="", title="With Truthy", description="Truthy check.",
+        default="",
+        title="With Truthy",
+        description="Truthy check.",
         depends_on={"field": "enabled"},
     )
     plain: int = ConfigField(default=0, title="Plain", description="No depends_on.")
 
 
-@pytest.mark.parametrize("field_name, expected", [
-    ("with_value", {"field": "mode", "value": "advanced"}),
-    ("with_list", {"field": "mode", "value": ["a", "b"]}),
-    ("with_not_null", {"field": "target", "not_null": True}),
-    ("with_truthy", {"field": "enabled"}),
-    ("plain", None),
-])
+@pytest.mark.parametrize(
+    "field_name, expected",
+    [
+        ("with_value", {"field": "mode", "value": "advanced"}),
+        ("with_list", {"field": "mode", "value": ["a", "b"]}),
+        ("with_not_null", {"field": "target", "not_null": True}),
+        ("with_truthy", {"field": "enabled"}),
+        ("plain", None),
+    ],
+)
 def test_depends_on_schema_output(field_name: str, expected):
     """depends_on produces the correct x-depends-on in JSON schema."""
     schema = _DependsOnModel.model_json_schema()
@@ -295,17 +299,24 @@ def test_depends_on_schema_output(field_name: str, expected):
         assert props["x-depends-on"] == expected
 
 
-@pytest.mark.parametrize("depends_on, match", [
-    ({"value": "bar"}, "must include a 'field' key"),
-    ({"field": "x", "value": "y", "not_null": True}, "cannot specify both"),
-])
+@pytest.mark.parametrize(
+    "depends_on, match",
+    [
+        ({"value": "bar"}, "must include a 'field' key"),
+        ({"field": "x", "value": "y", "not_null": True}, "cannot specify both"),
+    ],
+)
 def test_depends_on_invalid_raises(depends_on, match):
     """Invalid depends_on dicts raise ValueError at class definition."""
     with pytest.raises(ValueError, match=match):
+
         class _Bad(LanguageBaseConfig):
             """Test model."""
+
             bad: str = ConfigField(
-                default="", title="Bad", description="Should fail.",
+                default="",
+                title="Bad",
+                description="Should fail.",
                 depends_on=depends_on,
             )
 
@@ -321,6 +332,7 @@ def _field_description_is_valid(description: str) -> str:
     if "\n" in description:
         return "description contains newline characters. Please use single line descriptions."
     return ""
+
 
 def _find_missing_fields_in_docstring(docstring: str, field_names: list[str]) -> list[str]:
     """Find missing fields in the docstring."""

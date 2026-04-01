@@ -22,9 +22,7 @@ class TestOverallProteinQualityConstraint:
             enable_length=True,
             length_target_length=50,  # Close to actual length of 46
         )
-        config = OverallProteinQualityConfig(
-            protein_quality_config=sub_config
-        )
+        config = OverallProteinQualityConfig(protein_quality_config=sub_config)
 
         constraint = Constraint(
             inputs=[segment],
@@ -44,9 +42,7 @@ class TestOverallProteinQualityConstraint:
             enable_length=True,
             length_target_length=20,  # Much longer than actual length of 5
         )
-        config = OverallProteinQualityConfig(
-            protein_quality_config=sub_config
-        )
+        config = OverallProteinQualityConfig(protein_quality_config=sub_config)
 
         constraint = Constraint(
             inputs=[segment],
@@ -68,9 +64,7 @@ class TestOverallProteinQualityConstraint:
             enable_diversity=True,
             diversity_min_diversity=0.3,
         )
-        config = OverallProteinQualityConfig(
-            protein_quality_config=sub_config
-        )
+        config = OverallProteinQualityConfig(protein_quality_config=sub_config)
 
         constraint = Constraint(
             inputs=[segment],
@@ -99,9 +93,7 @@ class TestOverallProteinQualityConstraint:
             enable_diversity=True,
             diversity_min_diversity=0.2,
         )
-        config = OverallProteinQualityConfig(
-            protein_quality_config=sub_config
-        )
+        config = OverallProteinQualityConfig(protein_quality_config=sub_config)
 
         constraint = Constraint(
             inputs=[segment],
@@ -117,6 +109,4 @@ class TestOverallProteinQualityConstraint:
         """Test that config requires at least one sub-check (constraint-specific validation)."""
         with pytest.raises(Exception):  # Pydantic ValidationError
             sub_config = ProteinQualitySubConfig()
-            _ = OverallProteinQualityConfig(
-                protein_quality_config=sub_config
-            )
+            _ = OverallProteinQualityConfig(protein_quality_config=sub_config)

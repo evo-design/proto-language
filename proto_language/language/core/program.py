@@ -1,4 +1,5 @@
 """proto_language/language/core/program.py."""
+
 from __future__ import annotations
 
 import logging
@@ -60,8 +61,10 @@ class Program:
     Examples:
         Sequential optimization with TopK followed by MCMC:
         >>> from proto_language.language.optimizer import (
-        ...     TopKOptimizer, TopKOptimizerConfig,
-        ...     MCMCOptimizer, MCMCOptimizerConfig
+        ...     TopKOptimizer,
+        ...     TopKOptimizerConfig,
+        ...     MCMCOptimizer,
+        ...     MCMCOptimizerConfig,
         ... )
         >>>
         >>> # First optimizer: broad exploration with TopK
@@ -127,17 +130,15 @@ class Program:
             from proto_tools.utils.device import number_of_available_gpus
             from proto_tools.utils.tool_pool import ToolPool
 
-            has_backend = getattr(ToolRegistry, '_dispatch_configured', False)
+            has_backend = getattr(ToolRegistry, "_dispatch_configured", False)
             has_gpus = number_of_available_gpus() > 0
 
             if has_backend and has_gpus:
                 compute = ToolPool()
             elif has_backend:
                 from contextlib import nullcontext
-                logger.debug(
-                    "No local GPUs; external dispatch configured. "
-                    "GPU tools will route via _try_dispatch."
-                )
+
+                logger.debug("No local GPUs; external dispatch configured. GPU tools will route via _try_dispatch.")
                 compute = nullcontext()
             elif has_gpus:
                 compute = ToolPool()
@@ -160,7 +161,9 @@ class Program:
             if opt.num_results is None:
                 opt._resolve_num_results(self.num_results)
             elif opt.num_results != self.num_results:
-                logger.warning(f"{opt.__class__.__name__} num_results={opt.num_results} Overrides program num_results={self.num_results}")
+                logger.warning(
+                    f"{opt.__class__.__name__} num_results={opt.num_results} Overrides program num_results={self.num_results}"
+                )
 
         # If top level verbosity is true, force verbosity in all optimizers.
         self.verbose = verbose
@@ -217,7 +220,9 @@ class Program:
         # 1. Validate all optimizers have resolved num_results.
         for i, opt in enumerate(self.optimizers):
             if opt.num_results is None:
-                raise ValueError(f"Optimizer {i} ({opt.__class__.__name__}) has no num_results. Set it via the optimizer's config or pass num_results to Program().")
+                raise ValueError(
+                    f"Optimizer {i} ({opt.__class__.__name__}) has no num_results. Set it via the optimizer's config or pass num_results to Program()."
+                )
 
         reference_constructs = self.optimizers[0].constructs
 
@@ -231,7 +236,9 @@ class Program:
                     f"but optimizer 0 has {len(reference_constructs)}. "
                     "All optimizers must share the same construct objects."
                 )
-            for j, (construct, ref_construct) in enumerate(zip(optimizer.constructs, reference_constructs, strict=False)):
+            for j, (construct, ref_construct) in enumerate(
+                zip(optimizer.constructs, reference_constructs, strict=False)
+            ):
                 if construct is not ref_construct:
                     raise ValueError(
                         f"Optimizer {i} construct {j} is not the same object as "
@@ -261,10 +268,7 @@ class Program:
         # 5. Validate all segments will be populated
         # A segment must have either an input sequence or a generator in some optimizer.
         generator_segments = {
-            gen._assigned_segment
-            for opt in self.optimizers
-            for gen in opt.generators
-            if gen._assigned_segment
+            gen._assigned_segment for opt in self.optimizers for gen in opt.generators if gen._assigned_segment
         }
         for construct in self.constructs:
             for segment in construct.segments:
@@ -301,7 +305,7 @@ class Program:
         """Log results for a completed optimization stage."""
         logger.debug(f"Final state for optimizer {stage_index + 1}:")
         for result in results:
-            energy = result['energy_score']
+            energy = result["energy_score"]
             energy_str = f"{energy:.4f}" if energy is not None else "None"
             logger.debug(f"  [{result['result_idx']}] energy={energy_str}")
             for construct in result["constructs"]:
@@ -358,7 +362,7 @@ class Program:
         with self._enter_compute():
             self._validate_program()
             if stage_index < 0 or stage_index >= len(self.optimizers):
-                raise IndexError(f"Stage index {stage_index} out of range (0-{len(self.optimizers)-1}).")
+                raise IndexError(f"Stage index {stage_index} out of range (0-{len(self.optimizers) - 1}).")
             if stage_index > self.current_stage:
                 raise RuntimeError(f"Cannot skip to stage {stage_index}. Current stage is {self.current_stage}.")
 
@@ -368,7 +372,7 @@ class Program:
                 self.optimizers[stage_index]._restore_initial_state()
                 self._stage_results = self._stage_results[:stage_index]
                 # Clear stale initial states from subsequent optimizers
-                for opt in self.optimizers[stage_index + 1:]:
+                for opt in self.optimizers[stage_index + 1 :]:
                     opt._initial_state = None
 
             optimizer = self.optimizers[stage_index]
@@ -491,10 +495,7 @@ class Program:
     def _collect_history(self, stage: int | None = None) -> list[dict[str, Any]]:
         if stage is not None:
             if stage < 0 or stage >= len(self.optimizers):
-                raise IndexError(
-                    f"Stage {stage} out of range "
-                    f"(program has {len(self.optimizers)} optimizers)"
-                )
+                raise IndexError(f"Stage {stage} out of range (program has {len(self.optimizers)} optimizers)")
             return list(self.optimizers[stage].history)
         history = []
         for stage_idx, optimizer in enumerate(self.optimizers):
@@ -543,18 +544,22 @@ class Program:
         history = self._collect_history(stage)
         return export_tables(
             lambda t: flatten_table(
-                t, results, history,
-                segments=segments, result_indices=result_indices,
-                constraints=constraints, include_proposals=include_proposals,
+                t,
+                results,
+                history,
+                segments=segments,
+                result_indices=result_indices,
+                constraints=constraints,
+                include_proposals=include_proposals,
             ),
-            path, format, table,
+            path,
+            format,
+            table,
         )
 
     def to_dataframe(
         self,
-        table: Literal[
-            "sequences", "constraints", "constructs", "optimization"
-        ] = "sequences",
+        table: Literal["sequences", "constraints", "constructs", "optimization"] = "sequences",
         stage: int | None = None,
         segments: set[str] | None = None,
         constraints: set[str] | None = None,
@@ -573,15 +578,17 @@ class Program:
             result_indices (set[int] | None): Indices of specific results to include, or None for all.
             include_proposals (bool): Whether to include proposal sequences alongside accepted results.
         """
-        return pd.DataFrame(flatten_table(
-            table,
-            self._results_for_stage(stage),
-            self._collect_history(stage),
-            segments=segments,
-            result_indices=result_indices,
-            constraints=constraints,
-            include_proposals=include_proposals,
-        ))
+        return pd.DataFrame(
+            flatten_table(
+                table,
+                self._results_for_stage(stage),
+                self._collect_history(stage),
+                segments=segments,
+                result_indices=result_indices,
+                constraints=constraints,
+                include_proposals=include_proposals,
+            )
+        )
 
     def to_fasta(
         self,

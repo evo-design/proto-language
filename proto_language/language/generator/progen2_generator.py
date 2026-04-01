@@ -250,9 +250,7 @@ class ProGen2Generator(Generator):
         output = run_progen2_sample(tool_input, tool_config)
         generated_sequences = output.sequences
 
-        for proposal, sequence in zip(
-            self._assigned_segment.proposal_sequences, generated_sequences, strict=True
-        ):
+        for proposal, sequence in zip(self._assigned_segment.proposal_sequences, generated_sequences, strict=True):
             proposal.sequence = sequence
 
     def _replicate_prompts(self, prompts: list[str]) -> list[str]:
@@ -271,6 +269,8 @@ class ProGen2Generator(Generator):
         segment_length = self._assigned_segment.sequence_length
         if prepend_prompt:
             if prompt_length >= segment_length:
-                raise ValueError(f"Prompt length ({prompt_length}) must be less than segment length ({segment_length}) when prepend_prompt=True")
+                raise ValueError(
+                    f"Prompt length ({prompt_length}) must be less than segment length ({segment_length}) when prepend_prompt=True"
+                )
             return segment_length
         return segment_length + prompt_length

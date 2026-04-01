@@ -107,6 +107,7 @@ class Sigma70PromoterConfig(BaseConfig):
         1. **Box penalty** = (1 - match_weight) * PWM_penalty + match_weight * match_penalty
         2. **Total penalty** = (1 - spacer_weight) * box_penalty + spacer_weight * spacer_penalty
     """
+
     consensus_35: str = ConfigField(
         title="Consensus -35 Box",
         default="TTGACA",
@@ -196,7 +197,9 @@ class Sigma70PromoterConfig(BaseConfig):
     supported_sequence_types=["dna"],
     num_input_sequences_per_tuple=1,
 )
-def sigma70_promoter_constraint(input_sequences: list[tuple[Sequence, ...]], config: Sigma70PromoterConfig) -> list[float]:
+def sigma70_promoter_constraint(
+    input_sequences: list[tuple[Sequence, ...]], config: Sigma70PromoterConfig
+) -> list[float]:
     """Evaluate E. coli sigma-70 promoter similarity using PWM-based scoring.
 
     This constraint function evaluates bacterial promoter similarity by scanning
@@ -266,7 +269,7 @@ def sigma70_promoter_constraint(input_sequences: list[tuple[Sequence, ...]], con
         >>> # Strong promoter with consensus -35 (TTGACA) and -10 (TATAAT) boxes
         >>> promoter_seq = Sequence(
         ...     "TTGACAATGATACTTAGATTCACTTATAATACTAGTAG",  # 17 bp spacer
-        ...     "dna"
+        ...     "dna",
         ... )
         >>> config = Sigma70PromoterConfig()  # Use defaults
         >>> scores = sigma70_promoter_constraint([promoter_seq], config)
@@ -284,20 +287,14 @@ def sigma70_promoter_constraint(input_sequences: list[tuple[Sequence, ...]], con
 
     def _score_promoter(box35: str, box10: str, spacer_len: int) -> tuple[float, dict[str, str | float | int]]:
         prob_35 = np.prod(
-            [
-                prob if b == c else (1.0 - prob)
-                for b, c, prob in zip(box35, CONS_35, PROBS_35, strict=False)
-            ]
+            [prob if b == c else (1.0 - prob) for b, c, prob in zip(box35, CONS_35, PROBS_35, strict=False)]
         )
         prob_10 = np.prod(
-            [
-                prob if b == c else (1.0 - prob)
-                for b, c, prob in zip(box10, CONS_10, PROBS_10, strict=False)
-            ]
+            [prob if b == c else (1.0 - prob) for b, c, prob in zip(box10, CONS_10, PROBS_10, strict=False)]
         )
         raw_pwm = prob_35 * prob_10
         normalized_pwm = (raw_pwm / max_pwm) if max_pwm > 0 else 0
-        pwm_score = normalized_pwm ** config.gamma
+        pwm_score = normalized_pwm**config.gamma
         pwm_penalty = 1.0 - pwm_score
 
         total_matches = sum(a == c for a, c in zip(box35, CONS_35, strict=False)) + sum(
@@ -348,12 +345,15 @@ def sigma70_promoter_constraint(input_sequences: list[tuple[Sequence, ...]], con
                     box10 = seq[pos + 6 + spacer_len : pos + 12 + spacer_len]
                     score, info = _score_promoter(box35, box10, spacer_len)
                     if score < best_score:
-                        best_score, best_info = score, {
-                            **info,
-                            "pos": pos,
-                            "box35": box35,
-                            "box10": box10,
-                        }
+                        best_score, best_info = (
+                            score,
+                            {
+                                **info,
+                                "pos": pos,
+                                "box35": box35,
+                                "box10": box10,
+                            },
+                        )
 
         # Cache results in metadata
         seq_obj._metadata["sigma70"] = {

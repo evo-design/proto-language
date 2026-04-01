@@ -133,17 +133,13 @@ class TestSegmentSerialization:
     def test_segment_with_metadata_roundtrip(self):
         """Test segment with sequence metadata."""
         metadata = {"annotation": "strong_promoter"}
-        seg = Segment(
-            sequence="ATATCG", sequence_type="dna", label="promoter", metadata=metadata
-        )
+        seg = Segment(sequence="ATATCG", sequence_type="dna", label="promoter", metadata=metadata)
 
         seg_dict = seg.to_dict()
         seg_restored = Segment.from_dict(seg_dict)
 
         assert "annotation" in seg_restored.original_sequence.metadata
-        assert (
-            seg_restored.original_sequence.metadata["annotation"] == "strong_promoter"
-        )
+        assert seg_restored.original_sequence.metadata["annotation"] == "strong_promoter"
 
     def test_ligand_segment_roundtrip(self):
         """Test ligand segment serialization doesn't crash on valid_chars=None (B1)."""

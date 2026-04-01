@@ -1,4 +1,5 @@
 """Protein quality constraints (balanced AA, complexity, diversity, domain, length, repetitiveness)."""
+
 from proto_language.language.constraint.protein_quality.balanced_aa_constraint import balanced_aa_constraint
 from proto_language.language.constraint.protein_quality.overall_protein_quality_constraint import (
     overall_protein_quality_constraint,

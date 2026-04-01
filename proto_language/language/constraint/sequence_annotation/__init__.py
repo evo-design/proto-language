@@ -1,4 +1,5 @@
 """Sequence annotation constraints (motifs, promoters, MMseqs similarity)."""
+
 from proto_language.language.constraint.sequence_annotation.alphagenome_interval_track_constraint import (
     alphagenome_interval_track_constraint,
 )

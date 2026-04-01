@@ -4,6 +4,7 @@ The constraint accepts three-part input tuples (left_flank, intron_core,
 right_flank), integrates them into a genomic context via cassette insertion,
 and scores splice-site usage with AlphaGenome.
 """
+
 from __future__ import annotations
 
 from unittest.mock import patch
@@ -258,9 +259,7 @@ def test_ag_ssu_metadata_propagated_to_all_three_segments():
     }
 
     for seg in (left, intron, right):
-        constraint_data = seg.proposal_sequences[0]._constraints_metadata[
-            "alphagenome_splice_site_usage"
-        ]["data"]
+        constraint_data = seg.proposal_sequences[0]._constraints_metadata["alphagenome_splice_site_usage"]["data"]
         assert expected_keys.issubset(set(constraint_data.keys()))
         assert constraint_data["selected_track_names"] == ["plus_0", "plus_2"]
         assert constraint_data["selected_track_strands"] == ["+", "+"]

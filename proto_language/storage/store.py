@@ -98,9 +98,7 @@ class FileStore(ABC):
             content = content.encode("utf-8")
         return hashlib.sha256(content).hexdigest()
 
-    def get_batch(
-        self, file_ids: set[str], *, max_workers: int = 10
-    ) -> dict[str, bytes]:
+    def get_batch(self, file_ids: set[str], *, max_workers: int = 10) -> dict[str, bytes]:
         """Retrieve multiple files concurrently.
 
         Dispatches to :meth:`get` in a thread pool. Subclasses may override
@@ -267,9 +265,7 @@ class GCSFileStore(FileStore):
                     creds_info
                 )
                 self._client = storage.Client(credentials=credentials)
-                logger.info(
-                    "GCS client initialized from GOOGLE_APPLICATION_CREDENTIALS_JSON"
-                )
+                logger.info("GCS client initialized from GOOGLE_APPLICATION_CREDENTIALS_JSON")
             else:
                 # Fall back to default credentials
                 self._client = storage.Client()
@@ -341,9 +337,7 @@ class GCSFileStore(FileStore):
         blob = self.bucket.blob(blob_path)
         if not blob.exists():
             raise FileNotFoundError(f"File not found in GCS: {file_id}")
-        return str(blob.generate_signed_url(
-            expiration=timedelta(minutes=self.signed_url_expiration_minutes)
-        ))
+        return str(blob.generate_signed_url(expiration=timedelta(minutes=self.signed_url_expiration_minutes)))
 
 
 # Module-level singleton for the configured file store
@@ -372,10 +366,7 @@ def get_file_store() -> FileStore:
         if store_type == "gcs":
             bucket_name = os.environ.get("GCS_FILE_BUCKET")
             if not bucket_name:
-                raise ValueError(
-                    "GCS_FILE_BUCKET environment variable is required when "
-                    "FILE_STORE_TYPE=gcs"
-                )
+                raise ValueError("GCS_FILE_BUCKET environment variable is required when FILE_STORE_TYPE=gcs")
             _file_store = GCSFileStore(bucket_name)
         else:
             # Default to local storage

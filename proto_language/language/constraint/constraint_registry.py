@@ -2,6 +2,7 @@
 
 a factory method for creating Constraint instances.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -17,10 +18,20 @@ from proto_language.language.core import Constraint, Segment
 class ConstraintSpec(BaseSpec):
     """Specification for a registered constraint."""
 
-    tools_called: list[str] = Field(description="List of tool keys this constraint calls (e.g., ['esmfold-prediction', 'prodigal-prediction']). Helps agent find relevant tool documentation.")
-    category: str | None = Field(default=None, description="Optional category for organization (e.g., 'protein_structure', 'sequence_composition'). Not required for custom constraints.")
-    supported_sequence_types: list[str] = Field(description="List of supported sequence types (e.g., ['dna', 'protein']). Must be non-empty.")
-    num_input_sequences_per_tuple: int | None = Field(default=None, description="Number of Sequence objects required in each tuple of input_sequences. If None, any number is allowed.")
+    tools_called: list[str] = Field(
+        description="List of tool keys this constraint calls (e.g., ['esmfold-prediction', 'prodigal-prediction']). Helps agent find relevant tool documentation."
+    )
+    category: str | None = Field(
+        default=None,
+        description="Optional category for organization (e.g., 'protein_structure', 'sequence_composition'). Not required for custom constraints.",
+    )
+    supported_sequence_types: list[str] = Field(
+        description="List of supported sequence types (e.g., ['dna', 'protein']). Must be non-empty."
+    )
+    num_input_sequences_per_tuple: int | None = Field(
+        default=None,
+        description="Number of Sequence objects required in each tuple of input_sequences. If None, any number is allowed.",
+    )
 
     # Private field - excluded from serialization
     function: SkipJsonSchema[Callable[..., Any]] = Field(exclude=True)
@@ -50,8 +61,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         ...     supported_sequence_types=["dna", "rna"],
         ... )
         ... def gc_content_constraint(
-        ...     input_sequences: List[Tuple[Sequence, ...]],
-        ...     config: GCContentConfig
+        ...     input_sequences: List[Tuple[Sequence, ...]], config: GCContentConfig
         ... ) -> List[float]:
         ...     return [calculate_penalty(seq_tuple[0], config) for seq_tuple in input_sequences]
 
@@ -64,17 +74,13 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         >>>
         >>> # Create from user input
         >>> constraint = ConstraintRegistry.create(
-        ...     key="gc-content",
-        ...     segments=[segment],
-        ...     config_dict={"min_gc": 40, "max_gc": 60}
+        ...     key="gc-content", segments=[segment], config_dict={"min_gc": 40, "max_gc": 60}
         ... )
 
         Direct Library Usage (no registry needed):
         >>> # Users can bypass registry entirely
         >>> constraint = Constraint(
-        ...     inputs=[segment],
-        ...     function=gc_content_constraint,
-        ...     function_config=GCContentConfig(min_gc=40, max_gc=60)
+        ...     inputs=[segment], function=gc_content_constraint, function_config=GCContentConfig(min_gc=40, max_gc=60)
         ... )
     """
 
@@ -123,8 +129,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             ...     supported_sequence_types=["dna", "rna"],
             ... )
             ... def gc_content_constraint(
-            ...     input_sequences: List[Tuple[Sequence, ...]],
-            ...     config: GCContentConfig
+            ...     input_sequences: List[Tuple[Sequence, ...]], config: GCContentConfig
             ... ) -> List[float]:
             ...     return [calculate_penalty(seq_tuple[0], config) for seq_tuple in input_sequences]
         """
@@ -132,6 +137,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             supported_sequence_types = []
         if tools_called is None:
             tools_called = []
+
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             # Prevent duplicate registration using base class helper
             cls._check_duplicate(key, func.__name__)
@@ -158,6 +164,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
                 num_input_sequences_per_tuple=num_input_sequences_per_tuple,
             )
             return func
+
         return decorator
 
     @classmethod
@@ -202,16 +209,13 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             ...     key="gc-content",
             ...     segments=[dna_segment],
             ...     config_dict={"min_gc": 40, "max_gc": 60},
-            ...     label="promoter_gc"
+            ...     label="promoter_gc",
             ... )
             >>> scores = constraint.evaluate()  # Returns List[float]
             >>>
             >>> # Filtering mode (with threshold)
             >>> filter_constraint = ConstraintRegistry.create(
-            ...     key="gc-content",
-            ...     segments=[dna_segment],
-            ...     config_dict={"min_gc": 40, "max_gc": 60},
-            ...     threshold=0.5
+            ...     key="gc-content", segments=[dna_segment], config_dict={"min_gc": 40, "max_gc": 60}, threshold=0.5
             ... )
             >>> passed = filter_constraint.evaluate()  # Returns List[bool]
         """

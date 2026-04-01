@@ -30,6 +30,7 @@ class ProteinLengthConfig(BaseConfig):
             1000+ for large proteins, or function-specific limits.
             Sequences longer than this value are penalized.
     """
+
     # Required parameters
     min_length: int = ConfigField(
         title="Min Acceptable Length",

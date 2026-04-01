@@ -149,7 +149,5 @@ class RandomProteinGenerator(Generator):
         )
         result = run_random_protein_sample(inputs=tool_input, config=tool_config)
 
-        for proposal, sequence in zip(
-            self._assigned_segment.proposal_sequences, result.sequences, strict=True
-        ):
+        for proposal, sequence in zip(self._assigned_segment.proposal_sequences, result.sequences, strict=True):
             proposal.sequence = sequence

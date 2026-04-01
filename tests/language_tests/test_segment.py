@@ -1,4 +1,5 @@
 """tests/language_tests/test_segment.py."""
+
 import pytest
 
 from proto_language.language.core import Segment, Sequence
@@ -21,14 +22,10 @@ class TestSegment:
         """Tests that proposal_sequences can be directly manipulated."""
         import copy
 
-        segment = Segment(
-            sequence="ATCG", sequence_type="dna", metadata={"source": "original"}
-        )
+        segment = Segment(sequence="ATCG", sequence_type="dna", metadata={"source": "original"})
 
         # Directly set proposal sequences (like optimizer does)
-        segment.proposal_sequences = [
-            copy.deepcopy(segment.original_sequence) for _ in range(5)
-        ]
+        segment.proposal_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(5)]
         assert segment.num_proposals == 5
         for i in range(5):
             assert segment.proposal_sequences[i].sequence == "ATCG"

@@ -246,9 +246,7 @@ class ProteinQualitySubConfig(BaseConfig):
         }
         filtered = {k: v for k, v in params.items() if v is not None}
         if not filtered:
-            raise ValueError(
-                "Sequence length constraint enabled but no min/max or target values were provided."
-            )
+            raise ValueError("Sequence length constraint enabled but no min/max or target values were provided.")
         return SequenceLengthConfig(**filtered)
 
     def get_complexity_config(self) -> ProteinComplexityConfig | None:
@@ -343,22 +341,25 @@ class OverallProteinQualityConfig(BaseConfig):
             - ``BalancedAaConfig``: Configuration for balanced amino acids
               constraint
     """
+
     protein_quality_config: ProteinQualitySubConfig = ConfigField(
         title="Protein Quality Config",
         description="Nested configuration for protein quality checks",
     )
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_config(self) -> OverallProteinQualityConfig:
         """Validate that at least one sub-constraint is specified."""
         sub_config = self.protein_quality_config
-        if not any([
-            sub_config.enable_length,
-            sub_config.enable_complexity,
-            sub_config.enable_repetitiveness,
-            sub_config.enable_diversity,
-            sub_config.enable_balanced_aas,
-        ]):
+        if not any(
+            [
+                sub_config.enable_length,
+                sub_config.enable_complexity,
+                sub_config.enable_repetitiveness,
+                sub_config.enable_diversity,
+                sub_config.enable_balanced_aas,
+            ]
+        ):
             raise ValueError("At least one protein quality sub-constraint must be specified")
         return self
 
@@ -373,7 +374,9 @@ class OverallProteinQualityConfig(BaseConfig):
     supported_sequence_types=["dna", "protein"],
     num_input_sequences_per_tuple=1,
 )
-def overall_protein_quality_constraint(input_sequences: list[tuple[Sequence, ...]], config: OverallProteinQualityConfig) -> list[float]:
+def overall_protein_quality_constraint(
+    input_sequences: list[tuple[Sequence, ...]], config: OverallProteinQualityConfig
+) -> list[float]:
     """Evaluate overall protein quality using multiple configurable sub-constraints.
 
     This constraint function provides a comprehensive assessment of protein quality
@@ -528,14 +531,12 @@ def overall_protein_quality_constraint(input_sequences: list[tuple[Sequence, ...
 
         # Process each DNA sequence's results
         for input_sequence, proteins_list, num_genes in zip(
-            dna_sequences,
-            batch_result.predicted_orfs,
-            batch_result.num_orfs_per_sequence, strict=False
+            dna_sequences, batch_result.predicted_orfs, batch_result.num_orfs_per_sequence, strict=False
         ):
             orf_dicts = [orf.model_dump() for orf in proteins_list]
-            input_sequence._metadata["prodigal_proteins"] = store_file(
-                json.dumps(orf_dicts), FileType.JSON
-            ) if orf_dicts else None
+            input_sequence._metadata["prodigal_proteins"] = (
+                store_file(json.dumps(orf_dicts), FileType.JSON) if orf_dicts else None
+            )
             input_sequence._metadata["prodigal_protein_count"] = num_genes
 
             if len(proteins_list) == 0:
@@ -545,10 +546,7 @@ def overall_protein_quality_constraint(input_sequences: list[tuple[Sequence, ...
                 continue
 
             # Convert to Sequence objects for batch constraint evaluation
-            predicted_protein_seqs = [
-                Sequence(orf.amino_acid_sequence, "protein")
-                for orf in proteins_list
-            ]
+            predicted_protein_seqs = [Sequence(orf.amino_acid_sequence, "protein") for orf in proteins_list]
             # Convert to input_sequences format for sub-constraints
             predicted_protein_input_seqs = [(seq,) for seq in predicted_protein_seqs]
 
@@ -589,18 +587,17 @@ def overall_protein_quality_constraint(input_sequences: list[tuple[Sequence, ...
             # Build details
             protein_quality_details = []
             for prot_idx, (orf, protein_seq) in enumerate(zip(proteins_list, predicted_protein_seqs, strict=False)):
-                individual_scores = {
-                    name: scores[prot_idx]
-                    for name, scores in quality_scores.items()
-                }
+                individual_scores = {name: scores[prot_idx] for name, scores in quality_scores.items()}
 
-                protein_quality_details.append({
-                    "protein_id": orf.id,
-                    "length": orf.amino_acid_length,
-                    "avg_constraint_score": float(avg_scores[prot_idx]),
-                    "quality_scores": individual_scores,
-                    "metadata": protein_seq._metadata.copy(),
-                })
+                protein_quality_details.append(
+                    {
+                        "protein_id": orf.id,
+                        "length": orf.amino_acid_length,
+                        "avg_constraint_score": float(avg_scores[prot_idx]),
+                        "quality_scores": individual_scores,
+                        "metadata": protein_seq._metadata.copy(),
+                    }
+                )
 
             overall_avg_protein_score = float(avg_scores.mean())
 
@@ -618,14 +615,10 @@ def overall_protein_quality_constraint(input_sequences: list[tuple[Sequence, ...
         quality_scores = {}
 
         if length_config:
-            quality_scores["length"] = sequence_length_constraint(
-                protein_input_seqs, config=length_config
-            )
+            quality_scores["length"] = sequence_length_constraint(protein_input_seqs, config=length_config)
 
         if complexity_config:
-            quality_scores["complexity"] = protein_complexity_constraint(
-                protein_input_seqs, config=complexity_config
-            )
+            quality_scores["complexity"] = protein_complexity_constraint(protein_input_seqs, config=complexity_config)
 
         if repetitiveness_config:
             quality_scores["repetitiveness"] = protein_repetitiveness_constraint(
@@ -633,14 +626,10 @@ def overall_protein_quality_constraint(input_sequences: list[tuple[Sequence, ...
             )
 
         if diversity_config:
-            quality_scores["diversity"] = protein_diversity_constraint(
-                protein_input_seqs, config=diversity_config
-            )
+            quality_scores["diversity"] = protein_diversity_constraint(protein_input_seqs, config=diversity_config)
 
         if balanced_config:
-            quality_scores["balanced_aas"] = balanced_aa_constraint(
-                protein_input_seqs, config=balanced_config
-            )
+            quality_scores["balanced_aas"] = balanced_aa_constraint(protein_input_seqs, config=balanced_config)
 
         if quality_scores:
             constraint_score_matrix = np.array(list(quality_scores.values()))
@@ -652,10 +641,7 @@ def overall_protein_quality_constraint(input_sequences: list[tuple[Sequence, ...
 
         # Store metadata
         for seq_idx, input_sequence in enumerate(protein_sequences):
-            individual_scores = {
-                name: scores[seq_idx]
-                for name, scores in quality_scores.items()
-            }
+            individual_scores = {name: scores[seq_idx] for name, scores in quality_scores.items()}
 
             input_sequence._metadata["protein_quality_scores"] = individual_scores
             input_sequence._metadata["avg_constraint_score"] = float(avg_scores[seq_idx])

@@ -127,13 +127,9 @@ def _trim_alignment(al1: str, al2: str) -> tuple[str | None, str | None]:
 
 def _gap_gini_from_fasta(alignment_fasta: str) -> float:
     """Compute gap Gini score from a FASTA-formatted pairwise alignment string."""
-    sequences = re.findall(
-        r"^[^>].*?(?=(?:^>|\Z))", alignment_fasta, re.MULTILINE | re.DOTALL
-    )
+    sequences = re.findall(r"^[^>].*?(?=(?:^>|\Z))", alignment_fasta, re.MULTILINE | re.DOTALL)
     if len(sequences) != 2:
-        raise ValueError(
-            f"Expected 2 sequences in pairwise alignment, got {len(sequences)}"
-        )
+        raise ValueError(f"Expected 2 sequences in pairwise alignment, got {len(sequences)}")
     al1, al2 = [seq.replace("\n", "") for seq in sequences]
     return _gap_gini_single(al1, al2)
 
@@ -164,19 +160,13 @@ class GapGiniConfig(BaseConfig):
         ge=0.0,
         le=1.0,
         title="Max Gap Gini",
-        description=(
-            "Maximum acceptable gap Gini score (0-1). "
-            "Alignments above this are penalized."
-        ),
+        description=("Maximum acceptable gap Gini score (0-1). Alignments above this are penalized."),
         examples=[0.1, 0.3],
     )
     trim_alignment: bool = ConfigField(
         default=True,
         title="Trim Alignment",
-        description=(
-            "Center-crop to 80% and strip end gaps before computing "
-            "the Gini coefficient."
-        ),
+        description=("Center-crop to 80% and strip end gaps before computing the Gini coefficient."),
         advanced=True,
     )
 
@@ -278,9 +268,7 @@ def gap_gini_constraint(
         else:
             # Linear penalty: deviation above threshold scaled to [0, 1]
             # max_gap_gini=0.1, gini=0.5 → (0.5-0.1)/(1.0-0.1)=0.44
-            penalty = (gini_score - config.max_gap_gini) / (
-                1.0 - config.max_gap_gini
-            )
+            penalty = (gini_score - config.max_gap_gini) / (1.0 - config.max_gap_gini)
             scores.append(min(MAX_ENERGY, penalty))
 
     return scores

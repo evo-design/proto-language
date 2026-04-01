@@ -1,4 +1,5 @@
 """Public API surface for proto-language."""
+
 from __future__ import annotations
 
 from proto_language.language.constraint import (

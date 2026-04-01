@@ -2,6 +2,7 @@
 
 automatic schema generation for API/client integration.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -30,9 +31,15 @@ class GeneratorSpec(BaseSpec):
         generator_class (type[Generator]): Generator subclass implementing the generation logic.
     """
 
-    category: Literal["autoregressive", "mutation", "inverse_folding"] = Field(description="Generator category: 'autoregressive' (left-to-right, e.g. Evo2), 'mutation' (bidirectional/masked, e.g. ESM2), or 'inverse_folding' (structure-conditioned, e.g. ProteinMPNN)")
-    tools_called: list[str] = Field(description="List of tool keys this generator calls (e.g., ['esm3-sample', 'evo2-sample']). Helps agent find relevant tool documentation.")
-    supported_sequence_types: list[str] = Field(description="List of supported sequence types (e.g., ['dna', 'protein']). Empty list means supports all types.")
+    category: Literal["autoregressive", "mutation", "inverse_folding"] = Field(
+        description="Generator category: 'autoregressive' (left-to-right, e.g. Evo2), 'mutation' (bidirectional/masked, e.g. ESM2), or 'inverse_folding' (structure-conditioned, e.g. ProteinMPNN)"
+    )
+    tools_called: list[str] = Field(
+        description="List of tool keys this generator calls (e.g., ['esm3-sample', 'evo2-sample']). Helps agent find relevant tool documentation."
+    )
+    supported_sequence_types: list[str] = Field(
+        description="List of supported sequence types (e.g., ['dna', 'protein']). Empty list means supports all types."
+    )
 
     # Private field - excluded from serialization
     generator_class: type[Generator] = Field(exclude=True)
@@ -138,6 +145,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
             supported_sequence_types = []
         if tools_called is None:
             tools_called = []
+
         def decorator(generator_class: type[Generator]) -> type[Generator]:
             # Prevent duplicate registration using base class helper
             cls._check_duplicate(key, generator_class.__name__)
@@ -154,6 +162,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
                 supported_sequence_types=supported_sequence_types,
             )
             return generator_class
+
         return decorator
 
     @classmethod
@@ -183,8 +192,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
         Examples:
             >>> # From API endpoint receiving JSON
             >>> generator = GeneratorRegistry.create(
-            ...     key="random-nucleotide",
-            ...     config_dict={"masking_strategy": {"num_mutations": 2}}
+            ...     key="random-nucleotide", config_dict={"masking_strategy": {"num_mutations": 2}}
             ... )
             >>> generator.assign(segment)
             >>> generator.sample()

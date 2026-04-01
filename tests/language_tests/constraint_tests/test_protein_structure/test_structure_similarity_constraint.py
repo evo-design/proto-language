@@ -21,9 +21,11 @@ UNCONFIDENT_SEQ = "EASGTYPGREACGGHEASGTYPGREACGGHEASGTYPGREACGGH"
 ROP_SEQ = "MTKQEKTALNMARFIRSQTLTLLEKLNELDADEQADICESLHDHADELYRSCLARFGDDGENL"
 EPSILON = 0.05
 
+
 class MockStructure(NamedTuple):
     structure_pdb: str = "FAKE_PDB_CONTENT"
     avg_plddt: float = 0.95
+
 
 class MockResult(NamedTuple):
     structures: list
@@ -45,7 +47,7 @@ def _match(
             structure_tool=structure_tool,
         )
         score = structure_rmsd_constraint(
-            [(Sequence(proposal_seq, 'protein'),)],
+            [(Sequence(proposal_seq, "protein"),)],
             config,
         )[0]
 
@@ -55,7 +57,7 @@ def _match(
             structure_tool=structure_tool,
         )
         score = structure_tmscore_constraint(
-            [(Sequence(proposal_seq, 'protein'),)],
+            [(Sequence(proposal_seq, "protein"),)],
             config,
         )[0]
 
@@ -85,10 +87,10 @@ class TestESMFoldRMSDConstraint:
         assert _perfect_match("rmsd", "esmfold") < EPSILON  # For some reason there is some imprecision.
 
     def test_imperfect_match(self):
-        assert _imperfect_match("rmsd", "esmfold") > 0.
+        assert _imperfect_match("rmsd", "esmfold") > 0.0
 
     def test_unconfident_match(self):
-        assert _unconfident_match("rmsd", "esmfold") == 1.
+        assert _unconfident_match("rmsd", "esmfold") == 1.0
 
     def test_pdb_file_target(self):
         """Test loading from PDB file. Underlying implementation logic is same.
@@ -100,7 +102,7 @@ class TestESMFoldRMSDConstraint:
             structure_tool="esmfold",
         )
         rmsd = structure_rmsd_constraint(
-            [(Sequence(CRO_SEQ, 'protein'),)],
+            [(Sequence(CRO_SEQ, "protein"),)],
             config,
         )[0]
         assert rmsd < EPSILON
@@ -118,7 +120,7 @@ class TestESMFoldRMSDConstraint:
             structure_tool="esmfold",
         )
         rmsd = structure_rmsd_constraint(
-            [(Sequence(CRO_SEQ, 'protein'),)],
+            [(Sequence(CRO_SEQ, "protein"),)],
             config,
         )[0]
         assert rmsd < EPSILON
@@ -130,10 +132,12 @@ class TestESMFoldRMSDConstraint:
             structure_tool="esmfold",
         )
         rmsd = structure_rmsd_constraint(
-            [(
-                Sequence(ROP_SEQ, 'protein'),
-                Sequence(ROP_SEQ, 'protein'),
-            )],
+            [
+                (
+                    Sequence(ROP_SEQ, "protein"),
+                    Sequence(ROP_SEQ, "protein"),
+                )
+            ],
             config,
         )[0]
         assert rmsd < EPSILON
@@ -141,10 +145,13 @@ class TestESMFoldRMSDConstraint:
 
 class TestESMFoldTMscoreConstraint:
     """Tests for ESMFold TMscore constraint."""
+
     @pytest.fixture
     def mock_predict(self):
         """Mocks the heavy folding function."""
-        with patch("proto_language.language.constraint.protein_structure.structure_similarity_constraint.predict_structures") as m:
+        with patch(
+            "proto_language.language.constraint.protein_structure.structure_similarity_constraint.predict_structures"
+        ) as m:
             # Return a valid structure so the code proceeds
             m.return_value = MockResult(structures=[MockStructure()])
             yield m
@@ -152,15 +159,20 @@ class TestESMFoldTMscoreConstraint:
     @pytest.fixture
     def mock_target_prep(self):
         """Mocks target preparation to avoid folding the target."""
-        with patch("proto_language.language.constraint.protein_structure.structure_similarity_constraint._prepare_target_structure") as m:
+        with patch(
+            "proto_language.language.constraint.protein_structure.structure_similarity_constraint._prepare_target_structure"
+        ) as m:
             m.return_value = "TARGET_PDB_CONTENT"
             yield m
 
     @pytest.fixture
     def mock_tmalign(self):
         """Mocks the TMalign tool wrapper."""
-        with patch("proto_language.language.constraint.protein_structure.structure_similarity_constraint.run_tmalign") as m:
+        with patch(
+            "proto_language.language.constraint.protein_structure.structure_similarity_constraint.run_tmalign"
+        ) as m:
             from proto_tools import TMalignOutput
+
             m.return_value = TMalignOutput(
                 tm_score_chain_1=0.5,
                 tm_score_chain_2=0.5,
@@ -169,15 +181,15 @@ class TestESMFoldTMscoreConstraint:
 
     @pytest.mark.uses_gpu
     def test_perfect_match(self):
-        assert _perfect_match("tmscore", "esmfold") == 0.
+        assert _perfect_match("tmscore", "esmfold") == 0.0
 
     @pytest.mark.uses_gpu
     def test_imperfect_match(self):
-        assert _imperfect_match("tmscore", "esmfold") > 0.
+        assert _imperfect_match("tmscore", "esmfold") > 0.0
 
     @pytest.mark.uses_gpu
     def test_unconfident_match(self):
-        assert _unconfident_match("tmscore", "esmfold") == 1.
+        assert _unconfident_match("tmscore", "esmfold") == 1.0
 
     @pytest.mark.uses_gpu
     def test_plddt_threshold_filtering(self):
@@ -189,7 +201,7 @@ class TestESMFoldTMscoreConstraint:
             plddt_threshold=None,  # Default behavior.
         )
         score_raw = structure_tmscore_constraint(
-            [(Sequence(CRO_SEQ, 'protein'),)],
+            [(Sequence(CRO_SEQ, "protein"),)],
             config_raw,
         )[0]
 
@@ -201,10 +213,10 @@ class TestESMFoldTMscoreConstraint:
         config_strict = StructureTMScoreConfig(
             target_chains=[CRO_SEQ],
             structure_tool="esmfold",
-            plddt_threshold=0.999, # ESMFold normalizes by 100, so pLDDT is 0-1.
+            plddt_threshold=0.999,  # ESMFold normalizes by 100, so pLDDT is 0-1.
         )
         score_strict = structure_tmscore_constraint(
-            [(Sequence(CRO_SEQ, 'protein'),)],
+            [(Sequence(CRO_SEQ, "protein"),)],
             config_strict,
         )[0]
 
@@ -219,10 +231,12 @@ class TestESMFoldTMscoreConstraint:
         )
 
         score = structure_tmscore_constraint(
-            [(
-                Sequence(ROP_SEQ, 'protein'),
-                Sequence(ROP_SEQ, 'protein'),
-            )],
+            [
+                (
+                    Sequence(ROP_SEQ, "protein"),
+                    Sequence(ROP_SEQ, "protein"),
+                )
+            ],
             config,
         )[0]
 
@@ -243,7 +257,7 @@ class TestESMFoldTMscoreConstraint:
         )
 
         score = structure_tmscore_constraint(
-            [(Sequence(ROP_SEQ, 'protein'),)],
+            [(Sequence(ROP_SEQ, "protein"),)],
             config,
         )[0]
 
@@ -260,35 +274,32 @@ class TestESMFoldTMscoreConstraint:
         # Structure 1 (Proposal) Norm = 0.8  (Good match)
         # Structure 2 (Target) Norm    = 0.4  (Bad match, maybe target is huge)
         from proto_tools import TMalignOutput
+
         mock_tmalign.return_value = TMalignOutput(
             tm_score_chain_1=0.8,
             tm_score_chain_2=0.4,
         )
 
         cases = [
-            ("structure1", 0.8), # Score = 1.0 - 0.8 = 0.2
-            ("structure2", 0.4), # Score = 1.0 - 0.4 = 0.6
-            ("max", 0.8),        # Score = 1.0 - 0.8 = 0.2
-            ("min", 0.4),        # Score = 1.0 - 0.4 = 0.6
-            ("mean", 0.6),       # Score = 1.0 - 0.6 = 0.4
+            ("structure1", 0.8),  # Score = 1.0 - 0.8 = 0.2
+            ("structure2", 0.4),  # Score = 1.0 - 0.4 = 0.6
+            ("max", 0.8),  # Score = 1.0 - 0.8 = 0.2
+            ("min", 0.4),  # Score = 1.0 - 0.4 = 0.6
+            ("mean", 0.6),  # Score = 1.0 - 0.6 = 0.4
         ]
 
         for mode, expected_tm in cases:
             config = StructureTMScoreConfig(
-                target_structure="FAKE", # Content doesn't matter, mocked
+                target_structure="FAKE",  # Content doesn't matter, mocked
                 structure_tool="esmfold",
-                tm_score_normalization=mode
+                tm_score_normalization=mode,
             )
 
-            scores = structure_tmscore_constraint(
-                [(Sequence("AAA", 'protein'),)],
-                config
-            )
+            scores = structure_tmscore_constraint([(Sequence("AAA", "protein"),)], config)
 
             # Constraint returns 1.0 - TMscore
             expected_constraint_score = 1.0 - expected_tm
-            assert scores[0] == pytest.approx(expected_constraint_score), \
-                f"Failed for mode: {mode}"
+            assert scores[0] == pytest.approx(expected_constraint_score), f"Failed for mode: {mode}"
 
 
 @pytest.mark.slow
@@ -308,7 +319,7 @@ class TestSlowStructurePredictorSimilarityConstraint:
 
     @pytest.mark.only_chimera
     def test_imperfect_match(self):
-        assert _imperfect_match("tmscore", "alphafold3") > 0.
+        assert _imperfect_match("tmscore", "alphafold3") > 0.0
 
     @pytest.mark.only_chimera
     def test_multichain(self):
@@ -318,10 +329,12 @@ class TestSlowStructurePredictorSimilarityConstraint:
             structure_tool="alphafold3",
         )
         rmsd = structure_rmsd_constraint(
-            [(
-                Sequence(ROP_SEQ, 'protein'),
-                Sequence(ROP_SEQ, 'protein'),
-            )],
+            [
+                (
+                    Sequence(ROP_SEQ, "protein"),
+                    Sequence(ROP_SEQ, "protein"),
+                )
+            ],
             config,
         )[0]
         assert rmsd < EPSILON

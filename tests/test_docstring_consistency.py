@@ -85,9 +85,7 @@ def _normalize_ast(node: ast.expr) -> ast.expr:
 
         new_value = _normalize_ast(node.value)
         if isinstance(node.slice, ast.Tuple):
-            new_slice = ast.Tuple(
-                elts=[_normalize_ast(e) for e in node.slice.elts], ctx=ast.Load()
-            )
+            new_slice = ast.Tuple(elts=[_normalize_ast(e) for e in node.slice.elts], ctx=ast.Load())
         else:
             new_slice = _normalize_ast(node.slice)
         return ast.Subscript(value=new_value, slice=new_slice, ctx=ast.Load())
@@ -100,9 +98,7 @@ def _normalize_ast(node: ast.expr) -> ast.expr:
 
     if isinstance(node, (ast.Constant, ast.List, ast.Tuple)):
         if isinstance(node, (ast.List, ast.Tuple)):
-            return type(node)(
-                elts=[_normalize_ast(e) for e in node.elts], ctx=ast.Load()
-            )
+            return type(node)(elts=[_normalize_ast(e) for e in node.elts], ctx=ast.Load())
         return node
 
     return node
@@ -144,18 +140,14 @@ _RAISES_SECTIONS = {"Raises"}
 _ALL_SECTION_NAMES = _NAMED_SECTIONS | _TYPED_SECTIONS | _RAISES_SECTIONS
 
 # Matches a section header like "    Args:" or "    Returns:"
-_SECTION_HEADER_RE = re.compile(
-    r"^(\s*)(" + "|".join(_ALL_SECTION_NAMES) + r")\s*:\s*$"
-)
+_SECTION_HEADER_RE = re.compile(r"^(\s*)(" + "|".join(_ALL_SECTION_NAMES) + r")\s*:\s*$")
 
 # Named entry: "name (type): desc" or "name: desc"
 _NAMED_ENTRY_RE = re.compile(r"^\w[\w\d_]*\s*(?:\(.*?\))?\s*:")
 
 # Typed entry (Returns/Yields): a type expression followed by ": desc"
 # Must start with a word character (not punctuation like [ or {)
-_TYPED_ENTRY_RE = re.compile(
-    r"^\w[^\s:]*(?:\[.*?\])?(?:\s*\|\s*\w[^\s:]*(?:\[.*?\])?)*\s*:"
-)
+_TYPED_ENTRY_RE = re.compile(r"^\w[^\s:]*(?:\[.*?\])?(?:\s*\|\s*\w[^\s:]*(?:\[.*?\])?)*\s*:")
 
 # Raises entry: "ExceptionName: desc"
 _RAISES_ENTRY_RE = re.compile(r"^\w[\w\d_]*\s*:")
@@ -368,7 +360,11 @@ def _collect_docstrings_with_annotations(
                 own = _extract_class_annotations(node)
                 resolved = {}
                 for base in node.bases:
-                    base_name = base.id if isinstance(base, ast.Name) else (base.attr if isinstance(base, ast.Attribute) else None)
+                    base_name = (
+                        base.id
+                        if isinstance(base, ast.Name)
+                        else (base.attr if isinstance(base, ast.Attribute) else None)
+                    )
                     if base_name and base_name in class_annotations:
                         resolved.update(class_annotations[base_name])
                 resolved.update(own)
@@ -437,10 +433,7 @@ def test_docstring_types_match_signatures(
         norm_sig = _normalize_type(sig_type)
 
         if param.type_name is None:
-            violations.append(
-                f"  {param.arg_name}: missing type in docstring "
-                f"(should be '{norm_sig}')"
-            )
+            violations.append(f"  {param.arg_name}: missing type in docstring (should be '{norm_sig}')")
             continue
 
         norm_doc = _normalize_type(param.type_name)
@@ -452,19 +445,14 @@ def test_docstring_types_match_signatures(
                 f"(normalized: '{norm_doc}' vs '{norm_sig}')"
             )
 
-    assert not violations, (
-        f"{file_path}::{name} has docstring param type mismatches:\n"
-        + "\n".join(violations)
-    )
+    assert not violations, f"{file_path}::{name} has docstring param type mismatches:\n" + "\n".join(violations)
 
 
 @pytest.mark.parametrize(
     "file_path, name, docstring, annotations, return_type, node_kind, own_annotations",
     [item for item in _DOCSTRINGS_WITH_ANNOTATIONS if item[5] == "function" and item[4] is not None],
     ids=[
-        f"{fp}::{n}"
-        for fp, n, _, _, rt, nk, _ in _DOCSTRINGS_WITH_ANNOTATIONS
-        if nk == "function" and rt is not None
+        f"{fp}::{n}" for fp, n, _, _, rt, nk, _ in _DOCSTRINGS_WITH_ANNOTATIONS if nk == "function" and rt is not None
     ],
 )
 def test_docstring_return_type_matches_signature(
@@ -503,10 +491,7 @@ def test_docstring_return_type_matches_signature(
         doc_return_type = _extract_returns_type(docstring)
 
     if doc_return_type is None:
-        pytest.fail(
-            f"{file_path}::{name}: Returns: section missing type "
-            f"(should be '{norm_sig}')"
-        )
+        pytest.fail(f"{file_path}::{name}: Returns: section missing type (should be '{norm_sig}')")
         return
 
     norm_doc = _normalize_type(doc_return_type)
@@ -540,11 +525,5 @@ def test_docstring_continuation_indentation(
     if not violations:
         return
 
-    details = "\n".join(
-        f"  {section} line {lineno}: {text}"
-        for section, lineno, text in violations
-    )
-    pytest.fail(
-        f"{file_path}::{name} has continuation lines at entry indent "
-        f"(should be indented further):\n{details}"
-    )
+    details = "\n".join(f"  {section} line {lineno}: {text}" for section, lineno, text in violations)
+    pytest.fail(f"{file_path}::{name} has continuation lines at entry indent (should be indented further):\n{details}")

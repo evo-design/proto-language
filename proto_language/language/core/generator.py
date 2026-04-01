@@ -42,9 +42,9 @@ class Generator(ABC):
             from proto_language.language.generator.generator_registry import (
                 GeneratorRegistry,
             )
+
             self.__spec = GeneratorRegistry.get(GeneratorRegistry.get_key(self))
         return self.__spec
-
 
     def assign(self, assigned_segment: Segment) -> None:
         """Assign a Segment to the generator.
@@ -60,17 +60,20 @@ class Generator(ABC):
         """
         # Ligand segments cannot be mutated by generators
         if assigned_segment.is_ligand:
-            raise ValueError(f"Cannot assign generator to ligand segment '{assigned_segment.label}'. Ligand segments cannot be mutated.")
+            raise ValueError(
+                f"Cannot assign generator to ligand segment '{assigned_segment.label}'. Ligand segments cannot be mutated."
+            )
 
         # Validate sequence type compatibility from registry
         supported_types = self._spec.supported_sequence_types
 
         if supported_types and assigned_segment.sequence_type not in supported_types:
             supported_types_str = ", ".join(supported_types)
-            raise ValueError(f"Generator {self.__class__.__name__} does not support sequence type '{assigned_segment.sequence_type}'. Supported types: [{supported_types_str}]")
+            raise ValueError(
+                f"Generator {self.__class__.__name__} does not support sequence type '{assigned_segment.sequence_type}'. Supported types: [{supported_types_str}]"
+            )
         self._assigned_segment = assigned_segment
         logger.debug(f"Generator.assign: {self.__class__.__name__} -> segment={assigned_segment.label}")
-
 
     @abstractmethod
     def sample(self) -> None:
@@ -85,17 +88,21 @@ class Generator(ABC):
         segment = self._assigned_segment
 
         if not segment.proposal_sequences:
-            raise RuntimeError(
-                f"Segment '{segment.label or 'unlabeled'}' has an empty proposal_sequences pool."
-            )
+            raise RuntimeError(f"Segment '{segment.label or 'unlabeled'}' has an empty proposal_sequences pool.")
 
         # Warn if segment already has populated sequences that will be overwritten (autoregressive only)
         if self._spec.category == "autoregressive" and segment.proposals_populated:
-            warnings.warn(f"Segment '{segment.label or 'unlabeled'}' has an input sequence that will be overwritten by {self.__class__.__name__}.", stacklevel=2)
+            warnings.warn(
+                f"Segment '{segment.label or 'unlabeled'}' has an input sequence that will be overwritten by {self.__class__.__name__}.",
+                stacklevel=2,
+            )
 
         # Initialize random sequences for mutation generators if no input template sequence provided.
         if self._spec.category == "mutation" and not segment.proposals_populated:
-            warnings.warn(f"Generator {self.__class__.__name__} is a mutation generator, but proposals have no sequences. Initializing random starting sequences.", stacklevel=2)
+            warnings.warn(
+                f"Generator {self.__class__.__name__} is a mutation generator, but proposals have no sequences. Initializing random starting sequences.",
+                stacklevel=2,
+            )
             assert segment.valid_chars is not None  # noqa: S101 -- mypy type narrowing
             valid_chars = list(segment.valid_chars - set(" "))
             for sequence in segment.proposal_sequences:
@@ -104,8 +111,8 @@ class Generator(ABC):
 
         # Initialize unknown (X) sequences for inverse folding generators if no input sequence provided.
         if self._spec.category == "inverse_folding" and not segment.proposals_populated:
-                unknown_sequence = "X" * segment.sequence_length
-                for sequence in segment.proposal_sequences:
-                    sequence.sequence = unknown_sequence
+            unknown_sequence = "X" * segment.sequence_length
+            for sequence in segment.proposal_sequences:
+                sequence.sequence = unknown_sequence
 
         logger.debug(f"Generator validated: {self.__class__.__name__}, category={self._spec.category}")

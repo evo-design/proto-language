@@ -1,4 +1,5 @@
 """Language layer re-exports for constraints, generators, optimizers, and core types."""
+
 from proto_language.language.constraint import ConstraintRegistry, ConstraintSpec, constraint
 from proto_language.language.core import (
     Constraint,

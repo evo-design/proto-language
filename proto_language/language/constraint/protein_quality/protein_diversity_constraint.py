@@ -31,6 +31,7 @@ class ProteinDiversityConfig(BaseConfig):
         A diversity score of 1.0 means all 20 standard amino acids are present,
         while 0.0 means only one amino acid type is used (homopolymer).
     """
+
     min_diversity: float = ConfigField(
         title="Min Acceptable Diversity",
         default=0.7,
@@ -51,7 +52,9 @@ class ProteinDiversityConfig(BaseConfig):
     supported_sequence_types=["protein"],
     num_input_sequences_per_tuple=1,
 )
-def protein_diversity_constraint(input_sequences: list[tuple[Sequence, ...]], config: ProteinDiversityConfig) -> list[float]:
+def protein_diversity_constraint(
+    input_sequences: list[tuple[Sequence, ...]], config: ProteinDiversityConfig
+) -> list[float]:
     """Evaluate amino acid diversity in protein sequences.
 
     This constraint function measures the diversity of amino acid types present
@@ -115,9 +118,7 @@ def protein_diversity_constraint(input_sequences: list[tuple[Sequence, ...]], co
     deficits = config.min_diversity - diversity_scores
 
     scores_array = np.where(
-        diversity_scores >= config.min_diversity,
-        MIN_ENERGY,
-        np.minimum(MAX_ENERGY, deficits / config.min_diversity)
+        diversity_scores >= config.min_diversity, MIN_ENERGY, np.minimum(MAX_ENERGY, deficits / config.min_diversity)
     )
 
     # Store metadata

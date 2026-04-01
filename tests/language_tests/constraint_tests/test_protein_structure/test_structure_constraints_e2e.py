@@ -152,9 +152,7 @@ class TestStructureConstraintsProteinLigandComplex:
 
         # For self-similarity tests (RMSD and TM-score), expect near-perfect scores
         if constraint_name in ["rmsd", "tmscore"]:
-            assert scores[0] < 0.1, (
-                f"{constraint_name}: Self-similarity should yield score < 0.1, got {scores[0]}"
-            )
+            assert scores[0] < 0.1, f"{constraint_name}: Self-similarity should yield score < 0.1, got {scores[0]}"
 
         # Verify metadata was stored (on first sequence in tuple)
         metadata = protein_sequence._metadata
@@ -163,14 +161,10 @@ class TestStructureConstraintsProteinLigandComplex:
 
         # Additional metadata checks
         if "pdb_output" in metadata:
-            assert len(metadata["pdb_output"]) > 0, (
-                f"{constraint_name}: PDB output should not be empty"
-            )
+            assert len(metadata["pdb_output"]) > 0, f"{constraint_name}: PDB output should not be empty"
 
         if "structure_tool" in metadata:
-            assert metadata["structure_tool"] == "boltz2", (
-                f"{constraint_name}: Structure tool should be 'boltz2'"
-            )
+            assert metadata["structure_tool"] == "boltz2", f"{constraint_name}: Structure tool should be 'boltz2'"
 
 
 # ============================================================================

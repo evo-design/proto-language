@@ -1,4 +1,5 @@
 """Sequence composition constraints (GC content, k-mer frequency, homopolymer, length)."""
+
 from proto_language.language.constraint.sequence_composition.gc_content_constraint import gc_content_constraint
 from proto_language.language.constraint.sequence_composition.kmer_frequency_constraint import kmer_frequency_constraint
 from proto_language.language.constraint.sequence_composition.max_homopolymer_constraint import (

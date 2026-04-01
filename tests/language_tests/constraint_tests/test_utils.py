@@ -71,7 +71,7 @@ class TestCalculateRangeDeviation:
     def test_value_above_range(self):
         """Test deviation calculation for values above range."""
         # actual=70, min=40, max=60 -> deviation = (70-60)/60 = 0.166...
-        assert abs(calculate_range_deviation(70.0, 40.0, 60.0) - (10.0/60.0)) < 1e-9
+        assert abs(calculate_range_deviation(70.0, 40.0, 60.0) - (10.0 / 60.0)) < 1e-9
 
         # actual=120, min=40, max=60 -> deviation = (120-60)/60 = 1.0
         assert abs(calculate_range_deviation(120.0, 40.0, 60.0) - 1.0) < 1e-9

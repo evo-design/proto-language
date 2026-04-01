@@ -1,4 +1,5 @@
 """tests/language_tests/constraint_tests/test_sequence_composition/test_max_homopolymer_constraint.py."""
+
 import numpy as np
 import pytest
 
@@ -45,9 +46,9 @@ class TestMaxHomopolymerConstraint:
         if len(sequence) > 0:
             import itertools
 
-            expected_max_homopolymer = max(
-                len(list(g)) for _, g in itertools.groupby(sequence)
+            expected_max_homopolymer = max(len(list(g)) for _, g in itertools.groupby(sequence))
+            assert (
+                constraints["max_homopolymer_constraint"]["data"]["max_homopolymer_length"] == expected_max_homopolymer
             )
-            assert constraints["max_homopolymer_constraint"]["data"]["max_homopolymer_length"] == expected_max_homopolymer
         else:
             assert constraints["max_homopolymer_constraint"]["data"]["max_homopolymer_length"] == 0

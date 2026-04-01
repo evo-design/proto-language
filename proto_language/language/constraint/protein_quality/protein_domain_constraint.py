@@ -70,6 +70,7 @@ class ProteinDomainConfig(BaseConfig):
         predicted protein is searched for domains. For protein sequences, the
         search is performed directly.
     """
+
     # Required parameters
     hmm_db: str = ConfigField(
         title="HMM Database",
@@ -180,11 +181,7 @@ def protein_domain_constraint(input_sequences: list[tuple[Sequence, ...]], confi
 
         >>> from proto_language.language.core import Sequence, SequenceType
         >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", "protein")
-        >>> cfg = ProteinDomainConfig(
-        ...     hmm_db="Pfam-A.hmm",
-        ...     keywords=["kinase"],
-        ...     evalue_threshold=0.001
-        ... )
+        >>> cfg = ProteinDomainConfig(hmm_db="Pfam-A.hmm", keywords=["kinase"], evalue_threshold=0.001)
         >>> scores = protein_domain_constraint([(seq,)], config=cfg)
         >>> print(scores[0])  # 0.0 if kinase domain found, 1.0 if not
         >>> print(seq._metadata["domain_keywords_found"])  # ['kinase'] if found
@@ -192,10 +189,7 @@ def protein_domain_constraint(input_sequences: list[tuple[Sequence, ...]], confi
         Evaluating DNA sequence (with automatic ORF prediction):
 
         >>> dna_seq = Sequence("ATGGTACTGAGCCCAGCG...", "dna")
-        >>> cfg = ProteinDomainConfig(
-        ...     hmm_db="Pfam-A.hmm",
-        ...     keywords=["helicase"]
-        ... )
+        >>> cfg = ProteinDomainConfig(hmm_db="Pfam-A.hmm", keywords=["helicase"])
         >>> scores = protein_domain_constraint([(dna_seq,)], config=cfg)
         >>> print(dna_seq._metadata["prodigal_protein_count"])  # Number of predicted ORFs
         >>> print(dna_seq._metadata["domain_matching_proteins"])  # IDs of proteins with helicase domain
@@ -217,10 +211,10 @@ def protein_domain_constraint(input_sequences: list[tuple[Sequence, ...]], confi
     for idx, seq in enumerate(sequences):
         if seq.sequence_type == "dna":
             dna_sequences.append((idx, seq))
-            sequence_type_map.append(('dna', len(dna_sequences) - 1))
+            sequence_type_map.append(("dna", len(dna_sequences) - 1))
         else:  # protein (validated by Constraint._validate_sequence_types)
             protein_sequences.append((idx, seq))
-            sequence_type_map.append(('protein', len(protein_sequences) - 1))
+            sequence_type_map.append(("protein", len(protein_sequences) - 1))
 
     dna_scores = {}
     protein_scores = {}
@@ -229,31 +223,25 @@ def protein_domain_constraint(input_sequences: list[tuple[Sequence, ...]], confi
     # Handle DNA vs protein sequences
     if dna_sequences:
         dna_indices, dna_seqs = zip(*dna_sequences, strict=False)
-        dna_results = _process_dna_sequences(
-            list(dna_seqs), hmm_db, keywords_lower, config
-        )
+        dna_results = _process_dna_sequences(list(dna_seqs), hmm_db, keywords_lower, config)
         dna_scores = dict(zip(dna_indices, dna_results, strict=False))
     if protein_sequences:
         protein_indices, protein_seqs = zip(*protein_sequences, strict=False)
-        protein_results = _process_protein_sequences(
-            list(protein_seqs), hmm_db, keywords_lower, config
-        )
+        protein_results = _process_protein_sequences(list(protein_seqs), hmm_db, keywords_lower, config)
         protein_scores = dict(zip(protein_indices, protein_results, strict=False))
 
     scores = []
     for idx, (seq_type, _type_idx) in enumerate(sequence_type_map):
-        if seq_type == 'dna':
+        if seq_type == "dna":
             scores.append(dna_scores[idx])
         else:
             scores.append(protein_scores[idx])
 
     return scores
 
+
 def _process_dna_sequences(
-    input_sequences: list[Sequence],
-    hmm_db: Path,
-    keywords_lower: list[str],
-    config: ProteinDomainConfig
+    input_sequences: list[Sequence], hmm_db: Path, keywords_lower: list[str], config: ProteinDomainConfig
 ) -> list[float]:
     """Process DNA sequences: Run Prodigal in batch, then check domains. Returns list of constraint scores."""
     # Run Prodigal to get predicted proteins
@@ -269,12 +257,14 @@ def _process_dna_sequences(
         raise RuntimeError(f"Prodigal execution failed: {e}") from e
 
     scores = []
-    for input_sequence, proteins_list, gene_count in zip(input_sequences, all_proteins_per_seq, gene_counts, strict=False):
+    for input_sequence, proteins_list, gene_count in zip(
+        input_sequences, all_proteins_per_seq, gene_counts, strict=False
+    ):
         # Store Prodigal results in metadata
         orf_dicts = [orf.model_dump() for orf in proteins_list]
-        input_sequence._metadata["prodigal_proteins"] = store_file(
-            json.dumps(orf_dicts), FileType.JSON
-        ) if orf_dicts else None
+        input_sequence._metadata["prodigal_proteins"] = (
+            store_file(json.dumps(orf_dicts), FileType.JSON) if orf_dicts else None
+        )
         input_sequence._metadata["prodigal_protein_count"] = gene_count
 
         if len(proteins_list) == 0:
@@ -303,12 +293,11 @@ def _process_dna_sequences(
         for orf, result in zip(proteins_list, batch_results, strict=False):
             # Extract DataFrames before serializing the result dict
             serializable_result = {
-                k: v for k, v in result.items()
-                if k not in ("matching_hits", "all_hits", "significant_hits")
+                k: v for k, v in result.items() if k not in ("matching_hits", "all_hits", "significant_hits")
             }
             serializable_result["protein_id"] = orf.id
             serializable_result["protein_description"] = (
-                orf.description if hasattr(orf, 'description') and orf.description else ""
+                orf.description if hasattr(orf, "description") and orf.description else ""
             )
             serializable_results.append(serializable_result)
 
@@ -317,17 +306,13 @@ def _process_dna_sequences(
                 all_keywords_found.update(result["keywords_found"])
 
         # Store metadata — externalize large result lists
-        input_sequence._metadata["domain_search_results"] = store_file(
-            json.dumps(serializable_results), FileType.JSON
-        )
+        input_sequence._metadata["domain_search_results"] = store_file(json.dumps(serializable_results), FileType.JSON)
         input_sequence._metadata["domain_keywords_found"] = list(all_keywords_found)
         input_sequence._metadata["domain_matching_proteins"] = matching_proteins
 
         # Determine constraint score
         if config.match_all_keywords:
-            score = (
-                MIN_ENERGY if len(all_keywords_found) == len(keywords_lower) else MAX_ENERGY
-            )
+            score = MIN_ENERGY if len(all_keywords_found) == len(keywords_lower) else MAX_ENERGY
         else:
             score = MIN_ENERGY if all_keywords_found else MAX_ENERGY
 
@@ -335,11 +320,9 @@ def _process_dna_sequences(
 
     return scores
 
+
 def _process_protein_sequences(
-    input_sequences: list[Sequence],
-    hmm_db: Path,
-    keywords_lower: list[str],
-    config: ProteinDomainConfig
+    input_sequences: list[Sequence], hmm_db: Path, keywords_lower: list[str], config: ProteinDomainConfig
 ) -> list[float]:
     """Process protein sequences: Check domains in batch.
 
@@ -375,12 +358,9 @@ def _process_protein_sequences(
         matching_hits = result["matching_hits"]
         all_hits = result["all_hits"]
         serializable_result = {
-            k: v for k, v in result.items()
-            if k not in ("matching_hits", "all_hits", "significant_hits")
+            k: v for k, v in result.items() if k not in ("matching_hits", "all_hits", "significant_hits")
         }
-        input_sequence._metadata["domain_search_results"] = store_file(
-            json.dumps([serializable_result]), FileType.JSON
-        )
+        input_sequence._metadata["domain_search_results"] = store_file(json.dumps([serializable_result]), FileType.JSON)
         input_sequence._metadata["domain_keywords_found"] = result["keywords_found"]
         if len(matching_hits) > 0:
             input_sequence._metadata["domain_matching_hits"] = store_file(
@@ -406,6 +386,7 @@ def _process_protein_sequences(
 
     return scores
 
+
 def _check_protein_domains_batch(
     protein_sequences: list[str],
     hmm_db: str,
@@ -429,10 +410,7 @@ def _check_protein_domains_batch(
     """
     # Create PyHMMER config with direct sequence input (no temporary files needed)
     # Create input and config for PyHMMER hmmscan
-    hmmscan_input = PyHmmscanInput(
-        sequences=protein_sequences,
-        hmm_db=hmm_db
-    )
+    hmmscan_input = PyHmmscanInput(sequences=protein_sequences, hmm_db=hmm_db)
 
     # Use provided config or default
     final_config = hmmscan_config
@@ -462,32 +440,34 @@ def _check_protein_domains_batch(
         seq_domain_hits = hits_by_query.get(seq_idx, [])
 
         if not seq_domain_hits:
-            batch_results.append({
-                "all_hits": [],
-                "significant_hits": [],
-                "matching_hits": [],
-                "keywords_found": [],
-            })
+            batch_results.append(
+                {
+                    "all_hits": [],
+                    "significant_hits": [],
+                    "matching_hits": [],
+                    "keywords_found": [],
+                }
+            )
             continue
 
         # Filter by E-value threshold
-        significant_hits = [
-            hit for hit in seq_domain_hits if hit.i_evalue <= evalue_threshold
-        ]
+        significant_hits = [hit for hit in seq_domain_hits if hit.i_evalue <= evalue_threshold]
 
         # Apply query coverage filter if specified
         if query_coverage is not None:
             query_len = len(protein_seq)
             if query_len > 0:
                 significant_hits = [
-                    hit for hit in significant_hits
+                    hit
+                    for hit in significant_hits
                     if ((hit.target_to - hit.target_from + 1) / query_len * 100) >= query_coverage
                 ]
 
         # Find hits matching keywords
         if significant_hits:
             matching_hits = [
-                hit for hit in significant_hits
+                hit
+                for hit in significant_hits
                 if any(kw in (hit.target_description or "").lower() for kw in keywords_lower)
             ]
         else:
@@ -501,11 +481,13 @@ def _check_protein_domains_batch(
                 if keyword in description_lower and keyword not in found_keywords:
                     found_keywords.append(keyword)
 
-        batch_results.append({
-            "all_hits": seq_domain_hits,
-            "significant_hits": significant_hits,
-            "matching_hits": matching_hits,
-            "keywords_found": found_keywords,
-        })
+        batch_results.append(
+            {
+                "all_hits": seq_domain_hits,
+                "significant_hits": significant_hits,
+                "matching_hits": matching_hits,
+                "keywords_found": found_keywords,
+            }
+        )
 
     return batch_results

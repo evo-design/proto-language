@@ -1,4 +1,5 @@
 """tests/language_tests/constraint_tests/test_protein_quality/test_protein_diversity_constraint.py."""
+
 import pytest
 
 from proto_language.language.constraint import protein_diversity_constraint
@@ -12,8 +13,7 @@ from proto_language.language.core import Constraint, Segment
 class TestProteinDiversityConstraint:
     def test_high_diversity(self):
         """Test protein with high amino acid diversity and constraint-specific metadata."""
-        segment = Segment(sequence="MVLSPADKTNVKAAWGKVGAHAGEYGAEALER", sequence_type="protein"
-        )
+        segment = Segment(sequence="MVLSPADKTNVKAAWGKVGAHAGEYGAEALER", sequence_type="protein")
         config = ProteinDiversityConfig(min_diversity=0.5)
 
         constraint = Constraint(
@@ -63,7 +63,9 @@ class TestProteinDiversityConstraint:
         assert score > 0.0
         constraints = segment.proposal_sequences[0]._constraints_metadata
         assert constraints["protein_diversity_constraint"]["data"]["unique_amino_acid_count"] == 1
-        assert constraints["protein_diversity_constraint"]["data"]["aa_diversity_score"] == 1 / 20  # 1 out of 20 standard AAs
+        assert (
+            constraints["protein_diversity_constraint"]["data"]["aa_diversity_score"] == 1 / 20
+        )  # 1 out of 20 standard AAs
 
     def test_empty_sequence(self):
         """Test that zero-length segment raises ValueError."""

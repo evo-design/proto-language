@@ -1,4 +1,5 @@
 """tests/language_tests/test_sequence.py."""
+
 import copy
 import warnings
 
@@ -61,7 +62,8 @@ class TestSequence:
         """Identity fields in .metadata always reflect the actual sequence."""
         with pytest.warns(UserWarning, match="reserved keys"):
             seq = Sequence(
-                "ATCG", "dna",
+                "ATCG",
+                "dna",
                 metadata={"sequence": "WRONG", "sequence_length": 999},
             )
         # Identity fields must win over user metadata
@@ -102,9 +104,9 @@ class TestLigandSequence:
     @pytest.mark.parametrize(
         "invalid_smiles",
         [
-            "C(C(C",        # Unbalanced parentheses
-            "C(=O",         # Unclosed parenthesis
-            "XYZ",          # Invalid atoms
+            "C(C(C",  # Unbalanced parentheses
+            "C(=O",  # Unclosed parenthesis
+            "XYZ",  # Invalid atoms
         ],
     )
     def test_invalid_smiles(self, invalid_smiles):

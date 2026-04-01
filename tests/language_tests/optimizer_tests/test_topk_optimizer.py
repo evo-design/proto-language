@@ -70,11 +70,7 @@ class TestTopKOptimizerStandardMode:
             function_config={"target_length": 4},
         )
 
-        config = TopKOptimizerConfig(
-            num_samples=10,
-            num_results=5,
-            verbose=False
-        )
+        config = TopKOptimizerConfig(num_samples=10, num_results=5, verbose=False)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen],
@@ -105,11 +101,7 @@ class TestTopKOptimizerStandardMode:
             function_config={"min_gc": 40.0, "max_gc": 60.0},
         )
 
-        config = TopKOptimizerConfig(
-            num_samples=20,
-            num_results=3,
-            verbose=False
-        )
+        config = TopKOptimizerConfig(num_samples=20, num_results=3, verbose=False)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen],
@@ -143,11 +135,7 @@ class TestTopKOptimizerStandardMode:
             function_config={"min_gc": 80.0, "max_gc": 100.0},
         )
 
-        config = TopKOptimizerConfig(
-            num_samples=50,
-            num_results=5,
-            verbose=False
-        )
+        config = TopKOptimizerConfig(num_samples=50, num_results=5, verbose=False)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen],
@@ -182,11 +170,7 @@ class TestTopKOptimizerStandardMode:
             function_config={"min_gc": 40.0, "max_gc": 60.0},
         )
 
-        config = TopKOptimizerConfig(
-            num_samples=10,
-            num_results=3,
-            verbose=False
-        )
+        config = TopKOptimizerConfig(num_samples=10, num_results=3, verbose=False)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen1, gen2],
@@ -217,11 +201,7 @@ class TestTopKOptimizerStandardMode:
             function_config={"target_length": 8},
         )
 
-        config = TopKOptimizerConfig(
-            num_samples=5,
-            num_results=5,
-            verbose=False
-        )
+        config = TopKOptimizerConfig(num_samples=5, num_results=5, verbose=False)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen],
@@ -253,11 +233,7 @@ class TestTopKOptimizerStandardMode:
             function_config={"target_length": 8},
         )
 
-        config = TopKOptimizerConfig(
-            num_samples=5,
-            num_results=3,
-            verbose=False
-        )
+        config = TopKOptimizerConfig(num_samples=5, num_results=3, verbose=False)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen],
@@ -276,13 +252,13 @@ class TestTopKOptimizerStandardMode:
         assert optimizer._initial_state is not None
 
         # Verify captured state contains cycled original sequences
-        assert len(optimizer._initial_state['segments']) == 1
-        captured_result = optimizer._initial_state['segments'][0]['result']
+        assert len(optimizer._initial_state["segments"]) == 1
+        captured_result = optimizer._initial_state["segments"][0]["result"]
         assert len(captured_result) == 3  # Cycled to num_results
-        assert all(s['sequence'] == original_seq for s in captured_result)
+        assert all(s["sequence"] == original_seq for s in captured_result)
 
         # Verify energy scores captured
-        assert 'energy_scores' in optimizer._initial_state
+        assert "energy_scores" in optimizer._initial_state
 
         # Verify sorted list was populated (TopK-specific state)
         assert len(optimizer._result_energies) == 3  # Has k entries after run
@@ -315,12 +291,7 @@ class TestTopKOptimizerStandardMode:
             function_config={"min_gc": 40.0, "max_gc": 60.0},
         )
 
-        config = TopKOptimizerConfig(
-            num_samples=20,
-            num_results=3,
-            samples_per_round=5,
-            verbose=False
-        )
+        config = TopKOptimizerConfig(num_samples=20, num_results=3, samples_per_round=5, verbose=False)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen],
@@ -357,12 +328,7 @@ class TestTopKOptimizerStandardMode:
         )
 
         # 10 samples with samples_per_round=3 → rounded up to 12 (4 rounds)
-        config = TopKOptimizerConfig(
-            num_samples=10,
-            num_results=5,
-            samples_per_round=3,
-            verbose=False
-        )
+        config = TopKOptimizerConfig(num_samples=10, num_results=5, samples_per_round=3, verbose=False)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen],
@@ -402,11 +368,7 @@ class TestTopKOptimizerStandardMode:
             threshold=0.0,
         )
 
-        config = TopKOptimizerConfig(
-            num_samples=100,
-            num_results=5,
-            verbose=False
-        )
+        config = TopKOptimizerConfig(num_samples=100, num_results=5, verbose=False)
 
         optimizer = TopKOptimizer(
             constructs=[construct],
@@ -443,12 +405,7 @@ class TestTopKOptimizerThresholdMode:
             function_config={"min_gc": 40.0, "max_gc": 60.0},
         )
 
-        config = TopKOptimizerConfig(
-            num_samples=100,
-            energy_threshold=0.5,
-            num_results=3,
-            verbose=False
-        )
+        config = TopKOptimizerConfig(num_samples=100, energy_threshold=0.5, num_results=3, verbose=False)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen],
@@ -481,7 +438,7 @@ class TestTopKOptimizerThresholdMode:
             num_samples=1000,
             energy_threshold=100.0,  # Very high threshold, easily met
             num_results=3,
-            verbose=False
+            verbose=False,
         )
         optimizer = TopKOptimizer(
             constructs=[construct],
@@ -516,7 +473,7 @@ class TestTopKOptimizerThresholdMode:
             num_samples=20,
             energy_threshold=0.0,  # Impossible to meet (energy would need to be negative)
             num_results=3,
-            verbose=False
+            verbose=False,
         )
         optimizer = TopKOptimizer(
             constructs=[construct],
@@ -557,7 +514,9 @@ class TestTopKOptimizerInternals:
         segment = Segment(sequence="ATCGATCG", sequence_type="dna")
         construct = Construct([segment])
 
-        gen = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=2)))
+        gen = RandomNucleotideGenerator(
+            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=2))
+        )
         gen.assign(segment)
 
         constraint = Constraint(
@@ -586,7 +545,9 @@ class TestTopKOptimizerInternals:
         segment = Segment(sequence="ATCG", sequence_type="dna")
         construct = Construct([segment])
 
-        gen = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1)))
+        gen = RandomNucleotideGenerator(
+            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
+        )
         gen.assign(segment)
 
         constraint = Constraint(
@@ -625,7 +586,9 @@ class TestTopKOptimizerInternals:
         construct = Construct([segment])
 
         gen = RandomNucleotideGenerator(
-            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))  # Only 1 mutation, unlikely to reach 99% GC
+            RandomNucleotideGeneratorConfig(
+                masking_strategy=MaskingStrategy(num_mutations=1)
+            )  # Only 1 mutation, unlikely to reach 99% GC
         )
         gen.assign(segment)
 
@@ -637,11 +600,7 @@ class TestTopKOptimizerInternals:
             threshold=0.0,  # Filter mode - rejected proposals get inf energy
         )
 
-        config = TopKOptimizerConfig(
-            num_samples=20,
-            num_results=5,
-            verbose=False
-        )
+        config = TopKOptimizerConfig(num_samples=20, num_results=5, verbose=False)
 
         optimizer = TopKOptimizer(
             constructs=[construct],
@@ -679,11 +638,7 @@ class TestTopKOptimizerInternals:
             threshold=0.0,  # Filter mode
         )
 
-        config = TopKOptimizerConfig(
-            num_samples=50,
-            num_results=10,
-            verbose=False
-        )
+        config = TopKOptimizerConfig(num_samples=50, num_results=10, verbose=False)
 
         optimizer = TopKOptimizer(
             constructs=[construct],
@@ -730,10 +685,10 @@ class TestTopKOptimizerTrajectoryPreservation:
         # num_results=6 with 3 source sequences → cycling produces [A, C, G, A, C, G]
         # samples_per_round=6 means 6 proposals per round
         config = TopKOptimizerConfig(
-            num_samples=6,              # Generate 6 samples total
-            num_results=6,              # Keep top 6
+            num_samples=6,  # Generate 6 samples total
+            num_results=6,  # Keep top 6
             samples_per_round=6,
-            verbose=False
+            verbose=False,
         )
         optimizer = TopKOptimizer(
             constructs=[construct],
@@ -802,12 +757,7 @@ class TestTopKOptimizerTrajectoryPreservation:
             function_config={"target_length": 4},
         )
 
-        config = TopKOptimizerConfig(
-            num_samples=4,
-            num_results=4,
-            samples_per_round=4,
-            verbose=False
-        )
+        config = TopKOptimizerConfig(num_samples=4, num_results=4, samples_per_round=4, verbose=False)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen1, gen2],
@@ -864,7 +814,9 @@ class TestTopKCustomLogging:
                 function_config={"min_gc": 40.0, "max_gc": 60.0},
             )
             config = TopKOptimizerConfig(
-                num_samples=30, num_results=5, verbose=False,
+                num_samples=30,
+                num_results=5,
+                verbose=False,
             )
             optimizer = TopKOptimizer(
                 constructs=[construct],
@@ -882,9 +834,7 @@ class TestTopKCustomLogging:
         seqs_no_log, energies_no_log = run_topk(custom_logging_fn=None)
 
         log_calls = []
-        seqs_with_log, energies_with_log = run_topk(
-            custom_logging_fn=lambda r, s: log_calls.append(r)
-        )
+        seqs_with_log, energies_with_log = run_topk(custom_logging_fn=lambda r, s: log_calls.append(r))
 
         assert sorted(seqs_no_log) == sorted(seqs_with_log)
         assert sorted(energies_no_log) == sorted(energies_with_log)
@@ -909,7 +859,9 @@ class TestTopKCustomLogging:
             function_config={"target_length": 8},
         )
         config = TopKOptimizerConfig(
-            num_samples=5, num_results=3, verbose=False,
+            num_samples=5,
+            num_results=3,
+            verbose=False,
         )
         optimizer = TopKOptimizer(
             constructs=[construct],
@@ -950,9 +902,7 @@ class TestTopKLabelDeduplication:
         )
         assert constraint1.label == constraint2.label
 
-        config = TopKOptimizerConfig(
-            num_samples=5, num_results=3, verbose=False
-        )
+        config = TopKOptimizerConfig(num_samples=5, num_results=3, verbose=False)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen],
@@ -982,9 +932,7 @@ class TestTopKLabelDeduplication:
             function_config={"min_gc": 20.0, "max_gc": 80.0},
         )
 
-        config = TopKOptimizerConfig(
-            num_samples=5, num_results=3, verbose=False
-        )
+        config = TopKOptimizerConfig(num_samples=5, num_results=3, verbose=False)
         optimizer = TopKOptimizer(
             constructs=[construct],
             generators=[gen],

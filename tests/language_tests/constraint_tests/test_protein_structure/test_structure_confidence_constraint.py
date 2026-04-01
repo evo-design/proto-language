@@ -52,10 +52,12 @@ def protein_sequence_b():
     """Second protein sequence for heteromers."""
     return Sequence("GVQVETISPGDGRTFPK", "protein")
 
+
 @pytest.fixture
 def dna_sequence():
     """Single DNA sequence."""
     return Sequence("ACGTACGTACGT", "dna")
+
 
 @pytest.fixture
 def rna_sequence():
@@ -67,17 +69,18 @@ def rna_sequence():
 # Test Score Calculations
 # ============================================================================
 
+
 class TestScoreCalculations:
     """Test that constraint scores are calculated correctly."""
 
     @pytest.mark.parametrize(
         "metric_value,expected_score",
         [
-            (1.0, 0.0),   # Perfect confidence
+            (1.0, 0.0),  # Perfect confidence
             (0.9, 0.1),
             (0.75, 0.25),
             (0.5, 0.5),
-            (0.0, 1.0),   # No confidence
+            (0.0, 1.0),  # No confidence
         ],
     )
     def test_plddt_scoring_esmfold(self, protein_sequence, metric_value, expected_score):
@@ -88,9 +91,7 @@ class TestScoreCalculations:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=metric_value, ptm=0.8)
-            ])
+            mock_predict.return_value = make_mock_output([make_mock_structure(avg_plddt=metric_value, ptm=0.8)])
 
             scores = structure_plddt_constraint(proposals, config)
             assert abs(scores[0] - expected_score) < 1e-9
@@ -98,11 +99,11 @@ class TestScoreCalculations:
     @pytest.mark.parametrize(
         "metric_value,expected_score",
         [
-            (100., 0.0),   # Perfect confidence
-            (90., 0.1),
-            (75., 0.25),
-            (50., 0.5),
-            (0., 1.0),   # No confidence
+            (100.0, 0.0),  # Perfect confidence
+            (90.0, 0.1),
+            (75.0, 0.25),
+            (50.0, 0.5),
+            (0.0, 1.0),  # No confidence
         ],
     )
     def test_plddt_scoring_af3(self, protein_sequence, metric_value, expected_score):
@@ -113,9 +114,7 @@ class TestScoreCalculations:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=metric_value, ptm=0.8)
-            ])
+            mock_predict.return_value = make_mock_output([make_mock_structure(avg_plddt=metric_value, ptm=0.8)])
 
             scores = structure_plddt_constraint(proposals, config)
             assert abs(scores[0] - expected_score) < 1e-9
@@ -137,9 +136,7 @@ class TestScoreCalculations:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=0.9, ptm=metric_value)
-            ])
+            mock_predict.return_value = make_mock_output([make_mock_structure(avg_plddt=0.9, ptm=metric_value)])
 
             scores = structure_ptm_constraint(proposals, config)
             assert abs(scores[0] - expected_score) < 1e-9
@@ -161,9 +158,9 @@ class TestScoreCalculations:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=0.9, ptm=0.8, iptm=metric_value, avg_pae=0.85)
-            ])
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(avg_plddt=0.9, ptm=0.8, iptm=metric_value, avg_pae=0.85)]
+            )
 
             scores = structure_iptm_constraint(proposals, config)
             assert abs(scores[0] - expected_score) < 1e-9
@@ -185,9 +182,9 @@ class TestScoreCalculations:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=0.9, ptm=0.8, iptm=metric_value, avg_pae=0.85)
-            ])
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(avg_plddt=0.9, ptm=0.8, iptm=metric_value, avg_pae=0.85)]
+            )
 
             scores = structure_iptm_constraint(proposals, config)
             assert abs(scores[0] - expected_score) < 1e-9
@@ -209,9 +206,9 @@ class TestScoreCalculations:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=0.9, ptm=0.8, iptm=metric_value, avg_pae=0.85)
-            ])
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(avg_plddt=0.9, ptm=0.8, iptm=metric_value, avg_pae=0.85)]
+            )
 
             scores = structure_iptm_constraint(proposals, config)
             assert abs(scores[0] - expected_score) < 1e-9
@@ -219,9 +216,9 @@ class TestScoreCalculations:
     @pytest.mark.parametrize(
         "metric_value,expected_score",
         [
-            (0.0, 0.0),    # Perfect (low error)
+            (0.0, 0.0),  # Perfect (low error)
             (15.875, 0.5),
-            (31.75, 1.0),    # High error
+            (31.75, 1.0),  # High error
         ],
     )
     def test_pae_scoring(self, protein_sequence, metric_value, expected_score):
@@ -232,9 +229,9 @@ class TestScoreCalculations:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=0.9, ptm=0.8, iptm=0.7, avg_pae=metric_value)
-            ])
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(avg_plddt=0.9, ptm=0.8, iptm=0.7, avg_pae=metric_value)]
+            )
 
             scores = structure_pae_constraint(proposals, config)
             assert abs(scores[0] - expected_score) < 1e-9
@@ -243,6 +240,7 @@ class TestScoreCalculations:
 # ============================================================================
 # Test Tool Dispatching
 # ============================================================================
+
 
 class TestToolDispatching:
     """Test that constraints correctly dispatch to different tools."""
@@ -257,13 +255,13 @@ class TestToolDispatching:
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
             if tool_name == "alphafold3":
-                mock_predict.return_value = make_mock_output([
-                    make_mock_structure(avg_plddt=90., ptm=0.8, iptm=0.7, avg_pae=5.)
-                ])
+                mock_predict.return_value = make_mock_output(
+                    [make_mock_structure(avg_plddt=90.0, ptm=0.8, iptm=0.7, avg_pae=5.0)]
+                )
             else:
-                mock_predict.return_value = make_mock_output([
-                    make_mock_structure(avg_plddt=0.9, ptm=0.8, iptm=0.7, avg_pae=5.)
-                ])
+                mock_predict.return_value = make_mock_output(
+                    [make_mock_structure(avg_plddt=0.9, ptm=0.8, iptm=0.7, avg_pae=5.0)]
+                )
 
             structure_plddt_constraint(proposals, config)
 
@@ -281,13 +279,13 @@ class TestToolDispatching:
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
             if tool_name == "alphafold3":
-                mock_predict.return_value = make_mock_output([
-                    make_mock_structure(avg_plddt=90., ptm=0.8, iptm=0.7, avg_pae=5.)
-                ])
+                mock_predict.return_value = make_mock_output(
+                    [make_mock_structure(avg_plddt=90.0, ptm=0.8, iptm=0.7, avg_pae=5.0)]
+                )
             else:
-                mock_predict.return_value = make_mock_output([
-                    make_mock_structure(avg_plddt=0.9, ptm=0.8, iptm=0.7, avg_pae=5.)
-                ])
+                mock_predict.return_value = make_mock_output(
+                    [make_mock_structure(avg_plddt=0.9, ptm=0.8, iptm=0.7, avg_pae=5.0)]
+                )
 
             structure_iptm_constraint(proposals, config)
 
@@ -303,9 +301,9 @@ class TestToolDispatching:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=90., ptm=0.8, iptm=0.7, avg_pae=8.5)
-            ])
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(avg_plddt=90.0, ptm=0.8, iptm=0.7, avg_pae=8.5)]
+            )
 
             scores = structure_plddt_constraint(proposals, config)
 
@@ -316,6 +314,7 @@ class TestToolDispatching:
 # ============================================================================
 # Test Metric Availability Validation
 # ============================================================================
+
 
 class TestMetricAvailability:
     """Test that metrics are validated against tool capabilities."""
@@ -328,9 +327,7 @@ class TestMetricAvailability:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=0.9, ptm=0.8)
-            ])
+            mock_predict.return_value = make_mock_output([make_mock_structure(avg_plddt=0.9, ptm=0.8)])
 
             # Should not raise
             structure_plddt_constraint(proposals, config)
@@ -352,9 +349,9 @@ class TestMetricAvailability:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=90., ptm=0.8, iptm=0.7, avg_pae=5.)
-            ])
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(avg_plddt=90.0, ptm=0.8, iptm=0.7, avg_pae=5.0)]
+            )
 
             # All should work without raising
             structure_plddt_constraint(proposals, config)
@@ -370,9 +367,9 @@ class TestMetricAvailability:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=0.9, ptm=0.8, iptm=0.7, avg_pae=5.)
-            ])
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(avg_plddt=0.9, ptm=0.8, iptm=0.7, avg_pae=5.0)]
+            )
 
             # All should work without raising
             structure_plddt_constraint(proposals, config)
@@ -388,9 +385,9 @@ class TestMetricAvailability:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=0.9, ptm=0.8, iptm=0.7, avg_pae=5.)
-            ])
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(avg_plddt=0.9, ptm=0.8, iptm=0.7, avg_pae=5.0)]
+            )
 
             # All should work without raising
             structure_plddt_constraint(proposals, config)
@@ -413,6 +410,7 @@ class TestMetricAvailability:
 # Test Multimer Support
 # ============================================================================
 
+
 class TestMultimerSupport:
     """Test support for monomers, homodimers, and heteromultimers."""
 
@@ -424,9 +422,7 @@ class TestMultimerSupport:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=0.9, ptm=0.8)
-            ])
+            mock_predict.return_value = make_mock_output([make_mock_structure(avg_plddt=0.9, ptm=0.8)])
 
             structure_plddt_constraint(proposals, config)
 
@@ -445,9 +441,7 @@ class TestMultimerSupport:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=0.85, ptm=0.75)
-            ])
+            mock_predict.return_value = make_mock_output([make_mock_structure(avg_plddt=0.85, ptm=0.75)])
 
             structure_plddt_constraint(proposals, config)
 
@@ -465,9 +459,9 @@ class TestMultimerSupport:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=88., ptm=0.78, iptm=0.72, avg_pae=5.)
-            ])
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(avg_plddt=88.0, ptm=0.78, iptm=0.72, avg_pae=5.0)]
+            )
 
             structure_iptm_constraint(proposals, config)
 
@@ -486,9 +480,9 @@ class TestMultimerSupport:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=0.82, ptm=0.7, iptm=0.65, avg_pae=7.5)
-            ])
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(avg_plddt=0.82, ptm=0.7, iptm=0.65, avg_pae=7.5)]
+            )
 
             structure_plddt_constraint(proposals, config)
 
@@ -499,25 +493,27 @@ class TestMultimerSupport:
     def test_batch_of_multiple_complexes(self, protein_sequence, protein_sequence_b):
         """Test batch processing of multiple complexes."""
         proposals = [
-            (protein_sequence,),                           # Monomer
-            (protein_sequence, protein_sequence),          # Homodimer
-            (protein_sequence, protein_sequence_b),        # Heterodimer
+            (protein_sequence,),  # Monomer
+            (protein_sequence, protein_sequence),  # Homodimer
+            (protein_sequence, protein_sequence_b),  # Heterodimer
         ]
         config = StructureBasedConstraintConfig(structure_tool="chai1")
 
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=0.9, ptm=0.85, iptm=0.8, avg_pae=8.8),
-                make_mock_structure(avg_plddt=0.85, ptm=0.8, iptm=0.75, avg_pae=8.2),
-                make_mock_structure(avg_plddt=0.88, ptm=0.82, iptm=0.78, avg_pae=8.5),
-            ])
+            mock_predict.return_value = make_mock_output(
+                [
+                    make_mock_structure(avg_plddt=0.9, ptm=0.85, iptm=0.8, avg_pae=8.8),
+                    make_mock_structure(avg_plddt=0.85, ptm=0.8, iptm=0.75, avg_pae=8.2),
+                    make_mock_structure(avg_plddt=0.88, ptm=0.82, iptm=0.78, avg_pae=8.5),
+                ]
+            )
 
             scores = structure_plddt_constraint(proposals, config)
 
             assert len(scores) == 3
-            assert scores[0] == pytest.approx(0.1)   # 1 - 0.9
+            assert scores[0] == pytest.approx(0.1)  # 1 - 0.9
             assert scores[1] == pytest.approx(0.15)  # 1 - 0.85
             assert scores[2] == pytest.approx(0.12)  # 1 - 0.88
 
@@ -529,9 +525,7 @@ class TestMultimerSupport:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=0.9, ptm=0.8)
-            ])
+            mock_predict.return_value = make_mock_output([make_mock_structure(avg_plddt=0.9, ptm=0.8)])
 
             structure_plddt_constraint(proposals, config)
 
@@ -543,6 +537,7 @@ class TestMultimerSupport:
 # ============================================================================
 # Test Tool Configuration Passthrough
 # ============================================================================
+
 
 class TestToolConfigPassthrough:
     """Test that tool-specific configuration is passed correctly."""
@@ -562,9 +557,7 @@ class TestToolConfigPassthrough:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=0.9, ptm=0.8)
-            ])
+            mock_predict.return_value = make_mock_output([make_mock_structure(avg_plddt=0.9, ptm=0.8)])
 
             structure_plddt_constraint(proposals, config)
 
@@ -572,6 +565,7 @@ class TestToolConfigPassthrough:
             passed_tool_config = call_args[0][2]  # Third positional arg
             # Config is now a typed ESMFoldConfig object (converted from dict)
             from proto_tools import ESMFoldConfig
+
             assert isinstance(passed_tool_config, ESMFoldConfig)
             assert passed_tool_config.verbose is True
             assert passed_tool_config.residue_idx_offset == 256
@@ -592,9 +586,9 @@ class TestToolConfigPassthrough:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=90., ptm=0.8, iptm=0.7, avg_pae=8.5)
-            ])
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(avg_plddt=90.0, ptm=0.8, iptm=0.7, avg_pae=8.5)]
+            )
 
             structure_plddt_constraint(proposals, config)
 
@@ -602,6 +596,7 @@ class TestToolConfigPassthrough:
             passed_tool_config = call_args[0][2]
             # Config is now a typed AlphaFold3Config object (converted from dict)
             from proto_tools import AlphaFold3Config
+
             assert isinstance(passed_tool_config, AlphaFold3Config)
             assert passed_tool_config.seeds == [0, 1, 2]
             assert passed_tool_config.use_msa is False
@@ -614,9 +609,7 @@ class TestToolConfigPassthrough:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=0.9, ptm=0.8)
-            ])
+            mock_predict.return_value = make_mock_output([make_mock_structure(avg_plddt=0.9, ptm=0.8)])
 
             structure_plddt_constraint(proposals, config)
 
@@ -624,6 +617,7 @@ class TestToolConfigPassthrough:
             passed_tool_config = call_args[0][2]
             # Config is now a typed ESMFoldConfig object with default values
             from proto_tools import ESMFoldConfig
+
             assert isinstance(passed_tool_config, ESMFoldConfig)
             # Verify it has default values
             assert passed_tool_config.device == "cuda"
@@ -633,6 +627,7 @@ class TestToolConfigPassthrough:
 # ============================================================================
 # Test Metadata Storage
 # ============================================================================
+
 
 class TestMetadataStorage:
     """Test that results are correctly stored in sequence metadata."""
@@ -645,9 +640,7 @@ class TestMetadataStorage:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=0.92, ptm=0.88)
-            ])
+            mock_predict.return_value = make_mock_output([make_mock_structure(avg_plddt=0.92, ptm=0.88)])
 
             structure_plddt_constraint(proposals, config)
 
@@ -666,9 +659,7 @@ class TestMetadataStorage:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=0.9, ptm=0.85)
-            ])
+            mock_predict.return_value = make_mock_output([make_mock_structure(avg_plddt=0.9, ptm=0.85)])
 
             structure_ptm_constraint(proposals, config)
 
@@ -684,9 +675,9 @@ class TestMetadataStorage:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=90., ptm=0.85, iptm=0.78, avg_pae=8.2)
-            ])
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(avg_plddt=90.0, ptm=0.85, iptm=0.78, avg_pae=8.2)]
+            )
 
             structure_iptm_constraint(proposals, config)
 
@@ -703,9 +694,9 @@ class TestMetadataStorage:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=90., ptm=0.85, iptm=0.78, avg_pae=8.8)
-            ])
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(avg_plddt=90.0, ptm=0.85, iptm=0.78, avg_pae=8.8)]
+            )
 
             structure_pae_constraint(proposals, config)
 
@@ -724,9 +715,9 @@ class TestMetadataStorage:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=90., ptm=0.85, iptm=0.78, avg_pae=8.2)
-            ])
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(avg_plddt=90.0, ptm=0.85, iptm=0.78, avg_pae=8.2)]
+            )
 
             structure_plddt_constraint(proposals, config)
 
@@ -741,6 +732,7 @@ class TestMetadataStorage:
 # ============================================================================
 # Test Error Handling
 # ============================================================================
+
 
 class TestErrorHandling:
     """Test error handling and edge cases."""
@@ -777,11 +769,15 @@ class TestErrorHandling:
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
             # Return structure without the expected metric
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(ptm=0.8)  # No avg_plddt
-            ])
+            mock_predict.return_value = make_mock_output(
+                [
+                    make_mock_structure(ptm=0.8)  # No avg_plddt
+                ]
+            )
 
-            with caplog.at_level("WARNING", logger="proto_language.language.constraint.protein_structure.structure_confidence_constraint"):
+            with caplog.at_level(
+                "WARNING", logger="proto_language.language.constraint.protein_structure.structure_confidence_constraint"
+            ):
                 scores = structure_plddt_constraint(proposals, config)
 
             assert scores[0] == 1.0
@@ -812,12 +808,16 @@ class TestErrorHandling:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=0.9, ptm=0.8),  # Good
-                make_mock_structure(ptm=0.7),  # Missing avg_plddt
-            ])
+            mock_predict.return_value = make_mock_output(
+                [
+                    make_mock_structure(avg_plddt=0.9, ptm=0.8),  # Good
+                    make_mock_structure(ptm=0.7),  # Missing avg_plddt
+                ]
+            )
 
-            with caplog.at_level("WARNING", logger="proto_language.language.constraint.protein_structure.structure_confidence_constraint"):
+            with caplog.at_level(
+                "WARNING", logger="proto_language.language.constraint.protein_structure.structure_confidence_constraint"
+            ):
                 scores = structure_plddt_constraint(proposals, config)
 
             assert len(scores) == 2
@@ -829,6 +829,7 @@ class TestErrorHandling:
 # ============================================================================
 # Test Configuration Defaults
 # ============================================================================
+
 
 class TestConfigurationDefaults:
     """Test default configuration values."""
@@ -843,6 +844,7 @@ class TestConfigurationDefaults:
         config = StructureBasedConstraintConfig()
         # New behavior: tool_config is automatically converted to typed config
         from proto_tools import ESMFoldConfig
+
         assert isinstance(config.tool_config, ESMFoldConfig)
         # Verify it uses default values
         assert config.tool_config.device == "cuda"
@@ -866,6 +868,7 @@ class TestConfigurationDefaults:
 # Integration-Style Tests
 # ============================================================================
 
+
 class TestIntegrationScenarios:
     """Test realistic usage scenarios."""
 
@@ -880,9 +883,9 @@ class TestIntegrationScenarios:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=88., ptm=0.82, iptm=0.75, avg_pae=8.)
-            ])
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(avg_plddt=88.0, ptm=0.82, iptm=0.75, avg_pae=8.0)]
+            )
 
             # Get ipTM score for interface quality
             iptm_scores = structure_iptm_constraint(proposals, config)
@@ -902,10 +905,10 @@ class TestIntegrationScenarios:
                 "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
             ) as mock_predict:
                 # Simulate slightly different results per tool
-                plddt = {"esmfold": 0.85, "alphafold3": 92., "boltz2": 0.88, "chai1": 0.90}[tool]
-                mock_predict.return_value = make_mock_output([
-                    make_mock_structure(avg_plddt=plddt, ptm=0.8, iptm=0.7, avg_pae=8.2)
-                ])
+                plddt = {"esmfold": 0.85, "alphafold3": 92.0, "boltz2": 0.88, "chai1": 0.90}[tool]
+                mock_predict.return_value = make_mock_output(
+                    [make_mock_structure(avg_plddt=plddt, ptm=0.8, iptm=0.7, avg_pae=8.2)]
+                )
 
                 scores = structure_plddt_constraint(proposals, config)
                 results[tool] = scores[0]
@@ -940,13 +943,15 @@ class TestIntegrationScenarios:
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
             # Simulate varying quality predictions
-            mock_predict.return_value = make_mock_output([
-                make_mock_structure(avg_plddt=0.92, ptm=0.88, iptm=0.85),
-                make_mock_structure(avg_plddt=0.78, ptm=0.72, iptm=0.65),
-                make_mock_structure(avg_plddt=0.85, ptm=0.80, iptm=0.75),
-                make_mock_structure(avg_plddt=0.60, ptm=0.55, iptm=0.45),
-                make_mock_structure(avg_plddt=0.88, ptm=0.82, iptm=0.78),
-            ])
+            mock_predict.return_value = make_mock_output(
+                [
+                    make_mock_structure(avg_plddt=0.92, ptm=0.88, iptm=0.85),
+                    make_mock_structure(avg_plddt=0.78, ptm=0.72, iptm=0.65),
+                    make_mock_structure(avg_plddt=0.85, ptm=0.80, iptm=0.75),
+                    make_mock_structure(avg_plddt=0.60, ptm=0.55, iptm=0.45),
+                    make_mock_structure(avg_plddt=0.88, ptm=0.82, iptm=0.78),
+                ]
+            )
 
             scores = structure_iptm_constraint(proposals, config)
 

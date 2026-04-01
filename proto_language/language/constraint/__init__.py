@@ -1,4 +1,5 @@
 """Constraint registry and all registered constraint functions."""
+
 # Base infrastructure
 from proto_language.language.constraint.constraint_registry import ConstraintRegistry, ConstraintSpec, constraint
 

@@ -1,4 +1,5 @@
 """Provides shared infrastructure for ConstraintRegistry, GeneratorRegistry, and ToolRegistry."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -6,7 +7,7 @@ from typing import Any, ClassVar, Generic, TypeVar, cast
 
 from pydantic import BaseModel, Field, field_serializer
 
-SpecType = TypeVar('SpecType', bound='BaseSpec')
+SpecType = TypeVar("SpecType", bound="BaseSpec")
 
 
 class BaseSpec(BaseModel):
@@ -38,7 +39,7 @@ class BaseSpec(BaseModel):
         "arbitrary_types_allowed": True,  # Allow Type[BaseModel] in config_model
     }
 
-    @field_serializer('config_model')
+    @field_serializer("config_model")
     def serialize_config_model(self, config_model: type[BaseModel]) -> dict[str, Any]:
         """Serialize config_model as standard JSON Schema.
 
@@ -109,8 +110,8 @@ class BaseRegistry(ABC, Generic[SpecType]):
             ValueError: If key not found in registry
         """
         if key not in cls._registry:
-            available = ", ".join(sorted(cls._registry.keys())) # List all registered keys
-            component_type = cls._component_type() # Get the component type (e.g. "constraint", "generator", "tool")
+            available = ", ".join(sorted(cls._registry.keys()))  # List all registered keys
+            component_type = cls._component_type()  # Get the component type (e.g. "constraint", "generator", "tool")
             raise ValueError(f"Unknown {component_type}: '{key}'. Available {component_type}s: {available}")
         return cast(SpecType, cls._registry[key])
 
@@ -176,11 +177,10 @@ class BaseRegistry(ABC, Generic[SpecType]):
             existing_spec = cls._registry[key]
 
             # Try to get name from the existing spec label
-            existing_name = getattr(existing_spec, 'label', 'unknown')
+            existing_name = getattr(existing_spec, "label", "unknown")
 
             error_msg = (
-                f"{component_type.capitalize()} '{key}' is already registered. "
-                "Duplicate registration is not allowed."
+                f"{component_type.capitalize()} '{key}' is already registered. Duplicate registration is not allowed."
             )
 
             if attempted_component_name:
@@ -197,4 +197,4 @@ class BaseRegistry(ABC, Generic[SpecType]):
         Returns:
             str: Component type string (e.g., 'constraint', 'generator', 'tool')
         """
-        return cls.__name__.replace('Registry', '').lower()
+        return cls.__name__.replace("Registry", "").lower()

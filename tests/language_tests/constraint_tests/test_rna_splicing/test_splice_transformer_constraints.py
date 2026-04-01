@@ -3,6 +3,7 @@
 Both constraints accept three-part input tuples (left_flank, intron_core,
 right_flank) and concatenate them into a single target sequence for scoring.
 """
+
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -97,12 +98,10 @@ def test_splice_transformer_tissue_specificity():
         splice_transformer_config=SpliceTransformerConfig(device="cpu"),
     )
 
-    scores = splice_transformer_specificity(
-        [(left_flank, intron_core, right_flank)], specificity_config
-    )
+    scores = splice_transformer_specificity([(left_flank, intron_core, right_flank)], specificity_config)
 
     assert len(scores) == 1
-    assert 0. <= scores[0] <= 1., "Score must be between 0 and 1, inclusive"
+    assert 0.0 <= scores[0] <= 1.0, "Score must be between 0 and 1, inclusive"
 
 
 @pytest.mark.uses_gpu
@@ -121,12 +120,10 @@ def test_splice_transformer_all_tissues():
         splice_transformer_config=SpliceTransformerConfig(device="cuda"),
     )
 
-    scores = splice_transformer_specificity(
-        [(left_flank, intron_core, right_flank)], specificity_config
-    )
+    scores = splice_transformer_specificity([(left_flank, intron_core, right_flank)], specificity_config)
 
     assert len(scores) == 1
-    assert 0. <= scores[0] <= 1., "Score must be between 0 and 1, inclusive"
+    assert 0.0 <= scores[0] <= 1.0, "Score must be between 0 and 1, inclusive"
 
 
 @pytest.mark.skip_ci
@@ -144,12 +141,10 @@ def test_splice_transformer_intron_boundary_cpu():
         splice_transformer_config=SpliceTransformerConfig(device="cpu"),
     )
 
-    scores = splice_transformer_intron_boundary(
-        [(left_flank, intron_core, right_flank)], boundary_config
-    )
+    scores = splice_transformer_intron_boundary([(left_flank, intron_core, right_flank)], boundary_config)
 
     assert len(scores) == 1
-    assert 0. <= scores[0] <= 1., "Score must be between 0 and 1, inclusive"
+    assert 0.0 <= scores[0] <= 1.0, "Score must be between 0 and 1, inclusive"
 
 
 @pytest.mark.uses_gpu
@@ -167,12 +162,10 @@ def test_splice_transformer_intron_boundary_gpu():
         splice_transformer_config=SpliceTransformerConfig(device="cuda"),
     )
 
-    scores = splice_transformer_intron_boundary(
-        [(left_flank, intron_core, right_flank)], boundary_config
-    )
+    scores = splice_transformer_intron_boundary([(left_flank, intron_core, right_flank)], boundary_config)
 
     assert len(scores) == 1
-    assert 0. <= scores[0] <= 1., "Score must be between 0 and 1, inclusive"
+    assert 0.0 <= scores[0] <= 1.0, "Score must be between 0 and 1, inclusive"
 
 
 # --- Metadata propagation ---
@@ -193,9 +186,7 @@ def test_boundary_metadata_propagation():
         splice_transformer_config=SpliceTransformerConfig(device="cpu"),
     )
 
-    splice_transformer_intron_boundary(
-        [(left_flank, intron_core, right_flank)], config
-    )
+    splice_transformer_intron_boundary([(left_flank, intron_core, right_flank)], config)
 
     for seq in (left_flank, intron_core, right_flank):
         assert "donor_score" in seq._metadata
@@ -219,9 +210,7 @@ def test_specificity_metadata_propagation():
         splice_transformer_config=SpliceTransformerConfig(device="cpu"),
     )
 
-    splice_transformer_specificity(
-        [(left_flank, intron_core, right_flank)], config
-    )
+    splice_transformer_specificity([(left_flank, intron_core, right_flank)], config)
 
     for seq in (left_flank, intron_core, right_flank):
         assert "specificity_direction_BRAIN" in seq._metadata
