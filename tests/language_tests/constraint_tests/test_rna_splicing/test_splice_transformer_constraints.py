@@ -246,7 +246,7 @@ def test_splice_transformer_specificity_batches():
 
     with patch(
         "proto_language.language.constraint.rna_splicing.splice_transformer_specificity.run_splice_transformer",
-        return_value=SimpleNamespace(prediction=predictions),
+        return_value=SimpleNamespace(prediction=predictions.tolist()),
     ) as mock_run:
         scores = splice_transformer_specificity(
             [(left_a, intron_a, right_a), (left_b, intron_b, right_b)],
@@ -283,7 +283,7 @@ def test_splice_transformer_intron_boundary_batches():
 
     with patch(
         "proto_language.language.constraint.rna_splicing.splice_transformer_intron_boundary.run_splice_transformer",
-        return_value=SimpleNamespace(prediction=predictions),
+        return_value=SimpleNamespace(prediction=predictions.tolist()),
     ) as mock_run:
         scores = splice_transformer_intron_boundary(
             [(left_a, intron_a, right_a), (left_b, intron_b, right_b)],

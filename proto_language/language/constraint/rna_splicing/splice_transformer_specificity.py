@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Literal
 
+import numpy as np
 from proto_tools import (
     SpliceTransformerConfig,
     SpliceTransformerInput,
@@ -210,10 +211,12 @@ def splice_transformer_specificity(
     )
     splice_transformer_config = config.splice_transformer_config.model_copy(update={"context_length": context_length})
 
-    output = run_splice_transformer(
-        splice_transformer_input,
-        splice_transformer_config,
-    ).prediction
+    output = np.array(
+        run_splice_transformer(
+            splice_transformer_input,
+            splice_transformer_config,
+        ).prediction
+    )
 
     if output.shape[0] != len(target_seqs):
         raise ValueError(
