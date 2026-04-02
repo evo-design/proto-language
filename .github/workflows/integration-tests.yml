@@ -1,10 +1,9 @@
 name: Integration Tests
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 6am UTC (10pm PST)
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -12,7 +11,6 @@ concurrency:
 
 jobs:
   integration-tests:
-    if: github.event.pull_request.draft == false
     name: Run Integration Tests
     runs-on: ubuntu-latest
     steps:
