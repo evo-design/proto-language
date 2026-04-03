@@ -76,7 +76,12 @@ class SequenceLengthConfig(BaseConfig):
         if has_range and has_target:
             raise ValueError("Cannot provide both range (min/max) and target_length")
 
-        if has_range and self.min_length > self.max_length:  # type: ignore[operator]
+        if (
+            has_range
+            and self.min_length is not None
+            and self.max_length is not None
+            and self.min_length > self.max_length
+        ):
             raise ValueError(f"min_length ({self.min_length}) must be <= max_length ({self.max_length})")
 
         return self
@@ -157,13 +162,15 @@ def sequence_length_constraint(
 
         if use_range_mode:
             # Range mode: check if within [min, max]
-            score = calculate_range_deviation(actual_length, config.min_length, config.max_length)  # type: ignore[arg-type]
+            assert config.min_length is not None and config.max_length is not None  # noqa: S101 -- mypy type narrowing
+            score = calculate_range_deviation(actual_length, config.min_length, config.max_length)
             seq._metadata["length_mode"] = "range"
             seq._metadata["length_min"] = config.min_length
             seq._metadata["length_max"] = config.max_length
         else:
             # Target mode: penalize deviation from exact target
-            score = calculate_normalized_deviation(actual_length, config.target_length)  # type: ignore[arg-type]
+            assert config.target_length is not None  # noqa: S101 -- mypy type narrowing
+            score = calculate_normalized_deviation(actual_length, config.target_length)
             seq._metadata["length_mode"] = "target"
             seq._metadata["length_target"] = config.target_length
 

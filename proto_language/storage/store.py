@@ -6,7 +6,7 @@ import os
 from abc import ABC, abstractmethod
 from datetime import timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from proto_language.storage.models import FileReference, FileType
 
@@ -312,12 +312,12 @@ class GCSFileStore(FileStore):
         if not blob.exists():
             raise FileNotFoundError(f"File not found in GCS: {file_id}")
 
-        return blob.download_as_bytes()  # type: ignore[no-any-return]
+        return cast(bytes, blob.download_as_bytes())
 
     def exists(self, file_id: str) -> bool:
         """Check if file exists in GCS."""
         blob_path = self._get_blob_path(file_id)
-        return self.bucket.blob(blob_path).exists()  # type: ignore[no-any-return]
+        return cast(bool, self.bucket.blob(blob_path).exists())
 
     def get_url(self, file_id: str) -> str:
         """Generate a time-limited signed URL for the file.

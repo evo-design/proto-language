@@ -14,7 +14,7 @@ Key Features:
 import logging
 import warnings
 from collections.abc import Callable
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from pydantic import BaseModel
 
@@ -173,7 +173,7 @@ class Constraint:
     @property
     def function_config(self) -> BaseModel | dict[str, Any]:
         """Function configuration (read-only)."""
-        return self._function_config  # type: ignore[no-any-return]
+        return cast(BaseModel | dict[str, Any], self._function_config)
 
     @property
     def threshold(self) -> float | None:

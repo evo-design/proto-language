@@ -10,7 +10,7 @@ structure using PyMOL's align command.
 import os
 import tempfile
 from logging import getLogger
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import numpy as np
 from proto_tools import (
@@ -214,7 +214,7 @@ def _prepare_target_structure(
     if residue_range is not None:
         pdb_content = _extract_residue_range_from_pdb(pdb_content, residue_range[0], residue_range[1])
 
-    return pdb_content  # type: ignore[no-any-return]
+    return cast(str, pdb_content)
 
 
 def _extract_chain_from_pdb(pdb_text: str, chain_id: str) -> str:
@@ -536,8 +536,9 @@ def structure_ensemble_rmsd_constraint(
                 logger.info(f"RMSD stats: min={np.min(rmsds):.2f}, mean={np.mean(rmsds):.2f}, max={np.max(rmsds):.2f}")
 
             # Convert to score in [0, 1].
+            assert rmsd_summary is not None  # noqa: S101 -- mypy type narrowing
             score = sigmoid_score(
-                rmsd_summary,  # type: ignore[arg-type]
+                rmsd_summary,
                 config.inflection_point_angstroms,
                 config.sigmoid_slope,
             )

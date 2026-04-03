@@ -9,7 +9,7 @@ import inspect
 import logging
 import math
 from collections.abc import Callable
-from typing import Any, Literal, final
+from typing import Any, Literal, cast, final
 
 from pydantic import model_validator
 
@@ -63,7 +63,7 @@ def _create_protein_hunter_conditioning_fn(config: "CyclingOptimizerConfig") -> 
 
     def conditioning_fn(sequences: list[Sequence]) -> list[Any]:
         complexes = [StructurePredictionComplex(chains=[seq.sequence]) for seq in sequences]
-        return predict_structures(complexes, structure_tool, {}).structures  # type: ignore[no-any-return]
+        return cast(list[Any], predict_structures(complexes, structure_tool, {}).structures)
 
     return conditioning_fn
 
@@ -138,7 +138,7 @@ def _resolve_conditioning_fn(
                 f"Use 'proteinmpnn' or 'ligandmpnn'."
             )
 
-    return pipeline_spec["factory"](config)  # type: ignore[no-any-return]
+    return cast(Callable[..., Any], pipeline_spec["factory"](config))
 
 
 # =============================================================================

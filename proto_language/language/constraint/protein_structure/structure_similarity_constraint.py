@@ -6,7 +6,7 @@ supporting multiple structure prediction tools (ESMFold, AlphaFold3, Boltz, Chai
 import os
 import tempfile
 from logging import getLogger
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from proto_tools import (
     Structure,
@@ -366,8 +366,8 @@ def _prepare_target_structure(config: StructureSimilarityConfig) -> str | None:
     """
     if config.target_structure is not None:
         if isinstance(config.target_structure, Structure):
-            return config.target_structure.structure_pdb  # type: ignore[no-any-return]
-        return Structure(config.target_structure).structure_pdb  # type: ignore[no-any-return]
+            return cast(str, config.target_structure.structure_pdb)
+        return cast(str, Structure(config.target_structure).structure_pdb)
 
     if config.target_chains is not None:
         if isinstance(config.target_chains, StructurePredictionComplex):
@@ -387,7 +387,7 @@ def _prepare_target_structure(config: StructureSimilarityConfig) -> str | None:
             )
             return None
 
-        return output.structures[0].structure_pdb  # type: ignore[no-any-return]
+        return cast(str, output.structures[0].structure_pdb)
 
     return None
 

@@ -5,7 +5,7 @@ import logging
 import math
 import random
 from collections.abc import Callable
-from typing import Any, final
+from typing import Any, cast, final
 
 import numpy as np
 from pydantic import model_validator
@@ -384,8 +384,9 @@ class MCMCOptimizer(Optimizer):
         """
         if self.num_steps == 1:
             return self.max_temperature
-        return (  # type: ignore[no-any-return]
-            self.max_temperature * (self.min_temperature / self.max_temperature) ** ((step - 1) / (self.num_steps - 1))
+        return cast(
+            float,
+            self.max_temperature * (self.min_temperature / self.max_temperature) ** ((step - 1) / (self.num_steps - 1)),
         )
 
     def _compute_mcmc_alpha(self, current_energy: float, proposed_energy: float, step: int) -> float:
