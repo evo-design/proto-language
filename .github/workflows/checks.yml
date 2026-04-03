@@ -39,7 +39,9 @@ jobs:
       with:
         python-version: "3.12"
     - name: Install dependencies
-      run: uv pip install --system -e ".[dev]"
+      run: |
+        uv pip install --system -e ./proto-tools
+        uv pip install --system -e ".[dev]"
     - run: mypy proto_language/
 
   validate-exports:
