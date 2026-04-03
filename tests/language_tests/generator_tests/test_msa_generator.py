@@ -25,7 +25,7 @@ class TestMSAGeneratorConfig:
 
     def test_valid_config_with_msa(self):
         """Test valid configuration with MSA object."""
-        msa = MSA(["MVLS", "AVLS", "MVLS"])
+        msa = MSA(aligned_sequences=["MVLS", "AVLS", "MVLS"])
         config = MSAGeneratorConfig(msa=msa, num_mutations=1)
         assert config.msa.num_sequences == 3
         assert config.msa is msa
@@ -48,9 +48,9 @@ class TestMSAGeneratorConfig:
         "sequences,error_match",
         [
             ([], "MSA must contain at least two sequences"),
-            (["MVLS", 123], "is not a string"),
-            (["MVLS", ""], "same length"),
-            (["MVLS", "AV"], "same length"),
+            (["MVLS", 123], "Input should be a valid string"),
+            (["MVLS", ""], "has length 0, expected 4"),
+            (["MVLS", "AV"], "has length 2, expected 4"),
         ],
     )
     def test_invalid_aligned_sequences(self, sequences, error_match):
@@ -406,31 +406,31 @@ class TestMSAModel:
 
     def test_msa_creation(self):
         """Test basic MSA creation."""
-        msa = MSA(["MVLS", "AVLS", "MVLS"])
+        msa = MSA(aligned_sequences=["MVLS", "AVLS", "MVLS"])
         assert msa.num_sequences == 3
         assert msa.alignment_length == 4
 
     def test_msa_iteration(self):
         """Test iterating over MSA sequences."""
-        msa = MSA(["MVLS", "AVLS"])
+        msa = MSA(aligned_sequences=["MVLS", "AVLS"])
         seqs = list(msa)
         assert seqs == ["MVLS", "AVLS"]
 
     def test_msa_indexing(self):
         """Test indexing MSA sequences."""
-        msa = MSA(["MVLS", "AVLS"])
+        msa = MSA(aligned_sequences=["MVLS", "AVLS"])
         assert msa[0] == "MVLS"
         assert msa[1] == "AVLS"
 
     def test_msa_get_column(self):
         """Test get_column method."""
-        msa = MSA(["MVLS", "AVLS", "MVLS"])
+        msa = MSA(aligned_sequences=["MVLS", "AVLS", "MVLS"])
         assert msa.get_column(0) == ["M", "A", "M"]
         assert msa.get_column(1) == ["V", "V", "V"]
 
     def test_msa_get_conservation(self):
         """Test conservation calculation."""
-        msa = MSA(["MVLS", "AVLS", "MVLS"])
+        msa = MSA(aligned_sequences=["MVLS", "AVLS", "MVLS"])
         # Position 0: M=2, A=1, conservation = 2/3
         assert msa.get_conservation(0) == pytest.approx(2 / 3)
         # Position 1: all V, conservation = 1.0
@@ -438,7 +438,7 @@ class TestMSAModel:
 
     def test_msa_get_position_frequencies(self):
         """Test position frequency calculation."""
-        msa = MSA(["M-LS", "AVLS"])
+        msa = MSA(aligned_sequences=["M-LS", "AVLS"])
         # Position 1 without gaps
         freqs = msa.get_position_frequencies(1, include_gaps=False)
         assert freqs == {"V": 1.0}
@@ -449,7 +449,7 @@ class TestMSAModel:
 
     def test_msa_gap_statistics(self):
         """Test gap statistics."""
-        msa = MSA(["M--S", "AVLS"])
+        msa = MSA(aligned_sequences=["M--S", "AVLS"])
         assert msa.total_gaps == 2
         # Seq 0: 2/4 = 0.5 gaps, Seq 1: 0/4 = 0 gaps, avg = 0.25
         assert msa.average_gap_fraction == pytest.approx(0.25)
@@ -457,12 +457,12 @@ class TestMSAModel:
     def test_msa_to_fasta(self):
         """Test FASTA conversion."""
         # Default sequence IDs (seq_0, seq_1, etc.)
-        msa = MSA(["MVLS", "AVLS"])
+        msa = MSA(aligned_sequences=["MVLS", "AVLS"])
         fasta = msa.to_fasta_string()
         assert fasta == ">seq_0\nMVLS\n>seq_1\nAVLS"
         # With custom IDs set at construction
         msa_with_ids = MSA(
-            ["MVLS", "AVLS"],
+            aligned_sequences=["MVLS", "AVLS"],
             sequence_ids=["protein_a", "protein_b"],
         )
         fasta = msa_with_ids.to_fasta_string()

@@ -66,7 +66,7 @@ class MSAGeneratorConfig(BaseConfig):
         if isinstance(v, MSA):
             return v
         if isinstance(v, list):
-            return MSA(v)
+            return MSA(aligned_sequences=v)
         raise ValueError(f"msa must be an MSA object or list of aligned sequences, got {type(v)}")
 
 
@@ -100,7 +100,7 @@ class MSAGenerator(Generator):
         >>> from proto_language.language.core import Segment
         >>> from proto_tools import MSA
         >>> config = MSAGeneratorConfig(
-        ...     msa=MSA(["MVLS", "AVLS", "MVLS"]),
+        ...     msa=MSA(aligned_sequences=["MVLS", "AVLS", "MVLS"]),
         ...     num_mutations=1,
         ... )
         >>> gen = MSAGenerator(config)
