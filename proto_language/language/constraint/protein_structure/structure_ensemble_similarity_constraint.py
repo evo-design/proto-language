@@ -204,7 +204,7 @@ def _prepare_target_structure(
     if isinstance(target_structure, Structure):
         pdb_content = target_structure.structure_pdb
     else:
-        pdb_content = Structure(target_structure).structure_pdb
+        pdb_content = Structure(structure=target_structure).structure_pdb
 
     # Extract specific chain if requested.
     if chain_id is not None:

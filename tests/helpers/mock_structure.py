@@ -19,24 +19,20 @@ class MockStructure(Structure):
         metrics: dict[str, float] | None = None,
         source: str = "mock",
     ) -> None:
-        """Mocked Structure class for testing. Bypasses __init__ validation.
-
-        and detection of structure format.
-        """
-        # Save the structure content and format directly
-        self.structure_format = structure_format
-
-        if structure_content is not None:
-            self.structure = structure_content
-        else:
-            self.structure = MOCK_PDB if structure_format == "pdb" else MOCK_CIF
-
-        # Save other attributes
-        self.b_factor_type = b_factor_type
-        self.source = source if "mock" in source else f"mock.{source}"
-
-        # Set up metrics
-        self.metrics = metrics if metrics is not None else {}
-
-        # Set up placeholder for lazy loading of gemmi structure object
+        """Mocked Structure class for testing. Bypasses validation via model_construct."""
+        structure = (
+            structure_content
+            if structure_content is not None
+            else (MOCK_PDB if structure_format == "pdb" else MOCK_CIF)
+        )
+        constructed = Structure.model_construct(
+            structure=structure,
+            structure_format=structure_format,
+            b_factor_type=b_factor_type,
+            source=source if "mock" in source else f"mock.{source}",
+            metrics=metrics if metrics is not None else {},
+        )
+        # Copy all Pydantic internal state from the constructed instance
+        self.__dict__.update(constructed.__dict__)
+        self.__pydantic_fields_set__ = constructed.__pydantic_fields_set__
         self._gemmi_struct = None

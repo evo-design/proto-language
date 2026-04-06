@@ -33,7 +33,7 @@ ATOM      3  C   ALA A   1       2.009   1.420   0.000  1.00  0.00           C
 ATOM      4  O   ALA A   1       1.246   2.390   0.000  1.00  0.00           O
 END
 """
-    return Structure(structure_filepath_or_content=pdb_content)
+    return Structure(structure=pdb_content)
 
 
 def make_mock_conditioning_fn(num_proposals: int):
@@ -694,7 +694,7 @@ TEST_PDB_FILE = Path(__file__).parent.parent.parent / "dummy_data" / "renin_af3.
 @pytest.fixture(scope="module")
 def pdb_structure():
     """Load test PDB structure."""
-    return Structure(structure_filepath_or_content=TEST_PDB_FILE)
+    return Structure(structure=TEST_PDB_FILE)
 
 
 @pytest.mark.uses_gpu
