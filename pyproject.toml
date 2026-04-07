@@ -196,3 +196,13 @@ ban-relative-imports = "all"
 [tool.ruff.format]
 docstring-code-format = true
 
+[tool.coverage.run]
+branch = true
+source = ["proto_language"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+fail_under = 72
+show_missing = true
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]
+

@@ -140,6 +140,7 @@ Other markers: `@pytest.mark.uses_gpu`, `@pytest.mark.slow`, `@pytest.mark.skip_
 - Mock generators in conftest.py for testing optimizers/programs without real models.
 - Structure: `tests/language_tests/`
 - **Before running GPU tests**, check if a GPU is available. If no GPU is detected, run CPU tests by default (`pytest --cpu`).
+- **Coverage**: Branch coverage floor is configured in `pyproject.toml` (`fail_under`). Run `pytest --cov --cov-report=term-missing` to check.
 
 ## Sub-Agent Parallelization
 
