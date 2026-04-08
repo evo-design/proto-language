@@ -126,6 +126,9 @@ def main() -> int:
     if json_data.get("description"):
         print(f"Description: {json_data['description']}")
 
+    if args.verbose:
+        json_data["verbose"] = True
+
     program = parse_program(json_data)
     print(f"Parsed {len(program.optimizers)} optimization stage(s)")
 

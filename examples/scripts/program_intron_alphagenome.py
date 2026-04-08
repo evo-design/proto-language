@@ -93,7 +93,7 @@ class ProgramIntronAlphaGenomeArgs(Tap):
     splice_transformer_device: str = "cuda"
 
     mcmc_num_results: int = 1
-    mcmc_candidates_per_result: int = 1
+    mcmc_proposals_per_result: int = 1
 
 
 def _split_csv(arg: str) -> list[str]:
@@ -136,8 +136,8 @@ if __name__ == "__main__":
     print(args)
     if args.mcmc_num_results < 1:
         raise ValueError(f"mcmc_num_results must be >= 1, got {args.mcmc_num_results}")
-    if args.mcmc_candidates_per_result < 1:
-        raise ValueError(f"mcmc_candidates_per_result must be >= 1, got {args.mcmc_candidates_per_result}")
+    if args.mcmc_proposals_per_result < 1:
+        raise ValueError(f"mcmc_proposals_per_result must be >= 1, got {args.mcmc_proposals_per_result}")
     if args.alphagenome_brain_weight <= 0:
         raise ValueError("alphagenome_brain_weight must be > 0")
     if args.alphagenome_blood_weight <= 0:
@@ -548,7 +548,7 @@ if __name__ == "__main__":
         candidate_outcomes = (
             list(getattr(optimizer_instance, "_proposal_outcomes", [])) if optimizer_instance is not None else []
         )
-        candidates_per_result = (
+        proposals_per_result = (
             int(getattr(optimizer_instance, "_proposals_per_result", 1)) if optimizer_instance is not None else 1
         )
 
@@ -569,9 +569,9 @@ if __name__ == "__main__":
                 f"\tresult[{result_idx}] sequence (right_flank): {right_flank_sequence}"
             )
 
-            proposal_pool_start = result_idx * candidates_per_result
+            proposal_pool_start = result_idx * proposals_per_result
             proposal_pool_end = min(
-                proposal_pool_start + candidates_per_result,
+                proposal_pool_start + proposals_per_result,
                 len(outputs[1].proposal_sequences),
             )
             print(f"\tresult[{result_idx}] candidate_pool_size: {proposal_pool_end - proposal_pool_start}")
@@ -645,7 +645,7 @@ if __name__ == "__main__":
         optimizer_config = MCMCOptimizerConfig(
             num_steps=args.n_steps,
             num_results=args.mcmc_num_results,
-            proposals_per_result=args.mcmc_candidates_per_result,
+            proposals_per_result=args.mcmc_proposals_per_result,
             max_temperature=args.temperature,
             min_temperature=args.temperature_min,
             track_proposals=True,
