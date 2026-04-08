@@ -234,7 +234,7 @@ class MyOptimizer(Optimizer):
 
             # 4. Update result_sequences with best proposals
             # NOTE: Each optimizer implements its own selection logic.
-            # See MCMCOptimizer for MH acceptance, TopKOptimizer for sorted insertion.
+            # See MCMCOptimizer for MH acceptance, RejectionSamplingOptimizer for sorted insertion.
             self._update_results(step)
 
             # 5. Track progress (gated by tracking_interval)
@@ -248,7 +248,7 @@ class MyOptimizer(Optimizer):
         """Update result_sequences with top proposals.
 
         This is optimizer-specific. Common patterns:
-        - Greedy: sort by energy, take top num_results (see TopKOptimizer._insert_into_topk)
+        - Greedy: sort by energy, take top num_results (see RejectionSamplingOptimizer._insert_into_results)
         - MCMC: MH acceptance criterion (see MCMCOptimizer._select_topk_with_mcmc_acceptance)
         """
         scored = list(zip(self.energy_scores, range(len(self.energy_scores))))
@@ -262,7 +262,7 @@ class MyOptimizer(Optimizer):
 
 ## `_update_results` Patterns
 
-### Greedy (TopK-style)
+### Greedy (Rejection Sampling-style)
 ```python
 def _update_results(self, step):
     scored = list(zip(self.energy_scores, range(len(self.energy_scores))))

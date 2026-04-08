@@ -1,4 +1,4 @@
-"""Minimal tests verifying core behavior of the TopKOptimizer."""
+"""Minimal tests verifying core behavior of the RejectionSamplingOptimizer."""
 
 import random
 from unittest.mock import MagicMock, patch
@@ -26,7 +26,7 @@ from proto_language.language.generator.generator_registry import (
     GeneratorRegistry,
     GeneratorSpec,
 )
-from proto_language.language.optimizer import TopKOptimizer, TopKOptimizerConfig
+from proto_language.language.optimizer import RejectionSamplingOptimizer, RejectionSamplingOptimizerConfig
 
 
 class _NoOpGenerator(Generator):
@@ -51,11 +51,11 @@ def _make_noop_generator(segment):
     return gen
 
 
-class TestTopKOptimizerStandardMode:
-    """Test TopKOptimizer in standard mode (no energy_threshold)."""
+class TestRejectionSamplingOptimizerStandardMode:
+    """Test RejectionSamplingOptimizer in standard mode (no energy_threshold)."""
 
-    def test_topk_optimizer_initialization(self):
-        """Test basic TopKOptimizer initialization in standard mode."""
+    def test_rejection_sampling_optimizer_initialization(self):
+        """Test basic RejectionSamplingOptimizer initialization in standard mode."""
         segment = Segment(sequence="AAAA", sequence_type="dna")
         construct = Construct([segment])
 
@@ -70,8 +70,8 @@ class TestTopKOptimizerStandardMode:
             function_config={"target_length": 4},
         )
 
-        config = TopKOptimizerConfig(num_samples=10, num_results=5, verbose=False)
-        optimizer = TopKOptimizer(
+        config = RejectionSamplingOptimizerConfig(num_samples=10, num_results=5, verbose=False)
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
@@ -85,8 +85,8 @@ class TestTopKOptimizerStandardMode:
         assert len(optimizer.constraints) == 1
         assert len(optimizer.generators) == 1
 
-    def test_topk_returns_k_constructs(self):
-        """Test that TopK optimizer returns exactly k constructs."""
+    def test_rejection_sampling_returns_k_constructs(self):
+        """Test that Rejection Sampling optimizer returns exactly k constructs."""
         segment = Segment(sequence="ATCGATCG", sequence_type="dna")
         construct = Construct([segment])
 
@@ -101,8 +101,8 @@ class TestTopKOptimizerStandardMode:
             function_config={"min_gc": 40.0, "max_gc": 60.0},
         )
 
-        config = TopKOptimizerConfig(num_samples=20, num_results=3, verbose=False)
-        optimizer = TopKOptimizer(
+        config = RejectionSamplingOptimizerConfig(num_samples=20, num_results=3, verbose=False)
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
@@ -119,8 +119,8 @@ class TestTopKOptimizerStandardMode:
         for i in range(len(optimizer.energy_scores) - 1):
             assert optimizer.energy_scores[i] <= optimizer.energy_scores[i + 1]
 
-    def test_topk_keeps_best_proposals(self):
-        """Test that TopK keeps the best (lowest energy) proposals."""
+    def test_rejection_sampling_keeps_best_proposals(self):
+        """Test that Rejection Sampling keeps the best (lowest energy) proposals."""
         segment = Segment(sequence="AAAAAAAA", sequence_type="dna")
         construct = Construct([segment])
 
@@ -135,8 +135,8 @@ class TestTopKOptimizerStandardMode:
             function_config={"min_gc": 80.0, "max_gc": 100.0},
         )
 
-        config = TopKOptimizerConfig(num_samples=50, num_results=5, verbose=False)
-        optimizer = TopKOptimizer(
+        config = RejectionSamplingOptimizerConfig(num_samples=50, num_results=5, verbose=False)
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
@@ -149,8 +149,8 @@ class TestTopKOptimizerStandardMode:
         worst_energy = optimizer.energy_scores[-1]
         assert best_energy <= worst_energy
 
-    def test_topk_with_multiple_generators(self):
-        """Test TopK with multiple generators applied sequentially."""
+    def test_rejection_sampling_with_multiple_generators(self):
+        """Test Rejection Sampling with multiple generators applied sequentially."""
         segment = Segment(sequence="AAAA", sequence_type="dna")
         construct = Construct([segment])
 
@@ -170,8 +170,8 @@ class TestTopKOptimizerStandardMode:
             function_config={"min_gc": 40.0, "max_gc": 60.0},
         )
 
-        config = TopKOptimizerConfig(num_samples=10, num_results=3, verbose=False)
-        optimizer = TopKOptimizer(
+        config = RejectionSamplingOptimizerConfig(num_samples=10, num_results=3, verbose=False)
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen1, gen2],
             constraints=[constraint],
@@ -183,7 +183,7 @@ class TestTopKOptimizerStandardMode:
         assert len(segment.result_sequences) == 3
         assert len(optimizer.energy_scores) == 3
 
-    def test_topk_rounds_start_from_initial_state(self):
+    def test_rejection_sampling_rounds_start_from_initial_state(self):
         """Test that each round starts from the initial state, not cumulative."""
         segment = Segment(sequence="ATCGATCG", sequence_type="dna")
         construct = Construct([segment])
@@ -201,8 +201,8 @@ class TestTopKOptimizerStandardMode:
             function_config={"target_length": 8},
         )
 
-        config = TopKOptimizerConfig(num_samples=5, num_results=5, verbose=False)
-        optimizer = TopKOptimizer(
+        config = RejectionSamplingOptimizerConfig(num_samples=5, num_results=5, verbose=False)
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
@@ -233,8 +233,8 @@ class TestTopKOptimizerStandardMode:
             function_config={"target_length": 8},
         )
 
-        config = TopKOptimizerConfig(num_samples=5, num_results=3, verbose=False)
-        optimizer = TopKOptimizer(
+        config = RejectionSamplingOptimizerConfig(num_samples=5, num_results=3, verbose=False)
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
@@ -260,7 +260,7 @@ class TestTopKOptimizerStandardMode:
         # Verify energy scores captured
         assert "energy_scores" in optimizer._initial_state
 
-        # Verify sorted list was populated (TopK-specific state)
+        # Verify sorted list was populated (optimizer-specific state)
         assert len(optimizer._result_energies) == 3  # Has k entries after run
 
         # Manually modify sequences to invalid values to verify restore
@@ -275,8 +275,8 @@ class TestTopKOptimizerStandardMode:
         # Verify sequences were restored (not all G's - restoration happened)
         assert any(seq.sequence != "GGGGGGGG" for seq in segment.result_sequences)
 
-    def test_topk_with_proposals_per_round(self):
-        """Test TopK with samples_per_round > 1 for efficient batching."""
+    def test_rejection_sampling_with_proposals_per_round(self):
+        """Test Rejection Sampling with samples_per_round > 1 for efficient batching."""
         segment = Segment(sequence="ATCGATCG", sequence_type="dna")
         construct = Construct([segment])
 
@@ -291,8 +291,8 @@ class TestTopKOptimizerStandardMode:
             function_config={"min_gc": 40.0, "max_gc": 60.0},
         )
 
-        config = TopKOptimizerConfig(num_samples=20, num_results=3, samples_per_round=5, verbose=False)
-        optimizer = TopKOptimizer(
+        config = RejectionSamplingOptimizerConfig(num_samples=20, num_results=3, samples_per_round=5, verbose=False)
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
@@ -311,8 +311,8 @@ class TestTopKOptimizerStandardMode:
         for i in range(len(optimizer.energy_scores) - 1):
             assert optimizer.energy_scores[i] <= optimizer.energy_scores[i + 1]
 
-    def test_topk_rounds_up_num_samples(self):
-        """Test TopK rounds num_samples up to nearest samples_per_round multiple."""
+    def test_rejection_sampling_rounds_up_num_samples(self):
+        """Test Rejection Sampling rounds num_samples up to nearest samples_per_round multiple."""
         segment = Segment(sequence="ATCGATCG", sequence_type="dna")
         construct = Construct([segment])
 
@@ -328,8 +328,8 @@ class TestTopKOptimizerStandardMode:
         )
 
         # 10 samples with samples_per_round=3 → rounded up to 12 (4 rounds)
-        config = TopKOptimizerConfig(num_samples=10, num_results=5, samples_per_round=3, verbose=False)
-        optimizer = TopKOptimizer(
+        config = RejectionSamplingOptimizerConfig(num_samples=10, num_results=5, samples_per_round=3, verbose=False)
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
@@ -346,7 +346,7 @@ class TestTopKOptimizerStandardMode:
         assert len(optimizer.energy_scores) == 5
 
     def test_inf_and_nan_energy_rejection(self):
-        """Test that TopK optimizer skips inf/nan energies."""
+        """Test that Rejection Sampling optimizer skips inf/nan energies."""
         import math
 
         from proto_language.language.constraint.sequence_composition.gc_content_constraint import (
@@ -368,9 +368,9 @@ class TestTopKOptimizerStandardMode:
             threshold=0.0,
         )
 
-        config = TopKOptimizerConfig(num_samples=100, num_results=5, verbose=False)
+        config = RejectionSamplingOptimizerConfig(num_samples=100, num_results=5, verbose=False)
 
-        optimizer = TopKOptimizer(
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
@@ -386,11 +386,11 @@ class TestTopKOptimizerStandardMode:
             assert not math.isnan(energy)
 
 
-class TestTopKOptimizerThresholdMode:
-    """Test TopKOptimizer in threshold mode (energy_threshold set)."""
+class TestRejectionSamplingOptimizerThresholdMode:
+    """Test RejectionSamplingOptimizer in threshold mode (energy_threshold set)."""
 
     def test_threshold_mode_initialization(self):
-        """Test TopKOptimizer initialization in threshold mode."""
+        """Test RejectionSamplingOptimizer initialization in threshold mode."""
         segment = Segment(sequence="AAAA", sequence_type="dna")
         construct = Construct([segment])
 
@@ -405,8 +405,8 @@ class TestTopKOptimizerThresholdMode:
             function_config={"min_gc": 40.0, "max_gc": 60.0},
         )
 
-        config = TopKOptimizerConfig(num_samples=100, energy_threshold=0.5, num_results=3, verbose=False)
-        optimizer = TopKOptimizer(
+        config = RejectionSamplingOptimizerConfig(num_samples=100, energy_threshold=0.5, num_results=3, verbose=False)
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
@@ -434,13 +434,13 @@ class TestTopKOptimizerThresholdMode:
         )
 
         # High threshold that should be easily met
-        config = TopKOptimizerConfig(
+        config = RejectionSamplingOptimizerConfig(
             num_samples=1000,
             energy_threshold=100.0,  # Very high threshold, easily met
             num_results=3,
             verbose=False,
         )
-        optimizer = TopKOptimizer(
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
@@ -469,13 +469,13 @@ class TestTopKOptimizerThresholdMode:
         )
 
         # Very low threshold that won't be met
-        config = TopKOptimizerConfig(
+        config = RejectionSamplingOptimizerConfig(
             num_samples=20,
             energy_threshold=0.0,  # Impossible to meet (energy would need to be negative)
             num_results=3,
             verbose=False,
         )
-        optimizer = TopKOptimizer(
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
@@ -489,25 +489,25 @@ class TestTopKOptimizerThresholdMode:
         assert len(optimizer.energy_scores) == 3
 
 
-class TestTopKOptimizerValidation:
-    """Test TopKOptimizer config validation."""
+class TestRejectionSamplingOptimizerValidation:
+    """Test RejectionSamplingOptimizer config validation."""
 
     def test_num_results_cannot_exceed_num_samples(self):
         """Test that num_results cannot exceed num_samples."""
         with pytest.raises(ValueError, match="num_results \\(100\\) cannot exceed num_samples \\(10\\)"):
-            _ = TopKOptimizerConfig(
+            _ = RejectionSamplingOptimizerConfig(
                 num_samples=10,
                 num_results=100,
             )
 
     def test_default_is_standard_mode(self):
         """Test that default (no energy_threshold) is standard mode."""
-        config = TopKOptimizerConfig(num_samples=10, num_results=5)
+        config = RejectionSamplingOptimizerConfig(num_samples=10, num_results=5)
         assert config.energy_threshold is None
 
 
-class TestTopKOptimizerInternals:
-    """Test TopKOptimizer internal methods."""
+class TestRejectionSamplingOptimizerInternals:
+    """Test RejectionSamplingOptimizer internal methods."""
 
     def test_result_sequences_always_sorted(self):
         """Test that result_sequences are always sorted by energy (ascending)."""
@@ -525,8 +525,8 @@ class TestTopKOptimizerInternals:
             function_config={"min_gc": 40.0, "max_gc": 60.0},
         )
 
-        config = TopKOptimizerConfig(num_samples=30, num_results=5)
-        optimizer = TopKOptimizer(
+        config = RejectionSamplingOptimizerConfig(num_samples=30, num_results=5)
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
@@ -541,7 +541,7 @@ class TestTopKOptimizerInternals:
         assert optimizer._result_energies == optimizer.energy_scores
 
     def test_empty_result_when_all_rejected(self):
-        """Test that TopK returns empty lists when all proposals are rejected."""
+        """Test that Rejection Sampling returns empty lists when all proposals are rejected."""
         segment = Segment(sequence="ATCG", sequence_type="dna")
         construct = Construct([segment])
 
@@ -556,8 +556,8 @@ class TestTopKOptimizerInternals:
             function_config={"target_length": 4},
         )
 
-        config = TopKOptimizerConfig(num_samples=5, num_results=3)
-        optimizer = TopKOptimizer(
+        config = RejectionSamplingOptimizerConfig(num_samples=5, num_results=3)
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
@@ -573,7 +573,7 @@ class TestTopKOptimizerInternals:
         assert segment.result_sequences == []
 
     def test_all_proposals_rejected_by_filter(self):
-        """Test TopK optimizer handles case where all proposals are rejected by filter.
+        """Test Rejection Sampling optimizer handles case where all proposals are rejected by filter.
 
         This is a regression test for a bug where the optimizer would crash with
         RuntimeError when all proposals had inf/nan energies.
@@ -600,9 +600,9 @@ class TestTopKOptimizerInternals:
             threshold=0.0,  # Filter mode - rejected proposals get inf energy
         )
 
-        config = TopKOptimizerConfig(num_samples=20, num_results=5, verbose=False)
+        config = RejectionSamplingOptimizerConfig(num_samples=20, num_results=5, verbose=False)
 
-        optimizer = TopKOptimizer(
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
@@ -617,7 +617,7 @@ class TestTopKOptimizerInternals:
         assert len(segment.result_sequences) == 0
 
     def test_partial_proposals_rejected_by_filter(self):
-        """Test TopK optimizer handles case where some but not all proposals pass filter."""
+        """Test Rejection Sampling optimizer handles case where some but not all proposals pass filter."""
         from proto_language.language.constraint.sequence_composition.gc_content_constraint import (
             GCContentConfig,
         )
@@ -638,9 +638,9 @@ class TestTopKOptimizerInternals:
             threshold=0.0,  # Filter mode
         )
 
-        config = TopKOptimizerConfig(num_samples=50, num_results=10, verbose=False)
+        config = RejectionSamplingOptimizerConfig(num_samples=50, num_results=10, verbose=False)
 
-        optimizer = TopKOptimizer(
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
@@ -654,13 +654,13 @@ class TestTopKOptimizerInternals:
         assert len(segment.result_sequences) == len(optimizer.energy_scores)
 
 
-class TestTopKOptimizerTrajectoryPreservation:
-    """Test that TopK preserves trajectory diversity from handoff."""
+class TestRejectionSamplingOptimizerTrajectoryPreservation:
+    """Test that Rejection Sampling preserves trajectory diversity from handoff."""
 
-    def test_topk_preserves_input_diversity(self):
-        """Test that TopK uses each proposal's own initial sequence, not just the first.
+    def test_rejection_sampling_preserves_input_diversity(self):
+        """Test that Rejection Sampling uses each proposal's own initial sequence, not just the first.
 
-        This verifies the fix for the single-seed bug where TopK was discarding
+        This verifies the fix for the single-seed bug where Rejection Sampling was discarding
         diversity by always using proposals[0] as the mutation seed.
         """
         # Create segment with 3 distinct initial sequences (simulating handoff from previous optimizer)
@@ -684,13 +684,13 @@ class TestTopKOptimizerTrajectoryPreservation:
 
         # num_results=6 with 3 source sequences → cycling produces [A, C, G, A, C, G]
         # samples_per_round=6 means 6 proposals per round
-        config = TopKOptimizerConfig(
+        config = RejectionSamplingOptimizerConfig(
             num_samples=6,  # Generate 6 samples total
             num_results=6,  # Keep top 6
             samples_per_round=6,
             verbose=False,
         )
-        optimizer = TopKOptimizer(
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
@@ -712,7 +712,7 @@ class TestTopKOptimizerTrajectoryPreservation:
         # At least 2 unique sequences should be present (proving diversity is preserved)
         unique_proposals = set(proposals)
         assert len(unique_proposals) >= 2, (
-            f"TopK should preserve input diversity but found only {unique_proposals}. "
+            f"Rejection Sampling should preserve input diversity but found only {unique_proposals}. "
             f"This suggests all proposals are seeded from the first sequence."
         )
 
@@ -721,7 +721,7 @@ class TestTopKOptimizerTrajectoryPreservation:
             f"Expected cycled pattern but got {proposals}"
         )
 
-    def test_topk_result_coherence_across_segments(self):
+    def test_rejection_sampling_result_coherence_across_segments(self):
         """Test that result coherence is maintained across multiple segments.
 
         Each result index should use the same source index across all segments,
@@ -757,8 +757,8 @@ class TestTopKOptimizerTrajectoryPreservation:
             function_config={"target_length": 4},
         )
 
-        config = TopKOptimizerConfig(num_samples=4, num_results=4, samples_per_round=4, verbose=False)
-        optimizer = TopKOptimizer(
+        config = RejectionSamplingOptimizerConfig(num_samples=4, num_results=4, samples_per_round=4, verbose=False)
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen1, gen2],
             constraints=[constraint1, constraint2],
@@ -788,10 +788,10 @@ class TestTopKOptimizerTrajectoryPreservation:
                 assert proposals1[i] == "CCCC" and proposals2[i] == "GGGG"
 
 
-class TestTopKCustomLogging:
+class TestRejectionSamplingCustomLogging:
     """Regression: custom_logging must not corrupt results (Bug 1).
 
-    Previously, logging could corrupt the sorted top-k list by reordering
+    Previously, logging could corrupt the sorted results list by reordering
     ``result_sequences`` while indices were still in use.
     """
 
@@ -799,7 +799,7 @@ class TestTopKCustomLogging:
         """Results with custom_logging must match results without it (same seed)."""
         seed = 42
 
-        def run_topk(custom_logging_fn=None):
+        def run_rejection_sampling(custom_logging_fn=None):
             random.seed(seed)
             np.random.seed(seed)
             segment = Segment(sequence="ATCGATCG", sequence_type="dna")
@@ -813,12 +813,12 @@ class TestTopKCustomLogging:
                 function=gc_content_constraint,
                 function_config={"min_gc": 40.0, "max_gc": 60.0},
             )
-            config = TopKOptimizerConfig(
+            config = RejectionSamplingOptimizerConfig(
                 num_samples=30,
                 num_results=5,
                 verbose=False,
             )
-            optimizer = TopKOptimizer(
+            optimizer = RejectionSamplingOptimizer(
                 constructs=[construct],
                 generators=[gen],
                 constraints=[constraint],
@@ -831,10 +831,10 @@ class TestTopKCustomLogging:
                 optimizer.energy_scores[:],
             )
 
-        seqs_no_log, energies_no_log = run_topk(custom_logging_fn=None)
+        seqs_no_log, energies_no_log = run_rejection_sampling(custom_logging_fn=None)
 
         log_calls = []
-        seqs_with_log, energies_with_log = run_topk(custom_logging_fn=lambda r, s: log_calls.append(r))
+        seqs_with_log, energies_with_log = run_rejection_sampling(custom_logging_fn=lambda r, s: log_calls.append(r))
 
         assert sorted(seqs_no_log) == sorted(seqs_with_log)
         assert sorted(energies_no_log) == sorted(energies_with_log)
@@ -858,12 +858,12 @@ class TestTopKCustomLogging:
             function=sequence_length_constraint,
             function_config={"target_length": 8},
         )
-        config = TopKOptimizerConfig(
+        config = RejectionSamplingOptimizerConfig(
             num_samples=5,
             num_results=3,
             verbose=False,
         )
-        optimizer = TopKOptimizer(
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
@@ -878,7 +878,7 @@ class TestTopKCustomLogging:
             assert num_segments == 1
 
 
-class TestTopKLabelDeduplication:
+class TestRejectionSamplingLabelDeduplication:
     """Regression: optimizer must deduplicate constraint labels (Bug 3)."""
 
     def test_duplicate_constraint_labels_are_deduplicated(self):
@@ -902,8 +902,8 @@ class TestTopKLabelDeduplication:
         )
         assert constraint1.label == constraint2.label
 
-        config = TopKOptimizerConfig(num_samples=5, num_results=3, verbose=False)
-        optimizer = TopKOptimizer(
+        config = RejectionSamplingOptimizerConfig(num_samples=5, num_results=3, verbose=False)
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint1, constraint2],
@@ -932,8 +932,8 @@ class TestTopKLabelDeduplication:
             function_config={"min_gc": 20.0, "max_gc": 80.0},
         )
 
-        config = TopKOptimizerConfig(num_samples=5, num_results=3, verbose=False)
-        optimizer = TopKOptimizer(
+        config = RejectionSamplingOptimizerConfig(num_samples=5, num_results=3, verbose=False)
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint1, constraint2],
@@ -949,11 +949,11 @@ class TestTopKLabelDeduplication:
         assert label_after_first.count("_1") == 1
 
 
-class TestTopKProposalTracking:
-    """Test proposal_results tracking in TopK history."""
+class TestRejectionSamplingProposalTracking:
+    """Test proposal_results tracking in Rejection Sampling history."""
 
     def test_proposal_tracking(self):
-        """History has proposal_results with 'Not in top-k' for rejected proposals."""
+        """History has proposal_results with 'Not in results' for rejected proposals."""
         segment = Segment(sequence="ATCGATCG", sequence_type="dna")
         construct = Construct([segment])
         gen = RandomNucleotideGenerator(
@@ -965,11 +965,11 @@ class TestTopKProposalTracking:
             function=gc_content_constraint,
             function_config={"min_gc": 40.0, "max_gc": 60.0},
         )
-        optimizer = TopKOptimizer(
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
-            config=TopKOptimizerConfig(
+            config=RejectionSamplingOptimizerConfig(
                 num_samples=20,
                 num_results=3,
                 verbose=False,
@@ -978,7 +978,7 @@ class TestTopKProposalTracking:
         )
         optimizer.run()
 
-        valid_rejectors = {"Not in top-k"}
+        valid_rejectors = {"Not in results"}
         all_rejectors = set()
         for entry in optimizer.history:
             if "proposal_results" not in entry:
@@ -993,8 +993,8 @@ class TestTopKProposalTracking:
         assert all_rejectors.issubset(valid_rejectors)
 
 
-class TestTopKTrackingInterval:
-    """Test tracking_interval in TopK optimizer."""
+class TestRejectionSamplingTrackingInterval:
+    """Test tracking_interval in Rejection Sampling optimizer."""
 
     def test_tracking_interval(self):
         """tracking_interval=2 reduces history snapshots."""
@@ -1009,13 +1009,13 @@ class TestTopKTrackingInterval:
             function=gc_content_constraint,
             function_config={"min_gc": 40.0, "max_gc": 60.0},
         )
-        config = TopKOptimizerConfig(
+        config = RejectionSamplingOptimizerConfig(
             num_samples=10,
             num_results=3,
             verbose=False,
             tracking_interval=2,
         )
-        optimizer = TopKOptimizer(
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
@@ -1023,7 +1023,7 @@ class TestTopKTrackingInterval:
         )
         optimizer.run()
 
-        # 10 rounds with interval=2: rounds 2,4,6,8,10 (no step 0 for TopK)
+        # 10 rounds with interval=2: rounds 2,4,6,8,10 (no step 0 for Rejection Sampling)
         saved_steps = {entry["time_step"] for entry in optimizer.history}
         assert saved_steps == {2, 4, 6, 8, 10}
 
@@ -1040,14 +1040,14 @@ class TestTopKTrackingInterval:
             function=gc_content_constraint,
             function_config={"min_gc": 40.0, "max_gc": 60.0},
         )
-        config = TopKOptimizerConfig(
+        config = RejectionSamplingOptimizerConfig(
             num_samples=1000,
             num_results=3,
             verbose=False,
             tracking_interval=5,
             energy_threshold=100.0,  # Very high, easily met early
         )
-        optimizer = TopKOptimizer(
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
@@ -1068,11 +1068,11 @@ class TestTopKTrackingInterval:
         # (the fix ensures this)
 
 
-class TestTopKMetadata:
-    """Test metadata preservation through TopK optimization."""
+class TestRejectionSamplingMetadata:
+    """Test metadata preservation through Rejection Sampling optimization."""
 
-    def test_topk_preserves_initial_metadata_on_result(self):
-        """Initial user metadata should survive through TopK rounds to result_sequences."""
+    def test_rejection_sampling_preserves_initial_metadata_on_result(self):
+        """Initial user metadata should survive through Rejection Sampling rounds to result_sequences."""
         segment = Segment(sequence="ATCGATCG", sequence_type="dna", metadata={"user_key": "user_value"})
         construct = Construct([segment])
 
@@ -1087,12 +1087,12 @@ class TestTopKMetadata:
             function_config={"target_length": 8},
         )
 
-        config = TopKOptimizerConfig(
+        config = RejectionSamplingOptimizerConfig(
             num_samples=5,
             num_results=3,
             verbose=False,
         )
-        optimizer = TopKOptimizer(
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],

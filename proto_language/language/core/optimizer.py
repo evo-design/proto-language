@@ -559,7 +559,7 @@ class Optimizer(ABC):
 
         Validates internal consistency: all segments have the same number of
         ``result_sequences`` and ``energy_scores`` matches that count.
-        Allows partial snapshots (e.g. TopK mid-run with fewer than k result sequences).
+        Allows partial snapshots (e.g. Rejection Sampling mid-run with fewer than num_results result sequences).
 
         Args:
             time_step (int): Current optimization time step index.

@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 def parse_fname_evo2(fname: str) -> list[dict[str, Any]]:
     """
-    Parse the TopK results from Evo 2. Multiple runs per file.
+    Parse the Rejection Sampling results from Evo 2. Multiple runs per file.
     """
     if "min-blood-only" in fname:
         specificity_type = "min_blood_only"

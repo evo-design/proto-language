@@ -33,8 +33,8 @@ from proto_language.language.generator import (
 from proto_language.language.optimizer import (
     MCMCOptimizer,
     MCMCOptimizerConfig,
-    TopKOptimizer,
-    TopKOptimizerConfig,
+    RejectionSamplingOptimizer,
+    RejectionSamplingOptimizerConfig,
 )
 
 DEFAULT_GENOMIC_CONTEXT_PATHS = ",".join(
@@ -627,13 +627,13 @@ if __name__ == "__main__":
                         print(f"\tresult[{result_idx}] {constraint_label}: {metric_name}: {metric_value}")
 
     if args.intron_generator == "evo2":
-        optimizer_config = TopKOptimizerConfig(
+        optimizer_config = RejectionSamplingOptimizerConfig(
             num_samples=args.n_steps,
             num_results=args.n_steps,
             samples_per_round=SAMPLES_PER_ROUND,
             verbose=True,
         )
-        optimizer = TopKOptimizer(
+        optimizer = RejectionSamplingOptimizer(
             constructs=[intron_construct],
             generators=[intron_gen],
             constraints=all_constraints,

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Extract PAM Interacting Domains (PIDs) from Cas9 proposals.
 
-Reads Cas9 proposal TSVs (from evocas9_topk), aligns each protein to
+Reads Cas9 proposal TSVs (from evocas9_rejection_sampling), aligns each protein to
 SpCas9 (UniProt Q99ZW2) using BioPython pairwise alignment, extracts the
 PID subsequence (residues 1099-1368 of SpCas9, 270 aa), and computes
 PID identity to the SpCas9 PID.
@@ -12,11 +12,11 @@ directory.
 Usage:
     # TSVs only:
     python examples/bin/extract_cas9_pid.py \\
-        --proposal-tsvs cas9_topk_2000_168954{5,6,7,8}_proposals.tsv
+        --proposal-tsvs cas9_rs_2000_168954{5,6,7,8}_proposals.tsv
 
     # With cofold metrics:
     python examples/bin/extract_cas9_pid.py \\
-        --proposal-tsvs cas9_topk_2000_168954{5,6,7,8}_proposals.tsv \\
+        --proposal-tsvs cas9_rs_2000_168954{5,6,7,8}_proposals.tsv \\
         --cofold-dir cofold_cas9_grna_output_v2 \\
         --output-dir pid_extraction_output
 """
@@ -212,7 +212,7 @@ def main(args: list[str] | None = None) -> None:
         "--proposal-tsvs",
         nargs="+",
         required=True,
-        help="One or more Cas9 proposal TSVs (from evocas9_topk)",
+        help="One or more Cas9 proposal TSVs (from evocas9_rejection_sampling)",
     )
     parser.add_argument(
         "--cofold-dir",

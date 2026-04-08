@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=evocas9_topk
+#SBATCH --job-name=evocas9_rejection_sampling
 #SBATCH --cpus-per-task=32
 #SBATCH --gpus=1
 #SBATCH --mem=256G
@@ -7,11 +7,11 @@
 #SBATCH --partition=gpu_batch,gpu_batch_high_mem
 #SBATCH --requeue
 #SBATCH --exclude=GPUCACE
-#SBATCH --output=logs/slurm/evocas9_topk_%j.log
-#SBATCH --error=logs/slurm/evocas9_topk_%j.log
+#SBATCH --output=logs/slurm/evocas9_rejection_sampling_%j.log
+#SBATCH --error=logs/slurm/evocas9_rejection_sampling_%j.log
 
 echo "=========================================="
-echo "evocas9_topk.py — 2000 samples per combo"
+echo "evocas9_rejection_sampling.py — 2000 samples per combo"
 echo "=========================================="
 echo "Date: $(date)"
 echo "Node: $(hostname)"
@@ -31,10 +31,10 @@ echo "Torch: $(python -c 'import torch; print(torch.__version__, "CUDA:", torch.
 mkdir -p logs/slurm
 
 # 2000 samples × 3 temps × 2 top_ks = 12000 total sequences
-python examples/scripts/evocas9_topk.py \
+python examples/scripts/evocas9_rejection_sampling.py \
     --n-samples 2000 \
     --batch-size 200 \
-    --output cas9_topk_2000_proposals.fasta \
+    --output cas9_rejection_sampling_2000_proposals.fasta \
     --verbose
 
 echo "=========================================="

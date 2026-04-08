@@ -6,7 +6,7 @@ description: >
   subclass with __init__/run, dual-pool architecture (result/proposal sequences),
   constraint evaluation (filter + scoring), decorator registration, export chain,
   and pytest test coverage. Use when working with optimizers, MCMC, beam search,
-  TopK selection, cycling, or sequence optimization algorithms.
+  rejection sampling, cycling, or sequence optimization algorithms.
 allowed-tools:
   - Read
   - Write
@@ -23,7 +23,7 @@ allowed-tools:
    - `proto_language/language/optimizer/__init__.py`
 2. **Find a similar implementation** by type:
    - Iterative (MCMC): `proto_language/language/optimizer/mcmc_optimizer.py`
-   - Batch (greedy): `proto_language/language/optimizer/topk_optimizer.py`
+   - Batch (greedy): `proto_language/language/optimizer/rejection_sampling_optimizer.py`
    - Autoregressive (beam): `proto_language/language/optimizer/beam_search_optimizer.py`
    - Cycling: `proto_language/language/optimizer/cycling_optimizer.py`
 3. **Read the base class**: `proto_language/language/core/optimizer.py`

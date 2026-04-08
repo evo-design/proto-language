@@ -27,7 +27,7 @@ from proto_language.language.core import (
     Sequence,
 )
 from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
-from proto_language.language.optimizer import TopKOptimizer, TopKOptimizerConfig
+from proto_language.language.optimizer import RejectionSamplingOptimizer, RejectionSamplingOptimizerConfig
 
 # Design constants.
 U5_SNRNA = "AUACUCUGGUUUCUCUUCAGAUCGCAUAAAUCUUUCGCCUUUUACUAAAGAUUUCCGUGGAGAGGAACAACUCUGAGUCUUAACCCAAUUUUUUGAGGCCUUGCUUUGGCAAGGCUA"
@@ -274,17 +274,17 @@ def create_u5_snrna_program() -> Program:
     # Program modification
     # =============================================================================
 
-    top_k_optimizer_config = TopKOptimizerConfig(
+    rejection_sampling_optimizer_config = RejectionSamplingOptimizerConfig(
         num_samples=N_SAMPLES,
         num_results=1,
         samples_per_round=N_SAMPLES,
         verbose=True,
     )
-    u5_snrna_optimizer = TopKOptimizer(
+    u5_snrna_optimizer = RejectionSamplingOptimizer(
         constructs=[u5_snrna_construct],
         generators=[evo2_generator],
         constraints=constraints,
-        config=top_k_optimizer_config,
+        config=rejection_sampling_optimizer_config,
     )
 
     u5_snrna_program = Program(optimizers=[u5_snrna_optimizer], num_results=1)

@@ -1,11 +1,11 @@
-"""Analyze evocas9_topk SLURM logs for per-filter pass rates.
+"""Analyze evocas9 rejection sampling SLURM logs for per-filter pass rates.
 
-Parses the 8-stage filter pipeline from evocas9_topk.py SLURM logs and
+Parses the 8-stage filter pipeline from evocas9_rejection_sampling.py SLURM logs and
 reports per-filter pass rates, both per-job and aggregated across all jobs.
 
-These logs are produced by evocas9_topk.py (examples/scripts/evocas9_topk.py),
-which generates Cas9 proposals via TopK optimization on SLURM. Each job writes
-a log file named slurm_evocas9_topk_*_{SLURM_JOB_ID}.log.
+These logs are produced by evocas9_rejection_sampling.py (examples/scripts/evocas9_rejection_sampling.py),
+which generates Cas9 proposals via rejection sampling optimization on SLURM. Each job writes
+a log file named slurm_evocas9_rejection_sampling_*_{SLURM_JOB_ID}.log.
 
 The 8-stage filter pipeline:
   1. orf          : ORF >= 3000 nt
@@ -19,13 +19,13 @@ The 8-stage filter pipeline:
 
 Usage:
     # Auto-discover logs in current directory:
-    python examples/bin/analyze_evocas9_topk_logs.py
+    python examples/bin/analyze_evocas9_rejection_sampling_logs.py
 
     # Specify log files explicitly:
-    python examples/bin/analyze_evocas9_topk_logs.py slurm_evocas9_topk_150_1689545.log
+    python examples/bin/analyze_evocas9_rejection_sampling_logs.py slurm_evocas9_rejection_sampling_150_1689545.log
 
     # Scan a directory:
-    python examples/bin/analyze_evocas9_topk_logs.py --log-dir /path/to/logs/
+    python examples/bin/analyze_evocas9_rejection_sampling_logs.py --log-dir /path/to/logs/
 """
 
 import argparse
@@ -37,10 +37,10 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Glob pattern for evocas9_topk SLURM log files.
-LOG_GLOB = "slurm_evocas9_topk_*.log"
+# Glob pattern for evocas9 rejection sampling SLURM log files.
+LOG_GLOB = "slurm_evocas9_rejection_sampling_*.log"
 
-# Ordered filter names matching the evocas9_topk pipeline.
+# Ordered filter names matching the evocas9 rejection sampling pipeline.
 FILTER_ORDER = [
     "orf",
     "cas9_phmm",
@@ -138,7 +138,7 @@ def print_aggregate_table(all_stats: dict[str, dict[str, int]], n_jobs: int, tot
 
 
 def discover_logs(log_dir: str) -> list[str]:
-    """Find all evocas9_topk log files in the given directory."""
+    """Find all evocas9 rejection sampling log files in the given directory."""
     pattern = str(Path(log_dir) / LOG_GLOB)
     paths = sorted(glob.glob(pattern))
     if not paths:
@@ -148,7 +148,7 @@ def discover_logs(log_dir: str) -> list[str]:
 
 def main(args: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        description="Analyze evocas9_topk SLURM logs for per-filter pass rates.",
+        description="Analyze evocas9 rejection sampling SLURM logs for per-filter pass rates.",
     )
     parser.add_argument(
         "log_files",
@@ -158,7 +158,7 @@ def main(args: list[str] | None = None) -> None:
     parser.add_argument(
         "--log-dir",
         default=None,
-        help="Directory to scan for slurm_evocas9_topk_*.log files",
+        help="Directory to scan for slurm_evocas9_rejection_sampling_*.log files",
     )
     parsed = parser.parse_args(args)
 

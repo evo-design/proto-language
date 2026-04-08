@@ -16,8 +16,8 @@ from proto_language.language.generator import (
 from proto_language.language.optimizer import (
     MCMCOptimizer,
     MCMCOptimizerConfig,
-    TopKOptimizer,
-    TopKOptimizerConfig,
+    RejectionSamplingOptimizer,
+    RejectionSamplingOptimizerConfig,
 )
 
 
@@ -30,7 +30,7 @@ class TestMultipleOptimizers:
         segment = Segment(length=50, sequence_type="dna")
         construct = Construct([segment])
 
-        # First optimizer: TopK
+        # First optimizer: Rejection Sampling
         gen1_config = RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=10))
         gen1 = RandomNucleotideGenerator(gen1_config)
         gen1.assign(segment)
@@ -41,11 +41,11 @@ class TestMultipleOptimizers:
             function_config={"min_gc": 50, "max_gc": 100},
         )
 
-        optimizer1 = TopKOptimizer(
+        optimizer1 = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen1],
             constraints=[constraint1],
-            config=TopKOptimizerConfig(num_samples=10, num_results=2),
+            config=RejectionSamplingOptimizerConfig(num_samples=10, num_results=2),
         )
 
         # Second optimizer: MCMC
@@ -99,11 +99,11 @@ class TestMultipleOptimizers:
                 function_config={"min_gc": 40 + i * 10, "max_gc": 60 + i * 10},
             )
 
-            optimizer = TopKOptimizer(
+            optimizer = RejectionSamplingOptimizer(
                 constructs=[construct],
                 generators=[gen],
                 constraints=[constraint],
-                config=TopKOptimizerConfig(num_samples=5, num_results=1),
+                config=RejectionSamplingOptimizerConfig(num_samples=5, num_results=1),
             )
             optimizers.append(optimizer)
 
@@ -176,18 +176,18 @@ class TestMultipleOptimizers:
             function_config={"min_gc": 50, "max_gc": 100},
         )
 
-        optimizer1 = TopKOptimizer(
+        optimizer1 = RejectionSamplingOptimizer(
             constructs=[construct],  # Same construct object
             generators=[gen1],
             constraints=[constraint1],
-            config=TopKOptimizerConfig(num_samples=5, num_results=1),
+            config=RejectionSamplingOptimizerConfig(num_samples=5, num_results=1),
         )
 
-        optimizer2 = TopKOptimizer(
+        optimizer2 = RejectionSamplingOptimizer(
             constructs=[construct],  # Same construct object
             generators=[gen2],
             constraints=[constraint2],
-            config=TopKOptimizerConfig(num_samples=5, num_results=1),
+            config=RejectionSamplingOptimizerConfig(num_samples=5, num_results=1),
         )
 
         # Should not raise
@@ -221,18 +221,18 @@ class TestMultipleOptimizers:
             function_config={"min_gc": 50, "max_gc": 100},
         )
 
-        optimizer1 = TopKOptimizer(
+        optimizer1 = RejectionSamplingOptimizer(
             constructs=[construct1],  # Different construct
             generators=[gen1],
             constraints=[constraint1],
-            config=TopKOptimizerConfig(num_samples=5, num_results=1),
+            config=RejectionSamplingOptimizerConfig(num_samples=5, num_results=1),
         )
 
-        optimizer2 = TopKOptimizer(
+        optimizer2 = RejectionSamplingOptimizer(
             constructs=[construct2],  # Different construct
             generators=[gen2],
             constraints=[constraint2],
-            config=TopKOptimizerConfig(num_samples=5, num_results=1),
+            config=RejectionSamplingOptimizerConfig(num_samples=5, num_results=1),
         )
 
         # Should raise ValueError
@@ -259,18 +259,18 @@ class TestMultipleOptimizers:
             function_config={"min_gc": 50, "max_gc": 100},
         )
 
-        optimizer1 = TopKOptimizer(
+        optimizer1 = RejectionSamplingOptimizer(
             constructs=[construct1],  # One construct
             generators=[gen1],
             constraints=[constraint],
-            config=TopKOptimizerConfig(num_samples=5, num_results=1),
+            config=RejectionSamplingOptimizerConfig(num_samples=5, num_results=1),
         )
 
-        optimizer2 = TopKOptimizer(
+        optimizer2 = RejectionSamplingOptimizer(
             constructs=[construct1, construct2],  # Two constructs
             generators=[gen2],
             constraints=[constraint],
-            config=TopKOptimizerConfig(num_samples=5, num_results=1),
+            config=RejectionSamplingOptimizerConfig(num_samples=5, num_results=1),
         )
 
         # Should raise ValueError
@@ -329,11 +329,11 @@ class TestMultipleOptimizers:
             function_config={"min_gc": 50, "max_gc": 100},
         )
 
-        optimizer1 = TopKOptimizer(
+        optimizer1 = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen1],
             constraints=[constraint1],
-            config=TopKOptimizerConfig(num_samples=10, num_results=1),
+            config=RejectionSamplingOptimizerConfig(num_samples=10, num_results=1),
         )
 
         # Run first optimizer standalone to get its output
@@ -363,8 +363,8 @@ class TestMultipleOptimizers:
         assert len(segment.result_sequences) > 0
         # The state should be preserved in the segment object
 
-    def test_mcmc_to_topk_sequence(self):
-        """Test MCMC optimizer followed by TopK optimizer."""
+    def test_mcmc_to_rejection_sampling_sequence(self):
+        """Test MCMC optimizer followed by Rejection Sampling optimizer."""
         segment = Segment(length=50, sequence_type="dna")
         construct = Construct([segment])
 
@@ -386,7 +386,7 @@ class TestMultipleOptimizers:
             config=MCMCOptimizerConfig(num_results=1, num_steps=5),
         )
 
-        # TopK second
+        # Rejection Sampling second
         gen2_config = RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=5))
         gen2 = RandomNucleotideGenerator(gen2_config)
         gen2.assign(segment)
@@ -397,11 +397,11 @@ class TestMultipleOptimizers:
             function_config={"min_gc": 70, "max_gc": 90},
         )
 
-        optimizer2 = TopKOptimizer(
+        optimizer2 = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen2],
             constraints=[constraint2],
-            config=TopKOptimizerConfig(num_samples=10, num_results=2),
+            config=RejectionSamplingOptimizerConfig(num_samples=10, num_results=2),
         )
 
         program = Program(optimizers=[optimizer1, optimizer2], num_results=1)
@@ -435,18 +435,18 @@ class TestMultipleOptimizers:
             function_config={"min_gc": 50, "max_gc": 100},
         )
 
-        optimizer1 = TopKOptimizer(
+        optimizer1 = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[shared_gen],  # Same generator instance
             constraints=[constraint1],
-            config=TopKOptimizerConfig(num_samples=5, num_results=1),
+            config=RejectionSamplingOptimizerConfig(num_samples=5, num_results=1),
         )
 
-        optimizer2 = TopKOptimizer(
+        optimizer2 = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[shared_gen],  # Same generator instance - should fail
             constraints=[constraint2],
-            config=TopKOptimizerConfig(num_samples=5, num_results=1),
+            config=RejectionSamplingOptimizerConfig(num_samples=5, num_results=1),
         )
 
         with pytest.raises(ValueError, match=r"Generator.*reused"):
@@ -472,18 +472,18 @@ class TestMultipleOptimizers:
             function_config={"min_gc": 50, "max_gc": 100},
         )
 
-        optimizer1 = TopKOptimizer(
+        optimizer1 = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen1],
             constraints=[shared_constraint],  # Same constraint instance
-            config=TopKOptimizerConfig(num_samples=5, num_results=1),
+            config=RejectionSamplingOptimizerConfig(num_samples=5, num_results=1),
         )
 
-        optimizer2 = TopKOptimizer(
+        optimizer2 = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen2],
             constraints=[shared_constraint],  # Same constraint instance - should fail
-            config=TopKOptimizerConfig(num_samples=5, num_results=1),
+            config=RejectionSamplingOptimizerConfig(num_samples=5, num_results=1),
         )
 
         with pytest.raises(ValueError, match=r"Constraint.*reused"):
@@ -504,11 +504,11 @@ class TestMultipleOptimizers:
             function_config={"min_gc": 50, "max_gc": 100},
         )
 
-        optimizer = TopKOptimizer(
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
-            config=TopKOptimizerConfig(num_samples=5, num_results=1),
+            config=RejectionSamplingOptimizerConfig(num_samples=5, num_results=1),
         )
 
         # Should not raise - single optimizer has no reuse concerns
@@ -532,11 +532,11 @@ class TestMultipleOptimizers:
 
         # Same generator instance twice in generators list
         with pytest.raises(ValueError, match="appears multiple times"):
-            TopKOptimizer(
+            RejectionSamplingOptimizer(
                 constructs=[construct],
                 generators=[gen, gen],  # Duplicate generator
                 constraints=[constraint],
-                config=TopKOptimizerConfig(num_samples=5, num_results=1),
+                config=RejectionSamplingOptimizerConfig(num_samples=5, num_results=1),
             )
 
     def test_duplicate_constraint_in_single_optimizer_fails(self):
@@ -556,9 +556,9 @@ class TestMultipleOptimizers:
 
         # Same constraint instance twice in constraints list
         with pytest.raises(ValueError, match="appears multiple times"):
-            TopKOptimizer(
+            RejectionSamplingOptimizer(
                 constructs=[construct],
                 generators=[gen],
                 constraints=[constraint, constraint],  # Duplicate constraint
-                config=TopKOptimizerConfig(num_samples=5, num_results=1),
+                config=RejectionSamplingOptimizerConfig(num_samples=5, num_results=1),
             )

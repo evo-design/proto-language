@@ -769,7 +769,7 @@ class TestProgressSnapshot:
             optimizer._save_progress_snapshot(time_step=5)
 
     def test_snapshot_allows_partial_result(self):
-        """Tests that snapshot allows partial result_sequences (e.g. TopK mid-run)."""
+        """Tests that snapshot allows partial result_sequences (e.g. Rejection Sampling mid-run)."""
         construct, generator, constraint, segment = _setup_optimizer_components(num_proposals=4)
         optimizer = ConcreteOptimizer([construct], [generator], [constraint], 4, 3)
 

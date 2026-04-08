@@ -33,7 +33,7 @@ class Program:
 
         **After each optimizer completes:**
 
-        Optimizers are responsible for their own sorting. TopK keeps
+        Optimizers are responsible for their own sorting. Rejection Sampling keeps
         ``result_sequences`` sorted by energy throughout its run. Other
         optimizers' natural ordering is preserved as-is.
 
@@ -47,28 +47,28 @@ class Program:
 
         **Optimizer-specific behavior:**
 
-        - **TopK**: Clears ``result_sequences`` and repopulates dynamically during run
-          (always sorted by energy)
+        - **Rejection Sampling**: Clears ``result_sequences`` and repopulates dynamically
+          during run (always sorted by energy)
         - **MCMC**: Uses ``result_sequences`` as parallel trajectories, overwrites
           ``proposal_sequences`` each step via ``_populate_proposal_sequences()``
         - **CyclingOptimizer**: Works directly on ``proposal_sequences``
         - **BeamSearch**: Ignores previous state entirely, starts fresh from configured prompt
 
     Examples:
-        Sequential optimization with TopK followed by MCMC:
+        Sequential optimization with Rejection Sampling followed by MCMC:
         >>> from proto_language.language.optimizer import (
-        ...     TopKOptimizer,
-        ...     TopKOptimizerConfig,
+        ...     RejectionSamplingOptimizer,
+        ...     RejectionSamplingOptimizerConfig,
         ...     MCMCOptimizer,
         ...     MCMCOptimizerConfig,
         ... )
         >>>
-        >>> # First optimizer: broad exploration with TopK
-        >>> optimizer_1 = TopKOptimizer(
+        >>> # First optimizer: broad exploration with Rejection Sampling
+        >>> optimizer_1 = RejectionSamplingOptimizer(
         ...     constructs=[construct],
         ...     generators=[broad_mutation_gen],
         ...     constraints=[gc_constraint_1],
-        ...     config=TopKOptimizerConfig(num_samples=100, num_results=3),
+        ...     config=RejectionSamplingOptimizerConfig(num_samples=100, num_results=3),
         ... )
         >>>
         >>> # Second optimizer: fine-tuning with MCMC
@@ -88,7 +88,7 @@ class Program:
         >>> final_energies = program.energy_scores
         >>>
         >>> # Access history from each optimizer
-        >>> topk_history = program.optimizers[0].history
+        >>> rs_history = program.optimizers[0].history
         >>> mcmc_history = program.optimizers[1].history
     """
 

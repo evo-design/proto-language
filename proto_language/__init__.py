@@ -90,8 +90,8 @@ from proto_language.language.optimizer import (
     MCMCOptimizerConfig,
     OptimizerRegistry,
     OptimizerSpec,
-    TopKOptimizer,
-    TopKOptimizerConfig,
+    RejectionSamplingOptimizer,
+    RejectionSamplingOptimizerConfig,
     optimizer,
 )
 
@@ -201,8 +201,8 @@ __all__ = [
     "BeamSearchOptimizer",
     "BeamSearchOptimizerConfig",
     "BeamState",
-    "TopKOptimizer",
-    "TopKOptimizerConfig",
+    "RejectionSamplingOptimizer",
+    "RejectionSamplingOptimizerConfig",
     "CyclingOptimizer",
     "CyclingOptimizerConfig",
     # Utilities

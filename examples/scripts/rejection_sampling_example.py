@@ -1,5 +1,5 @@
 """
-Simple example demonstrating the TopK Optimizer.
+Simple example demonstrating the Rejection Sampling Optimizer.
 """
 
 from proto_tools.tools.masked_models.masking import MaskingStrategy
@@ -10,7 +10,7 @@ from proto_language.language.generator import (
     RandomNucleotideGenerator,
     RandomNucleotideGeneratorConfig,
 )
-from proto_language.language.optimizer import TopKOptimizer, TopKOptimizerConfig
+from proto_language.language.optimizer import RejectionSamplingOptimizer, RejectionSamplingOptimizerConfig
 
 # Create a DNA segment
 dna_segment = Segment(length=100, sequence_type="dna")
@@ -45,8 +45,8 @@ def custom_logger(step, segments):
             print(seq._metadata)
 
 
-# Configure TopK optimizer (standard mode)
-topk_config = TopKOptimizerConfig(
+# Configure Rejection Sampling optimizer (standard mode)
+rs_config = RejectionSamplingOptimizerConfig(
     num_samples=100,
     num_results=3,
     samples_per_round=20,
@@ -54,11 +54,11 @@ topk_config = TopKOptimizerConfig(
 )
 
 # Create and run optimizer
-optimizer = TopKOptimizer(
+optimizer = RejectionSamplingOptimizer(
     constructs=[construct],
     generators=[mutation_generator],
     constraints=[gc_constraint],
-    config=topk_config,
+    config=rs_config,
     custom_logging=custom_logger,
 )
 

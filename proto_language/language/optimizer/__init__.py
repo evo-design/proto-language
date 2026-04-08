@@ -12,7 +12,10 @@ from proto_language.language.optimizer.cycling_optimizer import CyclingOptimizer
 # Optimizers
 from proto_language.language.optimizer.mcmc_optimizer import MCMCOptimizer, MCMCOptimizerConfig
 from proto_language.language.optimizer.optimizer_registry import OptimizerRegistry, OptimizerSpec, optimizer
-from proto_language.language.optimizer.topk_optimizer import TopKOptimizer, TopKOptimizerConfig
+from proto_language.language.optimizer.rejection_sampling_optimizer import (
+    RejectionSamplingOptimizer,
+    RejectionSamplingOptimizerConfig,
+)
 
 __all__ = [
     # Registry and base
@@ -27,9 +30,9 @@ __all__ = [
     "BeamSearchOptimizer",
     "BeamSearchOptimizerConfig",
     "BeamState",
-    # TopK Optimizer
-    "TopKOptimizer",
-    "TopKOptimizerConfig",
+    # Rejection Sampling Optimizer
+    "RejectionSamplingOptimizer",
+    "RejectionSamplingOptimizerConfig",
     # Cycling Optimizer
     "CyclingOptimizer",
     "CyclingOptimizerConfig",

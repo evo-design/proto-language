@@ -166,7 +166,7 @@ Generators: **mutation** (RandomNucleotide, RandomProtein, ESM2, MSA), **autoreg
 For detailed examples of common patterns, use the `Read` tool to load:
 - **Patterns reference**: `.claude/skills/write-program/PATTERNS.md`
 
-Covers: multi-stage (TopK -> MCMC), program-level num_results, multi-segment (fixed flanks + variable region), multi-constraint protein design, incremental execution, custom logging, export results, and accessing results.
+Covers: multi-stage (Rejection Sampling -> MCMC), program-level num_results, multi-segment (fixed flanks + variable region), multi-constraint protein design, incremental execution, custom logging, export results, and accessing results.
 
 ## Validation Checklist
 

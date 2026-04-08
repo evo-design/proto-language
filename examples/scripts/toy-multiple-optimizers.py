@@ -15,8 +15,8 @@ from proto_language.language.generator import (
 from proto_language.language.optimizer import (
     MCMCOptimizer,
     MCMCOptimizerConfig,
-    TopKOptimizer,
-    TopKOptimizerConfig,
+    RejectionSamplingOptimizer,
+    RejectionSamplingOptimizerConfig,
 )
 
 # Construct Segment
@@ -45,7 +45,7 @@ gc_constraint_1 = Constraint(
 )
 
 
-def topk_custom_logger(step, segments):
+def rs_custom_logger(step, segments):
     print(f"After round {step}:")
     for i, segment in enumerate(segments):
         print(f"Result sequences for Segment {i + 1}:")
@@ -54,20 +54,20 @@ def topk_custom_logger(step, segments):
             print(seq._metadata)
 
 
-# Optimizer 1: TopK optimizer (standard mode)
-topk_config = TopKOptimizerConfig(
+# Optimizer 1: Rejection Sampling optimizer (standard mode)
+rs_config = RejectionSamplingOptimizerConfig(
     num_samples=10,
     num_results=3,
     samples_per_round=2,
     verbose=True,
 )
 
-optimizer_1 = TopKOptimizer(
+optimizer_1 = RejectionSamplingOptimizer(
     constructs=[construct],
     generators=[uniform_gen_1],
     constraints=[gc_constraint_1],
-    config=topk_config,
-    custom_logging=topk_custom_logger,
+    config=rs_config,
+    custom_logging=rs_custom_logger,
 )
 
 # OPTIMIZATION STAGE 2
@@ -150,7 +150,7 @@ print("=" * 70)
 seq1_incremental = Segment(length=20, sequence_type="dna")
 construct_incremental = Construct([seq1_incremental])
 
-# Stage 1: TopK
+# Stage 1: Rejection Sampling
 uniform_gen_1_inc = RandomNucleotideGenerator(uniform_gen_config_1)
 uniform_gen_1_inc.assign(seq1_incremental)
 
@@ -160,12 +160,12 @@ gc_constraint_1_inc = Constraint(
     function_config={"min_gc": 70, "max_gc": 100},
 )
 
-optimizer_1_inc = TopKOptimizer(
+optimizer_1_inc = RejectionSamplingOptimizer(
     constructs=[construct_incremental],
     generators=[uniform_gen_1_inc],
     constraints=[gc_constraint_1_inc],
-    config=topk_config,
-    custom_logging=topk_custom_logger,
+    config=rs_config,
+    custom_logging=rs_custom_logger,
 )
 
 # Stage 2: MCMC

@@ -1,9 +1,9 @@
 """Tests for all 16 optimizer transition permutations.
 
 Transition Matrix:
-    From / To        | TopK | MCMC | BeamSearch | CyclingOptimizer
-    -----------------|------|------|------------|------------------
-    TopK             |  1   |  2   |     3      |        4
+    From / To             | RS   | MCMC | BeamSearch | CyclingOptimizer
+    ----------------------|------|------|------------|------------------
+    RejectionSampling     |  1   |  2   |     3      |        4
     MCMC             |  5   |  6   |     7      |        8
     BeamSearch       |  9   |  10  |    11      |       12
     CyclingOptimizer | 13   |  14  |    15      |       16
@@ -36,8 +36,8 @@ from proto_language.language.optimizer import (
     CyclingOptimizerConfig,
     MCMCOptimizer,
     MCMCOptimizerConfig,
-    TopKOptimizer,
-    TopKOptimizerConfig,
+    RejectionSamplingOptimizer,
+    RejectionSamplingOptimizerConfig,
 )
 
 # =============================================================================
@@ -108,8 +108,8 @@ class MockCyclingGenerator(Generator):
 # =============================================================================
 
 
-def create_topk_optimizer(construct, segment, num_samples=20, num_results=3, num_mutations=3):
-    """Create a TopK optimizer."""
+def create_rejection_sampling_optimizer(construct, segment, num_samples=20, num_results=3, num_mutations=3):
+    """Create a Rejection Sampling optimizer."""
     gen = RandomNucleotideGenerator(
         RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=num_mutations))
     )
@@ -119,11 +119,11 @@ def create_topk_optimizer(construct, segment, num_samples=20, num_results=3, num
         function=gc_content_constraint,
         function_config={"min_gc": 0, "max_gc": 100},
     )
-    return TopKOptimizer(
+    return RejectionSamplingOptimizer(
         constructs=[construct],
         generators=[gen],
         constraints=[constraint],
-        config=TopKOptimizerConfig(num_samples=num_samples, num_results=num_results),
+        config=RejectionSamplingOptimizerConfig(num_samples=num_samples, num_results=num_results),
     )
 
 
@@ -203,16 +203,16 @@ def create_cycling_optimizer(construct, segment, num_results=3, num_steps=5):
 # =============================================================================
 
 
-class TestTopKTransitions:
-    """Tests 1-4: Transitions FROM TopK."""
+class TestRejectionSamplingTransitions:
+    """Tests 1-4: Transitions FROM Rejection Sampling."""
 
-    def test_1_topk_to_topk(self):
-        """TopK -> TopK: Second optimizer uses sorted results from first."""
+    def test_1_rs_to_rs(self):
+        """RS -> RS: Second optimizer uses sorted results from first."""
         segment = Segment(length=30, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_topk_optimizer(construct, segment, num_samples=15, num_results=3)
-        opt2 = create_topk_optimizer(construct, segment, num_samples=10, num_results=2)
+        opt1 = create_rejection_sampling_optimizer(construct, segment, num_samples=15, num_results=3)
+        opt2 = create_rejection_sampling_optimizer(construct, segment, num_samples=10, num_results=2)
 
         program = Program(optimizers=[opt1, opt2], num_results=3)
 
@@ -225,12 +225,12 @@ class TestTopKTransitions:
         assert len(segment.result_sequences) == 2
         assert opt2.energy_scores == sorted(opt2.energy_scores)
 
-    def test_2_topk_to_mcmc(self):
-        """TopK -> MCMC: MCMC inherits sorted sequences from TopK."""
+    def test_2_rs_to_mcmc(self):
+        """RS -> MCMC: MCMC inherits sorted sequences from Rejection Sampling."""
         segment = Segment(length=30, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_topk_optimizer(construct, segment, num_samples=15, num_results=3)
+        opt1 = create_rejection_sampling_optimizer(construct, segment, num_samples=15, num_results=3)
         opt2 = create_mcmc_optimizer(construct, segment, num_results=2, num_steps=5)
 
         program = Program(optimizers=[opt1, opt2], num_results=3)
@@ -241,12 +241,12 @@ class TestTopKTransitions:
         program.run_stage(1)
         assert len(segment.result_sequences) == 2
 
-    def test_3_topk_to_beamsearch(self):
-        """TopK -> BeamSearch: BeamSearch IGNORES TopK results, starts from prompt."""
+    def test_3_rs_to_beamsearch(self):
+        """RS -> BeamSearch: BeamSearch IGNORES Rejection Sampling results, starts from prompt."""
         segment = Segment(length=50, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_topk_optimizer(construct, segment, num_samples=10, num_results=3)
+        opt1 = create_rejection_sampling_optimizer(construct, segment, num_samples=10, num_results=3)
         opt2 = create_beamsearch_optimizer(construct, segment, num_results=2, beam_length=10, prompt="GGGG")
 
         program = Program(optimizers=[opt1, opt2], num_results=3)
@@ -256,24 +256,24 @@ class TestTopKTransitions:
         program.run_stage(1)
         beam_seqs = [s.sequence for s in segment.result_sequences]
 
-        # BeamSearch starts fresh from prompt, doesn't use TopK results
+        # BeamSearch starts fresh from prompt, doesn't use Rejection Sampling results
         assert len(beam_seqs) == 2
         # All beam sequences should start with the prompt
         assert all(s.startswith("GGGG") for s in beam_seqs), "BeamSearch should start from prompt"
 
-    def test_4_topk_to_cycling(self):
-        """TopK -> CyclingOptimizer: Cycling inherits sorted sequences."""
+    def test_4_rs_to_cycling(self):
+        """RS -> CyclingOptimizer: Cycling inherits sorted sequences."""
         segment = Segment(length=30, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_topk_optimizer(construct, segment, num_samples=10, num_results=3)
+        opt1 = create_rejection_sampling_optimizer(construct, segment, num_samples=10, num_results=3)
         opt2 = create_cycling_optimizer(construct, segment, num_results=2, num_steps=3)
 
         program = Program(optimizers=[opt1, opt2], num_results=3)
 
         program.run_stage(0)
-        topk_seqs = [s.sequence for s in segment.result_sequences]
-        assert len(topk_seqs) == 3
+        rs_seqs = [s.sequence for s in segment.result_sequences]
+        assert len(rs_seqs) == 3
 
         program.run_stage(1)
         # CyclingOptimizer should have run with 2 proposals
@@ -283,13 +283,13 @@ class TestTopKTransitions:
 class TestMCMCTransitions:
     """Tests 5-8: Transitions FROM MCMC."""
 
-    def test_5_mcmc_to_topk(self):
-        """MCMC -> TopK: TopK uses MCMC's results."""
+    def test_5_mcmc_to_rs(self):
+        """MCMC -> RS: Rejection Sampling uses MCMC's results."""
         segment = Segment(length=30, sequence_type="dna")
         construct = Construct([segment])
 
         opt1 = create_mcmc_optimizer(construct, segment, num_results=3, num_steps=10)
-        opt2 = create_topk_optimizer(construct, segment, num_samples=10, num_results=2)
+        opt2 = create_rejection_sampling_optimizer(construct, segment, num_samples=10, num_results=2)
 
         program = Program(optimizers=[opt1, opt2], num_results=3)
 
@@ -354,13 +354,13 @@ class TestMCMCTransitions:
 class TestBeamSearchTransitions:
     """Tests 9-12: Transitions FROM BeamSearch."""
 
-    def test_9_beamsearch_to_topk(self):
-        """BeamSearch -> TopK: TopK uses BeamSearch's results."""
+    def test_9_beamsearch_to_rs(self):
+        """BeamSearch -> RS: Rejection Sampling uses BeamSearch's results."""
         segment = Segment(length=50, sequence_type="dna")
         construct = Construct([segment])
 
         opt1 = create_beamsearch_optimizer(construct, segment, num_results=3, beam_length=10, prompt="AAAA")
-        opt2 = create_topk_optimizer(construct, segment, num_samples=10, num_results=2)
+        opt2 = create_rejection_sampling_optimizer(construct, segment, num_samples=10, num_results=2)
 
         program = Program(optimizers=[opt1, opt2], num_results=3)
 
@@ -429,13 +429,13 @@ class TestBeamSearchTransitions:
 class TestCyclingOptimizerTransitions:
     """Tests 13-16: Transitions FROM CyclingOptimizer."""
 
-    def test_13_cycling_to_topk(self):
-        """CyclingOptimizer -> TopK: TopK uses Cycling's results."""
+    def test_13_cycling_to_rs(self):
+        """CyclingOptimizer -> RS: Rejection Sampling uses Cycling's results."""
         segment = Segment(length=30, sequence_type="dna")
         construct = Construct([segment])
 
         opt1 = create_cycling_optimizer(construct, segment, num_results=3, num_steps=5)
-        opt2 = create_topk_optimizer(construct, segment, num_samples=10, num_results=2)
+        opt2 = create_rejection_sampling_optimizer(construct, segment, num_samples=10, num_results=2)
 
         program = Program(optimizers=[opt1, opt2], num_results=3)
 
@@ -517,12 +517,12 @@ class TestSortingContent:
         assert len(opt1.energy_scores) == 5
         assert all(isinstance(e, float) for e in opt1.energy_scores)
 
-    def test_topk_energies_ascending(self):
-        """TopK energy scores are always in ascending order (sorted internally)."""
+    def test_rejection_sampling_energies_ascending(self):
+        """Rejection Sampling energy scores are always in ascending order (sorted internally)."""
         segment = Segment(length=30, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_topk_optimizer(construct, segment, num_samples=30, num_results=5)
+        opt1 = create_rejection_sampling_optimizer(construct, segment, num_samples=30, num_results=5)
         program = Program(optimizers=[opt1], num_results=5)
         program.run_stage(0)
 
@@ -537,7 +537,7 @@ class TestCyclingContent:
         segment = Segment(length=30, sequence_type="dna")
         construct = Construct([segment])
 
-        opt1 = create_topk_optimizer(construct, segment, num_samples=10, num_results=2)
+        opt1 = create_rejection_sampling_optimizer(construct, segment, num_samples=10, num_results=2)
         opt2 = create_mcmc_optimizer(construct, segment, num_results=5, num_steps=1)
 
         program = Program(optimizers=[opt1, opt2], num_results=2)

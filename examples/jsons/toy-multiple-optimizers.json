@@ -1,6 +1,6 @@
 {
   "name": "multi_stage_gc_optimization",
-  "description": "Two-stage optimization: TopK for broad exploration, then MCMC for fine-tuning",
+  "description": "Two-stage optimization: Rejection Sampling for broad exploration, then MCMC for fine-tuning",
   "version": "1.0",
   "constructs": [
     {
@@ -38,7 +38,7 @@
         }
       ],
       "optimizer": {
-        "method": "topk",
+        "method": "rejection-sampling",
         "config": {
           "num_samples": 10,
           "num_results": 3,

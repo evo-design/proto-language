@@ -19,7 +19,7 @@
   "optimization_stages": [
     {
       "optimizer": {
-        "method": "topk",
+        "method": "rejection-sampling",
         "config": {
           "num_samples": 100,
           "num_results": 4,

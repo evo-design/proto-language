@@ -28,7 +28,7 @@ from proto_language.language.core import (
     Sequence,
 )
 from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
-from proto_language.language.optimizer import TopKOptimizer, TopKOptimizerConfig
+from proto_language.language.optimizer import RejectionSamplingOptimizer, RejectionSamplingOptimizerConfig
 
 # Other Borzoi constants.
 BORZOI_OUTPUT_RESOLUTION = 32
@@ -261,17 +261,17 @@ def create_creb_dna_program() -> Program:
     # Program modification
     # =============================================================================
 
-    top_k_optimizer_config = TopKOptimizerConfig(
+    rejection_sampling_optimizer_config = RejectionSamplingOptimizerConfig(
         num_samples=N_SAMPLES,
         num_results=1,
         samples_per_round=N_SAMPLES,
         verbose=True,
     )
-    creb_dna_optimizer = TopKOptimizer(
+    creb_dna_optimizer = RejectionSamplingOptimizer(
         constructs=[borzoi_input_construct],
         generators=[evo2_generator],
         constraints=constraints,
-        config=top_k_optimizer_config,
+        config=rejection_sampling_optimizer_config,
     )
 
     creb_dna_program = Program(optimizers=[creb_dna_optimizer], num_results=1)

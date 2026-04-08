@@ -7,7 +7,7 @@ from proto_language.language.core import (
     Sequence,
 )
 from proto_language.language.generator import Evo2Generator, Evo2GeneratorConfig
-from proto_language.language.optimizer import TopKOptimizer, TopKOptimizerConfig
+from proto_language.language.optimizer import RejectionSamplingOptimizer, RejectionSamplingOptimizerConfig
 
 # ============================================================================
 # CONFIGURATION
@@ -45,7 +45,7 @@ gc_constraint = Constraint(
 )
 
 # Optimizer config (threshold mode)
-config = TopKOptimizerConfig(
+config = RejectionSamplingOptimizerConfig(
     num_samples=BATCH_SIZE * 2,
     energy_threshold=0.0,
     samples_per_round=BATCH_SIZE,
@@ -53,7 +53,7 @@ config = TopKOptimizerConfig(
 )
 
 # Create optimizer
-optimizer = TopKOptimizer(
+optimizer = RejectionSamplingOptimizer(
     constructs=[construct],
     generators=[evo2_gen],
     constraints=[gc_constraint],

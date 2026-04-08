@@ -1,4 +1,4 @@
-"""TopK Optimizer that runs multiple independent sampling rounds and returns the top-k best constructs."""
+"""Rejection Sampling Optimizer that runs multiple independent sampling rounds and returns the best constructs."""
 
 import bisect
 import copy
@@ -22,12 +22,12 @@ from proto_language.language.optimizer.optimizer_registry import optimizer
 logger = logging.getLogger(__name__)
 
 
-class TopKOptimizerConfig(BaseOptimizerConfig):
-    """Configuration object for TopKOptimizer.
+class RejectionSamplingOptimizerConfig(BaseOptimizerConfig):
+    """Configuration object for RejectionSamplingOptimizer.
 
-    The TopK optimizer generates many proposal sequences and keeps only the best
-    ``num_results`` by lowest energy score. It samples in rounds and maintains a
-    sorted list to track the top proposals.
+    The Rejection Sampling optimizer generates many proposal sequences and keeps only
+    the best ``num_results`` by lowest energy score. It samples in rounds and maintains
+    a sorted list to track the best proposals.
 
     Attributes:
         num_samples (int): Maximum number of samples to generate. Rounded up to the
@@ -66,7 +66,7 @@ class TopKOptimizerConfig(BaseOptimizerConfig):
         default=None,
         ge=1,
         title="Design Candidates",
-        description="Top candidate designs to keep for this optimizer (top-K). Overrides program-level count.",
+        description="Top candidate designs to keep for this optimizer. Overrides program-level count.",
         advanced=True,
     )
     samples_per_round: int = ConfigField(
@@ -80,12 +80,12 @@ class TopKOptimizerConfig(BaseOptimizerConfig):
         default=None,
         ge=0.0,
         title="Energy Threshold",
-        description="Early stop when all energy scores in top-k are below threshold.",
+        description="Early stop when all energy scores in results are below threshold.",
         advanced=True,
     )
 
     @model_validator(mode="after")
-    def validate_params(self) -> "TopKOptimizerConfig":
+    def validate_params(self) -> "RejectionSamplingOptimizerConfig":
         """Validate parameter relationships."""
         # num_results must not exceed num_samples (only validate when num_results is set)
         if self.num_results is not None and self.num_results > self.num_samples:
@@ -96,32 +96,32 @@ class TopKOptimizerConfig(BaseOptimizerConfig):
 
 
 @optimizer(
-    key="topk",
-    label="TopK Optimizer",
-    config=TopKOptimizerConfig,
-    description="Greedy optimizer that runs sampling rounds and maintains the top-k best constructs",
+    key="rejection-sampling",
+    label="Rejection Sampling Optimizer",
+    config=RejectionSamplingOptimizerConfig,
+    description="Optimizer that runs sampling rounds and keeps the best constructs by energy score",
 )
 @final
-class TopKOptimizer(Optimizer):
-    """TopK optimizer for sequence optimization through extensive sampling.
+class RejectionSamplingOptimizer(Optimizer):
+    """Rejection Sampling optimizer for sequence optimization through extensive sampling.
 
-    Generates many proposal sequences and keeps only the top ``k`` by lowest
-    energy score. Unlike iterative optimizers (MCMC, beam search), each sampling
-    round starts fresh from the original sequences. There is no state carried
-    between rounds.
+    Generates many proposal sequences and keeps only the best ``num_results`` by
+    lowest energy score. Unlike iterative optimizers (MCMC, beam search), each
+    sampling round starts fresh from the original sequences. There is no state
+    carried between rounds.
 
     Each round:
     1. Resets proposals to the original sequence
     2. Applies all generators sequentially
     3. Evaluates proposals with constraints
-    4. Updates the sorted top-k list if any proposals are better than the current worst
+    4. Updates the sorted results list if any proposals are better than the current worst
 
-    If ``energy_threshold`` is set, the optimizer stops early once all top-k best
+    If ``energy_threshold`` is set, the optimizer stops early once all best
     proposals have energy below the threshold.
 
     Attributes:
         num_samples: Maximum samples to generate.
-        num_results: Number of top sequences to keep (k).
+        num_results: Number of top sequences to keep.
         samples_per_round: Proposals generated and evaluated per round.
         energy_threshold: Early stopping threshold.
 
@@ -130,8 +130,8 @@ class TopKOptimizer(Optimizer):
         fewer than ``num_results`` valid results.
 
     Example:
-        >>> config = TopKOptimizerConfig(num_samples=100, num_results=10, samples_per_round=10)
-        >>> optimizer = TopKOptimizer(
+        >>> config = RejectionSamplingOptimizerConfig(num_samples=100, num_results=10, samples_per_round=10)
+        >>> optimizer = RejectionSamplingOptimizer(
         ...     constructs=constructs, generators=[mutation_gen], constraints=[gc_constraint], config=config
         ... )
         >>> optimizer.run()
@@ -139,7 +139,7 @@ class TopKOptimizer(Optimizer):
 
         With early stopping:
 
-        >>> config = TopKOptimizerConfig(
+        >>> config = RejectionSamplingOptimizerConfig(
         ...     num_samples=1000,
         ...     num_results=10,
         ...     samples_per_round=10,
@@ -148,24 +148,24 @@ class TopKOptimizer(Optimizer):
     """
 
     # Class attribute required by OptimizerRegistry
-    config_class = TopKOptimizerConfig
+    config_class = RejectionSamplingOptimizerConfig
 
     def __init__(
         self,
         constructs: list[Construct],
         generators: list[Generator],
         constraints: list[Constraint],
-        config: TopKOptimizerConfig,
+        config: RejectionSamplingOptimizerConfig,
         custom_logging: Callable[..., Any] | None = None,
         clear_tool_cache: int | bool | list[str] = 100 * 1024 * 1024,
     ) -> None:
-        """Initialize the TopK Optimizer.
+        """Initialize the Rejection Sampling Optimizer.
 
         Args:
             constructs (list[Construct]): List of Construct objects to optimize.
             generators (list[Generator]): List of Generator objects for sequence modification.
             constraints (list[Constraint]): List of Constraint objects for evaluation.
-            config (TopKOptimizerConfig): Configuration object containing algorithm parameters.
+            config (RejectionSamplingOptimizerConfig): Configuration object containing algorithm parameters.
             custom_logging (Callable[..., Any] | None): Optional callback called at tracked rounds (governed by ``tracking_interval``).
             clear_tool_cache (int | bool | list[str]): (int) Maximum size of cache in bytes, defaults to 100 MB.
                               (bool) Whether to clear the tool cache on each iteration.
@@ -204,14 +204,14 @@ class TopKOptimizer(Optimizer):
         # parallel to result_sequences; index i matches segment.result_sequences[i])
         self._result_energies: list[float] = []
 
-    def _insert_into_topk(self, pos: int, proposal_idx: int, energy: float) -> None:
-        """Insert a proposal into the sorted top-k at the given position."""
+    def _insert_into_results(self, pos: int, proposal_idx: int, energy: float) -> None:
+        """Insert a proposal into the sorted results at the given position."""
         self._result_energies.insert(pos, energy)
         for segment in self.segments:
             segment.result_sequences.insert(pos, copy.deepcopy(segment.proposal_sequences[proposal_idx]))
 
-    def _remove_worst_from_topk(self) -> None:
-        """Remove the worst (last) entry from the sorted top-k."""
+    def _remove_worst_result(self) -> None:
+        """Remove the worst (last) entry from the sorted results."""
         self._result_energies.pop()
         for segment in self.segments:
             segment.result_sequences.pop()
@@ -222,7 +222,7 @@ class TopKOptimizer(Optimizer):
         1. Reset proposal sequences to their initial state (fresh each round).
         2. Run all generators sequentially on the proposals.
         3. Score proposals with constraints (sets ``_proposal_outcomes``).
-        4. Update the sorted top-k list and classify outcomes.
+        4. Update the sorted results list and classify outcomes.
         5. Optionally save a progress snapshot from the current sorted state.
 
         Args:
@@ -244,7 +244,7 @@ class TopKOptimizer(Optimizer):
         # 3. Score proposals with constraints
         self.score_energy()
 
-        # 4. Update the sorted top-k list and classify outcomes
+        # 4. Update the sorted results list and classify outcomes
         for proposal_idx in range(self.samples_per_round):
             if self._proposal_outcomes[proposal_idx] != "accepted":
                 continue
@@ -252,38 +252,38 @@ class TopKOptimizer(Optimizer):
 
             if len(self._result_energies) < self.num_results:
                 pos = bisect.bisect_left(self._result_energies, energy)
-                self._insert_into_topk(pos, proposal_idx, energy)
+                self._insert_into_results(pos, proposal_idx, energy)
             elif energy < self._result_energies[-1]:
-                self._remove_worst_from_topk()
+                self._remove_worst_result()
                 pos = bisect.bisect_left(self._result_energies, energy)
-                self._insert_into_topk(pos, proposal_idx, energy)
+                self._insert_into_results(pos, proposal_idx, energy)
             else:
-                self._proposal_outcomes[proposal_idx] = "Not in top-k"
+                self._proposal_outcomes[proposal_idx] = "Not in results"
 
         # 5. Save a progress snapshot and log from the current sorted state
         if save_snapshot:
-            self._save_topk_snapshot(round_num)
+            self._save_round_snapshot(round_num)
 
     def _capture_initial_state(self) -> None:
-        """Capture state and clear TopK-specific state for fresh run."""
+        """Capture state and clear optimizer-specific state for fresh run."""
         super()._capture_initial_state()
         self._result_energies = []
         self.energy_scores = []
-        # TopK builds result_sequences dynamically via sorted insertion
+        # Builds result_sequences dynamically via sorted insertion
         for segment in self.segments:
             segment.result_sequences = []
 
     def _restore_initial_state(self) -> None:
-        """Restore to captured state and reset TopK-specific state."""
+        """Restore to captured state and reset optimizer-specific state."""
         super()._restore_initial_state()
         self._result_energies = []
         self.energy_scores = []
-        # TopK builds result_sequences dynamically via sorted insertion
+        # Builds result_sequences dynamically via sorted insertion
         for segment in self.segments:
             segment.result_sequences = []
 
     def run(self) -> None:
-        """Execute TopK optimization through multiple sampling rounds.
+        """Execute Rejection Sampling optimization through multiple sampling rounds.
 
         The mode is determined by whether ``energy_threshold`` is set:
         - **Standard mode** (no threshold): Generate ``num_samples`` proposals.
@@ -294,7 +294,7 @@ class TopKOptimizer(Optimizer):
         - Resets all proposal_sequences to original_sequence
         - Runs each generator sequentially across segments (generators batch across proposals)
         - Evaluates all proposals with constraints
-        - Updates the top-k in result_sequences (in-place)
+        - Updates the best results in result_sequences (in-place)
         """
         self._prepare_run()
         assert self.num_results is not None  # noqa: S101 -- mypy type narrowing
@@ -308,7 +308,7 @@ class TopKOptimizer(Optimizer):
                 "Cannot keep more sequences than generated."
             )
 
-        # TopK starts empty (builds top-k dynamically); no initial snapshot
+        # Starts empty (builds results dynamically); no initial snapshot
 
         proposals_generated = 0
         threshold_met = False
@@ -320,7 +320,7 @@ class TopKOptimizer(Optimizer):
             self._run_sampling_round(round_num, save_snapshot=save)
             proposals_generated += self.samples_per_round
 
-            # Threshold mode: stop early when all top-k are below threshold
+            # Threshold mode: stop early when all results are below threshold
             if (
                 threshold_mode
                 and len(self._result_energies) == self.num_results
@@ -334,12 +334,12 @@ class TopKOptimizer(Optimizer):
                     )
                 # Force a final snapshot if this round wasn't already saved
                 if not save:
-                    self._save_topk_snapshot(round_num)
+                    self._save_round_snapshot(round_num)
                 break
 
         if not threshold_met and len(self._result_energies) < self.num_results:
             logger.warning(
-                f"TopK optimizer completed with only {len(self._result_energies)}/{self.num_results} valid proposals. Filter constraints may be too restrictive or num_samples may not be high enough."
+                f"Rejection Sampling optimizer completed with only {len(self._result_energies)}/{self.num_results} valid proposals. Filter constraints may be too restrictive or num_samples may not be high enough."
             )
 
         # Handoff: set energy_scores to the sorted result energies.
@@ -349,7 +349,7 @@ class TopKOptimizer(Optimizer):
         # Log statistics
         self._log_optimization_summary(threshold_mode, threshold_met, proposals_generated)
 
-    def _save_topk_snapshot(self, round_num: int) -> None:
+    def _save_round_snapshot(self, round_num: int) -> None:
         """Save a progress snapshot using the sorted result energies."""
         saved_energy_scores = self.energy_scores
         self.energy_scores = list(self._result_energies)
@@ -367,7 +367,7 @@ class TopKOptimizer(Optimizer):
                 total_rounds = self.num_samples // self.samples_per_round
                 progress_pct = (round_num / total_rounds) * 100
                 logger.info(
-                    f"Round {round_num}/{total_rounds} ({progress_pct:.0f}%): {num_results}/{self.num_results} in top-k, best={best_energy:.4f}, worst={worst_energy:.4f}"
+                    f"Round {round_num}/{total_rounds} ({progress_pct:.0f}%): {num_results}/{self.num_results} in results, best={best_energy:.4f}, worst={worst_energy:.4f}"
                 )
 
         if self.custom_logging:
@@ -381,7 +381,7 @@ class TopKOptimizer(Optimizer):
         logger.debug(f"Optimization complete ({mode_str} mode):")
         logger.debug(f"  Total samples generated: {proposals_generated}")
         logger.debug(f"  Proposals per round: {self.samples_per_round}")
-        logger.debug(f"  Top-k kept: {self.num_results}")
+        logger.debug(f"  Results kept: {self.num_results}")
 
         if threshold_mode:
             logger.debug("Threshold mode:")
@@ -394,15 +394,17 @@ class TopKOptimizer(Optimizer):
 
         if self.energy_scores:
             best_energy = self.energy_scores[0]
-            worst_in_topk = self.energy_scores[-1]
+            worst_in_results = self.energy_scores[-1]
 
             logger.debug(f"Top-{self.num_results} statistics:")
             logger.debug(f"  Best energy:  {best_energy:.6f}")
             if len(self.energy_scores) > 1:
-                logger.debug(f"  Worst in top-k: {worst_in_topk:.6f}")
+                logger.debug(f"  Worst in results: {worst_in_results:.6f}")
 
             if self.num_results is not None and self.num_results <= 20:
                 logger.debug(f"Top-{self.num_results} constructs:")
                 for i, energy in enumerate(self.energy_scores):
                     logger.debug(f"  Rank {i + 1}: Energy={energy:.6f}")
-            logger.debug(f"TopK optimization complete. Returned {len(self.energy_scores)} best constructs.")
+            logger.debug(
+                f"Rejection Sampling optimization complete. Returned {len(self.energy_scores)} best constructs."
+            )

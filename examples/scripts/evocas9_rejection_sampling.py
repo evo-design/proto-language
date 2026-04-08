@@ -1,14 +1,14 @@
 """
-Cas9 generation pipeline using a single TopK optimizer with filter constraints.
+Cas9 generation pipeline using a single Rejection Sampling optimizer with filter constraints.
 
 Expresses the multi-stage Cas9 generation pipeline as a proto-language Program
-with one TopKOptimizer. All filtering steps are expressed as constraints ordered
+with one RejectionSamplingOptimizer. All filtering steps are expressed as constraints ordered
 cheap -> expensive. The optimizer's built-in filter short-circuiting (score_energy
 mask propagation) ensures expensive filters (AF3) only run on proposals that pass
 all cheaper ones.
 
 Architecture:
-    1 TopK optimizer with 1 Evo1Generator + 8 filter constraints:
+    1 Rejection Sampling optimizer with 1 Evo1Generator + 8 filter constraints:
         1. orf_filter          - ORFipy, ORF >= 3000 bp
         2. cas9_phmm_filter    - PyHmmer vs cas9.hmm
         3. crispr_array_filter - MinCED, >= 3 repeats
@@ -19,8 +19,8 @@ Architecture:
         8. structure_filter    - AF3 + structure metrics
 
 Usage:
-    python evocas9_topk.py --n-samples 10
-    python evocas9_topk.py --n-samples 150 --batch-size 150
+    python evocas9_rejection_sampling.py --n-samples 10
+    python evocas9_rejection_sampling.py --n-samples 150 --batch-size 150
 """
 
 import argparse
@@ -688,7 +688,7 @@ def build_program(
     verbose: bool = False,
     af3_output_dir: str = "af3_pdbs",
 ) -> tuple[Any, Any]:
-    """Build a Program with a single TopK optimizer for one (temp, top_k) combo.
+    """Build a Program with a single Rejection Sampling optimizer for one (temp, top_k) combo.
 
     Returns:
         (program, segment) tuple for result collection.
@@ -698,9 +698,9 @@ def build_program(
         Evo1Generator,
         Evo1GeneratorConfig,
     )
-    from proto_language.language.optimizer.topk_optimizer import (
-        TopKOptimizer,
-        TopKOptimizerConfig,
+    from proto_language.language.optimizer.rejection_sampling_optimizer import (
+        RejectionSamplingOptimizer,
+        RejectionSamplingOptimizerConfig,
     )
 
     # Segment: DNA sequence of length NUM_TOKENS (Evo1 output length)
@@ -797,14 +797,14 @@ def build_program(
         ),
     ]
 
-    # TopK optimizer: num_results = num_samples to keep all survivors
-    optimizer_config = TopKOptimizerConfig(
+    # Rejection Sampling optimizer: num_results = num_samples to keep all survivors
+    optimizer_config = RejectionSamplingOptimizerConfig(
         num_samples=n_samples,
         num_results=n_samples,
         samples_per_round=batch_size,
         verbose=verbose,
     )
-    optimizer = TopKOptimizer(
+    optimizer = RejectionSamplingOptimizer(
         constructs=[construct],
         generators=[generator],
         constraints=constraints,
@@ -927,7 +927,7 @@ def save_results(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Cas9 generation pipeline (TopK optimizer version)")
+    parser = argparse.ArgumentParser(description="Cas9 generation pipeline (Rejection Sampling optimizer version)")
     parser.add_argument(
         "--n-samples",
         type=int,
@@ -963,7 +963,7 @@ def main():
     n_combos = len(TEMPERATURES) * len(TOP_KS)
     total_seqs = args.n_samples * n_combos
     logger.info("=" * 60)
-    logger.info("Cas9 Generation Pipeline (TopK Optimizer)")
+    logger.info("Cas9 Generation Pipeline (Rejection Sampling Optimizer)")
     logger.info("=" * 60)
     logger.info(f"Sweep: {len(TEMPERATURES)} temps x {len(TOP_KS)} top_k = {n_combos} combos")
     logger.info(f"Samples per combo: {args.n_samples}")

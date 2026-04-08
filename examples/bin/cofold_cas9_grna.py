@@ -1,6 +1,6 @@
 """Cofold Cas9 proteins with their predicted sgRNAs using AlphaFold3.
 
-Reads one or more Cas9 proposal TSVs (from evocas9_topk),
+Reads one or more Cas9 proposal TSVs (from evocas9_rejection_sampling),
 constructs chimeric sgRNAs from crRNA repeat + tracrRNA components,
 cofolds each Cas9-sgRNA complex with AF3, and aligns the resulting
 structures to the SpCas9-sgRNA reference (PDB 4OO8) using USalign.
@@ -8,7 +8,7 @@ structures to the SpCas9-sgRNA reference (PDB 4OO8) using USalign.
 Usage:
     python examples/bin/cofold_cas9_grna.py proposals.tsv
     python examples/bin/cofold_cas9_grna.py a.tsv b.tsv c.tsv --output-dir my_output/
-    python examples/bin/cofold_cas9_grna.py cas9_topk_2000_*_proposals.tsv --no-msa
+    python examples/bin/cofold_cas9_grna.py cas9_rs_2000_*_proposals.tsv --no-msa
 """
 
 import argparse
@@ -249,7 +249,7 @@ def main(args: list[str] | None = None) -> list[dict]:
     parser.add_argument(
         "input_tsvs",
         nargs="+",
-        help="One or more Cas9 proposal TSVs (from evocas9_topk)",
+        help="One or more Cas9 proposal TSVs (from evocas9_rejection_sampling)",
     )
     parser.add_argument(
         "--output-dir",

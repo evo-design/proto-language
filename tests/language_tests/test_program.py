@@ -12,7 +12,7 @@ from proto_language.language.generator import (
     RandomNucleotideGenerator,
     RandomNucleotideGeneratorConfig,
 )
-from proto_language.language.optimizer import TopKOptimizer, TopKOptimizerConfig
+from proto_language.language.optimizer import RejectionSamplingOptimizer, RejectionSamplingOptimizerConfig
 
 _UNSET = object()
 
@@ -49,8 +49,8 @@ def _create_simple_program(
             config_dict={"min_gc": 0, "max_gc": 100},  # Always passes
         )
 
-        opt_config = TopKOptimizerConfig(num_samples=3, num_results=2)
-        optimizer = TopKOptimizer(
+        opt_config = RejectionSamplingOptimizerConfig(num_samples=3, num_results=2)
+        optimizer = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[generator],
             constraints=[constraint],
@@ -169,8 +169,8 @@ class TestProgramRestart:
         assert any(seq != "G" * 20 for seq in proposal_sequences)
 
 
-def _make_topk(segment, construct, num_results=None):
-    """Create a TopK optimizer with optional num_results."""
+def _make_rejection_sampling(segment, construct, num_results=None):
+    """Create a Rejection Sampling optimizer with optional num_results."""
     gen = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1)))
     gen.assign(segment)
     constraint = ConstraintRegistry.create(
@@ -178,11 +178,11 @@ def _make_topk(segment, construct, num_results=None):
         segments=[segment],
         config_dict={"min_gc": 0, "max_gc": 100},
     )
-    return TopKOptimizer(
+    return RejectionSamplingOptimizer(
         constructs=[construct],
         generators=[gen],
         constraints=[constraint],
-        config=TopKOptimizerConfig(num_samples=6, num_results=num_results),
+        config=RejectionSamplingOptimizerConfig(num_samples=6, num_results=num_results),
     )
 
 
@@ -193,23 +193,23 @@ class TestProgramNumResults:
         """Config num_results=2 sets num_results directly."""
         segment = Segment(sequence="ATGCATGCATGCATGCATGC", sequence_type="dna")
         construct = Construct([segment])
-        opt = _make_topk(segment, construct, num_results=2)
+        opt = _make_rejection_sampling(segment, construct, num_results=2)
         opt.run()
         assert opt.num_results == 2
         assert len(segment.result_sequences) == 2
 
-    def test_deferred_topk_construction_succeeds(self):
-        """TopK with neither config.num_results nor num_results constructs successfully (deferred)."""
+    def test_deferred_rejection_sampling_construction_succeeds(self):
+        """RS with neither config.num_results nor num_results constructs successfully (deferred)."""
         segment = Segment(sequence="ATGCATGCATGCATGCATGC", sequence_type="dna")
         construct = Construct([segment])
-        opt = _make_topk(segment, construct)
+        opt = _make_rejection_sampling(segment, construct)
         assert opt.num_results is None
 
     def test_program_num_results_flows_to_deferred_optimizer(self):
-        """Program(num_results=5) pushes to TopK with num_results=None."""
+        """Program(num_results=5) pushes to Rejection Sampling with num_results=None."""
         segment = Segment(sequence="ATGCATGCATGCATGCATGC", sequence_type="dna")
         construct = Construct([segment])
-        opt = _make_topk(segment, construct)  # num_results=None
+        opt = _make_rejection_sampling(segment, construct)  # num_results=None
         assert opt.num_results is None
 
         program = Program(optimizers=[opt], num_results=3)
@@ -224,7 +224,7 @@ class TestProgramNumResults:
         """config.num_results=2 wins over Program(num_results=5)."""
         segment = Segment(sequence="ATGCATGCATGCATGCATGC", sequence_type="dna")
         construct = Construct([segment])
-        opt = _make_topk(segment, construct, num_results=2)  # num_results=2 set in config
+        opt = _make_rejection_sampling(segment, construct, num_results=2)  # num_results=2 set in config
         assert opt.num_results == 2
 
         Program(optimizers=[opt], num_results=5)
@@ -238,11 +238,11 @@ class TestProgramNumResults:
         construct = Construct([segment])
 
         # First optimizer: resolved (num_results=2)
-        opt1 = _make_topk(segment, construct, num_results=2)
+        opt1 = _make_rejection_sampling(segment, construct, num_results=2)
         assert opt1.num_results == 2
 
         # Second optimizer: deferred (num_results=None)
-        opt2 = _make_topk(segment, construct)
+        opt2 = _make_rejection_sampling(segment, construct)
         assert opt2.num_results is None
 
         Program(optimizers=[opt1, opt2], num_results=3)
@@ -364,11 +364,11 @@ class TestRunStageRestart:
             config_dict={"min_gc": 0, "max_gc": 100},
             label="gc_stage_1",
         )
-        opt1 = TopKOptimizer(
+        opt1 = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen1],
             constraints=[constraint1],
-            config=TopKOptimizerConfig(num_samples=2, num_results=2),
+            config=RejectionSamplingOptimizerConfig(num_samples=2, num_results=2),
         )
 
         # Stage 2: uses gc-content constraint with label "gc_stage_2"
@@ -382,11 +382,11 @@ class TestRunStageRestart:
             config_dict={"min_gc": 0, "max_gc": 100},
             label="gc_stage_2",
         )
-        opt2 = TopKOptimizer(
+        opt2 = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen2],
             constraints=[constraint2],
-            config=TopKOptimizerConfig(num_samples=2, num_results=2),
+            config=RejectionSamplingOptimizerConfig(num_samples=2, num_results=2),
         )
 
         program = Program(optimizers=[opt1, opt2], num_results=2)
@@ -463,11 +463,11 @@ class TestProgramValidation:
         constraint1 = ConstraintRegistry.create(
             key="gc-content", segments=[segment1], config_dict={"min_gc": 0, "max_gc": 100}
         )
-        opt1 = TopKOptimizer(
+        opt1 = RejectionSamplingOptimizer(
             constructs=[construct1, construct2],
             generators=[gen1],
             constraints=[constraint1],
-            config=TopKOptimizerConfig(num_samples=3, num_results=2),
+            config=RejectionSamplingOptimizerConfig(num_samples=3, num_results=2),
         )
 
         gen2 = RandomNucleotideGenerator(
@@ -477,11 +477,11 @@ class TestProgramValidation:
         constraint2 = ConstraintRegistry.create(
             key="gc-content", segments=[segment1], config_dict={"min_gc": 0, "max_gc": 100}
         )
-        opt2 = TopKOptimizer(
+        opt2 = RejectionSamplingOptimizer(
             constructs=[construct1],  # Different count!
             generators=[gen2],
             constraints=[constraint2],
-            config=TopKOptimizerConfig(num_samples=3, num_results=2),
+            config=RejectionSamplingOptimizerConfig(num_samples=3, num_results=2),
         )
 
         with pytest.raises(ValueError, match=r"has 1 constructs.*has 2"):
@@ -502,11 +502,11 @@ class TestProgramValidation:
         constraint1 = ConstraintRegistry.create(
             key="gc-content", segments=[segment1], config_dict={"min_gc": 0, "max_gc": 100}
         )
-        opt1 = TopKOptimizer(
+        opt1 = RejectionSamplingOptimizer(
             constructs=[construct1],
             generators=[gen1],
             constraints=[constraint1],
-            config=TopKOptimizerConfig(num_samples=3, num_results=2),
+            config=RejectionSamplingOptimizerConfig(num_samples=3, num_results=2),
         )
 
         gen2 = RandomNucleotideGenerator(
@@ -516,11 +516,11 @@ class TestProgramValidation:
         constraint2 = ConstraintRegistry.create(
             key="gc-content", segments=[segment2], config_dict={"min_gc": 0, "max_gc": 100}
         )
-        opt2 = TopKOptimizer(
+        opt2 = RejectionSamplingOptimizer(
             constructs=[construct2],  # Different construct object!
             generators=[gen2],
             constraints=[constraint2],
-            config=TopKOptimizerConfig(num_samples=3, num_results=2),
+            config=RejectionSamplingOptimizerConfig(num_samples=3, num_results=2),
         )
 
         with pytest.raises(ValueError, match="not the same object"):
@@ -547,11 +547,11 @@ class TestProgramValidation:
         constraint2 = ConstraintRegistry.create(
             key="gc-content", segments=[segment2], config_dict={"min_gc": 0, "max_gc": 100}, label="gc_content_2"
         )
-        opt = TopKOptimizer(
+        opt = RejectionSamplingOptimizer(
             constructs=[construct1, construct2],
             generators=[gen1, gen2],
             constraints=[constraint1, constraint2],
-            config=TopKOptimizerConfig(num_samples=3, num_results=2),
+            config=RejectionSamplingOptimizerConfig(num_samples=3, num_results=2),
         )
 
         with pytest.raises(ValueError, match=r"Construct labels must be unique.*same_label"):
@@ -570,11 +570,11 @@ class TestProgramValidation:
         constraint = ConstraintRegistry.create(
             key="gc-content", segments=[shared_segment], config_dict={"min_gc": 0, "max_gc": 100}
         )
-        opt = TopKOptimizer(
+        opt = RejectionSamplingOptimizer(
             constructs=[construct1, construct2],
             generators=[gen1],
             constraints=[constraint],
-            config=TopKOptimizerConfig(num_samples=3, num_results=2),
+            config=RejectionSamplingOptimizerConfig(num_samples=3, num_results=2),
         )
 
         with pytest.raises(ValueError, match=r"Segment.*used in multiple constructs"):
@@ -593,11 +593,11 @@ class TestProgramValidation:
         constraint = ConstraintRegistry.create(
             key="gc-content", segments=[segment1], config_dict={"min_gc": 0, "max_gc": 100}
         )
-        opt = TopKOptimizer(
+        opt = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen],
             constraints=[constraint],
-            config=TopKOptimizerConfig(num_samples=3, num_results=2),
+            config=RejectionSamplingOptimizerConfig(num_samples=3, num_results=2),
         )
 
         with pytest.raises(ValueError, match=r"never populated.*no input sequence and no generator"):
@@ -619,17 +619,17 @@ class TestProgramValidation:
         constraint2 = ConstraintRegistry.create(
             key="gc-content", segments=[segment], config_dict={"min_gc": 0, "max_gc": 100}
         )
-        opt1 = TopKOptimizer(
+        opt1 = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[shared_gen],  # Same generator instance
             constraints=[constraint1],
-            config=TopKOptimizerConfig(num_samples=3, num_results=2),
+            config=RejectionSamplingOptimizerConfig(num_samples=3, num_results=2),
         )
-        opt2 = TopKOptimizer(
+        opt2 = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[shared_gen],  # Same generator instance!
             constraints=[constraint2],
-            config=TopKOptimizerConfig(num_samples=3, num_results=2),
+            config=RejectionSamplingOptimizerConfig(num_samples=3, num_results=2),
         )
 
         with pytest.raises(ValueError, match=r"Generator.*reused across optimizer"):
@@ -652,17 +652,17 @@ class TestProgramValidation:
         shared_constraint = ConstraintRegistry.create(
             key="gc-content", segments=[segment], config_dict={"min_gc": 0, "max_gc": 100}
         )
-        opt1 = TopKOptimizer(
+        opt1 = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen1],
             constraints=[shared_constraint],  # Same constraint instance
-            config=TopKOptimizerConfig(num_samples=3, num_results=2),
+            config=RejectionSamplingOptimizerConfig(num_samples=3, num_results=2),
         )
-        opt2 = TopKOptimizer(
+        opt2 = RejectionSamplingOptimizer(
             constructs=[construct],
             generators=[gen2],
             constraints=[shared_constraint],  # Same constraint instance!
-            config=TopKOptimizerConfig(num_samples=3, num_results=2),
+            config=RejectionSamplingOptimizerConfig(num_samples=3, num_results=2),
         )
 
         with pytest.raises(ValueError, match=r"Constraint.*reused across optimizer"):

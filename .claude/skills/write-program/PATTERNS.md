@@ -9,15 +9,15 @@ All optimizers in a multi-stage program MUST share the **same construct objects 
 ```python
 # CORRECT: Same construct object
 construct = Construct([segment])
-opt1 = TopKOptimizer(constructs=[construct], ...)
+opt1 = RejectionSamplingOptimizer(constructs=[construct], ...)
 opt2 = MCMCOptimizer(constructs=[construct], ...)  # Same object
 
 # WRONG: Different construct objects — state won't flow between stages!
-opt1 = TopKOptimizer(constructs=[Construct([segment])], ...)
+opt1 = RejectionSamplingOptimizer(constructs=[Construct([segment])], ...)
 opt2 = MCMCOptimizer(constructs=[Construct([segment])], ...)  # Different!
 ```
 
-## Multi-Stage: TopK -> MCMC
+## Multi-Stage: Rejection Sampling -> MCMC
 
 Broad exploration then fine-tuning. See `examples/scripts/toy-multiple-optimizers.py`.
 
@@ -30,8 +30,8 @@ gen1 = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strateg
 gen1.assign(segment)
 c1 = Constraint(inputs=[segment], function=gc_content_constraint,
                 function_config={"min_gc": 50, "max_gc": 100})
-opt1 = TopKOptimizer(constructs=[construct], generators=[gen1], constraints=[c1],
-                     config=TopKOptimizerConfig(num_samples=100, num_results=5))
+opt1 = RejectionSamplingOptimizer(constructs=[construct], generators=[gen1], constraints=[c1],
+                     config=RejectionSamplingOptimizerConfig(num_samples=100, num_results=5))
 
 # Stage 2: Fine-tune
 gen2 = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1)))
