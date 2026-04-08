@@ -35,7 +35,7 @@ gc_constraint = Constraint(
 
 def custom_logging(step: int, outputs: tuple[Segment]) -> None:
     output_sequence: Sequence = outputs[0].proposal_sequences[0]
-    gc_content = output_sequence._metadata["constraints"]["gc_content_constraint"]["data"].get("gc_content", "N/A")
+    gc_content = output_sequence._constraints_metadata["gc_content_constraint"]["data"]["gc_content"]
     print(f"Custom Log - Step {step} | sequence: {output_sequence.sequence}, gc_content: {gc_content}")
 
 

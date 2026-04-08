@@ -39,9 +39,9 @@
           ]
         },
         {
-          "key": "esmfold-plddt",
+          "key": "structure-plddt",
           "config": {
-            "n_replications": 1
+            "structure_tool": "esmfold"
           },
           "targets": [
             "binder_protein"

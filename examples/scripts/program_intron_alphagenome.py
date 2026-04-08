@@ -543,10 +543,10 @@ if __name__ == "__main__":
         optimizer_instance = optimizer_for_logging["instance"]
         num_results = len(outputs[1].result_sequences)
         candidate_energies = (
-            list(getattr(optimizer_instance, "_candidate_energy_scores", [])) if optimizer_instance is not None else []
+            list(getattr(optimizer_instance, "_proposal_energy_scores", [])) if optimizer_instance is not None else []
         )
         candidate_outcomes = (
-            list(getattr(optimizer_instance, "_candidate_outcomes", [])) if optimizer_instance is not None else []
+            list(getattr(optimizer_instance, "_proposal_outcomes", [])) if optimizer_instance is not None else []
         )
         candidates_per_result = (
             int(getattr(optimizer_instance, "_proposals_per_result", 1)) if optimizer_instance is not None else 1

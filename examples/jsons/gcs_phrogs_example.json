@@ -27,7 +27,7 @@
       ],
       "constraints": [
         {
-          "key": "mmseqs-gene-homology",
+          "key": "mmseqs-gene-similarity",
           "config": {
             "min_homology": 50.0,
             "max_homology": 90.0,

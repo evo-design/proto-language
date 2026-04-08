@@ -1,3 +1,5 @@
+import sys
+
 from proto_tools import ESMFoldConfig, run_esmfold
 
 if __name__ == "__main__":

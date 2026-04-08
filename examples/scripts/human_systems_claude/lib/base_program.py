@@ -468,7 +468,7 @@ def score_single_complex_with_af3(
                 inputs=final_segments,
                 function=structure_tmscore_constraint,
                 function_config={
-                    'target_pdb_content': experimental_pdb_content,
+                    'target_structure': experimental_pdb_content,
                     'structure_tool': 'alphafold3',
                     'tool_config': af3_tool_config,
                     'plddt_threshold': 50.,  # Filter low pLDDT regions.
@@ -481,7 +481,7 @@ def score_single_complex_with_af3(
                 inputs=final_segments,
                 function=structure_rmsd_constraint,
                 function_config={
-                    'target_pdb_content': experimental_pdb_content,
+                    'target_structure': experimental_pdb_content,
                     'structure_tool': 'alphafold3',
                     'tool_config': af3_tool_config,
                     'inflection_point_angstroms': INFLECTION_POINT_ANGSTROMS,
