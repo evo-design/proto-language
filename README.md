@@ -9,9 +9,8 @@ A framework for designing biological sequences (DNA, RNA, proteins) with constra
 
 ## Related Repositories
 
-### Backend
-
-- [`proto-tools`](https://github.com/evo-design/proto-tools/tree/main) – Standalone tool layer for biological models.
+- [`proto-tools`](https://github.com/evo-design/proto-tools) – Standalone tool layer for biological models
+- [`proto-client`](https://github.com/evo-design/proto-client) – Python SDK for Proto Bio APIs
 
 
 ## Installation
