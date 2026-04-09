@@ -4,7 +4,9 @@ from proto_language.language.constraint import ConstraintRegistry, ConstraintSpe
 from proto_language.language.core import (
     Constraint,
     Construct,
+    DifferentiableConstraint,
     Generator,
+    GradientResult,
     Optimizer,
     Program,
     Segment,
@@ -66,6 +68,9 @@ __all__ = [
     "ConstraintRegistry",
     "ConstraintSpec",
     "constraint",
+    # Differentiable constraints
+    "DifferentiableConstraint",
+    "GradientResult",
     # Masking strategies
     "MaskingStrategy",
     # Generator registry
