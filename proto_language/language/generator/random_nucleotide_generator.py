@@ -137,7 +137,7 @@ class RandomNucleotideGenerator(Generator):
             masking_strategy=self.masking_strategy,
             substitution_scheme=self.substitution_scheme,
             sequence_type=self.segment.sequence_type,
-            seed=self.seed,
+            seed=self._next_seed(),
         )
         result = run_random_nucleotide_sample(inputs=tool_input, config=tool_config)
 

@@ -155,6 +155,7 @@ class ESM2Generator(Generator):
             masking_strategy=self.masking_strategy,
             batch_size=self.batch_size,
             verbose=False,
+            seed=self._next_seed(),
         )
         result = run_esm2_sample(inputs=esm2_input, config=config)
         mutated_sequences = result.sequences

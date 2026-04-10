@@ -142,7 +142,7 @@ class RandomProteinGenerator(Generator):
         tool_config = RandomProteinSampleConfig(
             masking_strategy=self.masking_strategy,
             codon_scheme=self.codon_scheme,
-            seed=self.seed,
+            seed=self._next_seed(),
         )
         result = run_random_protein_sample(inputs=tool_input, config=tool_config)
 

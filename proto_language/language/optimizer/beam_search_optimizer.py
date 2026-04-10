@@ -251,6 +251,7 @@ class BeamSearchOptimizer(Optimizer):
             verbose=config.verbose,
             tracking_interval=config.tracking_interval,
             track_proposals=config.track_proposals,
+            seed=config.seed,
         )
 
         self.prepend_prompt: bool = config.prepend_prompt

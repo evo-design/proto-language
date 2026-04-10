@@ -3,7 +3,6 @@
 import copy
 import logging
 import math
-import random
 from collections.abc import Callable
 from typing import Any, final
 
@@ -205,6 +204,7 @@ class MCMCOptimizer(Optimizer):
             verbose=config.verbose,
             tracking_interval=config.tracking_interval,
             track_proposals=config.track_proposals,
+            seed=config.seed,
         )
 
         self.num_steps: int = config.num_steps
@@ -256,7 +256,7 @@ class MCMCOptimizer(Optimizer):
             self._populate_proposal_sequences()
 
             # 3. Generate proposals for proposal_sequences in-place by randomly sampling a generator
-            generator = random.choice(self.generators)  # noqa: S311 -- non-cryptographic, used for stochastic generator selection
+            generator = self._rng.choice(self.generators)
             generator.sample()
 
             # 4. Score proposal_sequences
@@ -343,7 +343,7 @@ class MCMCOptimizer(Optimizer):
             # 2. Apply MH acceptance criterion
             valid_proposals_exist = best_proposal_idx is not None
             alpha = self._compute_mcmc_alpha(old_result_energy, best_energy, step)
-            accepted = valid_proposals_exist and random.random() < alpha  # noqa: S311 -- non-cryptographic, used for Metropolis-Hastings acceptance
+            accepted = valid_proposals_exist and self._rng.random() < alpha
 
             # 3. Update trajectory state
             if accepted:

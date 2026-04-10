@@ -161,6 +161,7 @@ class Evo1Generator(Generator):
             num_tokens=num_tokens,
             batch_size=self.batch_size,
             verbose=self.verbose,
+            seed=self._next_seed(),
         )
 
         evo1_output = run_evo1_sample(inputs=inputs, config=sample_config)

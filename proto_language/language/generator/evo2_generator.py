@@ -310,6 +310,7 @@ class Evo2Generator(Generator):
             stop_at_eos=self.stop_at_eos,
             old_kv_cache=old_kv_cache,
             batch_size=self.batch_size,
+            seed=self._next_seed(),
         )
 
         evo2_output = run_evo2_sample(inputs=inputs, config=sample_config)

@@ -99,6 +99,13 @@ class BaseConfig(BaseModel):
 class BaseOptimizerConfig(BaseConfig):
     """Shared base config for all optimizers."""
 
+    seed: int | None = ConfigField(
+        default=None,
+        title="Random Seed",
+        description="Random seed for reproducible optimization runs.",
+        advanced=True,
+        ge=0,
+    )
     tracking_interval: int = ConfigField(
         default=1,
         ge=1,

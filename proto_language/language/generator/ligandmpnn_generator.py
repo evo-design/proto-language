@@ -317,7 +317,7 @@ class LigandMPNNGenerator(Generator):
             batch_size=bs,
             temperature=self.temperature,
             excluded_amino_acids=self.excluded_amino_acids,
-            seed=self.seed,
+            seed=self._next_seed(),
             device=self.device,
             verbose=self.verbose,
         )

@@ -359,6 +359,7 @@ class CyclingOptimizer(Optimizer):
             verbose=config.verbose,
             tracking_interval=config.tracking_interval,
             track_proposals=config.track_proposals,
+            seed=config.seed,
         )
 
         self.num_steps: int = config.num_steps

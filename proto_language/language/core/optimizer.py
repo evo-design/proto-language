@@ -6,12 +6,14 @@ generators and constraints to search for optimal biological sequences.
 import copy
 import logging
 import math
+import random
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal
 
 import pandas as pd
+from numpy.random import SeedSequence
 from proto_tools.utils.tool_cache import ToolCache, _program_tool_cache
 
 from proto_language.language.core.constraint import Constraint
@@ -28,6 +30,11 @@ from proto_language.utils.export import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def derive_seeds(parent_seed: int, count: int) -> list[int]:
+    """Derive N deterministic child seeds from a parent seed via SeedSequence."""
+    return [int(child.generate_state(1)[0]) for child in SeedSequence(parent_seed).spawn(count)]
 
 
 class Optimizer(ABC):
@@ -74,6 +81,7 @@ class Optimizer(ABC):
         num_proposals: int | None = None,
         clear_tool_cache: int | bool | list[str] = 100 * 1024 * 1024,
         custom_logging: Callable[..., Any] | None = None,
+        seed: int | None = None,
     ) -> None:
         """Initialize the Optimizer with dual-pool semantics.
 
@@ -96,6 +104,9 @@ class Optimizer(ABC):
                 If list[str], restrict clearing to specific tool names.
             custom_logging (Callable[..., Any] | None): Optional callback with signature ``(step: int, segments: tuple) -> None``.
                 Called at tracked steps only (governed by ``tracking_interval``).
+            seed (int | None): Random seed for reproducible optimization. When set,
+                the optimizer's internal RNG and all generator seeds are derived
+                deterministically. A program-level seed overrides this.
         """
         self.constructs = constructs
         self.generators = generators
@@ -119,6 +130,9 @@ class Optimizer(ABC):
 
         # Default value for progress tracking (can be overridden by subclasses)
         self.num_steps: int = 1
+
+        self.seed = seed
+        self._rng = random.Random()  # noqa: S311 -- non-cryptographic
 
         # Create program-scoped tool cache
         self.tool_cache = ToolCache()
@@ -517,12 +531,22 @@ class Optimizer(ABC):
         self.energy_scores = [float("inf")] * self.num_proposals
         self._initialize_sequence_pools()
 
+    def _reset_rng(self) -> None:
+        """Reset optimizer and generator RNGs to initial seeded state."""
+        assert self.seed is not None  # noqa: S101 -- mypy type narrowing
+        self._rng = random.Random(self.seed)  # noqa: S311 -- non-cryptographic
+        child_seeds = derive_seeds(self.seed, len(self.generators))
+        for generator, derived in zip(self.generators, child_seeds, strict=True):
+            generator._set_program_seed(derived)
+
     def _prepare_run(self) -> None:
         """Call at start of run(). Validates state, captures on first run, restores on subsequent."""
         if self.num_results is None:
             raise RuntimeError(
                 "num_results must be set. Set it via the optimizer config or use Program(num_results=...)."
             )
+        if self.seed is not None:
+            self._reset_rng()
         if self._initial_state is None:
             self._capture_initial_state()
         else:

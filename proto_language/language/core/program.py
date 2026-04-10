@@ -9,7 +9,7 @@ from typing import Any, Literal
 import pandas as pd
 from proto_tools.utils.tool_pool import ToolPool
 
-from proto_language.language.core.optimizer import Optimizer
+from proto_language.language.core.optimizer import Optimizer, derive_seeds
 from proto_language.utils.export import (
     build_results,
     export_tables,
@@ -98,6 +98,7 @@ class Program:
         num_results: int,
         verbose: bool = False,
         compute: ToolPool | None = None,
+        seed: int | None = None,
     ) -> None:
         """Initialize a Program with a list of optimizers to run sequentially.
 
@@ -113,6 +114,9 @@ class Program:
             compute (ToolPool | None): Context manager for GPU tool execution. If None,
                 auto-detects: uses ToolPool for multi-GPU parallelism when GPUs are
                 available, otherwise runs tools inline.
+            seed (int | None): Random seed for fully reproducible optimization. When set,
+                derives unique seeds for each optimizer via SeedSequence, overriding
+                any optimizer-level seeds. Same seed + same input = same output.
 
         Raises:
             ValueError: If optimizers list is empty or if optimizers don't share
@@ -149,6 +153,9 @@ class Program:
 
         self.compute = compute
 
+        if seed is not None and seed < 0:
+            raise ValueError(f"seed must be non-negative, got {seed}")
+
         self.optimizers = optimizers
         self.num_results = num_results
 
@@ -160,6 +167,14 @@ class Program:
                 logger.warning(
                     f"{opt.__class__.__name__} num_results={opt.num_results} Overrides program num_results={self.num_results}"
                 )
+
+        # Flow seed to optimizers: program seed overrides optimizer-level seeds
+        self.seed = seed
+        if self.seed is not None:
+            for opt, derived in zip(self.optimizers, derive_seeds(self.seed, len(self.optimizers)), strict=True):
+                if opt.seed is not None:
+                    logger.warning(f"{opt.__class__.__name__} seed={opt.seed} overridden by program seed={self.seed}")
+                opt.seed = derived
 
         # If top level verbosity is true, force verbosity in all optimizers.
         self.verbose = verbose

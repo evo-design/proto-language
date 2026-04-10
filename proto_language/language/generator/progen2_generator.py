@@ -242,6 +242,7 @@ class ProGen2Generator(Generator):
             prepend_prompt=prepend_prompt,
             batch_size=self.batch_size,
             verbose=self.verbose,
+            seed=self._next_seed(),
         )
 
         output = run_progen2_sample(tool_input, tool_config)

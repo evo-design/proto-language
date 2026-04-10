@@ -187,6 +187,7 @@ class RejectionSamplingOptimizer(Optimizer):
             verbose=config.verbose,
             tracking_interval=config.tracking_interval,
             track_proposals=config.track_proposals,
+            seed=config.seed,
         )
         self.samples_per_round: int = config.samples_per_round
         self.energy_threshold: float | None = config.energy_threshold

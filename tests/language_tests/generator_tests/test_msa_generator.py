@@ -1,7 +1,6 @@
 """Tests for MSAGenerator."""
 
 import copy
-import random
 
 import pytest
 from proto_tools import MSA
@@ -232,7 +231,6 @@ class TestMSAGeneratorSample:
         gen.assign(segment)
 
         # Sample many times and count outcomes at position 0
-        random.seed(42)
         a_count = 0
         c_count = 0
         trials = 1000
@@ -322,15 +320,15 @@ class TestMSAGeneratorSample:
         assert mutated[0] in ["A", "C"]
 
     def test_deterministic_with_seed(self):
-        """Test reproducibility with fixed random seed."""
+        """Test reproducibility with fixed random seed via _set_program_seed."""
 
         def run_with_seed(seed):
-            random.seed(seed)
             config = MSAGeneratorConfig(
                 msa=["AAAA", "CCCC", "GGGG", "TTTT"],
                 num_mutations=2,
             )
             gen = MSAGenerator(config)
+            gen._set_program_seed(seed)  # Seed the internal RNG
             segment = Segment(sequence="MMMM", sequence_type="protein")
             gen.assign(segment)
             segment.proposal_sequences = [copy.deepcopy(segment.original_sequence)]

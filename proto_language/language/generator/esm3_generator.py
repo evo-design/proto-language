@@ -154,6 +154,7 @@ class ESM3Generator(Generator):
             masking_strategy=self.masking_strategy,
             batch_size=self.batch_size,
             verbose=False,
+            seed=self._next_seed(),
         )
 
         result = run_esm3_sample(inputs=esm3_input, config=config)
