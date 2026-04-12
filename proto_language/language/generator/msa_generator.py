@@ -1,5 +1,6 @@
 """MSAGenerator for sampling mutations from multiple sequence alignment distributions."""
 
+import random
 from typing import Any, final
 
 from proto_tools import MSA
@@ -171,12 +172,13 @@ class MSAGenerator(Generator):
             RuntimeError: If called before assign().
         """
         self._validate_generator()
+        rng = random.Random(self._next_seed())  # noqa: S311 -- not cryptographic
         for sequence in self.segment.proposal_sequences:
             seq_list = list(sequence.sequence)
 
             # Cap mutations at available mutable positions
             actual_num_mutations = min(self.num_mutations, len(self.mutable_positions))
-            positions_to_mutate = self._rng.sample(self.mutable_positions, actual_num_mutations)
+            positions_to_mutate = rng.sample(self.mutable_positions, actual_num_mutations)
 
             for pos in positions_to_mutate:
                 # Sample a character according to the empirical probability distribution
@@ -184,6 +186,6 @@ class MSAGenerator(Generator):
                 assert probs is not None  # noqa: S101 -- mypy type narrowing; mutable_positions only includes non-None entries
                 chars = list(probs.keys())
                 weights = list(probs.values())
-                seq_list[pos] = self._rng.choices(chars, weights=weights, k=1)[0]
+                seq_list[pos] = rng.choices(chars, weights=weights, k=1)[0]
 
             sequence.sequence = "".join(seq_list)

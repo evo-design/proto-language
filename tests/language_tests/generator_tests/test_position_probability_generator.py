@@ -44,7 +44,8 @@ class TestPositionProbabilityGenerator:
         for _ in range(2):
             segment = Segment(sequence="AAA", sequence_type="dna")
             segment.proposal_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(3)]
-            gen = PositionProbabilityGenerator(PositionProbabilityGeneratorConfig(sampling_mode="categorical", seed=7))
+            gen = PositionProbabilityGenerator(PositionProbabilityGeneratorConfig(sampling_mode="categorical"))
+            gen._set_program_seed(7)
             gen.assign(segment)
             gen.sample(probabilities=probabilities)
             results.append([p.sequence for p in segment.proposal_sequences])
@@ -63,9 +64,8 @@ class TestPositionProbabilityGenerator:
         argmax_gen.sample(logits=logits)
 
         low_temp_seg = Segment(sequence="AA", sequence_type="dna")
-        low_temp_gen = PositionProbabilityGenerator(
-            PositionProbabilityGeneratorConfig(sampling_mode="categorical", seed=42)
-        )
+        low_temp_gen = PositionProbabilityGenerator(PositionProbabilityGeneratorConfig(sampling_mode="categorical"))
+        low_temp_gen._set_program_seed(42)
         low_temp_gen.assign(low_temp_seg)
         low_temp_gen.sample(logits=logits, temperature=0.01)
 

@@ -83,10 +83,6 @@ class LigandMPNNGeneratorConfig(BaseConfig):
             Larger batches improve throughput but use more GPU memory; reduce
             if encountering out-of-memory errors. Default: ``1``.
 
-        seed (int): Random seed for reproducible sequence generation. Using the
-            same seed with identical inputs produces identical outputs.
-            Default: ``1337``.
-
         device (str): Compute device for model inference. Options:
 
             - ``"cuda"``: NVIDIA GPU (recommended, default)
@@ -162,12 +158,6 @@ class LigandMPNNGeneratorConfig(BaseConfig):
         ge=1,
         title="Batch Size",
         description="Number of sequences to process simultaneously on GPU",
-        advanced=True,
-    )
-    seed: int = ConfigField(
-        default=1337,
-        title="Random Seed",
-        description="Random seed for reproducible sequence generation.",
         advanced=True,
     )
     device: str = ConfigField(
@@ -263,7 +253,6 @@ class LigandMPNNGenerator(Generator):
         self.temperature = config.temperature
         self.excluded_amino_acids = config.excluded_amino_acids
         self.batch_size = config.batch_size
-        self.seed = config.seed
         self.device = config.device
         self.verbose = config.verbose
 

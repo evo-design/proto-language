@@ -44,7 +44,6 @@ class RandomNucleotideGeneratorConfig(BaseConfig):
             - ``"H"``: Not G (A, C, T)
             - ``"V"``: Not T (A, C, G)
 
-        seed (int | None): Random seed for reproducibility.
     """
 
     masking_strategy: MaskingStrategy = ConfigField(
@@ -58,12 +57,6 @@ class RandomNucleotideGeneratorConfig(BaseConfig):
         default="N",
         title="Substitution Scheme",
         description="IUPAC code defining the nucleotide substitution pool.",
-        advanced=True,
-    )
-    seed: int | None = ConfigField(
-        default=None,
-        title="Random Seed",
-        description="Random seed for reproducible sampling.",
         advanced=True,
     )
 
@@ -93,7 +86,6 @@ class RandomNucleotideGenerator(Generator):
     Attributes:
         masking_strategy (MaskingStrategy): Strategy for selecting positions to mutate.
         substitution_scheme (SubstitutionScheme): IUPAC code for nucleotide sampling.
-        seed (int | None): Random seed for reproducibility.
 
     Example:
         >>> from proto_language.language.generator import RandomNucleotideGenerator, RandomNucleotideGeneratorConfig
@@ -118,7 +110,6 @@ class RandomNucleotideGenerator(Generator):
         self.config = config
         self.masking_strategy = config.masking_strategy
         self.substitution_scheme = config.substitution_scheme
-        self.seed = config.seed
 
     def sample(self) -> None:
         """Introduce random nucleotide mutations at masked positions.

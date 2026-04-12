@@ -76,16 +76,15 @@ class TestRandomProteinGenerator:
         assert gen.codon_scheme == "NNK"
 
     def test_seed_reproducibility(self):
-        """Tests that seed produces reproducible results with pre-masked input."""
+        """Tests that _set_program_seed produces reproducible results with pre-masked input."""
         # Use pre-masked sequences to bypass position selection randomness
         seq = "MKK_LVV_GGG_AAA"
-        config = RandomProteinGeneratorConfig(
-            seed=42,
-        )
+        config = RandomProteinGeneratorConfig()
 
         results = []
         for _ in range(2):
             gen = RandomProteinGenerator(config)
+            gen._set_program_seed(42)
             segment = Segment(sequence=seq, sequence_type="protein")
             gen.assign(segment)
             segment.proposal_sequences = [copy.deepcopy(segment.original_sequence)]

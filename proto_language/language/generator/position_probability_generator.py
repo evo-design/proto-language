@@ -27,7 +27,6 @@ class PositionProbabilityGeneratorConfig(BaseConfig):
             per-position distribution.
         temperature (float): Softmax temperature applied when logits are
             provided to ``sample()``.
-        seed (int | None): Optional seed for reproducible categorical sampling.
     """
 
     sampling_mode: Literal["argmax", "categorical"] = ConfigField(
@@ -40,12 +39,6 @@ class PositionProbabilityGeneratorConfig(BaseConfig):
         gt=0.0,
         title="Temperature",
         description="Softmax temperature used when logits are provided.",
-        advanced=True,
-    )
-    seed: int | None = ConfigField(
-        default=None,
-        title="Random Seed",
-        description="Optional random seed for reproducible categorical sampling.",
         advanced=True,
     )
 
@@ -96,7 +89,6 @@ class PositionProbabilityGenerator(Generator):
         self.config = config
         self.sampling_mode = config.sampling_mode
         self.temperature = config.temperature
-        self.seed = config.seed
 
     def sample(
         self,

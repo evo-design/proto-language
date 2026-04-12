@@ -91,12 +91,7 @@ class Generator(ABC):
     def _next_seed(self) -> int | None:
         """Return an advancing per-call seed, or None if unseeded."""
         if self._program_seed is None:
-            # Lazily seed from config on first call (subclass sets self.seed after super().__init__).
-            # This latches _program_seed permanently — subsequent calls never return None.
-            config_seed = getattr(self, "seed", None)
-            if config_seed is None:
-                return None
-            self._set_program_seed(config_seed)
+            return None
         return self._rng.randint(0, 2**31 - 1)
 
     def _validate_generator(self) -> None:

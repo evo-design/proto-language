@@ -50,7 +50,6 @@ class RandomProteinGeneratorConfig(BaseConfig):
             - ``"NRT"``: 8 codons (R = A/G at position 2); encodes 8 amino
               acids. Very compact library for focused mutagenesis.
 
-        seed (int | None): Random seed for reproducibility.
     """
 
     masking_strategy: MaskingStrategy = ConfigField(
@@ -64,12 +63,6 @@ class RandomProteinGeneratorConfig(BaseConfig):
         default="UNIFORM",
         title="Codon Scheme",
         description="Codon scheme for amino acid sampling probabilities.",
-        advanced=True,
-    )
-    seed: int | None = ConfigField(
-        default=None,
-        title="Random Seed",
-        description="Random seed for reproducible sampling.",
         advanced=True,
     )
 
@@ -99,7 +92,6 @@ class RandomProteinGenerator(Generator):
     Attributes:
         masking_strategy (MaskingStrategy): Strategy for selecting positions to mutate.
         codon_scheme (CodonScheme): Codon scheme for amino acid sampling.
-        seed (int | None): Random seed for reproducibility.
 
     Example:
         >>> from proto_language.language.generator import RandomProteinGenerator, RandomProteinGeneratorConfig
@@ -124,7 +116,6 @@ class RandomProteinGenerator(Generator):
         self.config = config
         self.masking_strategy = config.masking_strategy
         self.codon_scheme = config.codon_scheme
-        self.seed = config.seed
 
     def sample(self) -> None:
         """Introduce random amino acid mutations at masked positions.

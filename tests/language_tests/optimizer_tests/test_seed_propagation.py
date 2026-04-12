@@ -15,10 +15,10 @@ _MASKING = MaskingStrategy(num_mutations=20)
 _GC = GCContentConfig(min_gc=0.0, max_gc=100.0)
 
 
-def _make_mcmc(seed=None, gen_seed=None, num_steps=5, num_results=2):
+def _make_mcmc(seed=None, num_steps=5, num_results=2):
     """Create a minimal MCMC optimizer + segment for seed testing."""
     segment = Segment(sequence=_SEQ, sequence_type="dna")
-    gen = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=_MASKING, seed=gen_seed))
+    gen = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig(masking_strategy=_MASKING))
     gen.assign(segment)
     construct = Construct([segment])
     constraint = Constraint(inputs=[segment], function=gc_content_constraint, function_config=_GC)
@@ -110,15 +110,16 @@ class TestSeedPropagation:
         seeds = [gen._next_seed() for _ in range(5)]
         assert len(set(seeds)) == 5
 
-    def test_config_seed_fallback(self):
-        """Generator with config seed (no program seed) is deterministic.
+    def test_program_seed_via_set_program_seed(self):
+        """Generator seeded via _set_program_seed (no optimizer seed) is deterministic.
 
         Deterministic here because: single generator (no random selection) and
         trivial constraint (all proposals accepted, no MH randomness needed).
         """
         results = []
         for _ in range(2):
-            opt, seg = _make_mcmc(gen_seed=42)
+            opt, seg = _make_mcmc()
+            opt.generators[0]._set_program_seed(42)
             opt.run()
             results.append([s.sequence for s in seg.result_sequences])
         assert results[0] == results[1]
