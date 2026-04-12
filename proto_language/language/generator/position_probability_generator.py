@@ -1,4 +1,4 @@
-"""Generator for sampling sequences from position-specific probability distributions."""
+"""Generator for sampling sequences from logit distributions."""
 
 from typing import Literal, final
 
@@ -25,8 +25,7 @@ class PositionProbabilityGeneratorConfig(BaseConfig):
         sampling_mode (Literal["argmax", "categorical"]): Whether to decode the
             most likely token at each position or sample stochastically from the
             per-position distribution.
-        temperature (float): Softmax temperature applied when logits are
-            provided to ``sample()``.
+        temperature (float): Softmax temperature applied to logits in ``sample()``.
     """
 
     sampling_mode: Literal["argmax", "categorical"] = ConfigField(
@@ -47,7 +46,7 @@ class PositionProbabilityGeneratorConfig(BaseConfig):
     key="position-probability",
     label="Position Probability Generator",
     config=PositionProbabilityGeneratorConfig,
-    description="Sample sequences from position-specific probability distributions",
+    description="Sample sequences from position-specific logit distributions",
     uses_gpu=False,
     tools_called=[],
     category="mutation",
@@ -55,18 +54,18 @@ class PositionProbabilityGeneratorConfig(BaseConfig):
 )
 @final
 class PositionProbabilityGenerator(Generator):
-    """Convert position-specific distributions into discrete proposal sequences.
+    """Convert position-specific logit distributions into discrete proposal sequences.
 
-    The optimizer owns the continuous state and calls ``sample()`` with either
-    probabilities or logits. Logits are converted into probabilities internally.
-    This generator only handles deterministic argmax decoding or stochastic
+    The optimizer owns the continuous state and calls ``sample()`` with logits.
+    Logits are converted into probabilities via softmax internally. This
+    generator only handles deterministic argmax decoding or stochastic
     categorical sampling.
 
     Note:
-        ``sample()`` requires ``probabilities`` or ``logits`` and is not
-        compatible with optimizers that call ``sample()`` with no arguments
-        (e.g., ``MCMCOptimizer``). Designed for optimizers that own continuous
-        state and pass distributions at each iteration.
+        ``sample()`` requires ``logits`` and is not compatible with optimizers
+        that call ``sample()`` with no arguments (e.g., ``MCMCOptimizer``).
+        Designed for optimizers that own continuous state and pass logit
+        distributions at each iteration.
 
     Attributes:
         config (PositionProbabilityGeneratorConfig): Generator configuration.
@@ -92,43 +91,31 @@ class PositionProbabilityGenerator(Generator):
 
     def sample(
         self,
-        probabilities: np.ndarray | None = None,
         logits: np.ndarray | None = None,
         temperature: float | None = None,
     ) -> None:
-        """Populate proposal_sequences from position-specific distributions.
+        """Populate proposal_sequences from a position-specific logit matrix.
 
-        Exactly one of ``probabilities`` or ``logits`` must be provided. The
-        matrix is expected to have shape ``(sequence_length, vocab_size)`` using
-        the canonical vocab order for the assigned segment's sequence type.
+        The matrix is expected to have shape ``(sequence_length, vocab_size)``
+        using the canonical vocab order for the assigned segment's sequence type.
 
         Args:
-            probabilities (np.ndarray | None): Position-specific probability
-                matrix. Rows are normalized internally.
-            logits (np.ndarray | None): Position-specific logit matrix.
-                Softmax is applied internally with the configured temperature.
+            logits (np.ndarray | None): Position-specific logit matrix. Softmax
+                is applied internally with the configured temperature.
             temperature (float | None): Override for the config temperature.
-                Only valid when logits are provided.
 
         Raises:
-            ValueError: If neither or both inputs are provided, or if the
-                matrix shape or contents are invalid.
+            ValueError: If logits is not provided, or if the matrix shape or
+                contents are invalid, or if temperature is not positive.
             RuntimeError: If called before ``assign()``.
         """
         self._validate_generator()
 
-        if (probabilities is None) == (logits is None):
-            raise ValueError("Provide exactly one of probabilities or logits.")
-        if temperature is not None and logits is None:
-            raise ValueError("temperature is only supported with logits, not probabilities.")
+        if logits is None:
+            raise ValueError("logits is required.")
 
         vocab = self._ordered_vocab()
-        matrix = self._prepare_matrix(
-            probabilities=probabilities,
-            logits=logits,
-            temperature=temperature,
-            vocab_size=len(vocab),
-        )
+        matrix = self._prepare_matrix(logits=logits, temperature=temperature, vocab_size=len(vocab))
 
         if self.sampling_mode == "argmax":
             sequence = self._decode_argmax(matrix, vocab)
@@ -160,48 +147,29 @@ class PositionProbabilityGenerator(Generator):
     def _prepare_matrix(
         self,
         *,
-        probabilities: np.ndarray | None,
-        logits: np.ndarray | None,
+        logits: np.ndarray,
         temperature: float | None,
         vocab_size: int,
     ) -> np.ndarray:
-        """Validate and normalize the position-specific sampling matrix."""
-        if logits is not None:
-            resolved_temperature = self.temperature if temperature is None else temperature
-            if resolved_temperature <= 0:
-                raise ValueError("temperature must be positive.")
-            matrix = np.asarray(logits, dtype=float)
-            self._validate_matrix_shape(matrix, vocab_size)
-            return self._softmax(matrix / resolved_temperature)
-
-        assert probabilities is not None  # noqa: S101 -- probabilities/logits exclusivity checked by caller
-        matrix = np.asarray(probabilities, dtype=float)
+        """Validate logits and convert to a probability matrix via softmax."""
+        resolved_temperature = self.temperature if temperature is None else temperature
+        if resolved_temperature <= 0:
+            raise ValueError("temperature must be positive.")
+        matrix = np.asarray(logits, dtype=float)
         self._validate_matrix_shape(matrix, vocab_size)
-        return self._normalize_probabilities(matrix)
+        return self._softmax(matrix / resolved_temperature)
 
     def _validate_matrix_shape(self, matrix: np.ndarray, vocab_size: int) -> None:
-        """Validate the sampling matrix shape and numeric contents."""
+        """Validate the logit matrix shape and numeric contents."""
         if matrix.ndim != 2:
-            raise ValueError("Sampling state must be a 2D array with shape (sequence_length, vocab_size).")
+            raise ValueError("Logit matrix must be a 2D array with shape (sequence_length, vocab_size).")
         expected_shape = (self.segment.sequence_length, vocab_size)
         if matrix.shape != expected_shape:
             raise ValueError(
-                f"Sampling state shape {matrix.shape} does not match expected shape {expected_shape} for segment '{self.segment.label or 'unlabeled'}'."
+                f"Logit matrix shape {matrix.shape} does not match expected shape {expected_shape} for segment '{self.segment.label or 'unlabeled'}'."
             )
         if not np.isfinite(matrix).all():
-            raise ValueError("Sampling state must contain only finite values.")
-
-    def _normalize_probabilities(self, matrix: np.ndarray) -> np.ndarray:
-        """Normalize non-negative row weights into probabilities."""
-        if (matrix < 0).any():
-            raise ValueError("Probabilities must be non-negative.")
-
-        row_sums = matrix.sum(axis=1, keepdims=True)
-        if (row_sums <= 0).any():
-            raise ValueError("Each position must have a positive probability mass.")
-        result = matrix / row_sums
-        assert isinstance(result, np.ndarray)  # noqa: S101 -- narrows numpy scalar arithmetic for mypy
-        return result
+            raise ValueError("Logit matrix must contain only finite values.")
 
     @staticmethod
     def _softmax(matrix: np.ndarray) -> np.ndarray:

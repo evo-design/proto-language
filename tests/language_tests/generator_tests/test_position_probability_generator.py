@@ -15,31 +15,26 @@ from proto_language.language.generator import (
 
 class TestPositionProbabilityGenerator:
     @pytest.mark.parametrize(
-        ("sequence_type", "sample_kwargs", "expected_sequence"),
+        ("sequence_type", "logits", "expected_sequence"),
         [
-            ("dna", {"logits": np.array([[5.0, 0, 0, 0], [0, 4.0, 0, 0]])}, "AC"),
-            ("rna", {"logits": np.array([[0, 0, 5.0, 0], [0, 0, 0, 4.0]])}, "GU"),
-            (
-                "protein",
-                {"logits": np.pad(np.array([[7.0, 0], [0, 6.0]]), ((0, 0), (0, 18)))},
-                "AC",
-            ),
-            ("dna", {"probabilities": np.array([[8.0, 0, 0, 0], [0, 0, 6.0, 0]])}, "AG"),
+            ("dna", np.array([[5.0, 0, 0, 0], [0, 4.0, 0, 0]]), "AC"),
+            ("rna", np.array([[0, 0, 5.0, 0], [0, 0, 0, 4.0]]), "GU"),
+            ("protein", np.pad(np.array([[7.0, 0], [0, 6.0]]), ((0, 0), (0, 18))), "AC"),
         ],
     )
-    def test_argmax_decoding(self, sequence_type, sample_kwargs, expected_sequence):
-        """Argmax decoding maps columns to canonical vocab and normalizes probabilities."""
+    def test_argmax_decoding(self, sequence_type, logits, expected_sequence):
+        """Argmax decoding maps columns to canonical vocab."""
         segment = Segment(sequence="AA", sequence_type=sequence_type)
         generator = PositionProbabilityGenerator(PositionProbabilityGeneratorConfig())
         generator.assign(segment)
 
-        generator.sample(**sample_kwargs)
+        generator.sample(logits=logits)
 
         assert segment.proposal_sequences[0].sequence == expected_sequence
 
     def test_categorical_sampling(self):
         """Categorical sampling is seeded, fills all proposals, and converges to argmax at low temperature."""
-        probabilities = np.array([[0.1, 0.7, 0.1, 0.1], [0.25, 0.25, 0.25, 0.25], [0.6, 0.2, 0.1, 0.1]])
+        logits = np.array([[0.1, 2.0, 0.1, 0.1], [0.5, 0.5, 0.5, 0.5], [2.0, 0.1, 0.1, 0.1]])
         results = []
         for _ in range(2):
             segment = Segment(sequence="AAA", sequence_type="dna")
@@ -47,7 +42,7 @@ class TestPositionProbabilityGenerator:
             gen = PositionProbabilityGenerator(PositionProbabilityGeneratorConfig(sampling_mode="categorical"))
             gen._set_program_seed(7)
             gen.assign(segment)
-            gen.sample(probabilities=probabilities)
+            gen.sample(logits=logits)
             results.append([p.sequence for p in segment.proposal_sequences])
 
         assert results[0] == results[1]
@@ -94,15 +89,10 @@ class TestPositionProbabilityGenerator:
     @pytest.mark.parametrize(
         ("sample_kwargs", "error_match"),
         [
-            ({}, "exactly one"),
-            ({"probabilities": np.ones((2, 4)), "logits": np.ones((2, 4))}, "exactly one"),
-            ({"probabilities": np.ones((2, 4)), "temperature": 0.5}, "only supported with logits"),
-            ({"probabilities": np.array([[0, 0, 0, 0], [1, 0, 0, 0]])}, "positive probability mass"),
-            ({"probabilities": np.ones((2, 2))}, "expected shape"),
+            ({"logits": np.ones((2, 2))}, "expected shape"),
             ({"logits": np.ones((8,))}, "2D array"),
-            ({"probabilities": np.array([[1.0, np.inf, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0]])}, "finite values"),
-            ({"probabilities": np.array([[1.0, np.nan, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0]])}, "finite values"),
-            ({"probabilities": np.array([[1.0, -1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0]])}, "non-negative"),
+            ({"logits": np.array([[1.0, np.inf, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0]])}, "finite values"),
+            ({"logits": np.array([[1.0, np.nan, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0]])}, "finite values"),
             ({"logits": np.ones((2, 4)), "temperature": 0.0}, "positive"),
             ({"logits": np.ones((2, 4)), "temperature": -1.0}, "positive"),
         ],
@@ -130,14 +120,14 @@ class TestPositionProbabilityGenerator:
 
     def test_program_seed_reproducibility(self):
         """_set_program_seed resets categorical sampling for reproducible re-runs."""
-        probabilities = np.array([[0.25, 0.25, 0.25, 0.25], [0.25, 0.25, 0.25, 0.25], [0.25, 0.25, 0.25, 0.25]])
+        logits = np.zeros((3, 4))  # uniform after softmax
         results = []
         gen = PositionProbabilityGenerator(PositionProbabilityGeneratorConfig(sampling_mode="categorical"))
         segment = Segment(sequence="AAA", sequence_type="dna")
         gen.assign(segment)
         for _ in range(2):
             gen._set_program_seed(42)
-            gen.sample(probabilities=probabilities)
+            gen.sample(logits=logits)
             results.append(segment.proposal_sequences[0].sequence)
         assert results[0] == results[1]
 
