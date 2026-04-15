@@ -334,7 +334,7 @@ class TestFactoryMethod:
             max_gc: float = 60.0
 
         def _backward(logits, temperature, *, config, **kwargs):
-            return GradientResult(gradient=np.zeros_like(logits), loss=0.0)
+            return GradientResult(gradient=(np.zeros_like(logits),), loss=0.0)
 
         @ConstraintRegistry.register(
             key="_test-diff",
@@ -378,7 +378,7 @@ class TestFactoryMethod:
             supported_sequence_types=["dna"],
         )
         def _my_backward(logits: np.ndarray, temperature: float, *, config: _Cfg) -> GradientResult:
-            return GradientResult(gradient=-logits, loss=float(np.mean(logits**2)))
+            return GradientResult(gradient=(-logits,), loss=float(np.mean(logits**2)))
 
         try:
             spec = ConstraintRegistry.get("_test-backward-auto")
@@ -403,7 +403,7 @@ class TestFactoryMethod:
             pass
 
         def _other_backward(logits, temperature, *, config):
-            return GradientResult(gradient=np.zeros_like(logits), loss=0.0)
+            return GradientResult(gradient=(np.zeros_like(logits),), loss=0.0)
 
         with pytest.raises(ValueError, match="decorated function returns GradientResult"):
 
@@ -416,7 +416,7 @@ class TestFactoryMethod:
                 backward=_other_backward,
             )
             def _my_backward(logits: np.ndarray, temperature: float, *, config: _Cfg) -> GradientResult:
-                return GradientResult(gradient=-logits, loss=0.0)
+                return GradientResult(gradient=(-logits,), loss=0.0)
 
         ConstraintRegistry._registry.pop("_test-backward-conflict", None)
 

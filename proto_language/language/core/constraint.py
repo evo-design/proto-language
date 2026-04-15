@@ -78,23 +78,23 @@ class GradientResult:
     """Result of a gradient computation through a differentiable model.
 
     Attributes:
-        gradient (np.ndarray): Gradient of the scalar objective with respect to
-            the relaxed optimization input. For the current sequence-design
-            path this typically matches the input logits shape.
+        gradient (tuple[np.ndarray, ...]): Per-segment gradients of the scalar
+            objective. One array per input segment, each matching that segment's
+            logits shape. Single-segment constraints use a 1-tuple.
         loss (float): Scalar objective value returned by the differentiable
-            backend. This may already be a weighted combination of multiple
-            model-local loss terms.
+            backend. One value per constraint (not per segment).
         metrics (dict[str, Any]): Optional model-specific auxiliary metrics
             (e.g., pLDDT, pTM) reported alongside ``loss``.
     """
 
-    gradient: np.ndarray
+    gradient: tuple[np.ndarray, ...]
     loss: float
     metrics: dict[str, Any] = field(default_factory=dict)
 
     def __repr__(self) -> str:
-        """Return a compact repr that does not dump the full gradient array."""
-        return f"GradientResult(gradient=ndarray{self.gradient.shape}, loss={self.loss}, metrics={self.metrics})"
+        """Return a compact repr that does not dump the full gradient arrays."""
+        shapes = ", ".join(str(g.shape) for g in self.gradient)
+        return f"GradientResult(gradient=({shapes}), loss={self.loss}, metrics={self.metrics})"
 
 
 class Constraint:
@@ -120,7 +120,7 @@ class Constraint:
 
         >>> constraint = Constraint(inputs=[segment], backward=my_backward, backward_config=config)
         >>> results = constraint.compute_gradient(temperature=1.0)
-        >>> results[0].gradient.shape  # (L, vocab_size)
+        >>> results[0].gradient[0].shape  # (L, vocab_size) — one array per segment
 
         Both modes (discrete + gradient):
 
@@ -583,12 +583,15 @@ class Constraint:
                     f"backward callable for constraint '{self.label}' must return GradientResult, "
                     f"got {type(result).__name__}"
                 )
-            assert logits_seq.logits is not None  # noqa: S101 -- guaranteed by next() filter above
-            if result.gradient.shape != logits_seq.logits.shape:
+            if len(result.gradient) != len(inputs):
                 raise ValueError(
-                    f"backward callable for constraint '{self.label}' returned gradient with shape "
-                    f"{result.gradient.shape}, expected {logits_seq.logits.shape}"
+                    f"Constraint '{self.label}': got {len(result.gradient)} gradient(s), expected {len(inputs)}"
                 )
+            for seg_idx, (grad, seq) in enumerate(zip(result.gradient, inputs, strict=True)):
+                if seq.logits is not None and grad.shape != seq.logits.shape:
+                    raise ValueError(
+                        f"Constraint '{self.label}': gradient {seg_idx} shape {grad.shape} != logits shape {seq.logits.shape}"
+                    )
 
             scored_tuple = tuple(
                 Sequence(

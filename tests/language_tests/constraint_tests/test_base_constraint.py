@@ -41,7 +41,7 @@ def _mock_backward(inputs: tuple, temperature: float, *, config: BaseModel) -> G
     """Mock backward that reads logits from the first input Sequence."""
     logits = inputs[0].logits
     return GradientResult(
-        gradient=-logits * temperature, loss=float(np.mean(logits**2)), metrics={"temperature": temperature}
+        gradient=(-logits * temperature,), loss=float(np.mean(logits**2)), metrics={"temperature": temperature}
     )
 
 
@@ -569,23 +569,31 @@ class TestConstraintEdgeCases:
 
 class TestGradientResult:
     def test_construction_and_defaults(self) -> None:
-        result = GradientResult(gradient=np.array([[1.0, 2.0], [3.0, 4.0]]), loss=0.5)
+        result = GradientResult(gradient=(np.array([[1.0, 2.0], [3.0, 4.0]]),), loss=0.5)
         assert result.loss == 0.5
         assert result.metrics == {}
-        assert result.gradient.shape == (2, 2)
+        assert len(result.gradient) == 1
+        assert result.gradient[0].shape == (2, 2)
+
+    def test_multi_segment_gradient(self) -> None:
+        vh_grad = np.zeros((4, 20))
+        vl_grad = np.zeros((3, 20))
+        result = GradientResult(gradient=(vh_grad, vl_grad), loss=0.5)
+        assert len(result.gradient) == 2
+        assert result.gradient[0].shape == (4, 20)
+        assert result.gradient[1].shape == (3, 20)
 
     def test_custom_metrics_and_repr(self) -> None:
         result = GradientResult(
-            gradient=np.zeros((5, 20)),
+            gradient=(np.zeros((5, 20)),),
             loss=0.5,
             metrics={"plddt": 0.85, "ptm": 0.72},
         )
         assert result.metrics["plddt"] == pytest.approx(0.85)
-        assert result.metrics["ptm"] == pytest.approx(0.72)
-        assert repr(result) == "GradientResult(gradient=ndarray(5, 20), loss=0.5, metrics={'plddt': 0.85, 'ptm': 0.72})"
+        assert repr(result) == "GradientResult(gradient=((5, 20)), loss=0.5, metrics={'plddt': 0.85, 'ptm': 0.72})"
 
     def test_frozen(self) -> None:
-        result = GradientResult(gradient=np.zeros((5, 20)), loss=1.0)
+        result = GradientResult(gradient=(np.zeros((5, 20)),), loss=1.0)
         with pytest.raises(AttributeError):
             result.loss = 2.0  # type: ignore[misc]
 
@@ -637,8 +645,8 @@ class TestConstraintGradientSupport:
         results = c.compute_gradient(temperature=1.0)
         assert len(results) == 1
         assert isinstance(results[0], GradientResult)
-        assert results[0].gradient.shape == (8, 4)
-        np.testing.assert_array_almost_equal(results[0].gradient, -logits)
+        assert results[0].gradient[0].shape == (8, 4)
+        np.testing.assert_array_almost_equal(results[0].gradient[0], -logits)
 
     def test_compute_gradient_propagates_metadata(self) -> None:
         segment = _make_segment_with_proposals(["ACTGACTG"])
@@ -665,7 +673,7 @@ class TestConstraintGradientSupport:
 
         def capturing_backward(inputs: tuple, temperature: float, *, config: BaseModel) -> GradientResult:
             received.append(config)
-            return GradientResult(gradient=np.zeros_like(inputs[0].logits), loss=0.0)
+            return GradientResult(gradient=(np.zeros_like(inputs[0].logits),), loss=0.0)
 
         segment = _make_segment_with_proposals(["ACTGACTG"])
         segment.proposal_sequences[0].logits = np.zeros((8, 4))
@@ -697,9 +705,16 @@ class TestConstraintGradientSupport:
                 r"must return GradientResult",
             ),
             (
-                lambda inputs, temperature, *, config: GradientResult(gradient=np.zeros((4, 8)), loss=0.0),
+                lambda inputs, temperature, *, config: GradientResult(gradient=(np.zeros((4, 8)),), loss=0.0),
                 ValueError,
-                r"returned gradient with shape",
+                r"gradient 0 shape",
+            ),
+            (
+                lambda inputs, temperature, *, config: GradientResult(
+                    gradient=(np.zeros((8, 4)), np.zeros((8, 4))), loss=0.0
+                ),
+                ValueError,
+                r"got 2 gradient\(s\), expected 1",
             ),
         ],
     )
@@ -734,7 +749,7 @@ class TestConstraintCallableRequirements:
         results = c.compute_gradient(temperature=1.0)
         assert len(results) == 1
         assert isinstance(results[0], GradientResult)
-        assert results[0].gradient.shape == (8, 4)
+        assert results[0].gradient[0].shape == (8, 4)
 
         with pytest.raises(RuntimeError, match="does not support discrete evaluation"):
             c.evaluate()
