@@ -323,6 +323,43 @@ class TestFactoryMethod:
         )
         assert constraint is not None
 
+    def test_create_returns_differentiable_when_backward_registered(self, dna_segment):
+        """Backward callable in @constraint → create() returns DifferentiableConstraint."""
+        import numpy as np
+
+        from proto_language.language.core.differentiable_constraint import DifferentiableConstraint, GradientResult
+
+        class _Cfg(BaseModel):
+            min_gc: float = 40.0
+            max_gc: float = 60.0
+
+        def _backward(logits, temperature, *, config, **kwargs):
+            return GradientResult(gradient=np.zeros_like(logits), loss=0.0)
+
+        @ConstraintRegistry.register(
+            key="_test-diff",
+            label="Test",
+            config=_Cfg,
+            description="test",
+            supported_sequence_types=["dna"],
+            backward=_backward,
+        )
+        def _score(input_sequences, config):
+            return [0.0] * len(input_sequences)
+
+        try:
+            c = ConstraintRegistry.create(key="_test-diff", segments=[dna_segment], config_dict={})
+            assert isinstance(c, DifferentiableConstraint)
+            assert c.backward is _backward
+
+            # Without backward, create() returns plain Constraint.
+            plain = ConstraintRegistry.create(
+                key="gc-content", segments=[dna_segment], config_dict={"min_gc": 40.0, "max_gc": 60.0}
+            )
+            assert not isinstance(plain, DifferentiableConstraint)
+        finally:
+            ConstraintRegistry._registry.pop("_test-diff", None)
+
 
 # ============================================================================
 # Integration Tests

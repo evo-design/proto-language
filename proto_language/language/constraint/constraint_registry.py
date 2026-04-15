@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from pydantic.json_schema import SkipJsonSchema
 
 from proto_language.base_registry import BaseRegistry, BaseSpec
-from proto_language.language.core import Constraint, Segment
+from proto_language.language.core import Constraint, DifferentiableConstraint, Segment
 
 
 class ConstraintSpec(BaseSpec):
@@ -31,8 +31,9 @@ class ConstraintSpec(BaseSpec):
         description="Number of Sequence objects required in each tuple of input_sequences. If None, any number is allowed.",
     )
 
-    # Private field - excluded from serialization
+    # Private fields - excluded from serialization
     function: SkipJsonSchema[Callable[..., Any]] = Field(exclude=True)
+    backward: SkipJsonSchema[Callable[..., Any] | None] = Field(default=None, exclude=True)
 
 
 class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
@@ -97,25 +98,33 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         category: str | None = None,
         supported_sequence_types: list[str] | None = None,
         num_input_sequences_per_tuple: int | None = None,
+        backward: Callable[..., Any] | None = None,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Decorator to register a constraint function.
 
         All constraint functions must use the standardized signature:
             (input_sequences: List[Tuple[Sequence, ...]], config) -> List[float]
 
+        When ``backward`` is provided, ``ConstraintRegistry.create()`` returns a
+        ``DifferentiableConstraint`` instead of a plain ``Constraint``, enabling
+        gradient-based optimization via the ``GradientOptimizer``.
+
         Args:
-            key (str): Unique identifier (e.g., "gc-content", "protein-length")
-            label (str): Readable external name (e.g., "GC Content Range", "Protein Length")
-            config (type[BaseModel]): Pydantic model class for configuration validation
-            description (str): Readable description
-            uses_gpu (bool): If True, constraint requires GPU for computation (e.g., ESMFold, Boltz).
-            tools_called (list[str] | None): List of tool keys this constraint calls (helps agent find relevant documentation).
-            category (str | None): Optional category for organization (e.g., 'protein_structure', 'sequence_composition').
-            supported_sequence_types (list[str] | None): List of supported sequence types (e.g., ["dna", "protein"]).
-            num_input_sequences_per_tuple (int | None): Number of Sequence objects required in each tuple of input_sequences. If None, any number is allowed.
+            key (str): Unique identifier (e.g., "gc-content", "protein-length").
+            label (str): Readable external name (e.g., "GC Content Range", "Protein Length").
+            config (type[BaseModel]): Pydantic model class for configuration validation.
+            description (str): Readable description.
+            uses_gpu (bool): If True, constraint requires GPU for computation.
+            tools_called (list[str] | None): Tool keys this constraint calls.
+            category (str | None): Optional category for organization.
+            supported_sequence_types (list[str] | None): Supported sequence types (e.g., ``["dna", "protein"]``).
+            num_input_sequences_per_tuple (int | None): Sequence objects required per tuple.
+            backward (Callable[..., Any] | None): Gradient computation callable. When provided,
+                ``create()`` returns a ``DifferentiableConstraint`` with this as the backward
+                function. Signature: ``(logits, temperature, *, config, **kwargs) -> GradientResult``.
 
         Returns:
-            Callable[[Callable[..., Any]], Callable[..., Any]]: Decorator that registers the function and returns it unchanged
+            Callable[[Callable[..., Any]], Callable[..., Any]]: Decorator that registers the function.
 
         Examples:
             >>> @constraint(
@@ -155,6 +164,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
                 config_model=config,
                 description=description,
                 function=func,
+                backward=backward,
                 uses_gpu=uses_gpu,
                 tools_called=tools_called,
                 category=category,
@@ -175,12 +185,12 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         threshold: float | None = None,
         weight: float | None = None,
     ) -> Constraint:
-        """Factory method to create Constraint instance from JSON-compatible config.
+        """Factory method to create a Constraint from JSON-compatible config.
 
-        This is the primary integration point with API/client layers. It:
-        1. Retrieves the registered constraint specification
-        2. Validates config_dict using Pydantic (catches errors early)
-        3. Creates a Constraint instance with validated config
+        This is the primary integration point with API/client layers. When the
+        registered constraint has a ``backward`` callable, returns a
+        ``DifferentiableConstraint`` that the ``GradientOptimizer`` can discover
+        via ``isinstance``. Otherwise returns a plain ``Constraint``.
 
         Args:
             key (str): Registered constraint identifier (e.g., "gc-content")
@@ -222,7 +232,18 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         # Validate config with Pydantic (raises ValidationError if invalid)
         validated_config = spec.config_model(**config_dict)
 
-        # Create Constraint with validated Pydantic model
+        if spec.backward is not None:
+            return DifferentiableConstraint(
+                inputs=segments,
+                function=spec.function,
+                function_config=validated_config,
+                backward=spec.backward,
+                backward_config=validated_config,
+                label=label,
+                threshold=threshold,
+                weight=weight,
+            )
+
         return Constraint(
             inputs=segments,
             function=spec.function,
