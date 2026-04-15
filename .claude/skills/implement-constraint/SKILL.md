@@ -170,6 +170,48 @@ def my_constraint(
 | `category` | `str` | No | Must match the subdirectory name (e.g., `"sequence_composition"`) |
 | `supported_sequence_types` | `list[str]` | Yes | Non-empty list from: `"dna"`, `"rna"`, `"protein"`, `"ligand"` |
 | `num_input_sequences_per_tuple` | `int \| None` | No | `1` for single-segment, `2+` for multi-segment, `None` for any |
+| `backward` | `Callable \| None` | No | Gradient callable: `(logits, temperature, *, config) -> GradientResult` |
+
+## Gradient-Only Constraints
+
+For constraints that only provide gradient computation (no discrete scoring), such as
+AF2 binder hallucination or AbLang naturalness gradients. The `@constraint` decorator
+auto-detects the role from the return type annotation — `-> GradientResult` registers
+the function as the backward callable:
+
+```python
+from proto_language.language.core.constraint import GradientResult
+
+@constraint(
+    key="af2-binder-gradient",
+    label="AF2 Binder Gradient",
+    config=AF2BinderConfig,
+    description="AlphaFold2 binder hallucination gradient",
+    uses_gpu=True,
+    supported_sequence_types=["protein"],
+)
+def af2_binder_backward(
+    logits: np.ndarray, temperature: float, *, config: AF2BinderConfig
+) -> GradientResult:
+    """Compute gradient of binder objective w.r.t. relaxed logits."""
+    gradient, loss, metrics = run_af2_binder_gradient(logits, temperature, config)
+    return GradientResult(gradient=gradient, loss=loss, metrics=metrics)
+```
+
+### Constraint Configurations
+
+| `function` | `backward` | Usage |
+|---|---|---|
+| provided | `None` | **Discrete-only** — decorated function returns `list[float]` |
+| `None` | provided | **Gradient-only** — decorated function returns `GradientResult` |
+| provided | provided | **Both** — decorated scoring function + `backward=fn` kwarg |
+
+### Discovery Properties
+
+```python
+c.supports_gradient  # True if backward callable is set
+c.supports_discrete  # True if scoring function is set
+```
 
 ## Scoring Convention
 

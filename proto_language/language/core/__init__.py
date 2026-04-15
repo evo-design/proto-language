@@ -21,8 +21,7 @@ from proto_language.language.core.sequence import (
     validate_smiles,
 )
 from proto_language.language.core.segment import Segment
-from proto_language.language.core.constraint import Constraint, ConstraintFunction
-from proto_language.language.core.differentiable_constraint import DifferentiableConstraint, GradientResult
+from proto_language.language.core.constraint import Constraint, ConstraintFunction, GradientResult
 from proto_language.language.core.construct import Construct
 from proto_language.language.core.generator import Generator
 from proto_language.language.core.optimizer import Optimizer
@@ -46,7 +45,6 @@ __all__ = [
     "Construct",
     "Constraint",
     "ConstraintFunction",
-    "DifferentiableConstraint",
     "GradientResult",
     "Generator",
     "Optimizer",

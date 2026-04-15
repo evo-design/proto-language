@@ -1,8 +1,9 @@
-"""tests/language_tests/constraint_tests/test_base_constraint.py."""
+"""Tests for Constraint evaluation, validation, and gradient support."""
 
 import copy
 import math
 
+import numpy as np
 import pytest
 from pydantic import BaseModel
 
@@ -14,11 +15,17 @@ from constraint_tests.utils import (
     mock_single_input_scoring_function,
 )
 from proto_language.language.core import Constraint, Segment
+from proto_language.language.core.constraint import GradientResult
 
 
-# Empty config model for mock constraint functions
-class MockConstraintConfig(BaseModel):
-    """Empty config for mock constraints that don't need parameters."""
+class MockConfig(BaseModel):
+    """Empty config for mock constraint functions."""
+
+
+class MockBackwardConfig(BaseModel):
+    """Separate config for mock backward function."""
+
+    loss_type: str = "plddt"
 
 
 def _make_segment_with_proposals(sequences: list[str], seq_type: str = "dna") -> Segment:
@@ -28,6 +35,26 @@ def _make_segment_with_proposals(sequences: list[str], seq_type: str = "dna") ->
     for i, seq_str in enumerate(sequences):
         segment.proposal_sequences[i].sequence = seq_str
     return segment
+
+
+def _mock_backward(logits: np.ndarray, temperature: float, *, config: BaseModel) -> GradientResult:
+    return GradientResult(
+        gradient=-logits * temperature, loss=float(np.mean(logits**2)), metrics={"temperature": temperature}
+    )
+
+
+def _make_gradient_constraint(segment: Segment | None = None, **kwargs: object) -> Constraint:
+    if segment is None:
+        segment = _make_segment_with_proposals(["ACTGACTG"])
+    defaults: dict[str, object] = {
+        "inputs": [segment],
+        "function": mock_single_input_scoring_function,
+        "function_config": MockConfig(),
+        "backward": _mock_backward,
+        "backward_config": MockConfig(),
+    }
+    defaults.update(kwargs)
+    return Constraint(**defaults)
 
 
 # =============================================================================
@@ -48,7 +75,7 @@ class TestConstraintEvaluation:
     def test_constraint_evaluation_contiguous(self, sequences, expected_scores):
         """Tests constraint evaluation with single and batched sequences."""
         segment = _make_segment_with_proposals(sequences, "dna")
-        config = MockConstraintConfig()
+        config = MockConfig()
 
         # Test with mock_single_input_scoring_function
         constraint_seq = Constraint(
@@ -75,7 +102,7 @@ class TestConstraintEvaluation:
         """Tests that metadata is correctly propagated back to sequences."""
         sequences = ["ACTGACTG", "TTTTTTTT"]
         segment = _make_segment_with_proposals(sequences, "dna")
-        config = MockConstraintConfig()
+        config = MockConfig()
 
         constraint = Constraint(
             inputs=[segment],
@@ -99,7 +126,7 @@ class TestConstraintEvaluation:
 
         seg_a = _make_segment_with_proposals(sequences_a, "dna")
         seg_b = _make_segment_with_proposals(sequences_b, "dna")
-        config = MockConstraintConfig()
+        config = MockConfig()
 
         constraint = Constraint(
             inputs=[seg_a, seg_b],
@@ -136,7 +163,7 @@ class TestConstraintValidation:
             Constraint(
                 inputs=[],
                 function=mock_single_input_scoring_function,
-                function_config=MockConstraintConfig(),
+                function_config=MockConfig(),
             )
 
     def test_mixed_batch_sizes_raises_error(self):
@@ -149,7 +176,7 @@ class TestConstraintValidation:
             Constraint(
                 inputs=[seg1, seg2],
                 function=mock_multi_input_scoring_function_disjoint,
-                function_config=MockConstraintConfig(),
+                function_config=MockConfig(),
             )
 
     def test_multi_input_constraint_allows_mixed_sequence_types(self):
@@ -162,7 +189,7 @@ class TestConstraintValidation:
         constraint = Constraint(
             inputs=[seg1, seg2],
             function=mock_multi_input_scoring_function_disjoint,
-            function_config=MockConstraintConfig(),
+            function_config=MockConfig(),
         )
         assert len(constraint.inputs) == 2
 
@@ -175,7 +202,7 @@ class TestConstraintValidation:
             Constraint(
                 inputs=[protein_seg],
                 function=mock_dna_only_scoring_function,
-                function_config=MockConstraintConfig(),
+                function_config=MockConfig(),
             )
 
     def test_supported_sequence_type_passes_validation(self):
@@ -186,7 +213,7 @@ class TestConstraintValidation:
         constraint = Constraint(
             inputs=[dna_seg],
             function=mock_dna_only_scoring_function,
-            function_config=MockConstraintConfig(),
+            function_config=MockConfig(),
         )
         assert constraint is not None
 
@@ -200,7 +227,7 @@ class TestConstraintValidation:
             Constraint(
                 inputs=[dna_seg],
                 function=mock_protein_only_scoring_function,
-                function_config=MockConstraintConfig(),
+                function_config=MockConfig(),
             )
 
 
@@ -219,7 +246,7 @@ class TestConstraintLabel:
         constraint = Constraint(
             inputs=[segment],
             function=mock_single_input_scoring_function,
-            function_config=MockConstraintConfig(),
+            function_config=MockConfig(),
             label="my_custom_label",
         )
         constraint.evaluate()
@@ -248,7 +275,7 @@ class TestConstraintMask:
         constraint = Constraint(
             inputs=[segment],
             function=mock_multi_input_scoring_function,
-            function_config=MockConstraintConfig(),
+            function_config=MockConfig(),
         )
 
         # Only evaluate proposals 0, 2, 4
@@ -276,7 +303,7 @@ class TestConstraintMask:
         constraint = Constraint(
             inputs=[segment],
             function=mock_multi_input_scoring_function,
-            function_config=MockConstraintConfig(),
+            function_config=MockConfig(),
         )
 
         scores = constraint.evaluate(mask=[False, False, False])
@@ -291,7 +318,7 @@ class TestConstraintMask:
         constraint = Constraint(
             inputs=[segment],
             function=mock_multi_input_scoring_function,
-            function_config=MockConstraintConfig(),
+            function_config=MockConfig(),
         )
 
         # Longer than pool
@@ -317,7 +344,7 @@ class TestConstraintThreshold:
         def mock_scoring(input_sequences, config=None):
             return [len(seq_tuple[0].sequence) / 10.0 for seq_tuple in input_sequences]
 
-        mock_scoring._constraint_config_class = MockConstraintConfig
+        mock_scoring._constraint_config_class = MockConfig
         mock_scoring._constraint_supported_sequence_types = ["dna"]
 
         sequences = ["ATCG", "ATCGATCG", "AT"]  # lengths 4, 8, 2 → scores 0.4, 0.8, 0.2
@@ -326,7 +353,7 @@ class TestConstraintThreshold:
         constraint = Constraint(
             inputs=[segment],
             function=mock_scoring,
-            function_config=MockConstraintConfig(),
+            function_config=MockConfig(),
             threshold=0.5,
         )
         results = constraint.evaluate()
@@ -341,7 +368,7 @@ class TestConstraintThreshold:
         def mock_scoring(input_sequences, config=None):
             return [0.4, 0.8]
 
-        mock_scoring._constraint_config_class = MockConstraintConfig
+        mock_scoring._constraint_config_class = MockConfig
         mock_scoring._constraint_supported_sequence_types = ["dna"]
 
         sequences = ["ATCG", "GGGG"]
@@ -350,7 +377,7 @@ class TestConstraintThreshold:
         constraint = Constraint(
             inputs=[segment],
             function=mock_scoring,
-            function_config=MockConstraintConfig(),
+            function_config=MockConfig(),
         )
         results = constraint.evaluate()
 
@@ -373,7 +400,7 @@ class TestConstraintWeight:
         constraint = Constraint(
             inputs=[segment],
             function=mock_single_input_scoring_function,
-            function_config=MockConstraintConfig(),
+            function_config=MockConfig(),
         )
         assert constraint.weight == 1.0
 
@@ -383,7 +410,7 @@ class TestConstraintWeight:
         def mock_scoring(input_sequences, config=None):
             return [0.2, 0.5]
 
-        mock_scoring._constraint_config_class = MockConstraintConfig
+        mock_scoring._constraint_config_class = MockConfig
         mock_scoring._constraint_supported_sequence_types = ["dna"]
 
         sequences = ["AT", "GC"]
@@ -392,7 +419,7 @@ class TestConstraintWeight:
         constraint = Constraint(
             inputs=[segment],
             function=mock_scoring,
-            function_config=MockConstraintConfig(),
+            function_config=MockConfig(),
             weight=2.0,
         )
         results = constraint.evaluate()
@@ -407,7 +434,7 @@ class TestConstraintWeight:
             Constraint(
                 inputs=[segment],
                 function=mock_single_input_scoring_function,
-                function_config=MockConstraintConfig(),
+                function_config=MockConfig(),
                 threshold=0.5,
                 weight=2.0,
             )
@@ -429,7 +456,7 @@ class TestConstraintEdgeCases:
         constraint = Constraint(
             inputs=[segment],
             function=mock_multi_input_scoring_function,
-            function_config=MockConstraintConfig(),
+            function_config=MockConfig(),
         )
         scores = constraint.evaluate()
 
@@ -444,7 +471,7 @@ class TestConstraintEdgeCases:
         constraint = Constraint(
             inputs=[segment],
             function=mock_multi_input_scoring_function,
-            function_config=MockConstraintConfig(),
+            function_config=MockConfig(),
         )
 
         with pytest.raises(ZeroDivisionError):
@@ -468,7 +495,7 @@ class TestConstraintEdgeCases:
         constraint = Constraint(
             inputs=[segment],
             function=collision_scoring_function,
-            function_config=MockConstraintConfig(),
+            function_config=MockConfig(),
         )
 
         with pytest.raises(ValueError, match="reserved key"):
@@ -480,7 +507,7 @@ class TestConstraintEdgeCases:
         def negative_scoring(input_sequences, config=None):
             return [-0.5, 1.5, 0.5]
 
-        negative_scoring._constraint_config_class = MockConstraintConfig
+        negative_scoring._constraint_config_class = MockConfig
         negative_scoring._constraint_supported_sequence_types = ["dna"]
 
         sequences = ["ATCG", "GGGG", "TTTT"]
@@ -489,7 +516,7 @@ class TestConstraintEdgeCases:
         constraint = Constraint(
             inputs=[segment],
             function=negative_scoring,
-            function_config=MockConstraintConfig(),
+            function_config=MockConfig(),
         )
 
         import logging
@@ -499,7 +526,9 @@ class TestConstraintEdgeCases:
 
         # Out-of-range scores pass through (not clamped), warnings logged
         assert scores == [-0.5, 1.5, 0.5]
-        warning_msgs = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+        warning_msgs = [
+            r.message for r in caplog.records if r.levelno == logging.WARNING and "out-of-range" in r.message
+        ]
         assert len(warning_msgs) == 2
         assert "out-of-range score -0.5" in warning_msgs[0]
         assert "out-of-range score 1.5" in warning_msgs[1]
@@ -522,7 +551,7 @@ class TestConstraintEdgeCases:
         constraint = Constraint(
             inputs=[segment],
             function=safe_scoring_function,
-            function_config=MockConstraintConfig(),
+            function_config=MockConfig(),
         )
 
         scores = constraint.evaluate()
@@ -531,3 +560,166 @@ class TestConstraintEdgeCases:
         cdata = segment.proposal_sequences[0]._constraints_metadata["safe_scoring_function"]
         assert cdata["data"]["gc_content"] == 50.0
         assert cdata["data"]["my_custom_metric"] == 42
+
+
+# =============================================================================
+# TESTS FOR GRADIENT RESULT
+# =============================================================================
+
+
+class TestGradientResult:
+    def test_construction_and_defaults(self) -> None:
+        result = GradientResult(gradient=np.array([[1.0, 2.0], [3.0, 4.0]]), loss=0.5)
+        assert result.loss == 0.5
+        assert result.metrics == {}
+        assert result.gradient.shape == (2, 2)
+
+    def test_custom_metrics_and_repr(self) -> None:
+        result = GradientResult(
+            gradient=np.zeros((5, 20)),
+            loss=0.5,
+            metrics={"plddt": 0.85, "ptm": 0.72},
+        )
+        assert result.metrics["plddt"] == pytest.approx(0.85)
+        assert result.metrics["ptm"] == pytest.approx(0.72)
+        assert repr(result) == "GradientResult(gradient=ndarray(5, 20), loss=0.5, metrics={'plddt': 0.85, 'ptm': 0.72})"
+
+    def test_frozen(self) -> None:
+        result = GradientResult(gradient=np.zeros((5, 20)), loss=1.0)
+        with pytest.raises(AttributeError):
+            result.loss = 2.0  # type: ignore[misc]
+
+
+# =============================================================================
+# TESTS FOR GRADIENT SUPPORT
+# =============================================================================
+
+
+class TestConstraintGradientSupport:
+    def test_backward_config(self) -> None:
+        bwd_config = MockBackwardConfig(loss_type="ptm")
+        c = _make_gradient_constraint(backward_config=bwd_config)
+        assert c.backward_config is bwd_config
+        assert c.backward_config.loss_type == "ptm"  # type: ignore[union-attr]
+
+    def test_backward_property(self) -> None:
+        c = _make_gradient_constraint()
+        assert c.backward is _mock_backward
+
+    def test_weight_not_applied_to_gradient(self) -> None:
+        """Weight is NOT applied in compute_gradient — optimizer handles weighting during merging."""
+        c = _make_gradient_constraint(weight=2.0)
+        logits = np.ones((8, 4))
+        result = c.compute_gradient(logits, temperature=1.0)
+        raw = _mock_backward(logits, 1.0, config=MockConfig())
+        np.testing.assert_array_almost_equal(result.gradient, raw.gradient)
+        assert result.loss == pytest.approx(raw.loss)
+
+    def test_gradient_support_discovery(self) -> None:
+        segment = _make_segment_with_proposals(["ACTGACTG"])
+        regular = Constraint(
+            inputs=[segment], function=mock_single_input_scoring_function, function_config=MockConfig()
+        )
+        grad = _make_gradient_constraint(segment=segment)
+
+        assert grad.supports_gradient
+        assert grad.supports_discrete
+        assert not regular.supports_gradient
+        assert regular.supports_discrete
+
+    def test_compute_gradient(self) -> None:
+        c = _make_gradient_constraint()
+        logits = np.random.randn(8, 4)
+        result = c.compute_gradient(logits, temperature=1.0)
+        assert isinstance(result, GradientResult)
+        assert result.gradient.shape == (8, 4)
+        np.testing.assert_array_almost_equal(result.gradient, -logits)
+
+    def test_temperature_affects_gradient(self) -> None:
+        c = _make_gradient_constraint()
+        logits = np.ones((8, 4))
+        hot = c.compute_gradient(logits, temperature=2.0)
+        cold = c.compute_gradient(logits, temperature=0.5)
+        assert np.abs(hot.gradient).mean() > np.abs(cold.gradient).mean()
+
+    def test_backward_config_forwarded(self) -> None:
+        received: list[BaseModel] = []
+
+        def capturing_backward(logits: np.ndarray, temperature: float, *, config: BaseModel) -> GradientResult:
+            received.append(config)
+            return GradientResult(gradient=np.zeros_like(logits), loss=0.0)
+
+        bwd_config = MockBackwardConfig(loss_type="ptm")
+        c = _make_gradient_constraint(backward=capturing_backward, backward_config=bwd_config)
+        c.compute_gradient(np.zeros((8, 4)), temperature=1.0)
+        assert received == [bwd_config]
+
+    @pytest.mark.parametrize(
+        ("logits", "temperature", "match"),
+        [
+            (np.zeros(8), 1.0, r"logits must have shape"),
+            (np.zeros((8, 4)), 0.0, r"temperature must be positive"),
+        ],
+    )
+    def test_compute_gradient_validates_inputs(self, logits: np.ndarray, temperature: float, match: str) -> None:
+        c = _make_gradient_constraint()
+        with pytest.raises(ValueError, match=match):
+            c.compute_gradient(logits, temperature=temperature)
+
+    @pytest.mark.parametrize(
+        ("backward", "expected_exception", "match"),
+        [
+            (
+                lambda logits, temperature, *, config: {"gradient": np.zeros_like(logits), "loss": 0.0},
+                TypeError,
+                r"must return GradientResult",
+            ),
+            (
+                lambda logits, temperature, *, config: GradientResult(gradient=np.zeros((4, 8)), loss=0.0),
+                ValueError,
+                r"returned gradient with shape",
+            ),
+        ],
+    )
+    def test_compute_gradient_validates_backward_result(
+        self,
+        backward: object,
+        expected_exception: type[Exception],
+        match: str,
+    ) -> None:
+        c = _make_gradient_constraint(backward=backward)
+        with pytest.raises(expected_exception, match=match):
+            c.compute_gradient(np.zeros((8, 4)), temperature=1.0)
+
+
+# =============================================================================
+# TESTS FOR BACKWARD-ONLY AND CALLABLE REQUIREMENTS
+# =============================================================================
+
+
+class TestConstraintCallableRequirements:
+    def test_backward_only(self) -> None:
+        """Backward-only constraint: can compute gradients, evaluate raises."""
+        segment = _make_segment_with_proposals(["ACTGACTG"])
+        c = Constraint(inputs=[segment], backward=_mock_backward, backward_config=MockConfig())
+        assert c.supports_gradient
+        assert not c.supports_discrete
+        assert c.label == "_mock_backward"
+
+        result = c.compute_gradient(np.ones((8, 4)), temperature=1.0)
+        assert isinstance(result, GradientResult)
+        assert result.gradient.shape == (8, 4)
+
+        with pytest.raises(RuntimeError, match="does not support discrete evaluation"):
+            c.evaluate()
+
+    def test_function_only_gradient_raises(self) -> None:
+        segment = _make_segment_with_proposals(["ACTGACTG"])
+        c = Constraint(inputs=[segment], function=mock_single_input_scoring_function, function_config=MockConfig())
+        with pytest.raises(RuntimeError, match="does not support gradient computation"):
+            c.compute_gradient(np.zeros((8, 4)), temperature=1.0)
+
+    def test_neither_callable_raises(self) -> None:
+        segment = _make_segment_with_proposals(["ACTGACTG"])
+        with pytest.raises(ValueError, match="At least one of"):
+            Constraint(inputs=[segment])

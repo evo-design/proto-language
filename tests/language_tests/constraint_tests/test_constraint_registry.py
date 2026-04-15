@@ -323,11 +323,11 @@ class TestFactoryMethod:
         )
         assert constraint is not None
 
-    def test_create_returns_differentiable_when_backward_registered(self, dna_segment):
-        """Backward callable in @constraint → create() returns DifferentiableConstraint."""
+    def test_create_returns_gradient_capable_when_backward_registered(self, dna_segment):
+        """Backward callable in @constraint → create() returns Constraint with gradient support."""
         import numpy as np
 
-        from proto_language.language.core.differentiable_constraint import DifferentiableConstraint, GradientResult
+        from proto_language.language.core.constraint import GradientResult
 
         class _Cfg(BaseModel):
             min_gc: float = 40.0
@@ -349,16 +349,76 @@ class TestFactoryMethod:
 
         try:
             c = ConstraintRegistry.create(key="_test-diff", segments=[dna_segment], config_dict={})
-            assert isinstance(c, DifferentiableConstraint)
+            assert isinstance(c, Constraint)
+            assert c.supports_gradient
             assert c.backward is _backward
 
-            # Without backward, create() returns plain Constraint.
+            # Without backward, create() returns Constraint without gradient support.
             plain = ConstraintRegistry.create(
                 key="gc-content", segments=[dna_segment], config_dict={"min_gc": 40.0, "max_gc": 60.0}
             )
-            assert not isinstance(plain, DifferentiableConstraint)
+            assert not plain.supports_gradient
         finally:
             ConstraintRegistry._registry.pop("_test-diff", None)
+
+    def test_backward_only_auto_detected_from_return_type(self, dna_segment):
+        """Decorated function returning GradientResult is auto-detected as backward callable."""
+        import numpy as np
+
+        from proto_language.language.core.constraint import GradientResult
+
+        class _Cfg(BaseModel):
+            pass
+
+        @ConstraintRegistry.register(
+            key="_test-backward-auto",
+            label="Test Backward Auto",
+            config=_Cfg,
+            description="test",
+            supported_sequence_types=["dna"],
+        )
+        def _my_backward(logits: np.ndarray, temperature: float, *, config: _Cfg) -> GradientResult:
+            return GradientResult(gradient=-logits, loss=float(np.mean(logits**2)))
+
+        try:
+            spec = ConstraintRegistry.get("_test-backward-auto")
+            assert spec.function is None
+            assert spec.backward is _my_backward
+
+            c = ConstraintRegistry.create(key="_test-backward-auto", segments=[dna_segment], config_dict={})
+            assert c.supports_gradient
+            assert not c.supports_discrete
+            assert c.backward is _my_backward
+            assert ConstraintRegistry.get_key(c) == "_test-backward-auto"
+        finally:
+            ConstraintRegistry._registry.pop("_test-backward-auto", None)
+
+    def test_backward_return_type_with_explicit_backward_raises(self):
+        """Decorated function returning GradientResult + backward= kwarg raises ValueError."""
+        import numpy as np
+
+        from proto_language.language.core.constraint import GradientResult
+
+        class _Cfg(BaseModel):
+            pass
+
+        def _other_backward(logits, temperature, *, config):
+            return GradientResult(gradient=np.zeros_like(logits), loss=0.0)
+
+        with pytest.raises(ValueError, match="decorated function returns GradientResult"):
+
+            @ConstraintRegistry.register(
+                key="_test-backward-conflict",
+                label="Test",
+                config=_Cfg,
+                description="test",
+                supported_sequence_types=["dna"],
+                backward=_other_backward,
+            )
+            def _my_backward(logits: np.ndarray, temperature: float, *, config: _Cfg) -> GradientResult:
+                return GradientResult(gradient=-logits, loss=0.0)
+
+        ConstraintRegistry._registry.pop("_test-backward-conflict", None)
 
 
 # ============================================================================
