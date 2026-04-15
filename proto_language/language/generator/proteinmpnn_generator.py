@@ -1,11 +1,11 @@
 """ProteinMPNN Generator for structure-conditioned protein sequence design."""
 
-from typing import Any, final
+from typing import Any, Literal, final
 
 from proto_tools import (
-    InverseFoldingConfig,
     InverseFoldingInput,
     InverseFoldingStructureInput,
+    ProteinMPNNSampleConfig,
     Structure,
     run_proteinmpnn_sample,
 )
@@ -28,6 +28,11 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
     existing proteins while maintaining structural compatibility.
 
     Attributes:
+        model_choice (Literal["proteinmpnn", "abmpnn"]): Model weights to use.
+            ``"proteinmpnn"`` for the general-purpose ProteinMPNN model,
+            ``"abmpnn"`` for antibody-optimized weights (same architecture,
+            trained on antibody structures). Use ``"abmpnn"`` for antibody
+            design workflows such as the Germinal pipeline.
         structure_inputs (list[InverseFoldingStructureInput] | None): Structure(s) with per-structure
             design constraints. Each ``InverseFoldingStructureInput`` bundles a structure with optional
             ``chain_ids`` and ``fixed_positions`` specific to that structure.
@@ -123,6 +128,12 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
         ...     temperature=0.1,
         ... )
     """
+
+    model_choice: Literal["proteinmpnn", "abmpnn"] = ConfigField(
+        default="proteinmpnn",
+        title="Model Choice",
+        description="Model weights: 'proteinmpnn' (general) or 'abmpnn' (antibody-optimized).",
+    )
 
     # Structure parameters - bundles structure, chain_ids, and fixed_positions per structure.
     structure_inputs: list[InverseFoldingStructureInput] | None = ConfigField(
@@ -242,6 +253,7 @@ class ProteinMPNNGenerator(Generator):
         super().__init__()
         self.config = config
 
+        self.model_choice = config.model_choice
         self.structure_inputs = config.structure_inputs
         self.temperature = config.temperature
         self.excluded_amino_acids = config.excluded_amino_acids
@@ -295,12 +307,13 @@ class ProteinMPNNGenerator(Generator):
             num_seqs = 1
             bs = 1
 
-        tool_config = InverseFoldingConfig(
+        tool_config = ProteinMPNNSampleConfig(
             num_sequences_per_structure=num_seqs,
             batch_size=bs,
             temperature=self.temperature,
             excluded_amino_acids=self.excluded_amino_acids,
             seed=self._next_seed(),
+            model_choice=self.model_choice,
             device=self.device,
             verbose=self.verbose,
         )
