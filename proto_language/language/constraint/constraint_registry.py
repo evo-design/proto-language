@@ -5,9 +5,9 @@ a factory method for creating Constraint instances.
 
 import typing
 from collections.abc import Callable
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 from pydantic.json_schema import SkipJsonSchema
 
 from proto_language.base_registry import BaseRegistry, BaseSpec
@@ -35,6 +35,25 @@ class ConstraintSpec(BaseSpec):
         description="Labels for each input segment slot (e.g., ['Heavy Chain', 'Light Chain']). "
         "Set to None for constraints that accept any number of interchangeable inputs (e.g., multi-chain complexes).",
     )
+
+    # Constraint mode — set during registration, exposed in API
+    mode: Literal["discrete", "gradient"] = Field(
+        default="discrete",
+        description="Whether this constraint uses discrete scoring ('discrete') or gradient computation ('gradient').",
+    )
+
+    # Separate config model for backward callable (None = uses config_model)
+    backward_config_model: SkipJsonSchema[type[BaseModel] | None] = Field(
+        default=None,
+        description="Pydantic model for backward/gradient configuration. If None, uses config_model.",
+    )
+
+    @field_serializer("backward_config_model")
+    def serialize_backward_config_model(self, v: type[BaseModel] | None) -> dict[str, Any] | None:
+        """Serialize backward_config_model as standard JSON Schema, or None if absent."""
+        if v is None:
+            return None
+        return self.serialize_config_model(v)
 
     # Private fields - excluded from serialization
     function: SkipJsonSchema[Callable[..., Any] | None] = Field(default=None, exclude=True)
@@ -104,6 +123,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         supported_sequence_types: list[str] | None = None,
         input_labels: list[str] | None = _SINGLE_SEGMENT,
         backward: Callable[..., Any] | None = None,
+        backward_config: type[BaseModel] | None = None,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Decorator to register a constraint function or backward callable.
 
@@ -125,6 +145,10 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
                 accept any number of interchangeable inputs (e.g., multi-chain complexes).
             backward (Callable[..., Any] | None): Explicit backward callable to pair with
                 a scoring function. Cannot be used when the decorated function itself
+                returns ``GradientResult``.
+            backward_config (type[BaseModel] | None): Pydantic model class for backward
+                configuration. If None, the backward callable uses ``config`` instead.
+                Only meaningful when ``backward`` is provided or the decorated function
                 returns ``GradientResult``.
 
         Returns:
@@ -154,6 +178,11 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
 
             >>> @constraint(key="ablang", backward=ablang_backward, ...)
             ... def ablang_score(input_sequences, config) -> list[float]: ...
+
+            Scoring + backward with separate config models:
+
+            >>> @constraint(key="ablang", backward=ablang_backward, backward_config=AbLangGradientConfig, ...)
+            ... def ablang_score(input_sequences, config) -> list[float]: ...
         """
         if supported_sequence_types is None:
             supported_sequence_types = []
@@ -174,12 +203,16 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
                 raise ValueError(
                     f"Constraint '{key}': decorated function returns GradientResult but backward= was also provided"
                 )
+            if backward_config is not None and not (is_backward_fn or backward is not None):
+                raise ValueError(f"Constraint '{key}': backward_config= requires backward= or -> GradientResult")
 
             # Store metadata as function attributes for Constraint class to use
             func._constraint_config_class = config  # type: ignore[attr-defined]
             func._constraint_supported_sequence_types = supported_sequence_types  # type: ignore[attr-defined]
             # Derive count from labels: len(labels) for fixed, None for variable
             func._constraint_num_input_sequences_per_tuple = len(input_labels) if input_labels is not None else None  # type: ignore[attr-defined]
+
+            is_gradient = is_backward_fn or backward is not None
 
             cls._registry[key] = ConstraintSpec(
                 key=key,
@@ -193,6 +226,8 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
                 category=category,
                 supported_sequence_types=supported_sequence_types,
                 input_labels=input_labels,
+                mode="gradient" if is_gradient else "discrete",
+                backward_config_model=backward_config,
             )
             return func
 
@@ -204,6 +239,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         key: str,
         segments: list[Segment],
         config_dict: dict[str, Any],
+        backward_config_dict: dict[str, Any] | None = None,
         label: str | None = None,
         threshold: float | None = None,
         weight: float | None = None,
@@ -218,7 +254,13 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         Args:
             key (str): Registered constraint identifier (e.g., "gc-content")
             segments (list[Segment]): List of Segment objects to evaluate
-            config_dict (dict[str, Any]): Configuration as plain dict (from JSON/client)
+            config_dict (dict[str, Any]): Configuration as plain dict (from JSON/client).
+                Used for the scoring function config; also used for backward config
+                when ``backward_config_dict`` is not provided.
+            backward_config_dict (dict[str, Any] | None): Configuration for the backward
+                callable as plain dict. If None, falls back to ``config_dict``. Validated
+                against ``backward_config_model`` if one was registered, otherwise against
+                ``config_model``.
             label (str | None): Optional label for metadata tracking
             threshold (float | None): Optional threshold for filtering. If provided,
                 constraint acts as a filter: scores <= threshold are accepted (True),
@@ -258,12 +300,21 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         # Validate config with Pydantic (raises ValidationError if invalid)
         validated_config = spec.config_model(**config_dict)
 
+        # Validate backward config: use backward_config_model if registered,
+        # otherwise fall back to config_model; use backward_config_dict if
+        # provided, otherwise fall back to config_dict
+        validated_backward_config = None
+        if spec.backward is not None:
+            bw_model = spec.backward_config_model or spec.config_model
+            bw_dict = backward_config_dict if backward_config_dict is not None else config_dict
+            validated_backward_config = bw_model(**bw_dict)
+
         return Constraint(
             inputs=segments,
             function=spec.function,
             function_config=validated_config,
             backward=spec.backward,
-            backward_config=validated_config if spec.backward is not None else None,
+            backward_config=validated_backward_config,
             label=label,
             threshold=threshold,
             weight=weight,

@@ -422,6 +422,219 @@ class TestFactoryMethod:
 
 
 # ============================================================================
+# Unit Tests: Mode & Backward Config
+# ============================================================================
+
+
+class TestModeAndBackwardConfig:
+    """Test mode field and backward_config_model on ConstraintSpec."""
+
+    def test_discrete_mode_and_serialization(self):
+        """Scoring function → mode='discrete', backward_config_model absent in serialization."""
+
+        class _Cfg(BaseModel):
+            x: float = 1.0
+
+        @constraint(key="_test-m1", label="T", config=_Cfg, description="t", supported_sequence_types=["dna"])
+        def _score(input_sequences, config):
+            return [0.0] * len(input_sequences)
+
+        try:
+            data = ConstraintRegistry.get("_test-m1").model_dump()
+            assert data["mode"] == "discrete"
+            assert data["backward_config_model"] is None
+        finally:
+            ConstraintRegistry._registry.pop("_test-m1", None)
+
+    def test_gradient_mode_auto_detected_and_explicit(self):
+        """Both -> GradientResult return type and backward= kwarg produce mode='gradient'."""
+        import numpy as np
+
+        from proto_language.language.core.constraint import GradientResult
+
+        class _Cfg(BaseModel):
+            pass
+
+        @constraint(key="_test-m2a", label="T", config=_Cfg, description="t", supported_sequence_types=["dna"])
+        def _bw(logits: np.ndarray, temperature: float, *, config: _Cfg) -> GradientResult:
+            return GradientResult(gradient=(-logits,), loss=0.0)
+
+        def _bw_fn(logits, temperature, *, config, **kw):
+            return GradientResult(gradient=(np.zeros_like(logits),), loss=0.0)
+
+        @constraint(
+            key="_test-m2b",
+            label="T",
+            config=_Cfg,
+            description="t",
+            supported_sequence_types=["dna"],
+            backward=_bw_fn,
+        )
+        def _score(input_sequences, config):
+            return [0.0] * len(input_sequences)
+
+        try:
+            assert ConstraintRegistry.get("_test-m2a").mode == "gradient"
+            assert ConstraintRegistry.get("_test-m2b").mode == "gradient"
+        finally:
+            ConstraintRegistry._registry.pop("_test-m2a", None)
+            ConstraintRegistry._registry.pop("_test-m2b", None)
+
+    def test_backward_config_model_serialized_as_separate_schema(self):
+        """backward_config_model serializes as its own JSON Schema, distinct from config_model."""
+        import numpy as np
+
+        from proto_language.language.core.constraint import GradientResult
+
+        class _ScoreCfg(BaseModel):
+            threshold: float = 0.5
+
+        class _GradCfg(BaseModel):
+            temperature: float = 0.6
+
+        def _bw(logits, temperature, *, config, **kw):
+            return GradientResult(gradient=(np.zeros_like(logits),), loss=0.0)
+
+        @constraint(
+            key="_test-m3",
+            label="T",
+            config=_ScoreCfg,
+            description="t",
+            supported_sequence_types=["dna"],
+            backward=_bw,
+            backward_config=_GradCfg,
+        )
+        def _score(input_sequences, config):
+            return [0.0] * len(input_sequences)
+
+        try:
+            data = ConstraintRegistry.get("_test-m3").model_dump()
+            assert "threshold" in data["config_model"]["properties"]
+            assert "temperature" in data["backward_config_model"]["properties"]
+        finally:
+            ConstraintRegistry._registry.pop("_test-m3", None)
+
+    def test_create_separate_backward_config(self, dna_segment):
+        """create() validates backward_config_dict against backward_config_model; rejects invalid input."""
+        import numpy as np
+
+        from proto_language.language.core.constraint import GradientResult
+
+        class _ScoreCfg(BaseModel):
+            threshold: float = 0.5
+
+        class _GradCfg(BaseModel):
+            lr: float = 0.01
+
+        def _bw(logits, temperature, *, config, **kw):
+            return GradientResult(gradient=(np.zeros_like(logits),), loss=0.0)
+
+        @constraint(
+            key="_test-m4",
+            label="T",
+            config=_ScoreCfg,
+            description="t",
+            supported_sequence_types=["dna"],
+            backward=_bw,
+            backward_config=_GradCfg,
+        )
+        def _score(input_sequences, config):
+            return [0.0] * len(input_sequences)
+
+        try:
+            c = ConstraintRegistry.create(
+                key="_test-m4",
+                segments=[dna_segment],
+                config_dict={"threshold": 0.8},
+                backward_config_dict={"lr": 0.05},
+            )
+            assert isinstance(c.function_config, _ScoreCfg) and c.function_config.threshold == 0.8
+            assert isinstance(c.backward_config, _GradCfg) and c.backward_config.lr == 0.05
+
+            # Empty dict uses backward model defaults, not scoring config fallback
+            c2 = ConstraintRegistry.create(
+                key="_test-m4", segments=[dna_segment], config_dict={}, backward_config_dict={}
+            )
+            assert isinstance(c2.backward_config, _GradCfg) and c2.backward_config.lr == 0.01
+
+            with pytest.raises(ValidationError):
+                ConstraintRegistry.create(
+                    key="_test-m4",
+                    segments=[dna_segment],
+                    config_dict={},
+                    backward_config_dict={"lr": "bad"},
+                )
+        finally:
+            ConstraintRegistry._registry.pop("_test-m4", None)
+
+    def test_create_backward_config_falls_back_to_config_dict(self, dna_segment):
+        """Without backward_config_dict, backward config uses config_dict + config_model."""
+        import numpy as np
+
+        from proto_language.language.core.constraint import GradientResult
+
+        class _Cfg(BaseModel):
+            x: float = 1.0
+
+        def _bw(logits, temperature, *, config, **kw):
+            return GradientResult(gradient=(np.zeros_like(logits),), loss=0.0)
+
+        @constraint(
+            key="_test-m5",
+            label="T",
+            config=_Cfg,
+            description="t",
+            supported_sequence_types=["dna"],
+            backward=_bw,
+        )
+        def _score(input_sequences, config):
+            return [0.0] * len(input_sequences)
+
+        try:
+            c = ConstraintRegistry.create(key="_test-m5", segments=[dna_segment], config_dict={"x": 2.0})
+            assert c.function_config.x == 2.0
+            assert c.backward_config.x == 2.0
+        finally:
+            ConstraintRegistry._registry.pop("_test-m5", None)
+
+    def test_all_builtin_constraints_have_valid_mode(self):
+        """All registered constraints have a valid mode."""
+        for spec in ConstraintRegistry.list_all():
+            assert spec.mode in ("discrete", "gradient"), f"{spec.key}: invalid mode {spec.mode}"
+
+    def test_ablang_gradient_constraints(self):
+        """Real gradient constraints have mode='gradient' with no scoring function."""
+        for key in ["ablang-vhh-gradient", "ablang-scfv-gradient"]:
+            spec = ConstraintRegistry.get(key)
+            assert spec.mode == "gradient"
+            assert spec.function is None and spec.backward is not None
+
+    def test_backward_config_without_backward_raises(self):
+        """backward_config= on a discrete-only constraint raises ValueError."""
+
+        class _Cfg(BaseModel):
+            pass
+
+        class _GradCfg(BaseModel):
+            lr: float = 0.01
+
+        with pytest.raises(ValueError, match="backward_config= requires backward= or -> GradientResult"):
+
+            @constraint(
+                key="_test-m6",
+                label="T",
+                config=_Cfg,
+                description="t",
+                supported_sequence_types=["dna"],
+                backward_config=_GradCfg,
+            )
+            def _score(input_sequences, config):
+                return [0.0] * len(input_sequences)
+
+        ConstraintRegistry._registry.pop("_test-m6", None)
+
+
+# ============================================================================
 # Integration Tests
 # ============================================================================
 

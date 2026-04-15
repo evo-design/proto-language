@@ -162,7 +162,7 @@ def my_constraint(
 |----------|------|----------|-------------|
 | `key` | `str` | Yes | Unique kebab-case identifier (e.g., `"gc-content"`) |
 | `label` | `str` | Yes | Human-readable name for UI |
-| `config` | `Type[BaseModel]` | Yes | Pydantic config class |
+| `config` | `type[BaseModel]` | Yes | Pydantic config class |
 | `description` | `str` | Yes | What this constraint evaluates |
 | `uses_gpu` | `bool` | No | Default `False`. Set `True` if calling GPU tools |
 | `tools_called` | `list[str]` | No | Default `[]`. Tool names this constraint invokes |
@@ -170,6 +170,7 @@ def my_constraint(
 | `supported_sequence_types` | `list[str]` | Yes | Non-empty list from: `"dna"`, `"rna"`, `"protein"`, `"ligand"` |
 | `input_labels` | `list[str] \| None` | No | Default `["Sequence"]`. Named input slots (e.g., `["Query", "Reference"]`). Use `None` for any number of interchangeable inputs |
 | `backward` | `Callable \| None` | No | Gradient callable: `(logits, temperature, *, config) -> GradientResult` |
+| `backward_config` | `Type[BaseModel] \| None` | No | Separate config class for backward callable. If `None`, uses `config` |
 
 ## Gradient-Only Constraints
 
@@ -197,17 +198,18 @@ def af2_binder_backward(
     return GradientResult(gradient=gradient, loss=loss, metrics=metrics)
 ```
 
-### Constraint Configurations
+### Constraint Modes
 
-| `function` | `backward` | Usage |
-|---|---|---|
-| provided | `None` | **Discrete-only** — decorated function returns `list[float]` |
-| `None` | provided | **Gradient-only** — decorated function returns `GradientResult` |
-| provided | provided | **Both** — decorated scoring function + `backward=fn` kwarg |
+| Mode | `function` | `backward` | Usage |
+|---|---|---|---|
+| `"discrete"` | provided | `None` | Decorated function returns `list[float]` |
+| `"gradient"` | `None` | provided | Decorated function returns `GradientResult` |
+| `"gradient"` | provided | provided | Decorated scoring function + `backward=fn` kwarg |
 
-### Discovery Properties
+### Discovery
 
 ```python
+spec.mode           # "discrete" or "gradient"
 c.supports_gradient  # True if backward callable is set
 c.supports_discrete  # True if scoring function is set
 ```
