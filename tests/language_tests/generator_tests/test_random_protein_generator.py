@@ -35,6 +35,7 @@ class TestRandomProteinGenerator:
             masking_strategy=MaskingStrategy(num_mutations=1),
         )
         gen = RandomProteinGenerator(config)
+        gen._set_program_seed(42)
         segment = Segment(sequence="A" * seq_len, sequence_type="protein")
         gen.assign(segment)
 

@@ -60,6 +60,7 @@ class TestRandomNucleotideGenerator:
             masking_strategy=MaskingStrategy(num_mutations=1),
         )
         gen = RandomNucleotideGenerator(config)
+        gen._set_program_seed(42)
         segment = Segment(sequence="A" * seq_len, sequence_type="dna")
         gen.assign(segment)
 

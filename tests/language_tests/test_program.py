@@ -21,6 +21,7 @@ def _create_simple_program(
     num_stages: int = 1,
     sequence: str = "ATGCATGCATGCATGCATGC",
     compute=_UNSET,
+    seed: int | None = None,
 ):
     """Create a simple program for testing.
 
@@ -30,6 +31,7 @@ def _create_simple_program(
         compute: Compute parameter for Program. Defaults to nullcontext()
             to skip auto-detection.
             Pass compute=None to test auto-detection behavior.
+        seed: Optional random seed for deterministic results.
     """
     if compute is _UNSET:
         compute = nullcontext()
@@ -58,7 +60,7 @@ def _create_simple_program(
         )
         optimizers.append(optimizer)
 
-    return Program(optimizers=optimizers, num_results=2, compute=compute)
+    return Program(optimizers=optimizers, num_results=2, compute=compute, seed=seed)
 
 
 class TestProgramRestart:
@@ -67,7 +69,7 @@ class TestProgramRestart:
     def test_run_twice_restarts_from_initial_state(self):
         """Test that calling run() twice restarts from initial state."""
         original_seq = "ATGCATGCATGCATGCATGC"
-        program = _create_simple_program(num_stages=1, sequence=original_seq)
+        program = _create_simple_program(num_stages=1, sequence=original_seq, seed=42)
 
         # First run
         program.run()
