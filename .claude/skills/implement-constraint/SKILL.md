@@ -169,7 +169,7 @@ def my_constraint(
 | `category` | `str` | No | Must match the subdirectory name (e.g., `"sequence_composition"`) |
 | `supported_sequence_types` | `list[str]` | Yes | Non-empty list from: `"dna"`, `"rna"`, `"protein"`, `"ligand"` |
 | `input_labels` | `list[str] \| None` | No | Default `["Sequence"]`. Named input slots (e.g., `["Query", "Reference"]`). Use `None` for any number of interchangeable inputs |
-| `backward` | `Callable \| None` | No | Gradient callable: `(logits, temperature, *, config) -> GradientResult` |
+| `backward` | `Callable \| None` | No | Gradient callable: `(inputs, *, config, **kwargs) -> GradientResult` |
 | `backward_config` | `Type[BaseModel] \| None` | No | Separate config class for backward callable. If `None`, uses `config` |
 
 ## Gradient-Only Constraints
@@ -191,11 +191,11 @@ from proto_language.language.core.constraint import GradientResult
     supported_sequence_types=["protein"],
 )
 def af2_binder_backward(
-    logits: np.ndarray, temperature: float, *, config: AF2BinderConfig
+    inputs: tuple[Sequence, ...], *, config: AF2BinderConfig, temperature: float, **kwargs: Any
 ) -> GradientResult:
     """Compute gradient of binder objective w.r.t. relaxed logits."""
-    gradient, loss, metrics = run_af2_binder_gradient(logits, temperature, config)
-    return GradientResult(gradient=gradient, loss=loss, metrics=metrics)
+    gradient, loss, metrics = run_af2_binder_gradient(inputs[0].logits, temperature, config)
+    return GradientResult(gradient=(gradient,), loss=loss, metrics=metrics)
 ```
 
 ### Constraint Modes

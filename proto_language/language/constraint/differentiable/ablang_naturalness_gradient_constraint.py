@@ -6,6 +6,8 @@ Two registered constraints sharing the same underlying tool:
 - ``ablang-scfv-gradient``: scFv with separate VH + VL chains, 2 labeled segments
 """
 
+from typing import Any
+
 import numpy as np
 from proto_tools.entities.antibody import AntibodyLogits
 from proto_tools.tools.masked_models.ablang import (
@@ -56,9 +58,9 @@ class AbLangGradientConstraintConfig(BaseConfig):
 )
 def ablang_vhh_gradient_backward(
     inputs: tuple[Sequence, ...],
-    temperature: float,  # noqa: ARG001 — uses config.temperature instead (fixed, not per-step)
     *,
     config: AbLangGradientConstraintConfig,
+    **kwargs: Any,  # noqa: ARG001
 ) -> GradientResult:
     """Compute AbLang naturalness gradient for a single-domain antibody (VHH/nanobody)."""
     logits = inputs[0].logits
@@ -85,9 +87,9 @@ def ablang_vhh_gradient_backward(
 )
 def ablang_scfv_gradient_backward(
     inputs: tuple[Sequence, ...],
-    temperature: float,  # noqa: ARG001 — uses config.temperature instead (fixed, not per-step)
     *,
     config: AbLangGradientConstraintConfig,
+    **kwargs: Any,  # noqa: ARG001
 ) -> GradientResult:
     """Compute AbLang naturalness gradient for scFv (paired VH + VL chains)."""
     vh, vl = inputs[0].logits, inputs[1].logits

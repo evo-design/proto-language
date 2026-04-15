@@ -1,6 +1,6 @@
 """AlphaFold2 binder-design gradient constraint."""
 
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 from proto_tools.tools.structure_prediction.alphafold2 import (
@@ -164,10 +164,11 @@ class AF2BinderGradientConfig(BaseConfig):
 )
 def af2_binder_backward(
     inputs: tuple[Sequence, ...],
-    temperature: float,
     *,
     config: AF2BinderGradientConfig,
+    temperature: float,
     soft: float | None = None,
+    **kwargs: Any,  # noqa: ARG001
 ) -> GradientResult:
     """Compute AlphaFold2 binder-design gradient through ColabDesign."""
     binder_seq, target_seq = inputs[0], inputs[1]

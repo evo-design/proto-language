@@ -172,7 +172,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             Gradient constraint (auto-detected from return type):
 
             >>> @constraint(key="af2-binder-gradient", ...)
-            ... def af2_backward(inputs, temperature, *, config) -> GradientResult: ...
+            ... def af2_backward(inputs, *, config, temperature, **kwargs) -> GradientResult: ...
 
             Scoring function with explicit backward callable:
 

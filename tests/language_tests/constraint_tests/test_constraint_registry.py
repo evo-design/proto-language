@@ -1,6 +1,7 @@
 """Tests for constraint registry registration, discovery, schema generation, and factory methods."""
 
 import copy
+from typing import Any
 
 import pytest
 from pydantic import BaseModel, Field, ValidationError
@@ -333,7 +334,7 @@ class TestFactoryMethod:
             min_gc: float = 40.0
             max_gc: float = 60.0
 
-        def _backward(logits, temperature, *, config, **kwargs):
+        def _backward(logits, *, config, **kwargs):
             return GradientResult(gradient=(np.zeros_like(logits),), loss=0.0)
 
         @ConstraintRegistry.register(
@@ -377,7 +378,7 @@ class TestFactoryMethod:
             description="test",
             supported_sequence_types=["dna"],
         )
-        def _my_backward(logits: np.ndarray, temperature: float, *, config: _Cfg) -> GradientResult:
+        def _my_backward(logits: np.ndarray, *, config: _Cfg, **kwargs: Any) -> GradientResult:
             return GradientResult(gradient=(-logits,), loss=float(np.mean(logits**2)))
 
         try:
@@ -402,7 +403,7 @@ class TestFactoryMethod:
         class _Cfg(BaseModel):
             pass
 
-        def _other_backward(logits, temperature, *, config):
+        def _other_backward(logits, *, config, **kwargs):
             return GradientResult(gradient=(np.zeros_like(logits),), loss=0.0)
 
         with pytest.raises(ValueError, match="decorated function returns GradientResult"):
@@ -415,7 +416,7 @@ class TestFactoryMethod:
                 supported_sequence_types=["dna"],
                 backward=_other_backward,
             )
-            def _my_backward(logits: np.ndarray, temperature: float, *, config: _Cfg) -> GradientResult:
+            def _my_backward(logits: np.ndarray, *, config: _Cfg, **kwargs: Any) -> GradientResult:
                 return GradientResult(gradient=(-logits,), loss=0.0)
 
         ConstraintRegistry._registry.pop("_test-backward-conflict", None)
@@ -456,10 +457,10 @@ class TestModeAndBackwardConfig:
             pass
 
         @constraint(key="_test-m2a", label="T", config=_Cfg, description="t", supported_sequence_types=["dna"])
-        def _bw(logits: np.ndarray, temperature: float, *, config: _Cfg) -> GradientResult:
+        def _bw(logits: np.ndarray, *, config: _Cfg, **kwargs: Any) -> GradientResult:
             return GradientResult(gradient=(-logits,), loss=0.0)
 
-        def _bw_fn(logits, temperature, *, config, **kw):
+        def _bw_fn(logits, *, config, **kwargs):
             return GradientResult(gradient=(np.zeros_like(logits),), loss=0.0)
 
         @constraint(
@@ -492,7 +493,7 @@ class TestModeAndBackwardConfig:
         class _GradCfg(BaseModel):
             temperature: float = 0.6
 
-        def _bw(logits, temperature, *, config, **kw):
+        def _bw(logits, *, config, **kwargs):
             return GradientResult(gradient=(np.zeros_like(logits),), loss=0.0)
 
         @constraint(
@@ -526,7 +527,7 @@ class TestModeAndBackwardConfig:
         class _GradCfg(BaseModel):
             lr: float = 0.01
 
-        def _bw(logits, temperature, *, config, **kw):
+        def _bw(logits, *, config, **kwargs):
             return GradientResult(gradient=(np.zeros_like(logits),), loss=0.0)
 
         @constraint(
@@ -576,7 +577,7 @@ class TestModeAndBackwardConfig:
         class _Cfg(BaseModel):
             x: float = 1.0
 
-        def _bw(logits, temperature, *, config, **kw):
+        def _bw(logits, *, config, **kwargs):
             return GradientResult(gradient=(np.zeros_like(logits),), loss=0.0)
 
         @constraint(

@@ -29,7 +29,7 @@ class TestVHH:
         mock_run.return_value = SimpleNamespace(gradient=[[0.1] * 20] * 5, loss=0.5, metrics={})
         seq = _seq_with_logits(np.ones((5, 20)) / 20.0)
 
-        result = ablang_vhh_gradient_backward((seq,), temperature=1.0, config=AbLangGradientConstraintConfig())
+        result = ablang_vhh_gradient_backward((seq,), config=AbLangGradientConstraintConfig())
 
         assert len(result.gradient) == 1
         assert result.gradient[0].shape == (5, 20)
@@ -43,7 +43,7 @@ class TestVHH:
         seq = _seq_with_logits(np.zeros((5, 20)))
         cfg = AbLangGradientConstraintConfig(temperature=0.8, use_ste=False)
 
-        ablang_vhh_gradient_backward((seq,), temperature=999.0, config=cfg)
+        ablang_vhh_gradient_backward((seq,), config=cfg)
 
         assert mock_run.call_args[0][0].temperature == 0.8
         assert mock_run.call_args[0][1].use_ste is False
@@ -61,7 +61,7 @@ class TestScFv:
         vh = _seq_with_logits(np.ones((4, 20)) / 20.0)
         vl = _seq_with_logits(np.ones((3, 20)) / 20.0)
 
-        result = ablang_scfv_gradient_backward((vh, vl), temperature=1.0, config=AbLangGradientConstraintConfig())
+        result = ablang_scfv_gradient_backward((vh, vl), config=AbLangGradientConstraintConfig())
 
         assert len(result.gradient) == 2
         assert result.gradient[0].shape == (4, 20)  # VH
@@ -90,8 +90,8 @@ class TestGPU:
         biased = _seq_with_logits(np.zeros((20, 20), dtype=np.float64))
         biased.logits[:, 0] = 5.0
 
-        r_uniform = ablang_vhh_gradient_backward((uniform,), temperature=1.0, config=config)
-        r_biased = ablang_vhh_gradient_backward((biased,), temperature=1.0, config=config)
+        r_uniform = ablang_vhh_gradient_backward((uniform,), config=config)
+        r_biased = ablang_vhh_gradient_backward((biased,), config=config)
 
         assert np.isfinite(r_uniform.gradient[0]).all()
         assert r_uniform.loss != r_biased.loss
@@ -110,8 +110,8 @@ class TestGPU:
             seq.logits = logits
             return seq
 
-        r_natural = ablang_vhh_gradient_backward((make_seq("EVQLVESGGGLVQPGGSLRL"),), temperature=0.1, config=config)
-        r_polyala = ablang_vhh_gradient_backward((make_seq("A" * 20),), temperature=0.1, config=config)
+        r_natural = ablang_vhh_gradient_backward((make_seq("EVQLVESGGGLVQPGGSLRL"),), config=config)
+        r_polyala = ablang_vhh_gradient_backward((make_seq("A" * 20),), config=config)
 
         assert np.isfinite(r_natural.gradient[0]).all()
         assert np.isfinite(r_polyala.gradient[0]).all()
@@ -122,7 +122,7 @@ class TestGPU:
     def test_vhh_gradient_nonzero_and_finite(self) -> None:
         config = AbLangGradientConstraintConfig()
         seq = _seq_with_logits(np.zeros((15, 20), dtype=np.float64))
-        result = ablang_vhh_gradient_backward((seq,), temperature=1.0, config=config)
+        result = ablang_vhh_gradient_backward((seq,), config=config)
 
         assert np.isfinite(result.gradient[0]).all()
         assert np.any(result.gradient[0] != 0.0)
@@ -133,7 +133,7 @@ class TestGPU:
         vh = _seq_with_logits(np.zeros((15, 20), dtype=np.float64))
         vl = _seq_with_logits(np.zeros((12, 20), dtype=np.float64))
 
-        result = ablang_scfv_gradient_backward((vh, vl), temperature=1.0, config=config)
+        result = ablang_scfv_gradient_backward((vh, vl), config=config)
 
         assert len(result.gradient) == 2
         assert result.gradient[0].shape == (15, 20)

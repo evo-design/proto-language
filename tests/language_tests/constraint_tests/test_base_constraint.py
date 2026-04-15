@@ -38,7 +38,7 @@ def _make_segment_with_proposals(sequences: list[str], seq_type: str = "dna") ->
     return segment
 
 
-def _mock_backward(inputs: tuple, *, config: BaseModel, temperature: float = 1.0, **_kwargs: Any) -> GradientResult:
+def _mock_backward(inputs: tuple, *, config: BaseModel, temperature: float = 1.0, **kwargs: Any) -> GradientResult:
     """Mock backward that reads logits from the first input Sequence."""
     logits = inputs[0].logits
     return GradientResult(
