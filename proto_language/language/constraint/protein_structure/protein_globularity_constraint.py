@@ -203,8 +203,8 @@ def _evaluate_protein_globularity(protein_sequences: list[Sequence], config: Pro
     for protein_seq, comp, structure in zip(protein_sequences, complexes, output.structures, strict=False):
         protein_seq._metadata.update(
             {
-                "avg_plddt": structure.avg_plddt,
-                "ptm": structure.ptm,
+                "avg_plddt": structure.metrics["avg_plddt"],
+                "ptm": structure.metrics["ptm"],
                 "pdb_output": store_file(structure.structure_pdb, FileType.PDB),
                 "esmfolded_sequence": comp.chains,
             }

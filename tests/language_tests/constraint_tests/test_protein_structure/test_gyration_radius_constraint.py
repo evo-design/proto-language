@@ -2,7 +2,7 @@
 
 from unittest.mock import patch
 
-from proto_tools import StructureMetrics, StructureMetricsOutput
+from proto_tools import StructureMetricsOutput, StructureQualityMetrics
 
 from proto_language.language.constraint.protein_structure.gyration_radius_constraint import (
     GyrationRadiusConfig,
@@ -28,7 +28,7 @@ def _mock_metrics_output(gyration_radius, longest_alpha_helix=5):
         execution_time=0.0,
         success=True,
         metrics=[
-            StructureMetrics(
+            StructureQualityMetrics(
                 pdb_path="/mock/test.pdb",
                 gyration_radius=gyration_radius,
                 longest_alpha_helix=longest_alpha_helix,
@@ -138,12 +138,12 @@ class TestGyrationRadiusConstraint:
                 execution_time=0.0,
                 success=True,
                 metrics=[
-                    StructureMetrics(
+                    StructureQualityMetrics(
                         pdb_path="/mock/a.pdb",
                         gyration_radius=30.0,
                         longest_alpha_helix=5,
                     ),
-                    StructureMetrics(
+                    StructureQualityMetrics(
                         pdb_path="/mock/b.pdb",
                         gyration_radius=50.0,
                         longest_alpha_helix=8,

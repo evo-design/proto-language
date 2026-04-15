@@ -3,7 +3,7 @@
 from unittest.mock import patch
 
 import pytest
-from proto_tools import SegmaskerOutput
+from proto_tools import SegmaskerMetrics, SegmaskerOutput
 
 from proto_language.language.constraint import protein_complexity_constraint
 from proto_language.language.constraint.protein_quality.protein_complexity_constraint import (
@@ -37,10 +37,13 @@ class TestProteinComplexityConstraint:
                 tool_id="segmasker",
                 execution_time=0.1,
                 success=True,
-                low_complexity_fractions=[low_complexity_fraction],
-                low_complexity_counts=[int(low_complexity_fraction * 16)],
-                sequence_lengths=[16],
-                errors=[],
+                results=[
+                    SegmaskerMetrics(
+                        low_complexity_fraction=low_complexity_fraction,
+                        low_complexity_count=int(low_complexity_fraction * 16),
+                        sequence_length=16,
+                    )
+                ],
             )
             mock_seg.return_value = mock_output
 
@@ -76,9 +79,7 @@ class TestProteinComplexityConstraint:
                 tool_id="segmasker",
                 execution_time=0.0,
                 success=False,
-                low_complexity_fractions=[],
-                low_complexity_counts=[],
-                sequence_lengths=[],
+                results=[],
                 errors=["Segmasker execution failed"],
             )
             mock_seg.return_value = mock_output

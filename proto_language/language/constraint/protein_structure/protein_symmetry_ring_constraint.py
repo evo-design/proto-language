@@ -235,8 +235,8 @@ def _evaluate_protein_symmetry(protein_sequences: list[Sequence], config: Protei
     for seq, structure in zip(protein_sequences, output.structures, strict=False):
         seq._metadata.update(
             {
-                "avg_plddt": structure.avg_plddt,
-                "ptm": structure.ptm,
+                "avg_plddt": structure.metrics["avg_plddt"],
+                "ptm": structure.metrics["ptm"],
                 "pdb_output": store_file(structure.structure_pdb, FileType.PDB),
                 "esmfolded_sequence": ":".join([seq.sequence] * config.n_replications),
             }

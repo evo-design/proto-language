@@ -344,49 +344,50 @@ def boltz_binding_strength_constraint(
         penalties_dict = {}
 
         # Case-specific penalties
+        m = structure.metrics
         if n_chains == 1:
             # Monomer penalties
             penalties_dict["ptm_penalty"] = get_penalty_for_metric(
-                metric_name="ptm", metric_value=structure.ptm, config=config
+                metric_name="ptm", metric_value=m["ptm"], config=config
             )
             penalties_dict["complex_plddt_penalty"] = get_penalty_for_metric(
                 metric_name="complex_plddt",
-                metric_value=structure.complex_plddt,
+                metric_value=m["complex_plddt"],
                 config=config,
             )
-            if structure.complex_pde is not None:
+            if m.get("complex_pde") is not None:
                 penalties_dict["complex_pde_penalty"] = get_penalty_for_metric(
                     metric_name="complex_pde",
-                    metric_value=structure.complex_pde,
+                    metric_value=m["complex_pde"],
                     config=config,
                 )
 
         elif has_ligand:
             penalties_dict["ligand_iptm_penalty"] = get_penalty_for_metric(
                 metric_name="ligand_iptm",
-                metric_value=structure.ligand_iptm,
+                metric_value=m["ligand_iptm"],
                 config=config,
             )
             penalties_dict["complex_iplddt_penalty"] = get_penalty_for_metric(
                 metric_name="complex_iplddt",
-                metric_value=structure.complex_iplddt,
+                metric_value=m["complex_iplddt"],
                 config=config,
             )
-            if structure.complex_ipde is not None:
+            if m.get("complex_ipde") is not None:
                 penalties_dict["complex_ipde_penalty"] = get_penalty_for_metric(
                     metric_name="complex_ipde",
-                    metric_value=structure.complex_ipde,
+                    metric_value=m["complex_ipde"],
                     config=config,
                 )
             penalties_dict["complex_plddt_penalty"] = get_penalty_for_metric(
                 metric_name="complex_plddt",
-                metric_value=structure.complex_plddt,
+                metric_value=m["complex_plddt"],
                 config=config,
             )
 
         else:
-            prot_iptm = structure.protein_iptm
-            iptm = structure.iptm
+            prot_iptm = m.get("protein_iptm")
+            iptm = m.get("iptm")
             chosen = "protein_iptm" if (prot_iptm and prot_iptm > 0) else "iptm"
             if chosen == "iptm":
                 penalties_dict["iptm_penalty"] = get_penalty_for_metric(
@@ -402,25 +403,25 @@ def boltz_binding_strength_constraint(
                 )
             penalties_dict["complex_iplddt_penalty"] = get_penalty_for_metric(
                 metric_name="complex_iplddt",
-                metric_value=structure.complex_iplddt,
+                metric_value=m["complex_iplddt"],
                 config=config,
             )
-            if structure.complex_ipde is not None:
+            if m.get("complex_ipde") is not None:
                 penalties_dict["complex_ipde_penalty"] = get_penalty_for_metric(
                     metric_name="complex_ipde",
-                    metric_value=structure.complex_ipde,
+                    metric_value=m["complex_ipde"],
                     config=config,
                 )
             penalties_dict["complex_plddt_penalty"] = get_penalty_for_metric(
                 metric_name="complex_plddt",
-                metric_value=structure.complex_plddt,
+                metric_value=m["complex_plddt"],
                 config=config,
             )
 
         if "confidence_score" in weights:
             penalties_dict["confidence_score_penalty"] = get_penalty_for_metric(
                 metric_name="confidence_score",
-                metric_value=structure.confidence_score,
+                metric_value=m["confidence_score"],
                 config=config,
             )
 

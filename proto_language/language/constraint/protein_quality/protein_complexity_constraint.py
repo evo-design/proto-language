@@ -148,7 +148,8 @@ def protein_complexity_constraint(
         raise ValueError(f"Segmasker analysis failed: {error_msg}")
 
     scores = []
-    for (seq,), low_complexity_fraction in zip(input_sequences, result.low_complexity_fractions, strict=False):
+    for (seq,), metrics in zip(input_sequences, result.results, strict=False):
+        low_complexity_fraction = metrics.low_complexity_fraction
         seq._metadata["low_complexity_fraction"] = low_complexity_fraction
         seq._metadata["segmasker_lowercase_count"] = int(low_complexity_fraction * len(seq))
         seq._metadata["segmasker_error"] = False

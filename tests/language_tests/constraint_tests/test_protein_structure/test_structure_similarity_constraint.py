@@ -171,11 +171,13 @@ class TestESMFoldTMscoreConstraint:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_similarity_constraint.run_tmalign"
         ) as m:
-            from proto_tools import TMalignOutput
+            from proto_tools import TMalignMetrics, TMalignOutput
 
             m.return_value = TMalignOutput(
-                tm_score_chain_1=0.5,
-                tm_score_chain_2=0.5,
+                metrics=TMalignMetrics(
+                    tm_score_chain_1=0.5,
+                    tm_score_chain_2=0.5,
+                ),
             )
             yield m
 
@@ -273,11 +275,13 @@ class TestESMFoldTMscoreConstraint:
         # Setup the mock to return distinct scores
         # Structure 1 (Proposal) Norm = 0.8  (Good match)
         # Structure 2 (Target) Norm    = 0.4  (Bad match, maybe target is huge)
-        from proto_tools import TMalignOutput
+        from proto_tools import TMalignMetrics, TMalignOutput
 
         mock_tmalign.return_value = TMalignOutput(
-            tm_score_chain_1=0.8,
-            tm_score_chain_2=0.4,
+            metrics=TMalignMetrics(
+                tm_score_chain_1=0.8,
+                tm_score_chain_2=0.4,
+            ),
         )
 
         cases = [
