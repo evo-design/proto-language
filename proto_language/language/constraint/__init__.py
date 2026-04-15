@@ -3,6 +3,12 @@
 # Base infrastructure
 from proto_language.language.constraint.constraint_registry import ConstraintRegistry, ConstraintSpec, constraint
 
+# Differentiable constraints
+from proto_language.language.constraint.differentiable import (
+    ablang_scfv_gradient_backward,
+    ablang_vhh_gradient_backward,
+)
+
 # Protein quality constraints
 from proto_language.language.constraint.protein_quality import (
     balanced_aa_constraint,
@@ -70,6 +76,9 @@ __all__ = [
     "ConstraintRegistry",
     "ConstraintSpec",
     "constraint",
+    # Differentiable
+    "ablang_vhh_gradient_backward",
+    "ablang_scfv_gradient_backward",
     # Sequence composition
     "sequence_length_constraint",
     "gc_content_constraint",
