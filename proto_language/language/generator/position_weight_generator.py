@@ -14,7 +14,7 @@ from proto_language.language.core import (
 from proto_language.language.generator.generator_registry import generator
 
 
-class PositionProbabilityGeneratorConfig(BaseConfig):
+class PositionWeightGeneratorConfig(BaseConfig):
     """Configuration for position-specific sequence sampling.
 
     This generator is intended for optimizers that own position-specific
@@ -43,9 +43,9 @@ class PositionProbabilityGeneratorConfig(BaseConfig):
 
 
 @generator(
-    key="position-probability",
-    label="Position Probability Generator",
-    config=PositionProbabilityGeneratorConfig,
+    key="position-weight",
+    label="Position Weight Generator",
+    config=PositionWeightGeneratorConfig,
     description="Sample sequences from position-specific logit distributions",
     uses_gpu=False,
     tools_called=[],
@@ -53,7 +53,7 @@ class PositionProbabilityGeneratorConfig(BaseConfig):
     supported_sequence_types=["dna", "rna", "protein"],
 )
 @final
-class PositionProbabilityGenerator(Generator):
+class PositionWeightGenerator(Generator):
     """Convert logit distributions into discrete proposal sequences.
 
     Reads ``seq.logits`` from each proposal sequence, applies softmax, and
@@ -64,13 +64,13 @@ class PositionProbabilityGenerator(Generator):
     and need discrete sequences for handoff or tracking.
 
     Attributes:
-        config (PositionProbabilityGeneratorConfig): Generator configuration.
+        config (PositionWeightGeneratorConfig): Generator configuration.
         sampling_mode (Literal["argmax", "categorical"]): Decoding strategy.
         temperature (float): Softmax temperature for logits.
 
     Example:
         >>> segment = Segment(sequence="ACGT", sequence_type="dna")
-        >>> gen = PositionProbabilityGenerator(PositionProbabilityGeneratorConfig(sampling_mode="argmax"))
+        >>> gen = PositionWeightGenerator(PositionWeightGeneratorConfig(sampling_mode="argmax"))
         >>> gen.assign(segment)
         >>> segment.proposal_sequences[0].logits = np.array([[5, 0, 0, 0], [0, 4, 0, 0], [0, 0, 3, 0], [0, 0, 0, 2]])
         >>> gen.sample()
@@ -78,8 +78,8 @@ class PositionProbabilityGenerator(Generator):
         'ACGT'
     """
 
-    def __init__(self, config: PositionProbabilityGeneratorConfig) -> None:
-        """Initialize the position-probability generator."""
+    def __init__(self, config: PositionWeightGeneratorConfig) -> None:
+        """Initialize the position-weight generator."""
         super().__init__()
         self.config = config
         self.sampling_mode = config.sampling_mode

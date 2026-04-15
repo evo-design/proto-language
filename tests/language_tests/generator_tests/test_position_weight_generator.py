@@ -1,4 +1,4 @@
-"""Tests for the PositionProbabilityGenerator."""
+"""Tests for the PositionWeightGenerator."""
 
 import copy
 
@@ -8,12 +8,12 @@ import pytest
 from proto_language.language.core import Segment
 from proto_language.language.generator import (
     GeneratorRegistry,
-    PositionProbabilityGenerator,
-    PositionProbabilityGeneratorConfig,
+    PositionWeightGenerator,
+    PositionWeightGeneratorConfig,
 )
 
 
-class TestPositionProbabilityGenerator:
+class TestPositionWeightGenerator:
     @pytest.mark.parametrize(
         ("sequence_type", "logits", "expected_sequence"),
         [
@@ -26,7 +26,7 @@ class TestPositionProbabilityGenerator:
         """Argmax decoding maps columns to canonical vocab."""
         segment = Segment(sequence="AA", sequence_type=sequence_type)
         segment.proposal_sequences[0].logits = logits
-        generator = PositionProbabilityGenerator(PositionProbabilityGeneratorConfig())
+        generator = PositionWeightGenerator(PositionWeightGeneratorConfig())
         generator.assign(segment)
 
         generator.sample()
@@ -42,7 +42,7 @@ class TestPositionProbabilityGenerator:
             segment.proposal_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(3)]
             for seq in segment.proposal_sequences:
                 seq.logits = logits.copy()
-            gen = PositionProbabilityGenerator(PositionProbabilityGeneratorConfig(sampling_mode="categorical"))
+            gen = PositionWeightGenerator(PositionWeightGeneratorConfig(sampling_mode="categorical"))
             gen._set_program_seed(7)
             gen.assign(segment)
             gen.sample()
@@ -58,14 +58,14 @@ class TestPositionProbabilityGenerator:
 
         argmax_seg = Segment(sequence="AA", sequence_type="dna")
         argmax_seg.proposal_sequences[0].logits = logits
-        argmax_gen = PositionProbabilityGenerator(PositionProbabilityGeneratorConfig())
+        argmax_gen = PositionWeightGenerator(PositionWeightGeneratorConfig())
         argmax_gen.assign(argmax_seg)
         argmax_gen.sample()
 
         low_temp_seg = Segment(sequence="AA", sequence_type="dna")
         low_temp_seg.proposal_sequences[0].logits = logits
-        low_temp_gen = PositionProbabilityGenerator(
-            PositionProbabilityGeneratorConfig(sampling_mode="categorical", temperature=0.01)
+        low_temp_gen = PositionWeightGenerator(
+            PositionWeightGeneratorConfig(sampling_mode="categorical", temperature=0.01)
         )
         low_temp_gen._set_program_seed(42)
         low_temp_gen.assign(low_temp_seg)
@@ -75,8 +75,8 @@ class TestPositionProbabilityGenerator:
 
     def test_registry_and_ligand_rejection(self):
         """Generator is discoverable via registry and rejects ligand segments."""
-        generator = GeneratorRegistry.create("position-probability", {"sampling_mode": "argmax"})
-        assert isinstance(generator, PositionProbabilityGenerator)
+        generator = GeneratorRegistry.create("position-weight", {"sampling_mode": "argmax"})
+        assert isinstance(generator, PositionWeightGenerator)
 
         with pytest.raises(ValueError, match="Cannot assign generator to ligand segment"):
             generator.assign(Segment(sequence="CCC", sequence_type="ligand"))
@@ -88,7 +88,7 @@ class TestPositionProbabilityGenerator:
         logits = np.array([[5, 0, 0, 0], [0, 4, 0, 0], [0, 0, 3, 0]])
         for seq in segment.proposal_sequences:
             seq.logits = logits.copy()
-        gen = PositionProbabilityGenerator(PositionProbabilityGeneratorConfig())
+        gen = PositionWeightGenerator(PositionWeightGeneratorConfig())
         gen.assign(segment)
 
         gen.sample()
@@ -109,7 +109,7 @@ class TestPositionProbabilityGenerator:
         """Sampling fails fast on invalid logits."""
         segment = Segment(sequence="AA", sequence_type="dna")
         segment.proposal_sequences[0]._logits = logits  # bypass setter to test generator-level checks
-        generator = PositionProbabilityGenerator(PositionProbabilityGeneratorConfig())
+        generator = PositionWeightGenerator(PositionWeightGeneratorConfig())
         generator.assign(segment)
 
         with pytest.raises(ValueError, match=error_match):
@@ -118,7 +118,7 @@ class TestPositionProbabilityGenerator:
     def test_no_logits_raises(self):
         """sample() raises when proposal has no logits."""
         segment = Segment(sequence="AA", sequence_type="dna")
-        gen = PositionProbabilityGenerator(PositionProbabilityGeneratorConfig())
+        gen = PositionWeightGenerator(PositionWeightGeneratorConfig())
         gen.assign(segment)
 
         with pytest.raises(RuntimeError, match="has no logits"):
@@ -128,7 +128,7 @@ class TestPositionProbabilityGenerator:
         """Custom valid_chars outside the canonical alphabet are included in vocab ordering."""
         segment = Segment(sequence="AX", sequence_type="dna", valid_chars={"A", "C", "G", "T", "X"})
         segment.proposal_sequences[0].logits = np.array([[0, 0, 0, 0, 10.0], [0, 0, 0, 0, 10.0]])
-        gen = PositionProbabilityGenerator(PositionProbabilityGeneratorConfig())
+        gen = PositionWeightGenerator(PositionWeightGeneratorConfig())
         gen.assign(segment)
 
         gen.sample()
@@ -140,7 +140,7 @@ class TestPositionProbabilityGenerator:
         logits = np.zeros((3, 4))  # uniform after softmax
         segment = Segment(sequence="AAA", sequence_type="dna")
         segment.proposal_sequences[0].logits = logits
-        gen = PositionProbabilityGenerator(PositionProbabilityGeneratorConfig(sampling_mode="categorical"))
+        gen = PositionWeightGenerator(PositionWeightGeneratorConfig(sampling_mode="categorical"))
         gen.assign(segment)
         results = []
         for _ in range(2):
@@ -151,6 +151,6 @@ class TestPositionProbabilityGenerator:
 
     def test_sample_before_assign(self):
         """Calling sample() before assign() raises RuntimeError."""
-        gen = PositionProbabilityGenerator(PositionProbabilityGeneratorConfig())
+        gen = PositionWeightGenerator(PositionWeightGeneratorConfig())
         with pytest.raises(RuntimeError):
             gen.sample()
