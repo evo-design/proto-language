@@ -1,5 +1,6 @@
 """Tests for proto_language.utils.export module."""
 
+import io
 import json
 import tempfile
 from pathlib import Path
@@ -1337,6 +1338,49 @@ class TestSegmentBoundaries:
         # cds should still be at offset 8 (promoter contributes 8 chars)
         assert row["cds.start"] == 8
         assert row["cds.end"] == 16
+
+
+def test_build_results_exports_structure_and_logits_as_file_references():
+    """build_results stores seq.structure and seq.logits as FileReferences; omits when None."""
+    from unittest.mock import MagicMock
+
+    import numpy as np
+
+    from proto_language.language.core import Construct, Segment, Sequence
+    from proto_language.storage.helpers import get_file_content_bytes
+    from proto_language.storage.models import FILE_REF_MARKER
+    from proto_language.utils.export import build_results
+    from tests.helpers.mock_structure import MockStructure
+
+    logits = np.ones((5, 20))
+    seq_with = Sequence("EVQLV", sequence_type="protein")
+    seq_with.structure = MockStructure()
+    seq_with.logits = logits
+    seq_without = Sequence("MKTLL", sequence_type="protein")
+
+    segment = MagicMock(spec=Segment)
+    segment.label = "chain"
+    segment.result_sequences = [seq_with, seq_without]
+    construct = MagicMock(spec=Construct)
+    construct.label = "c0"
+    construct.sequence_type = "protein"
+    construct.segments = [segment]
+
+    results = build_results([construct], [0.5, 0.6])
+
+    seg_with = results["results"][0]["constructs"][0]["segments"][0]
+    assert seg_with["structure"][FILE_REF_MARKER] is True
+    assert seg_with["structure"]["file_type"] == "pdb"
+    assert seg_with["logits"][FILE_REF_MARKER] is True
+    assert seg_with["logits"]["file_type"] == "binary"
+
+    # Verify logits round-trip: stored .npy bytes → np.load → original array
+    restored = np.load(io.BytesIO(get_file_content_bytes(seg_with["logits"])))
+    np.testing.assert_array_equal(restored, logits)
+
+    seg_without = results["results"][1]["constructs"][0]["segments"][0]
+    assert "structure" not in seg_without
+    assert "logits" not in seg_without
 
 
 # =============================================================================

@@ -13,11 +13,14 @@ import copy
 import csv
 import json
 from collections.abc import Callable
-from io import StringIO
+from io import BytesIO, StringIO
 from pathlib import Path
 from typing import IO, Any, Literal
 
-from proto_language.storage.helpers import is_file_reference
+import numpy as np
+
+from proto_language.storage.helpers import is_file_reference, store_file
+from proto_language.storage.models import FileType
 from proto_language.storage.store import get_file_store
 from proto_language.utils.helpers import filter_inf_nan_scores
 
@@ -29,6 +32,21 @@ Results = dict[str, Any]  # Output from build_results()
 # =============================================================================
 # Build results
 # =============================================================================
+
+
+def _attach_file_refs(seg_dict: dict[str, Any], seq: Any) -> None:
+    """Store structure/logits as FileReferences on the segment dict.
+
+    These keys are intentionally not surfaced by flatten functions — large binary
+    data doesn't belong in CSV/TSV columns. They appear in the structured JSON
+    results returned by build_results() directly.
+    """
+    if seq.structure is not None:
+        seg_dict["structure"] = store_file(seq.structure.structure_pdb, FileType.PDB)
+    if seq.logits is not None:
+        buf = BytesIO()
+        np.save(buf, seq.logits)
+        seg_dict["logits"] = store_file(buf.getvalue(), FileType.BINARY)
 
 
 def build_results(
@@ -69,6 +87,8 @@ def build_results(
                                             }
                                         },
                                         "metadata": {},
+                                        "structure": {"__file_ref__": ...},  # optional
+                                        "logits": {"__file_ref__": ...},  # optional
                                     }
                                 ],
                             }
@@ -90,14 +110,14 @@ def build_results(
             structured_segments = []
             for seg_idx, segment in enumerate(construct.segments):
                 seq = segment.result_sequences[result_idx]
-                structured_segments.append(
-                    {
-                        "label": segment.label or f"segment_{seg_idx}",
-                        "sequence": seq.sequence,
-                        "constraints": copy.deepcopy(seq._constraints_metadata),
-                        "metadata": copy.deepcopy(seq._metadata),
-                    }
-                )
+                seg_dict: dict[str, Any] = {
+                    "label": segment.label or f"segment_{seg_idx}",
+                    "sequence": seq.sequence,
+                    "constraints": copy.deepcopy(seq._constraints_metadata),
+                    "metadata": copy.deepcopy(seq._metadata),
+                }
+                _attach_file_refs(seg_dict, seq)
+                structured_segments.append(seg_dict)
             structured_constructs.append(
                 {
                     "label": construct.label,
@@ -150,7 +170,14 @@ def build_proposal_results(
                             "label": "construct_0",
                             "type": "dna",
                             "segments": [
-                                {"label": "promoter", "sequence": "ATCG", "constraints": {...}, "metadata": {}}
+                                {
+                                    "label": "promoter",
+                                    "sequence": "ATCG",
+                                    "constraints": {...},
+                                    "metadata": {},
+                                    "structure": ...,
+                                    "logits": ...,
+                                }
                             ],
                         }
                     ],
@@ -170,14 +197,14 @@ def build_proposal_results(
             structured_segments = []
             for seg_idx, segment in enumerate(construct.segments):
                 seq = segment.proposal_sequences[prop_idx]
-                structured_segments.append(
-                    {
-                        "label": segment.label or f"segment_{seg_idx}",
-                        "sequence": seq.sequence,
-                        "constraints": copy.deepcopy(seq._constraints_metadata),
-                        "metadata": copy.deepcopy(seq._metadata),
-                    }
-                )
+                seg_dict: dict[str, Any] = {
+                    "label": segment.label or f"segment_{seg_idx}",
+                    "sequence": seq.sequence,
+                    "constraints": copy.deepcopy(seq._constraints_metadata),
+                    "metadata": copy.deepcopy(seq._metadata),
+                }
+                _attach_file_refs(seg_dict, seq)
+                structured_segments.append(seg_dict)
             structured_constructs.append(
                 {
                     "label": construct.label,
