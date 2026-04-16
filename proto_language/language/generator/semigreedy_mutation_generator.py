@@ -1,8 +1,9 @@
 """Generator for semigreedy single-point mutations guided by logits."""
 
-from typing import Literal, final
+from typing import Any, Literal, final
 
 import numpy as np
+from pydantic import field_validator
 
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.core import (
@@ -37,6 +38,10 @@ class SemigreedyMutationGeneratorConfig(BaseConfig):
         exclude_current (bool): Whether to zero out the probability of the current
             amino acid at the selected position before sampling the replacement.
             Guarantees every mutation actually changes the sequence.
+        logit_bias (list[list[float]] | None): Optional additive bias matrix of
+            shape ``(L, 20)`` added to ``proposal.logits`` before AA sampling.
+            Position weighting still uses ``proposal.logits`` alone. Matches
+            Germinal's ``self._inputs["bias"]`` (``shared/model.py:155``).
     """
 
     position_weighting: Literal["uniform", "entropy", "plddt"] = ConfigField(
@@ -57,6 +62,26 @@ class SemigreedyMutationGeneratorConfig(BaseConfig):
         description="Zero out the current amino acid before sampling to guarantee a mutation.",
         advanced=True,
     )
+    logit_bias: list[list[float]] | None = ConfigField(
+        default=None,
+        title="Logit Bias",
+        description="Additive bias matrix (L x 20) added to logits before AA sampling.",
+        advanced=True,
+        hidden=True,
+    )
+
+    @field_validator("logit_bias")
+    @classmethod
+    def validate_logit_bias(cls, v: Any) -> Any:
+        """Validate logit_bias shape and finiteness."""
+        if v is None:
+            return v
+        arr = np.asarray(v, dtype=float)
+        if arr.ndim != 2 or arr.shape[1] != len(PROTEIN_AMINO_ACIDS):
+            raise ValueError(f"logit_bias must have shape (L, {len(PROTEIN_AMINO_ACIDS)}), got {arr.shape}.")
+        if not np.isfinite(arr).all():
+            raise ValueError("logit_bias must contain only finite values.")
+        return v
 
 
 @generator(
@@ -113,20 +138,21 @@ class SemigreedyMutationGenerator(Generator):
         """Initialize the semigreedy mutation generator."""
         super().__init__()
         self.config = config
+        self._logit_bias = np.asarray(config.logit_bias, dtype=float) if config.logit_bias is not None else None
         self.position_weighting = config.position_weighting
         self.temperature = config.temperature
         self.exclude_current = config.exclude_current
 
     def sample(self) -> None:
-        """Introduce one single-point mutation per proposal using the PSSM.
+        """Introduce one single-point mutation per proposal.
 
         For each proposal sequence:
 
         1. Read ``proposal.logits`` and convert to a PSSM via softmax at the
            configured temperature.
         2. Select a position using the configured ``position_weighting`` strategy.
-        3. Sample a replacement amino acid from the logit row at that position
-           (optionally excluding the current residue via logit penalty).
+        3. Sample a replacement amino acid from ``proposal.logits + logit_bias``
+           at that position (optionally excluding current residue via logit penalty).
         4. Write the mutated sequence back to ``proposal.sequence``.
 
         Raises:
@@ -139,6 +165,11 @@ class SemigreedyMutationGenerator(Generator):
         vocab_size = len(vocab)
         rng = np.random.default_rng(self._next_seed())
 
+        if self._logit_bias is not None and self._logit_bias.shape[0] != self.segment.sequence_length:
+            raise ValueError(
+                f"logit_bias has {self._logit_bias.shape[0]} rows but sequence length is {self.segment.sequence_length}."
+            )
+
         for proposal in self.segment.proposal_sequences:
             if proposal.logits is None:
                 raise RuntimeError(f"Proposal on segment '{self.segment.label}' has no logits.")
@@ -147,8 +178,10 @@ class SemigreedyMutationGenerator(Generator):
             position_weights = self._compute_position_weights(pssm, proposal)
             position = rng.choice(len(pssm), p=position_weights)
 
-            # Sample AA: apply logit penalty to exclude current residue (Germinal _mutate line 636)
-            aa_logits = proposal.logits[position].copy() / self.temperature
+            aa_logits = proposal.logits[position].copy()
+            if self._logit_bias is not None:
+                aa_logits = aa_logits + self._logit_bias[position]
+            aa_logits = aa_logits / self.temperature
             if self.exclude_current:
                 aa_logits[vocab.index(proposal.sequence[position])] -= 1e8
             aa_probs = softmax(aa_logits.reshape(1, -1))[0]

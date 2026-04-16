@@ -141,3 +141,47 @@ class TestSemigreedyMutationGenerator:
         gen.assign(segment)
         with pytest.raises(ValueError, match=error_match):
             gen.sample()
+
+    def test_logit_bias_shifts_sampling(self):
+        """Additive logit_bias shifts AA sampling away from proposal.logits preference."""
+        segment = Segment(sequence="AAAAA", sequence_type="protein")
+        # proposal.logits: uniform (zeros)
+        segment.proposal_sequences[0].logits = np.zeros((5, VOCAB_SIZE))
+
+        # logit_bias: strongly favor L (col 9) — additive, so logits+bias peaks at L
+        bias = np.zeros((5, VOCAB_SIZE)).tolist()
+        for row in bias:
+            row[9] = 100.0
+
+        gen = SemigreedyMutationGenerator(
+            SemigreedyMutationGeneratorConfig(exclude_current=True, logit_bias=bias),
+        )
+        gen._set_program_seed(42)
+        gen.assign(segment)
+        gen.sample()
+
+        result = segment.proposal_sequences[0].sequence
+        mutated_aa = [c for c in result if c != "A"]
+        assert len(mutated_aa) == 1
+        assert mutated_aa[0] == "L"
+
+    def test_logit_bias_validation(self):
+        """logit_bias with wrong shape or non-finite values raises at config validation."""
+        with pytest.raises(Exception, match="logit_bias must have shape"):
+            SemigreedyMutationGeneratorConfig(logit_bias=[[1.0, 2.0]])
+
+        bias_with_inf = np.zeros((3, VOCAB_SIZE)).tolist()
+        bias_with_inf[1][5] = float("inf")
+        with pytest.raises(Exception, match="finite"):
+            SemigreedyMutationGeneratorConfig(logit_bias=bias_with_inf)
+
+        # Length mismatch: bias has 3 rows but segment has 5 positions — caught at sample() time
+        segment = Segment(sequence="ACDEF", sequence_type="protein")
+        segment.proposal_sequences[0].logits = np.zeros((5, VOCAB_SIZE))
+        gen = SemigreedyMutationGenerator(
+            SemigreedyMutationGeneratorConfig(logit_bias=np.zeros((3, VOCAB_SIZE)).tolist())
+        )
+        gen._set_program_seed(42)
+        gen.assign(segment)
+        with pytest.raises(ValueError, match="rows but sequence length"):
+            gen.sample()
