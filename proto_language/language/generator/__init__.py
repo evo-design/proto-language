@@ -33,6 +33,10 @@ from proto_language.language.generator.random_protein_generator import (
     RandomProteinGenerator,
     RandomProteinGeneratorConfig,
 )
+from proto_language.language.generator.semigreedy_mutation_generator import (
+    SemigreedyMutationGenerator,
+    SemigreedyMutationGeneratorConfig,
+)
 
 __all__ = [
     # Masking strategies
@@ -50,6 +54,8 @@ __all__ = [
     "PositionWeightGeneratorConfig",
     "MSAGenerator",
     "MSAGeneratorConfig",
+    "SemigreedyMutationGenerator",
+    "SemigreedyMutationGeneratorConfig",
     # Language model generators
     "Evo1Generator",
     "Evo1GeneratorConfig",

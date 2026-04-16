@@ -27,7 +27,8 @@ def _binder_with_logits(logits: np.ndarray) -> Sequence:
 
 def _target_with_structure(pdb_path: str) -> Sequence:
     seq = Sequence("A" * 10, "protein")
-    seq.structure = Structure(structure=pdb_path)
+    pdb_content = Path(pdb_path).read_text()
+    seq.structure = Structure(structure=pdb_content, structure_format="pdb")
     return seq
 
 
@@ -58,9 +59,9 @@ class TestBackward:
         assert result.gradient[0].shape == (5, 20)  # binder gradient
         assert result.gradient[1].shape == (10, 20)  # target zero gradient
         assert np.all(result.gradient[1] == 0.0)
-        # Verify PDB string (not path) was passed to tool
-        tool_config = mock_run.call_args[0][1]
-        assert "\n" in tool_config.target_pdb  # PDB string, not file path
+        # Verify PDB string (not path) was passed to tool input
+        tool_input = mock_run.call_args[0][0]
+        assert "\n" in tool_input.target_pdb  # PDB string, not file path
 
     @patch(f"{_TOOL_MODULE}.run_alphafold2_gradient")
     def test_forwards_config_to_tool(self, mock_run: object) -> None:
@@ -73,8 +74,9 @@ class TestBackward:
 
         af2_binder_backward((binder, target), temperature=1.0, config=config)
 
+        tool_input = mock_run.call_args[0][0]
         tool_config = mock_run.call_args[0][1]
-        assert tool_config.binder_chain == "L"
+        assert tool_input.binder_chain == "L"
         assert tool_config.bias_redesign == 5.0
         assert tool_config.backend == "germinal"
 

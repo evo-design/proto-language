@@ -117,6 +117,15 @@ def calculate_normalized_deviation(actual: float, target: float) -> float:
     return min(MAX_ENERGY, abs(actual - target) / max(target, 1))
 
 
+def softmax(matrix: np.ndarray) -> np.ndarray:
+    """Compute numerically stable row-wise softmax."""
+    shifted = matrix - np.max(matrix, axis=1, keepdims=True)
+    exp_matrix = np.exp(shifted)
+    result = exp_matrix / np.sum(exp_matrix, axis=1, keepdims=True)
+    assert isinstance(result, np.ndarray)  # noqa: S101 -- narrows numpy scalar arithmetic for mypy
+    return result
+
+
 def sigmoid_score(
     metric: float,
     inflection: float,

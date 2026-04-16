@@ -33,6 +33,7 @@ from proto_language.utils.helpers import (
     resolve_sequence_ids,
     run_subprocess_command,
     sigmoid_score,
+    softmax,
     validate_range,
 )
 
@@ -50,6 +51,7 @@ __all__ = [
     "calculate_gc_content",
     "calculate_normalized_deviation",
     "sigmoid_score",
+    "softmax",
     "inverse_sigmoid_score",
     # Tool utilities
     "mask_k",

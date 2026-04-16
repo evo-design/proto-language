@@ -181,13 +181,16 @@ def af2_binder_backward(
     target_pdb = target_seq.structure.structure_pdb
 
     output = run_alphafold2_gradient(
-        AlphaFold2GradientInput(logits=logits.tolist(), temperature=temperature),
-        AlphaFold2GradientConfig(
+        AlphaFold2GradientInput(
+            logits=logits.tolist(),
+            temperature=temperature,
             target_pdb=target_pdb,
             target_chain=config.target_chain,
             target_hotspot=config.target_hotspot,
             binder_chain=config.binder_chain,
             design_positions=config.design_positions,
+        ),
+        AlphaFold2GradientConfig(
             omit_aas=config.omit_aas,
             num_recycles=config.num_recycles,
             model_num=config.model_num,

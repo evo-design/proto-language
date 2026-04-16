@@ -12,6 +12,7 @@ from proto_language.language.core import (
     Generator,
 )
 from proto_language.language.generator.generator_registry import generator
+from proto_language.utils import softmax
 
 
 class PositionWeightGeneratorConfig(BaseConfig):
@@ -131,7 +132,7 @@ class PositionWeightGenerator(Generator):
         """Validate logits and convert to a probability matrix via softmax."""
         matrix = np.asarray(logits, dtype=float)
         self._validate_matrix_shape(matrix, vocab_size)
-        return self._softmax(matrix / self.temperature)
+        return softmax(matrix / self.temperature)
 
     def _validate_matrix_shape(self, matrix: np.ndarray, vocab_size: int) -> None:
         """Validate the logit matrix shape and numeric contents."""
@@ -144,15 +145,6 @@ class PositionWeightGenerator(Generator):
             )
         if not np.isfinite(matrix).all():
             raise ValueError("Logit matrix must contain only finite values.")
-
-    @staticmethod
-    def _softmax(matrix: np.ndarray) -> np.ndarray:
-        """Compute a numerically stable row-wise softmax."""
-        shifted = matrix - np.max(matrix, axis=1, keepdims=True)
-        exp_matrix = np.exp(shifted)
-        result = exp_matrix / np.sum(exp_matrix, axis=1, keepdims=True)
-        assert isinstance(result, np.ndarray)  # noqa: S101 -- narrows numpy scalar arithmetic for mypy
-        return result
 
     @staticmethod
     def _decode_argmax(matrix: np.ndarray, vocab: list[str]) -> str:
