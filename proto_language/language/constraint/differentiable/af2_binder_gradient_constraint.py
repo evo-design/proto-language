@@ -145,6 +145,7 @@ class AF2BinderGradientConfig(BaseConfig):
                 "beta_strand": 0.2,
                 "dgram_cce": 0.01,
             },
+            omit_aas="C",
             bias_redesign=10.0,
             sample_models=True,
             backend="germinal",
