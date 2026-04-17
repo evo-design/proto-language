@@ -103,7 +103,7 @@ class TestConfig:
         assert cfg.normalize_mode == "sqrt_length"
         assert cfg.gumbel_logit_init is True
         assert cfg.constraint_weight_schedules == [
-            ConstraintWeightSchedule(constraint_label="ablang", start_weight=0.0, end_weight=0.2, schedule="linear")
+            ConstraintWeightSchedule(constraint_label="ablang", start_weight=0.2, end_weight=0.4, schedule="linear")
         ]
 
     def test_germinal_softmax_preset_exact_values(self) -> None:

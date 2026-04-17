@@ -240,7 +240,7 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
     def germinal_logit_preset(cls) -> "GradientOptimizerConfig":
         """Germinal VHH Phase 1 (logit phase): ``design_logits(iters=65, soft=0, e_soft=1)``.
 
-        Ramps naturalness weight 0.0→0.2 linearly — constraint must be labeled ``"ablang"``.
+        Ramps naturalness weight 0.2→0.4 linearly — constraint must be labeled ``"ablang"``.
         Initial logits get Gumbel(0,1) noise so parallel trajectories diverge.
         """
         return cls(
@@ -257,7 +257,7 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
             norm_alignment="match_first",
             normalize_mode="sqrt_length",
             constraint_weight_schedules=[
-                ConstraintWeightSchedule(constraint_label="ablang", start_weight=0.0, end_weight=0.2, schedule="linear")
+                ConstraintWeightSchedule(constraint_label="ablang", start_weight=0.2, end_weight=0.4, schedule="linear")
             ],
             gumbel_logit_init=True,
         )
