@@ -68,7 +68,11 @@ class TestBackward:
         binder = _binder_with_logits(np.ones((5, 20)) / 20.0)
         target = _target_with_structure()
         config = AF2BinderGradientConfig(
-            binder_chain="L", loss_weights={"plddt": 2.0}, bias_redesign=5.0, backend="germinal"
+            binder_chain="L",
+            loss_weights={"plddt": 2.0},
+            bias_redesign=5.0,
+            backend="germinal",
+            starting_binder_seq="EVQLV",
         )
 
         af2_binder_backward((binder, target), temperature=1.0, config=config)
@@ -78,6 +82,7 @@ class TestBackward:
         assert tool_input.binder_chain == "L"
         assert tool_config.bias_redesign == 5.0
         assert tool_config.backend == "germinal"
+        assert tool_config.starting_binder_seq == "EVQLV"
 
     @patch(f"{_TOOL_MODULE}.run_alphafold2_gradient")
     def test_soft_kwarg_defaults_to_one(self, mock_run: object) -> None:

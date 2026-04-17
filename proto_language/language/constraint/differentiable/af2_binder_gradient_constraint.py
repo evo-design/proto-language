@@ -40,6 +40,8 @@ class AF2BinderGradientConfig(BaseConfig):
         bias_redesign (float | None): Soft bias toward wildtype at non-design positions.
         sample_models (bool): Randomly sample AF2 model parameter sets each forward pass.
         backend (Literal["base", "germinal"]): ColabDesign backend.
+        starting_binder_seq (str | None): Warm-start binder AA sequence. Germinal
+            backend only; length must match the binder segment.
     """
 
     target_chain: str = ConfigField(
@@ -126,6 +128,12 @@ class AF2BinderGradientConfig(BaseConfig):
         description="ColabDesign backend: 'base' (upstream) or 'germinal' (with alpha, bias, IgLM).",
         advanced=True,
     )
+    starting_binder_seq: str | None = ConfigField(
+        title="Starting Binder Sequence",
+        default=None,
+        description="Warm-start binder AA sequence (Germinal backend only; length must match binder).",
+        advanced=True,
+    )
 
     @classmethod
     def germinal_vhh_preset(cls, binder_chain: str = "H") -> "AF2BinderGradientConfig":
@@ -203,6 +211,7 @@ def af2_binder_backward(
             bias_redesign=config.bias_redesign,
             sample_models=config.sample_models,
             backend=config.backend,
+            starting_binder_seq=config.starting_binder_seq,
             soft=soft if soft is not None else 1.0,
         ),
     )
