@@ -553,6 +553,7 @@ class TestGradientResult:
         result = GradientResult(gradient=tuple(np.zeros(s) for s in shapes), loss=0.5)
         assert result.loss == 0.5
         assert result.metrics == {}
+        assert result.structures == ()  # default: empty tuple, backward-compat for producers that omit it
         assert [g.shape for g in result.gradient] == shapes
 
     def test_custom_metrics_stored_and_repr_shows_shape_not_array(self) -> None:
@@ -680,6 +681,15 @@ class TestConstraintGradientSupport:
                 ValueError,
                 r"got 2 gradient\(s\), expected 1",
             ),
+            (
+                lambda inputs, *, config, **kwargs: GradientResult(
+                    gradient=(np.zeros_like(inputs[0].logits),),
+                    loss=0.0,
+                    structures=(MockStructure.with_plddt([0.5] * 8), MockStructure.with_plddt([0.5] * 8)),
+                ),
+                ValueError,
+                r"got 2 structure\(s\), expected 1",
+            ),
         ],
     )
     def test_compute_gradient_validates_backward_result(
@@ -693,6 +703,29 @@ class TestConstraintGradientSupport:
         c = _make_gradient_constraint(segment=segment, backward=backward)
         with pytest.raises(expected_exception, match=match):
             c.compute_gradient(temperature=1.0)
+
+    def test_compute_gradient_structures_assignment_and_none_preservation(self) -> None:
+        """Non-None entries land on the real proposal; None entries leave existing structure untouched."""
+        existing = MockStructure.with_plddt([0.7, 0.7, 0.7])
+        new_struct = MockStructure.with_plddt([0.3, 0.3, 0.3])
+        seg_a = _make_segment_with_proposals(["ACD"], seq_type="protein")
+        seg_b = _make_segment_with_proposals(["GHI"], seq_type="protein")
+        seg_a.proposal_sequences[0].logits = np.zeros((3, 20))
+        seg_b.proposal_sequences[0].structure = existing
+
+        def backward(inputs: tuple, *, config: BaseModel, **kwargs: Any) -> GradientResult:
+            return GradientResult(
+                gradient=(np.zeros_like(inputs[0].logits), np.zeros((3, 20))),
+                loss=0.0,
+                structures=(new_struct, None),
+            )
+
+        _make_gradient_constraint(
+            inputs=[seg_a, seg_b], function=mock_multi_input_scoring_function, backward=backward
+        ).compute_gradient(temperature=1.0)
+
+        assert seg_a.proposal_sequences[0].structure is new_struct
+        assert seg_b.proposal_sequences[0].structure is existing
 
 
 # =============================================================================

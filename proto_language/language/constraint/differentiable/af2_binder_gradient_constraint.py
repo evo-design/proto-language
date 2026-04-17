@@ -221,4 +221,5 @@ def af2_binder_backward(
         gradient=(binder_gradient, target_gradient),
         loss=output.loss,
         metrics=output.metrics,
+        structures=(output.structure, None),  # None leaves target's template Structure intact
     )

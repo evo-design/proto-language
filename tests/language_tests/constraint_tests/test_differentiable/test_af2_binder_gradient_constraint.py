@@ -13,7 +13,7 @@ from proto_language.language.constraint.differentiable.af2_binder_gradient_const
     af2_binder_backward,
 )
 from proto_language.language.core import Segment, Sequence
-from tests.helpers.mock_structure import PDL1_PDB
+from tests.helpers.mock_structure import PDL1_PDB, MockStructure
 
 _TOOL_MODULE = "proto_language.language.constraint.differentiable.af2_binder_gradient_constraint"
 
@@ -48,7 +48,9 @@ class TestConfig:
 class TestBackward:
     @patch(f"{_TOOL_MODULE}.run_alphafold2_gradient")
     def test_reads_structure_from_target_segment(self, mock_run: object) -> None:
-        mock_run.return_value = SimpleNamespace(gradient=[[0.1] * 20] * 5, loss=0.5, metrics={"plddt": 0.8})
+        mock_run.return_value = SimpleNamespace(
+            gradient=[[0.1] * 20] * 5, loss=0.5, metrics={"plddt": 0.8}, structure=None
+        )
         binder = _binder_with_logits(np.ones((5, 20)) / 20.0)
         target = _target_with_structure()
 
@@ -64,7 +66,7 @@ class TestBackward:
 
     @patch(f"{_TOOL_MODULE}.run_alphafold2_gradient")
     def test_forwards_config_to_tool(self, mock_run: object) -> None:
-        mock_run.return_value = SimpleNamespace(gradient=[[0.1] * 20] * 5, loss=0.5, metrics={})
+        mock_run.return_value = SimpleNamespace(gradient=[[0.1] * 20] * 5, loss=0.5, metrics={}, structure=None)
         binder = _binder_with_logits(np.ones((5, 20)) / 20.0)
         target = _target_with_structure()
         config = AF2BinderGradientConfig(
@@ -85,8 +87,20 @@ class TestBackward:
         assert tool_config.starting_binder_seq == "EVQLV"
 
     @patch(f"{_TOOL_MODULE}.run_alphafold2_gradient")
+    def test_returns_predicted_structure_on_binder_slot(self, mock_run: object) -> None:
+        """Predicted complex → structures[0]; target slot None so its template stays intact."""
+        predicted = MockStructure.with_plddt([0.9] * 5)
+        mock_run.return_value = SimpleNamespace(gradient=[[0.0] * 20] * 5, loss=0.0, metrics={}, structure=predicted)
+        result = af2_binder_backward(
+            (_binder_with_logits(np.zeros((5, 20))), _target_with_structure()),
+            temperature=1.0,
+            config=AF2BinderGradientConfig(),
+        )
+        assert result.structures == (predicted, None)
+
+    @patch(f"{_TOOL_MODULE}.run_alphafold2_gradient")
     def test_soft_kwarg_defaults_to_one(self, mock_run: object) -> None:
-        mock_run.return_value = SimpleNamespace(gradient=[[0.0] * 20] * 3, loss=0.0, metrics={})
+        mock_run.return_value = SimpleNamespace(gradient=[[0.0] * 20] * 3, loss=0.0, metrics={}, structure=None)
         binder = _binder_with_logits(np.zeros((3, 20)))
         target = _target_with_structure()
         config = AF2BinderGradientConfig()

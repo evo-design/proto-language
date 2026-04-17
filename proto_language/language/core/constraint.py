@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 import numpy as np
+from proto_tools.entities.structures import Structure
 from pydantic import BaseModel
 
 from proto_language.language.core.segment import Segment
@@ -85,11 +86,16 @@ class GradientResult:
             backend. One value per constraint (not per segment).
         metrics (dict[str, Any]): Optional model-specific auxiliary metrics
             (e.g., pLDDT, pTM) reported alongside ``loss``.
+        structures (tuple[Structure | None, ...]): Optional per-input predicted Structures,
+            aligned with ``gradient``. Non-``None`` entries are assigned to
+            ``inputs[i].structure`` in ``compute_gradient``; ``None`` preserves the existing
+            one; empty tuple (default) is a no-op.
     """
 
     gradient: tuple[np.ndarray, ...]
     loss: float
     metrics: dict[str, Any] = field(default_factory=dict)
+    structures: tuple[Structure | None, ...] = ()
 
     def __repr__(self) -> str:
         """Return a compact repr that does not dump the full gradient arrays."""
@@ -607,6 +613,17 @@ class Constraint:
                     raise ValueError(
                         f"Constraint '{self.label}': gradient {seg_idx} shape {grad.shape} != logits shape {seq.logits.shape}"
                     )
+
+            # Sequence-level state — skips _propagate_metadata (which is label-keyed).
+            if result.structures:
+                if len(result.structures) != len(inputs):
+                    raise ValueError(
+                        f"Constraint '{self.label}': got {len(result.structures)} structure(s), "
+                        f"expected {len(inputs)} (one per input)."
+                    )
+                for seq, struct in zip(inputs, result.structures, strict=True):
+                    if struct is not None:
+                        seq.structure = struct
 
             scored_tuple = tuple(
                 Sequence(
