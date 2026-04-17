@@ -125,10 +125,11 @@ class SemigreedyMutationGenerator(Generator):
     * ``"uniform"``: every position is equally likely.
     * ``"entropy"``: positions with higher Shannon entropy in the PSSM are more
       likely, targeting the most uncertain residues.
-    * ``"plddt"``: positions are weighted by ``(1 - pLDDT)`` read from
-      ``proposal.structure.metrics["per_residue_plddt"]``, so structurally
-      uncertain residues are mutated more frequently. Requires a
-      ``Structure`` with the ``per_residue_plddt`` metric on each proposal.
+    * ``"plddt"``: positions are weighted by ``(1 - pLDDT)`` read from the
+      canonical ``proposal.structure.per_residue_plddt`` property, so
+      structurally uncertain residues are mutated more frequently. Requires
+      each proposal to have a ``Structure`` whose ``b_factor_type`` is
+      ``PLDDT`` or ``NORMALIZED_PLDDT``.
 
     ``frozen_positions`` hard-excludes listed indices from selection (deterministic
     counterpart to ``logit_bias``); whatever residue is there stays. Implements
@@ -194,7 +195,7 @@ class SemigreedyMutationGenerator(Generator):
         Raises:
             RuntimeError: If called before ``assign()`` or if a proposal has no logits.
             ValueError: If logits have the wrong shape or ``plddt`` weighting is
-                requested but the proposal has no structure with ``per_residue_plddt``.
+                requested but the proposal has no per-residue pLDDT on its structure.
         """
         self._validate_generator()
         vocab = list(PROTEIN_AMINO_ACIDS)
@@ -263,9 +264,9 @@ class SemigreedyMutationGenerator(Generator):
         # plddt weighting: (1 - plddt) so low-confidence positions are favored
         if proposal.structure is None:
             raise ValueError("position_weighting='plddt' requires a Structure on each proposal.")
-        per_residue = proposal.structure.metrics.get("per_residue_plddt")
+        per_residue = proposal.structure.per_residue_plddt
         if per_residue is None:
-            raise ValueError("position_weighting='plddt' requires 'per_residue_plddt' in proposal.structure.metrics.")
+            raise ValueError("plddt weighting needs per-residue pLDDT; set b_factor_type=PLDDT/NORMALIZED_PLDDT.")
         plddt_array = np.asarray(per_residue, dtype=float)
         if plddt_array.shape != (seq_len,):
             raise ValueError(f"per_residue_plddt length {len(plddt_array)} does not match sequence length {seq_len}.")

@@ -375,25 +375,28 @@ class Constraint:
         return final_scores
 
     def _preprocess_sequence_at_index(self, sequence_idx: int) -> tuple[Sequence, ...]:
-        """Preprocess sequence(s) at a specific batch position for scoring by creating clean Sequence.
+        """Build dummy Sequence objects for the scoring function at a given batch position.
 
-        objects with fresh metadata to pass to the scoring function.
+        ``_metadata`` / ``_constraints_metadata`` are blanked; ``structure`` and ``logits``
+        pass through from the original proposal and any writes are propagated back in
+        ``_propagate_metadata_to_sequence``.
 
         Args:
             sequence_idx (int): Index position in the sequence pool (0-based)
 
         Returns:
-            tuple[Sequence, ...]: Tuple[Sequence, ...] - tuple of clean Sequence objects, one per input segment
+            tuple[Sequence, ...]: Dummy Sequences, one per input segment.
         """
         # Return tuple of clean Sequence objects
         # Example: sequence_idx=0, segments with sequences=[Seq("AAA"), ...], [Seq("CCC"), ...] → (Seq("AAA"), Seq("CCC"))
         dummy_sequences = []
         for seg in self._inputs:
             original = seg.proposal_sequences[sequence_idx]
-            # Create clean Sequence with only essential properties
             dummy_seq = Sequence(
                 sequence=original.sequence, sequence_type=original.sequence_type, valid_chars=original.valid_chars
             )
+            dummy_seq.structure = original.structure
+            dummy_seq.logits = original.logits
             dummy_sequences.append(dummy_seq)
         return tuple(dummy_sequences)
 
@@ -406,6 +409,9 @@ class Constraint:
         - Standard evaluation fields at top level (score, weight, weighted_score)
         - Custom data from scoring function nested under "data"
         - Input segment linking info for multi-segment constraints
+
+        Also copies ``structure`` and ``logits`` from the scored dummy back onto the original
+        proposal when non-None, so structure-producing constraints persist their output.
 
         Args:
             sequence_idx (int): Index position in the sequence pool (0-based)
@@ -477,6 +483,12 @@ class Constraint:
                 constraint_data["position_in_inputs"] = seg_idx
 
             original_seq._constraints_metadata[self.label] = constraint_data
+
+            # Identity check: propagate only when the constraint rebound the field (skip pass-through no-ops).
+            if scored_seq.structure is not None and scored_seq.structure is not original_seq.structure:
+                original_seq.structure = scored_seq.structure
+            if scored_seq.logits is not None and scored_seq.logits is not original_seq.logits:
+                original_seq.logits = scored_seq.logits
 
     def _validate_constraint(self) -> None:
         """Validate constraint configuration.

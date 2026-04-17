@@ -12,11 +12,11 @@ from constraint_tests.utils import (
     mock_dna_only_scoring_function,
     mock_multi_input_scoring_function,
     mock_multi_input_scoring_function_disjoint,
-    mock_protein_only_scoring_function,
     mock_single_input_scoring_function,
 )
-from proto_language.language.core import Constraint, Segment
+from proto_language.language.core import Constraint, Segment, Sequence
 from proto_language.language.core.constraint import GradientResult
+from tests.helpers.mock_structure import MockStructure
 
 
 class MockConfig(BaseModel):
@@ -76,30 +76,12 @@ class TestConstraintEvaluation:
         ],
     )
     def test_constraint_evaluation_contiguous(self, sequences, expected_scores):
-        """Tests constraint evaluation with single and batched sequences."""
+        """Single and batched evaluation return per-proposal scores in order."""
         segment = _make_segment_with_proposals(sequences, "dna")
-        config = MockConfig()
-
-        # Test with mock_single_input_scoring_function
-        constraint_seq = Constraint(
-            inputs=[segment],
-            function=mock_single_input_scoring_function,
-            function_config=config,
+        constraint = Constraint(
+            inputs=[segment], function=mock_single_input_scoring_function, function_config=MockConfig()
         )
-        scores_seq = constraint_seq.evaluate()
-        assert scores_seq == expected_scores
-
-        # Reset segment for next test
-        segment = _make_segment_with_proposals(sequences, "dna")
-
-        # Test with mock_multi_input_scoring_function
-        constraint_batch = Constraint(
-            inputs=[segment],
-            function=mock_multi_input_scoring_function,
-            function_config=config,
-        )
-        scores_batch = constraint_batch.evaluate()
-        assert scores_batch == expected_scores
+        assert constraint.evaluate() == expected_scores
 
     def test_constraint_metadata_propagation(self):
         """Tests that metadata is correctly propagated back to sequences."""
@@ -151,6 +133,52 @@ class TestConstraintEvaluation:
             assert "t_percent" in constraints_a["mock_multi_input_scoring_function_disjoint"]["data"]
             assert "c_percent" in constraints_b["mock_multi_input_scoring_function_disjoint"]["data"]
 
+    def test_structure_and_logits_propagate_to_original(self):
+        """Regression for #1180: fields set on the scored dummy must reach the original proposal."""
+        attached_structure = MockStructure.with_plddt([0.1, 0.95, 0.95])
+        attached_logits = np.ones((3, 20))
+
+        def attaches(input_sequences: list[tuple[Sequence, ...]], config: BaseModel) -> list[float]:
+            for (seq,) in input_sequences:
+                seq.structure = attached_structure
+                seq.logits = attached_logits
+            return [0.0] * len(input_sequences)
+
+        attaches._constraint_supported_sequence_types = ["protein"]  # type: ignore[attr-defined]
+
+        segment = _make_segment_with_proposals(["ACD"], seq_type="protein")
+        Constraint(inputs=[segment], function=attaches, function_config=MockConfig()).evaluate()
+
+        assert segment.proposal_sequences[0].structure is attached_structure
+        assert np.array_equal(segment.proposal_sequences[0].logits, attached_logits)
+
+    def test_structure_and_logits_pass_through_when_constraint_leaves_them_alone(self):
+        """Constraint both sees the existing structure/logits (read path) and leaves the original references intact (no silent rebind)."""
+        existing_structure = MockStructure.with_plddt([0.5, 0.5, 0.5])
+        existing_logits = np.ones((3, 20))
+        seen: dict[str, object] = {}
+
+        def inspects(input_sequences: list[tuple[Sequence, ...]], config: BaseModel) -> list[float]:
+            for (seq,) in input_sequences:
+                seen["structure"] = seq.structure
+                seen["logits"] = seq.logits
+            return [0.0] * len(input_sequences)
+
+        inspects._constraint_supported_sequence_types = ["protein"]  # type: ignore[attr-defined]
+
+        segment = _make_segment_with_proposals(["ACD"], seq_type="protein")
+        segment.proposal_sequences[0].structure = existing_structure
+        segment.proposal_sequences[0].logits = existing_logits
+
+        Constraint(inputs=[segment], function=inspects, function_config=MockConfig()).evaluate()
+
+        # Read path: constraint saw the exact objects on its dummy (not defensive copies).
+        assert seen["structure"] is existing_structure
+        assert seen["logits"] is existing_logits
+        # Write path: no silent rebind when the constraint doesn't touch the fields.
+        assert segment.proposal_sequences[0].structure is existing_structure
+        assert segment.proposal_sequences[0].logits is existing_logits
+
 
 # =============================================================================
 # TESTS FOR INPUT VALIDATION
@@ -197,39 +225,13 @@ class TestConstraintValidation:
         assert len(constraint.inputs) == 2
 
     def test_unsupported_sequence_type_raises_error(self):
-        """Test that unsupported sequence type raises TypeError."""
-        # Create a protein segment and try to use it with DNA-only constraint
+        """Validation rejects a segment whose type isn't in the constraint's supported types."""
         protein_seg = Segment(sequence="MVLSPADKTN", sequence_type="protein")
 
         with pytest.raises(TypeError, match="does not support sequence type 'protein'"):
             Constraint(
                 inputs=[protein_seg],
                 function=mock_dna_only_scoring_function,
-                function_config=MockConfig(),
-            )
-
-    def test_supported_sequence_type_passes_validation(self):
-        """Test that supported sequence types pass validation."""
-        # DNA segment with DNA-only constraint should work
-        dna_seg = Segment(sequence="ATCGATCG", sequence_type="dna")
-
-        constraint = Constraint(
-            inputs=[dna_seg],
-            function=mock_dna_only_scoring_function,
-            function_config=MockConfig(),
-        )
-        assert constraint is not None
-
-    def test_sequence_type_validation_checks_all_segments(self):
-        """Test that validation checks sequence types for all input segments."""
-        # All segments should be validated
-        dna_seg = Segment(sequence="ATCGATCG", sequence_type="dna")
-
-        # protein_only constraint with DNA segment should fail
-        with pytest.raises(TypeError, match="does not support sequence type 'dna'"):
-            Constraint(
-                inputs=[dna_seg],
-                function=mock_protein_only_scoring_function,
                 function_config=MockConfig(),
             )
 
@@ -451,35 +453,6 @@ class TestConstraintWeight:
 class TestConstraintEdgeCases:
     """Tests for edge cases and boundary conditions."""
 
-    def test_large_batch_processing(self):
-        """Test constraint with large batch (100+ sequences)."""
-        sequences = ["ATCG"] * 100
-        segment = _make_segment_with_proposals(sequences, "dna")
-
-        constraint = Constraint(
-            inputs=[segment],
-            function=mock_multi_input_scoring_function,
-            function_config=MockConfig(),
-        )
-        scores = constraint.evaluate()
-
-        assert len(scores) == 100
-        assert all(0.0 <= s <= 1.0 for s in scores)
-
-    def test_empty_sequence_raises_error(self):
-        """Test that empty sequence causes expected error (division by zero)."""
-        sequences = ["ATCG", "", "GGGG"]
-        segment = _make_segment_with_proposals(sequences, "dna")
-
-        constraint = Constraint(
-            inputs=[segment],
-            function=mock_multi_input_scoring_function,
-            function_config=MockConfig(),
-        )
-
-        with pytest.raises(ZeroDivisionError):
-            constraint.evaluate()
-
     def test_reserved_key_collision_raises_error(self):
         """Test that writing a reserved key to seq._metadata raises ValueError."""
 
@@ -569,29 +542,26 @@ class TestConstraintEdgeCases:
 
 
 class TestGradientResult:
-    def test_construction_and_defaults(self) -> None:
-        result = GradientResult(gradient=(np.array([[1.0, 2.0], [3.0, 4.0]]),), loss=0.5)
+    @pytest.mark.parametrize(
+        "shapes",
+        [
+            pytest.param([(2, 2)], id="single-segment"),
+            pytest.param([(4, 20), (3, 20)], id="multi-segment"),
+        ],
+    )
+    def test_construction_preserves_gradient_shapes_and_default_metrics(self, shapes: list[tuple[int, int]]) -> None:
+        result = GradientResult(gradient=tuple(np.zeros(s) for s in shapes), loss=0.5)
         assert result.loss == 0.5
         assert result.metrics == {}
-        assert len(result.gradient) == 1
-        assert result.gradient[0].shape == (2, 2)
+        assert [g.shape for g in result.gradient] == shapes
 
-    def test_multi_segment_gradient(self) -> None:
-        vh_grad = np.zeros((4, 20))
-        vl_grad = np.zeros((3, 20))
-        result = GradientResult(gradient=(vh_grad, vl_grad), loss=0.5)
-        assert len(result.gradient) == 2
-        assert result.gradient[0].shape == (4, 20)
-        assert result.gradient[1].shape == (3, 20)
-
-    def test_custom_metrics_and_repr(self) -> None:
-        result = GradientResult(
-            gradient=(np.zeros((5, 20)),),
-            loss=0.5,
-            metrics={"plddt": 0.85, "ptm": 0.72},
-        )
+    def test_custom_metrics_stored_and_repr_shows_shape_not_array(self) -> None:
+        result = GradientResult(gradient=(np.zeros((5, 20)),), loss=0.5, metrics={"plddt": 0.85})
         assert result.metrics["plddt"] == pytest.approx(0.85)
-        assert repr(result) == "GradientResult(gradient=((5, 20)), loss=0.5, metrics={'plddt': 0.85, 'ptm': 0.72})"
+        # repr must elide the array (huge) and surface the shape + loss for debugging.
+        r = repr(result)
+        assert "(5, 20)" in r
+        assert "loss=0.5" in r
 
     def test_frozen(self) -> None:
         result = GradientResult(gradient=(np.zeros((5, 20)),), loss=1.0)

@@ -4,6 +4,7 @@ from collections import Counter
 
 import numpy as np
 import pytest
+from proto_tools import Structure
 
 from proto_language.language.core import Segment
 from proto_language.language.generator import (
@@ -21,7 +22,7 @@ def _mutation_position_counts(
     seq: str,
     logits: np.ndarray,
     n_trials: int = 100,
-    structure: MockStructure | None = None,
+    structure: Structure | None = None,
 ) -> Counter[int]:
     """Run n_trials mutations and return per-position mutation counts."""
     counts: Counter[int] = Counter()
@@ -79,7 +80,7 @@ class TestSemigreedyMutationGenerator:
     def test_plddt_weighting(self):
         """PLDDT weighting preferentially selects low-confidence positions."""
         logits = np.random.default_rng(0).standard_normal((5, VOCAB_SIZE))
-        structure = MockStructure(metrics={"per_residue_plddt": [0.1, 0.95, 0.95, 0.95, 0.95]})
+        structure = MockStructure.with_plddt([0.1, 0.95, 0.95, 0.95, 0.95])
 
         config = SemigreedyMutationGeneratorConfig(position_weighting="plddt", exclude_current=True)
         counts = _mutation_position_counts(config, "ACDEF", logits, structure=structure)
@@ -122,9 +123,10 @@ class TestSemigreedyMutationGenerator:
         ("structure", "error_match"),
         [
             pytest.param(None, "requires a Structure", id="no-structure"),
-            pytest.param(MockStructure(), "per_residue_plddt", id="no-metric"),
+            # Default MockStructure uses BFactorType.UNSPECIFIED, so per_residue_plddt returns None.
+            pytest.param(MockStructure(), "per-residue pLDDT", id="no-plddt-bfactors"),
             pytest.param(
-                MockStructure(metrics={"per_residue_plddt": [0.5, 0.5]}),
+                MockStructure.with_plddt([0.5, 0.5]),
                 "does not match sequence length",
                 id="wrong-length",
             ),
@@ -201,7 +203,7 @@ class TestSemigreedyMutationGenerator:
         logits[2, :] = 0.0  # max entropy (and matching low-pLDDT slot below), frozen
         logits[4, :] = 0.0  # max entropy (and matching low-pLDDT slot below), free
         # pLDDT mirrors the entropy ranking: positions 2 and 4 have the lowest confidence.
-        structure = MockStructure(metrics={"per_residue_plddt": [0.95, 0.95, 0.1, 0.95, 0.1]})
+        structure = MockStructure.with_plddt([0.95, 0.95, 0.1, 0.95, 0.1])
 
         config = SemigreedyMutationGeneratorConfig(position_weighting=weighting, frozen_positions=[2])
         counts = _mutation_position_counts(config, "ACDEF", logits, structure=structure)
