@@ -175,13 +175,69 @@ class TestSemigreedyMutationGenerator:
         with pytest.raises(Exception, match="finite"):
             SemigreedyMutationGeneratorConfig(logit_bias=bias_with_inf)
 
-        # Length mismatch: bias has 3 rows but segment has 5 positions — caught at sample() time
+        # Length mismatch: bias has 3 rows but segment has 5 positions — caught at assign() time
         segment = Segment(sequence="ACDEF", sequence_type="protein")
         segment.proposal_sequences[0].logits = np.zeros((5, VOCAB_SIZE))
         gen = SemigreedyMutationGenerator(
             SemigreedyMutationGeneratorConfig(logit_bias=np.zeros((3, VOCAB_SIZE)).tolist())
         )
-        gen._set_program_seed(42)
-        gen.assign(segment)
         with pytest.raises(ValueError, match="rows but sequence length"):
-            gen.sample()
+            gen.assign(segment)
+
+    def test_frozen_positions_excluded_from_selection(self):
+        """Frozen positions never mutate; unfrozen positions absorb every mutation."""
+        config = SemigreedyMutationGeneratorConfig(frozen_positions=[0, 2])
+        counts = _mutation_position_counts(config, "ACDEF", np.zeros((5, VOCAB_SIZE)))
+        assert counts[0] == 0
+        assert counts[2] == 0
+        assert sum(counts.values()) == 100
+
+    @pytest.mark.parametrize("weighting", ["entropy", "plddt"])
+    def test_frozen_positions_override_weighting(self, weighting):
+        """Freezing the top-ranked position under a non-uniform strategy redirects mutations to the next-ranked one."""
+        logits = np.full((5, VOCAB_SIZE), -100.0)
+        for i in [0, 1, 3]:
+            logits[i, i % VOCAB_SIZE] = 100.0  # peaked → ~0 entropy
+        logits[2, :] = 0.0  # max entropy (and matching low-pLDDT slot below), frozen
+        logits[4, :] = 0.0  # max entropy (and matching low-pLDDT slot below), free
+        # pLDDT mirrors the entropy ranking: positions 2 and 4 have the lowest confidence.
+        structure = MockStructure(metrics={"per_residue_plddt": [0.95, 0.95, 0.1, 0.95, 0.1]})
+
+        config = SemigreedyMutationGeneratorConfig(position_weighting=weighting, frozen_positions=[2])
+        counts = _mutation_position_counts(config, "ACDEF", logits, structure=structure)
+        assert counts[2] == 0
+        assert counts[4] > 70
+
+    def test_frozen_positions_compose_with_exclude_current(self):
+        """Frozen position stays fixed while exclude_current still forces a mutation elsewhere."""
+        config = SemigreedyMutationGeneratorConfig(frozen_positions=[0], exclude_current=True)
+        counts = _mutation_position_counts(config, "AAAAA", np.zeros((5, VOCAB_SIZE)), n_trials=30)
+        assert counts[0] == 0
+        assert sum(counts.values()) == 30
+
+    @pytest.mark.parametrize(
+        ("seq", "frozen", "match"),
+        [
+            pytest.param("ACDEF", [7], "sequence length is 5", id="out-of-bounds"),
+            pytest.param("AC", [0, 1], "All positions are frozen", id="all-frozen"),
+        ],
+    )
+    def test_frozen_positions_assign_errors(self, seq, frozen, match):
+        """assign() raises ValueError on each invalid runtime state."""
+        segment = Segment(sequence=seq, sequence_type="protein")
+        segment.proposal_sequences[0].logits = np.zeros((len(seq), VOCAB_SIZE))
+        gen = SemigreedyMutationGenerator(SemigreedyMutationGeneratorConfig(frozen_positions=frozen))
+        with pytest.raises(ValueError, match=match):
+            gen.assign(segment)
+
+    @pytest.mark.parametrize(
+        ("frozen", "match"),
+        [
+            pytest.param([], "must not be empty", id="empty"),
+            pytest.param([-1], "non-negative", id="negative-index"),
+        ],
+    )
+    def test_frozen_positions_config_validation(self, frozen, match):
+        """Invalid frozen_positions configurations raise at construction."""
+        with pytest.raises(Exception, match=match):
+            SemigreedyMutationGeneratorConfig(frozen_positions=frozen)

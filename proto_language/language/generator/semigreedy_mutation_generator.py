@@ -9,6 +9,7 @@ from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.core import (
     PROTEIN_AMINO_ACIDS,
     Generator,
+    Segment,
     Sequence,
 )
 from proto_language.language.generator.generator_registry import generator
@@ -18,13 +19,10 @@ from proto_language.utils import softmax
 class SemigreedyMutationGeneratorConfig(BaseConfig):
     """Configuration for semigreedy single-point mutation sampling.
 
-    This generator reads ``seq.logits`` (produced by a preceding gradient-based
-    optimizer), converts them to a position-specific scoring matrix (PSSM) via
-    softmax, and introduces single-point mutations by sampling amino acids from
-    the PSSM distribution at selected positions.
-
-    Designed for Stage 2 of the Germinal pipeline: ``MCMCOptimizer`` at near-zero
-    temperature with this generator performs greedy/semigreedy discrete refinement.
+    Converts ``seq.logits`` (from a preceding gradient-based optimizer) to a PSSM
+    via softmax and samples single-point mutations from it. Stage 2 of the Germinal
+    pipeline: paired with ``MCMCOptimizer`` at near-zero temperature for
+    greedy/semigreedy discrete refinement.
 
     Attributes:
         position_weighting (Literal["uniform", "entropy", "plddt"]): Strategy for
@@ -38,10 +36,13 @@ class SemigreedyMutationGeneratorConfig(BaseConfig):
         exclude_current (bool): Whether to zero out the probability of the current
             amino acid at the selected position before sampling the replacement.
             Guarantees every mutation actually changes the sequence.
-        logit_bias (list[list[float]] | None): Optional additive bias matrix of
-            shape ``(L, 20)`` added to ``proposal.logits`` before AA sampling.
-            Position weighting still uses ``proposal.logits`` alone. Matches
-            Germinal's ``self._inputs["bias"]`` (``shared/model.py:155``).
+        logit_bias (list[list[float]] | None): Additive bias matrix of shape
+            ``(L, 20)`` added to ``proposal.logits`` before AA sampling. Position
+            weighting still uses ``proposal.logits`` alone.
+        frozen_positions (list[int] | None): Zero-indexed positions excluded from
+            mutation; the residue at each listed index is preserved from the
+            proposal sequence. E.g., disulfide or epitope preservation via
+            ``[2, 7]``. Duplicates are ignored.
     """
 
     position_weighting: Literal["uniform", "entropy", "plddt"] = ConfigField(
@@ -69,6 +70,12 @@ class SemigreedyMutationGeneratorConfig(BaseConfig):
         advanced=True,
         hidden=True,
     )
+    frozen_positions: list[int] | None = ConfigField(
+        default=None,
+        title="Frozen Positions",
+        description="Zero-indexed positions excluded from mutation.",
+        advanced=True,
+    )
 
     @field_validator("logit_bias")
     @classmethod
@@ -81,6 +88,18 @@ class SemigreedyMutationGeneratorConfig(BaseConfig):
             raise ValueError(f"logit_bias must have shape (L, {len(PROTEIN_AMINO_ACIDS)}), got {arr.shape}.")
         if not np.isfinite(arr).all():
             raise ValueError("logit_bias must contain only finite values.")
+        return v
+
+    @field_validator("frozen_positions")
+    @classmethod
+    def validate_frozen_positions(cls, v: Any) -> Any:
+        """Validate frozen_positions are non-negative indices."""
+        if v is None:
+            return v
+        if not v:
+            raise ValueError("frozen_positions must not be empty; use None to disable.")
+        if any(p < 0 for p in v):
+            raise ValueError(f"frozen_positions must all be non-negative, got {v}.")
         return v
 
 
@@ -111,9 +130,10 @@ class SemigreedyMutationGenerator(Generator):
       uncertain residues are mutated more frequently. Requires a
       ``Structure`` with the ``per_residue_plddt`` metric on each proposal.
 
-    This generator implements Germinal's ``design_semigreedy`` phase, where an
-    ``MCMCOptimizer`` with near-zero temperature acts as a greedy optimizer and
-    ``proposals_per_result > 1`` tries multiple mutations per step.
+    ``frozen_positions`` hard-excludes listed indices from selection (deterministic
+    counterpart to ``logit_bias``); whatever residue is there stays. Implements
+    Germinal's ``design_semigreedy`` phase (``MCMCOptimizer`` at near-zero
+    temperature, ``proposals_per_result > 1``).
 
     Attributes:
         config (SemigreedyMutationGeneratorConfig): Generator configuration.
@@ -139,9 +159,25 @@ class SemigreedyMutationGenerator(Generator):
         super().__init__()
         self.config = config
         self._logit_bias = np.asarray(config.logit_bias, dtype=float) if config.logit_bias is not None else None
+        self._frozen_positions: frozenset[int] | None = (
+            frozenset(config.frozen_positions) if config.frozen_positions is not None else None
+        )
         self.position_weighting = config.position_weighting
         self.temperature = config.temperature
         self.exclude_current = config.exclude_current
+
+    def assign(self, assigned_segment: Segment) -> None:
+        """Assign a segment and validate length-dependent config against it."""
+        super().assign(assigned_segment)
+        seq_len = assigned_segment.sequence_length
+        if self._logit_bias is not None and self._logit_bias.shape[0] != seq_len:
+            raise ValueError(f"logit_bias has {self._logit_bias.shape[0]} rows but sequence length is {seq_len}.")
+        if self._frozen_positions is not None:
+            for pos in self._frozen_positions:
+                if pos >= seq_len:
+                    raise ValueError(f"frozen_positions index {pos} out of range; sequence length is {seq_len}.")
+            if len(self._frozen_positions) == seq_len:
+                raise ValueError("All positions are frozen; no mutation is possible.")
 
     def sample(self) -> None:
         """Introduce one single-point mutation per proposal.
@@ -165,17 +201,20 @@ class SemigreedyMutationGenerator(Generator):
         vocab_size = len(vocab)
         rng = np.random.default_rng(self._next_seed())
 
-        if self._logit_bias is not None and self._logit_bias.shape[0] != self.segment.sequence_length:
-            raise ValueError(
-                f"logit_bias has {self._logit_bias.shape[0]} rows but sequence length is {self.segment.sequence_length}."
-            )
-
         for proposal in self.segment.proposal_sequences:
             if proposal.logits is None:
                 raise RuntimeError(f"Proposal on segment '{self.segment.label}' has no logits.")
-
             pssm = self._build_pssm(proposal.logits, vocab_size)
             position_weights = self._compute_position_weights(pssm, proposal)
+            if self._frozen_positions is not None:
+                for pos in self._frozen_positions:
+                    position_weights[pos] = 0.0
+                total = position_weights.sum()
+                if total < 1e-12:
+                    raise ValueError(
+                        f"All non-frozen positions have zero weight under position_weighting={self.position_weighting!r}."
+                    )
+                position_weights = position_weights / total
             position = rng.choice(len(pssm), p=position_weights)
 
             aa_logits = proposal.logits[position].copy()
@@ -198,10 +237,7 @@ class SemigreedyMutationGenerator(Generator):
             raise ValueError("Logit matrix must be a 2D array with shape (sequence_length, vocab_size).")
         expected_shape = (self.segment.sequence_length, vocab_size)
         if matrix.shape != expected_shape:
-            raise ValueError(
-                f"Logit matrix shape {matrix.shape} does not match expected shape {expected_shape} "
-                f"for segment '{self.segment.label or 'unlabeled'}'."
-            )
+            raise ValueError(f"Logit matrix shape {matrix.shape} does not match expected shape {expected_shape}.")
         if not np.isfinite(matrix).all():
             raise ValueError("Logit matrix must contain only finite values.")
         return softmax(matrix / self.temperature)
@@ -232,9 +268,7 @@ class SemigreedyMutationGenerator(Generator):
             raise ValueError("position_weighting='plddt' requires 'per_residue_plddt' in proposal.structure.metrics.")
         plddt_array = np.asarray(per_residue, dtype=float)
         if plddt_array.shape != (seq_len,):
-            raise ValueError(
-                f"per_residue_plddt length {plddt_array.shape[0]} does not match sequence length {seq_len}."
-            )
+            raise ValueError(f"per_residue_plddt length {len(plddt_array)} does not match sequence length {seq_len}.")
         weights = 1.0 - np.clip(plddt_array, 0.0, 1.0)
         total = weights.sum()
         if total < 1e-12:
