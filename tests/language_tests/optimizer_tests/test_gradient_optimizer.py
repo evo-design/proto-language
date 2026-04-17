@@ -102,6 +102,7 @@ class TestConfig:
         assert cfg.norm_alignment == "match_first"
         assert cfg.normalize_mode == "sqrt_length"
         assert cfg.gumbel_logit_init is True
+        assert cfg.gumbel_init_alpha == 2.0
         assert cfg.constraint_weight_schedules == [
             ConstraintWeightSchedule(constraint_label="ablang", start_weight=0.2, end_weight=0.4, schedule="linear")
         ]

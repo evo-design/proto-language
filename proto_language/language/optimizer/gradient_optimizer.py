@@ -69,7 +69,7 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
 
     Each GradientOptimizer runs one mode (fixed or ramping soft, with optional
     temperature annealing). Chain multiple in a ``Program`` for multi-phase
-    pipelines like Germinal (logit phase → softmax phase).
+    pipelines (e.g. logit phase → softmax phase).
 
     Attributes:
         num_results (int | None): Parallel optimization trajectories.
@@ -88,8 +88,7 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
             gradient normalization before merging.
         normalize_gradients (bool): Normalize merged gradient before update.
         normalize_mode (Literal["unit", "sqrt_length"]): Normalization formula.
-            ``"unit"`` = L2 to magnitude 1. ``"sqrt_length"`` = Germinal-compatible
-            ``g * sqrt(eff_L) / ||g||``.
+            ``"unit"`` = L2 to magnitude 1. ``"sqrt_length"`` = ``g * sqrt(eff_L) / ||g||``.
         fixed_positions (list[int] | None): Positions to freeze during optimization.
         scale_lr_by_temperature (bool): Multiply LR by soft/temperature blending.
         min_lr_scale (float): Floor for effective LR scale.
@@ -99,6 +98,7 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
             weight schedules that override ``Constraint.weight`` each step.
         gumbel_logit_init (bool): If True, add Gumbel(0,1) noise per position on top of
             the bias — gives parallel trajectories stochastic starts.
+        gumbel_init_alpha (float): Divisor for Gumbel init noise. ``1.0`` = unscaled.
 
     Note:
         Ramps use ``progress = step / num_steps`` with ``step`` starting at 1,
@@ -201,7 +201,7 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
     normalize_mode: Literal["unit", "sqrt_length"] = ConfigField(
         default="unit",
         title="Normalize Mode",
-        description="'unit' = L2 to 1.0. 'sqrt_length' = Germinal: g*sqrt(eff_L)/||g||.",
+        description="'unit' = L2 to 1.0. 'sqrt_length' = g*sqrt(eff_L)/||g||.",
         advanced=True,
     )
     fixed_positions: list[int] | None = ConfigField(
@@ -235,12 +235,19 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
         description="Add Gumbel(0,1) noise per position on top of the bias at init.",
         advanced=True,
     )
+    gumbel_init_alpha: float = ConfigField(
+        default=1.0,
+        gt=0.0,
+        title="Gumbel Init Alpha",
+        description="Divisor for Gumbel init noise. 1.0 = unscaled.",
+        advanced=True,
+    )
 
     @classmethod
     def germinal_logit_preset(cls) -> "GradientOptimizerConfig":
-        """Germinal VHH Phase 1 (logit phase): ``design_logits(iters=65, soft=0, e_soft=1)``.
+        """Logit hallucination phase: 65 SGD steps with soft 0→1, naturalness weight 0.2→0.4.
 
-        Ramps naturalness weight 0.2→0.4 linearly — constraint must be labeled ``"ablang"``.
+        Ramps naturalness weight linearly — constraint must be labeled ``"ablang"``.
         Initial logits get Gumbel(0,1) noise so parallel trajectories diverge.
         """
         return cls(
@@ -260,11 +267,12 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
                 ConstraintWeightSchedule(constraint_label="ablang", start_weight=0.2, end_weight=0.4, schedule="linear")
             ],
             gumbel_logit_init=True,
+            gumbel_init_alpha=2.0,
         )
 
     @classmethod
     def germinal_softmax_preset(cls) -> "GradientOptimizerConfig":
-        """Germinal VHH Phase 2 (softmax phase): ``design_soft(iters=35, e_temp=1e-2)``.
+        """Softmax refinement phase: 35 SGD steps with soft=1.0, temperature 1.0→0.01 quadratic.
 
         Naturalness weight is constant 0.4 — set ``Constraint(weight=0.4)`` directly.
         """
@@ -301,7 +309,7 @@ class GradientOptimizer(Optimizer):
     to discretize logits into sequences for tracking and handoff.
 
     Chain multiple GradientOptimizers in a ``Program`` for multi-phase
-    pipelines (e.g., Germinal logit phase → softmax phase).
+    pipelines (e.g., logit phase → softmax phase).
 
     Attributes:
         config (GradientOptimizerConfig): Optimizer configuration.
@@ -431,6 +439,7 @@ class GradientOptimizer(Optimizer):
                     vocab,
                     rng=init_rng,
                     fixed_positions=self.config.fixed_positions,
+                    gumbel_alpha=self.config.gumbel_init_alpha,
                 )
 
         self._adam_m = [np.zeros_like(seq.logits) for seq in target.proposal_sequences]
@@ -586,14 +595,15 @@ def _init_logits(
     *,
     rng: np.random.Generator | None = None,
     fixed_positions: list[int] | None = None,
+    gumbel_alpha: float = 1.0,
 ) -> np.ndarray:
     """Return ``(num_positions, len(vocab))`` logits; ``sequence`` may be empty and only drives the bias.
 
-    When ``rng`` is provided, Gumbel(0,1) noise is added per position so parallel trajectories diverge.
-    Noise is skipped at ``fixed_positions`` so anchors stay deterministic.
+    When ``rng`` is provided, Gumbel(0,1) noise (divided by ``gumbel_alpha``) is added per position
+    so parallel trajectories diverge. Noise is skipped at ``fixed_positions``.
     """
     shape = (num_positions, len(vocab))
-    logits = rng.gumbel(size=shape) if rng is not None else np.zeros(shape, dtype=np.float64)
+    logits = rng.gumbel(size=shape) / gumbel_alpha if rng is not None else np.zeros(shape, dtype=np.float64)
     if fixed_positions:
         logits[fixed_positions] = 0.0
     for pos, char in enumerate(sequence[:num_positions]):
