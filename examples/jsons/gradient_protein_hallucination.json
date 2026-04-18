@@ -1,6 +1,6 @@
 {
   "name": "gradient_protein_hallucination",
-  "description": "Two-stage gradient protein hallucination: logit phase then softmax refinement. Uses AbLang VHH naturalness gradient; replace with af2-binder-gradient + target structure for true binder design. Requires GPU.",
+  "description": "Two-stage gradient protein hallucination: logit phase then softmax refinement. Uses AbLang VHH naturalness gradient; replace with af2-binder + target structure for true binder design. Requires GPU.",
   "version": "1.0",
   "num_results": 1,
   "constructs": [

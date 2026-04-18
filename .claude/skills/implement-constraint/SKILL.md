@@ -168,51 +168,122 @@ def my_constraint(
 | `tools_called` | `list[str]` | No | Default `[]`. Tool names this constraint invokes |
 | `category` | `str` | No | Must match the subdirectory name (e.g., `"sequence_composition"`) |
 | `supported_sequence_types` | `list[str]` | Yes | Non-empty list from: `"dna"`, `"rna"`, `"protein"`, `"ligand"` |
-| `input_labels` | `list[str \| InputSlot] \| None` | No | Default `["Sequence"]`. Named input slots — plain strings for simple labels, or `InputSlot(label=..., requires_logits=True, requires_structure=True)` to enable per-slot swap-detection on gradient constraints. Use `None` for any number of interchangeable inputs |
+| `input_labels` | `list[str \| InputSlot] \| None` | No | Default `["Sequence"]`. Strings for plain labels (`["Query", "Reference"]`), or `InputSlot(label=..., requires_logits=True, requires_structure=True)` for per-slot swap-detection. Use `None` for any number of interchangeable inputs |
 | `backward` | `Callable \| None` | No | Gradient callable: `(inputs, *, config, **kwargs) -> GradientResult` |
 | `backward_config` | `Type[BaseModel] \| None` | No | Separate config class for backward callable. If `None`, uses `config` |
 
-## Gradient-Only Constraints
+## Constraint Modes
 
-For constraints that only provide gradient computation (no discrete scoring), such as
-AF2 binder hallucination or AbLang naturalness gradients. The `@constraint` decorator
-auto-detects the role from the return type annotation — `-> GradientResult` registers
-the function as the backward callable:
+A Constraint can expose three capability shapes:
+
+| Mode | `function` | `backward` | Registered how | Used by |
+|---|---|---|---|---|
+| `"discrete"` | ✅ | — | Decorated function returns `list[float]` | MCMC, BeamSearch, RejSamp |
+| `"gradient"` | — | ✅ | Decorated function returns `GradientResult` | GradientOptimizer |
+| `"dual"` | ✅ | ✅ | Decorated forward fn + `backward=` kwarg | Any optimizer — each picks the right path |
+
+**Discovery:**
+
+```python
+spec = ConstraintRegistry.get("my-constraint")
+spec.mode              # "discrete" | "gradient" | "dual"
+c = ConstraintRegistry.create("my-constraint", segments, config_dict)
+c.supports_discrete    # True if forward scoring function is set
+c.supports_gradient    # True if backward callable is set
+```
+
+**Optimizer routing** is automatic: `GradientOptimizer` filters on `supports_gradient` (`proto_language/language/optimizer/gradient_optimizer.py:357`); MCMC/Beam/RejSamp call `constraint.evaluate()` which guards on `_function is None` (`proto_language/language/core/constraint.py:292`). Dual-mode constraints pass both filters and route to the correct callable per optimizer.
+
+### Gradient-Only Constraints
+
+For constraints that only compute gradients (no discrete scoring path) — e.g., gradient-only
+naturalness terms that wrap a model's backward pass. The `@constraint` decorator auto-detects
+the role from the return type annotation: `-> GradientResult` registers the function as the
+backward callable and sets `mode="gradient"`.
 
 ```python
 from proto_language.language.core.constraint import GradientResult
 
 @constraint(
-    key="af2-binder-gradient",
-    label="AF2 Binder Gradient",
-    config=AF2BinderConfig,
-    description="AlphaFold2 binder hallucination gradient",
+    key="ablang-vhh-gradient",
+    label="AbLang VHH Naturalness Gradient",
+    config=AbLangGradientConstraintConfig,
+    description="Antibody naturalness gradient for VHH redesign",
     uses_gpu=True,
     supported_sequence_types=["protein"],
 )
-def af2_binder_backward(
-    inputs: tuple[Sequence, ...], *, config: AF2BinderConfig, temperature: float, **kwargs: Any
+def ablang_vhh_gradient_backward(
+    inputs: tuple[Sequence, ...], *, config, temperature: float, **kwargs: Any,
 ) -> GradientResult:
-    """Compute gradient of binder objective w.r.t. relaxed logits."""
-    gradient, loss, metrics = run_af2_binder_gradient(inputs[0].logits, temperature, config)
-    return GradientResult(gradient=(gradient,), loss=loss, metrics=metrics)
+    """Compute gradient of naturalness w.r.t. relaxed logits."""
+    grad, loss = run_ablang_gradient(inputs[0].logits, temperature, config)
+    return GradientResult(gradient=(grad,), loss=loss)
 ```
 
-### Constraint Modes
+This constraint is invisible to MCMC / BeamSearch / RejSamp (they skip it with a warning
+from GradientOptimizer-style filters; evaluate() would raise). Use `"gradient"`-only when
+the operation **cannot** be scored discretely — e.g., the backward is the only meaningful
+output, and attempting a forward-only mode makes no semantic sense.
 
-| Mode | `function` | `backward` | Usage |
-|---|---|---|---|
-| `"discrete"` | provided | `None` | Decorated function returns `list[float]` |
-| `"gradient"` | `None` | provided | Decorated function returns `GradientResult` |
-| `"gradient"` | provided | provided | Decorated scoring function + `backward=fn` kwarg |
+### Dual-Mode Constraints (Canonical for Multi-Stage Pipelines)
 
-### Discovery
+**This is the canonical pattern** for any constraint whose underlying computation can
+produce both a discrete score and a gradient — forward and backward of the same
+evaluator. Register ONE `@constraint` on the forward function and pair it with
+`backward=` for the gradient callable:
 
 ```python
-spec.mode           # "discrete" or "gradient"
-c.supports_gradient  # True if backward callable is set
-c.supports_discrete  # True if scoring function is set
+from proto_language.language.core.constraint import GradientResult
+
+def my_backward(
+    inputs: tuple[Sequence, ...], *, config: MyConfig, temperature: float, **kwargs: Any,
+) -> GradientResult:
+    """Gradient path — returns GradientResult."""
+    ...
+
+
+@constraint(
+    key="my-constraint",
+    label="My Constraint",
+    config=MyConfig,
+    description="Scores discrete sequences (MCMC) or computes gradients (GradientOptimizer).",
+    uses_gpu=True,
+    supported_sequence_types=["protein"],
+    backward=my_backward,          # <-- pair the backward callable
+    backward_config=MyConfig,      # optional: separate config class for the backward
+)
+def my_forward(
+    input_sequences: list[tuple[Sequence, ...]], *, config: MyConfig,
+) -> list[float]:
+    """Forward path — returns [0, 1] scores."""
+    ...
 ```
+
+**Why dual-mode over two separate registry entries.** The underlying computation is one
+thing; forward vs backward are two *queries* against the same evaluator, not two
+evaluators. Splitting by caller-side concern (GradientOptimizer vs MCMC) makes constraint
+identity depend on how it's used — backwards. Dual-mode:
+
+- **One registry key, one UI entry, one factory.** Multi-stage pipelines (e.g. Germinal:
+  GradientOptimizer → MCMCOptimizer) use one `Constraint(function=..., backward=..., ...)`
+  across all stages. The optimizer picks the right path.
+- **Single `_constraints_metadata[label]` namespace** uniform across stages, so
+  confidence gates that read metadata between stages work transparently.
+- **No duplicated decorator metadata.** Config, label, `tools_called`,
+  `supported_sequence_types`, `input_labels`, description — one source of truth.
+- **Shared config guaranteed.** If forward and backward share a config class (as in AF2
+  binder design), users can't accidentally configure one mode differently from the other.
+
+**Canonical in-tree example.** `af2-binder`
+(`proto_language/language/constraint/differentiable/af2_binder_constraint.py`)
+registers `af2_binder_forward` as the forward callable, pairs with `af2_binder_backward`,
+and both paths construct the same `AlphaFold2BinderConfig` from shared `AF2BinderConfig`
+fields — only `soft` and `compute_gradient` differ between modes.
+
+**Rule of thumb:** if your constraint's underlying computation supports both forward and
+backward, register as dual-mode. Single-mode is only appropriate when the other mode
+genuinely doesn't exist (pure discrete heuristics with no differentiable form; pure
+gradient hooks with no scoring interpretation).
 
 ## Scoring Convention
 
@@ -379,6 +450,7 @@ Copy this and check off as you go:
 
 - [ ] Config class inherits `BaseConfig` with `ConfigField`
 - [ ] `@constraint` decorator with unique kebab-case key
+- [ ] Mode chosen correctly: discrete (score only), gradient (backward only, `-> GradientResult`), or dual (`backward=` paired with forward scoring). Prefer dual when the computation supports both.
 - [ ] `supported_sequence_types` is non-empty
 - [ ] Scoring function returns `list[float]` with scores in [0.0, 1.0]
 - [ ] Metadata stored on `seq._metadata` for downstream visibility

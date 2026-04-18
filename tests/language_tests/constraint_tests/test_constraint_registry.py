@@ -509,8 +509,10 @@ class TestModeAndBackwardConfig:
             return [0.0] * len(input_sequences)
 
         try:
+            # Backward-only (decorated fn returns GradientResult) -> "gradient".
             assert ConstraintRegistry.get("_test-m2a").mode == "gradient"
-            assert ConstraintRegistry.get("_test-m2b").mode == "gradient"
+            # Forward fn paired with separate backward via backward= -> "dual".
+            assert ConstraintRegistry.get("_test-m2b").mode == "dual"
         finally:
             ConstraintRegistry._registry.pop("_test-m2a", None)
             ConstraintRegistry._registry.pop("_test-m2b", None)
@@ -635,7 +637,7 @@ class TestModeAndBackwardConfig:
     def test_all_builtin_constraints_have_valid_mode(self):
         """All registered constraints have a valid mode."""
         for spec in ConstraintRegistry.list_all():
-            assert spec.mode in ("discrete", "gradient"), f"{spec.key}: invalid mode {spec.mode}"
+            assert spec.mode in ("discrete", "gradient", "dual"), f"{spec.key}: invalid mode {spec.mode}"
 
     def test_ablang_gradient_constraints(self):
         """Real gradient constraints have mode='gradient' with no scoring function."""

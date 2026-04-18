@@ -487,15 +487,15 @@ def _ablang_constraint(seg: Segment, label: str = "ablang") -> Constraint:
 
 
 def _af2_constraint(binder: Segment, target: Segment, label: str = "af2") -> Constraint:
-    from proto_language.language.constraint.differentiable.af2_binder_gradient_constraint import (
-        AF2BinderGradientConfig,
+    from proto_language.language.constraint.differentiable.af2_binder_constraint import (
+        AF2BinderConfig,
         af2_binder_backward,
     )
 
     return Constraint(
         inputs=[binder, target],
         backward=af2_binder_backward,
-        backward_config=AF2BinderGradientConfig(
+        backward_config=AF2BinderConfig(
             target_chain="A", binder_chain="B", num_recycles=1, loss_weights={"plddt": 1.0}
         ),
         label=label,

@@ -1,12 +1,13 @@
-"""AlphaFold2 binder-design gradient constraint."""
+"""AlphaFold2 binder-design constraint (dual-mode: discrete scoring + gradient)."""
 
+import math
 from typing import Any, Literal
 
 import numpy as np
 from proto_tools.tools.structure_prediction.alphafold2 import (
-    AlphaFold2GradientConfig,
-    AlphaFold2GradientInput,
-    run_alphafold2_gradient,
+    AlphaFold2BinderConfig,
+    AlphaFold2BinderInput,
+    run_alphafold2_binder,
 )
 
 from proto_language.base_config import BaseConfig, ConfigField
@@ -14,15 +15,14 @@ from proto_language.language.constraint.constraint_registry import InputSlot, co
 from proto_language.language.core import PROTEIN_AMINO_ACIDS, Sequence
 from proto_language.language.core.constraint import GradientResult
 
+_AA_INDEX = {aa: i for i, aa in enumerate(PROTEIN_AMINO_ACIDS)}
+_ONE_HOT_LOGIT = 20.0
 
-class AF2BinderGradientConfig(BaseConfig):
-    """Configuration for the AlphaFold2 binder-design gradient constraint.
 
-    Maps ColabDesign binder-gradient knobs to a constraint config so the
-    gradient optimizer can drive AF2 binder redesign.
+class AF2BinderConfig(BaseConfig):
+    """Configuration for the AlphaFold2 binder-design constraint.
 
-    The target structure is read from the second input segment's
-    ``Sequence.structure`` field — no file path needed in config.
+    Target structure is read from the second input segment's ``Sequence.structure``.
 
     Attributes:
         target_chain (str): Chain ID(s) of the frozen target in the PDB.
@@ -136,7 +136,7 @@ class AF2BinderGradientConfig(BaseConfig):
     )
 
     @classmethod
-    def germinal_vhh_preset(cls, binder_chain: str = "H") -> "AF2BinderGradientConfig":
+    def germinal_vhh_preset(cls, binder_chain: str = "H") -> "AF2BinderConfig":
         """Germinal VHH preset matching vhh.yaml defaults."""
         return cls(
             binder_chain=binder_chain,
@@ -160,46 +160,45 @@ class AF2BinderGradientConfig(BaseConfig):
         )
 
 
-@constraint(
-    key="af2-binder-gradient",
-    label="AF2 Binder Structure Gradient",
-    config=AF2BinderGradientConfig,
-    description="Differentiable binder-design constraint using AlphaFold2/ColabDesign gradients",
-    tools_called=["alphafold2-gradient"],
-    uses_gpu=True,
-    category="differentiable",
-    supported_sequence_types=["protein"],
-    input_labels=[
-        InputSlot(label="Binder Chain", requires_logits=True),
-        InputSlot(label="Target Structure", requires_structure=True),
-    ],
-)
+AF2BinderForwardConfig = AF2BinderConfig
+AF2BinderBackwardConfig = AF2BinderConfig
+
+
+def _one_hot_logits(sequence: str) -> list[list[float]]:
+    """One-hot-encode a discrete AA sequence into sharp logits for AF2 input."""
+    n = len(PROTEIN_AMINO_ACIDS)
+    rows: list[list[float]] = []
+    for aa in sequence:
+        row = [0.0] * n
+        row[_AA_INDEX[aa]] = _ONE_HOT_LOGIT
+        rows.append(row)
+    return rows
+
+
 def af2_binder_backward(
     inputs: tuple[Sequence, ...],
     *,
-    config: AF2BinderGradientConfig,
+    config: AF2BinderBackwardConfig,
     temperature: float,
     soft: float | None = None,
     **kwargs: Any,  # noqa: ARG001
 ) -> GradientResult:
-    """Compute AlphaFold2 binder-design gradient through ColabDesign."""
+    """Compute AlphaFold2 binder-design gradient w.r.t. binder logits."""
     binder_seq, target_seq = inputs[0], inputs[1]
     logits = binder_seq.logits
     assert logits is not None and target_seq.structure is not None  # noqa: S101 -- input_labels slot checks guarantee both
 
-    target_pdb = target_seq.structure.structure_pdb
-
-    output = run_alphafold2_gradient(
-        AlphaFold2GradientInput(
+    output = run_alphafold2_binder(
+        AlphaFold2BinderInput(
             logits=logits.tolist(),
             temperature=temperature,
-            target_pdb=target_pdb,
+            target_pdb=target_seq.structure.structure_pdb,
             target_chain=config.target_chain,
             target_hotspot=config.target_hotspot,
             binder_chain=config.binder_chain,
             design_positions=config.design_positions,
         ),
-        AlphaFold2GradientConfig(
+        AlphaFold2BinderConfig(
             omit_aas=config.omit_aas,
             num_recycles=config.num_recycles,
             model_num=config.model_num,
@@ -213,13 +212,85 @@ def af2_binder_backward(
             backend=config.backend,
             starting_binder_seq=config.starting_binder_seq,
             soft=soft if soft is not None else 1.0,
+            compute_gradient=True,
         ),
     )
+    if output.gradient is None:
+        raise RuntimeError("compute_gradient=True must populate output.gradient")
     binder_gradient = np.array(output.gradient, dtype=np.float64)
     target_gradient = np.zeros((len(target_seq.sequence), len(PROTEIN_AMINO_ACIDS)), dtype=np.float64)
     return GradientResult(
         gradient=(binder_gradient, target_gradient),
         loss=output.loss,
         metrics=output.metrics,
-        structures=(output.structure, None),  # None leaves target's template Structure intact
+        structures=(output.structure.select_chain(config.binder_chain), None),
     )
+
+
+@constraint(
+    key="af2-binder",
+    label="AF2 Binder Design",
+    config=AF2BinderForwardConfig,
+    description="AF2 binder design against a fixed target: scores binder sequences (discrete) or computes gradients w.r.t. logits (differentiable).",
+    tools_called=["alphafold2-binder"],
+    uses_gpu=True,
+    category="differentiable",
+    supported_sequence_types=["protein"],
+    input_labels=[
+        InputSlot(label="Binder Chain", requires_logits=True),
+        InputSlot(label="Target Structure", requires_structure=True),
+    ],
+    backward=af2_binder_backward,
+    backward_config=AF2BinderBackwardConfig,
+)
+def af2_binder_forward(
+    input_sequences: list[tuple[Sequence, ...]],
+    *,
+    config: AF2BinderForwardConfig,
+) -> list[float]:
+    """Forward AF2 binder scoring for discrete optimizers.
+
+    Args:
+        input_sequences (list[tuple[Sequence, ...]]): Per-proposal ``(binder_seq, target_seq)``.
+        config (AF2BinderForwardConfig): Binder-design config.
+
+    Returns:
+        list[float]: Per-proposal energy ``sigmoid(loss)`` in ``(0, 1)``; lower is better.
+    """
+    scores: list[float] = []
+    for binder_seq, target_seq in input_sequences:
+        assert target_seq.structure is not None  # noqa: S101 -- input_labels slot check guarantees structure
+
+        output = run_alphafold2_binder(
+            AlphaFold2BinderInput(
+                logits=_one_hot_logits(binder_seq.sequence),
+                target_pdb=target_seq.structure.structure_pdb,
+                target_chain=config.target_chain,
+                target_hotspot=config.target_hotspot,
+                binder_chain=config.binder_chain,
+                design_positions=config.design_positions,
+            ),
+            AlphaFold2BinderConfig(
+                omit_aas=config.omit_aas,
+                num_recycles=config.num_recycles,
+                model_num=config.model_num,
+                loss_weights=config.loss_weights,
+                intra_contact_num=config.intra_contact_num,
+                intra_contact_cutoff=config.intra_contact_cutoff,
+                inter_contact_num=config.inter_contact_num,
+                inter_contact_cutoff=config.inter_contact_cutoff,
+                bias_redesign=config.bias_redesign,
+                sample_models=config.sample_models,
+                backend=config.backend,
+                starting_binder_seq=config.starting_binder_seq,
+                soft=1.0,
+                compute_gradient=False,
+            ),
+        )
+
+        binder_seq.structure = output.structure.select_chain(config.binder_chain)
+        binder_seq._metadata.update(output.metrics)
+        binder_seq._metadata["loss"] = output.loss
+        scores.append(1.0 / (1.0 + math.exp(-output.loss)))
+
+    return scores

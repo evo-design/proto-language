@@ -37,9 +37,9 @@ class ConstraintSpec(BaseSpec):
     )
 
     # Constraint mode — set during registration, exposed in API
-    mode: Literal["discrete", "gradient"] = Field(
+    mode: Literal["discrete", "gradient", "dual"] = Field(
         default="discrete",
-        description="Whether this constraint uses discrete scoring ('discrete') or gradient computation ('gradient').",
+        description="Whether this constraint uses discrete scoring ('discrete'), gradient computation ('gradient'), or both ('dual').",
     )
 
     # Separate config model for backward callable (None = uses config_model)
@@ -172,7 +172,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
 
             Gradient constraint (auto-detected from return type):
 
-            >>> @constraint(key="af2-binder-gradient", ...)
+            >>> @constraint(key="af2-binder", ...)
             ... def af2_backward(inputs, *, config, temperature, **kwargs) -> GradientResult: ...
 
             Scoring function with explicit backward callable:
@@ -214,7 +214,12 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             func._constraint_supported_sequence_types = supported_sequence_types  # type: ignore[attr-defined]
             func._constraint_num_input_sequences_per_tuple = slot_count  # type: ignore[attr-defined]
 
-            is_gradient = is_backward_fn or backward is not None
+            if is_backward_fn:
+                mode: Literal["discrete", "gradient", "dual"] = "gradient"
+            elif backward is not None:
+                mode = "dual"
+            else:
+                mode = "discrete"
 
             cls._registry[key] = ConstraintSpec(
                 key=key,
@@ -228,7 +233,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
                 category=category,
                 supported_sequence_types=supported_sequence_types,
                 input_labels=input_labels,
-                mode="gradient" if is_gradient else "discrete",
+                mode=mode,
                 backward_config_model=backward_config,
             )
             return func
