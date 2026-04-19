@@ -67,7 +67,7 @@ def _make(num_steps: int = 5, num_results: int = 1, seed: int = 42, **kw: object
     con = Constraint(
         inputs=[seg], backward=_backward, backward_config=_Cfg(), function=_scorer, function_config=_Cfg(), label="mock"
     )
-    defaults: dict[str, object] = {"lr": 0.1, "beta1": 0.0, "beta2": 0.0}
+    defaults: dict[str, object] = {"lr": 0.1}
     defaults.update(kw)
     cfg = GradientOptimizerConfig(num_results=num_results, num_steps=num_steps, seed=seed, **defaults)
     opt = GradientOptimizer(constructs=[construct], generators=[gen], constraints=[con], config=cfg)
@@ -94,7 +94,6 @@ class TestConfig:
         """Lock Germinal Stage 0 hyperparameters; a future refactor that breaks parity must fail here."""
         cfg = GradientOptimizerConfig.germinal_logit_preset()
         assert cfg.num_steps == 65 and cfg.lr == 0.1
-        assert cfg.beta1 == 0.0 and cfg.beta2 == 0.0  # SGD
         assert (cfg.soft_start, cfg.soft_end) == (0.0, 1.0)
         assert (cfg.temperature_start, cfg.temperature_end) == (1.0, 1.0)
         assert cfg.schedule == "constant"
@@ -111,7 +110,6 @@ class TestConfig:
         """Lock Germinal Stage 1 hyperparameters."""
         cfg = GradientOptimizerConfig.germinal_softmax_preset()
         assert cfg.num_steps == 35 and cfg.lr == 0.1
-        assert cfg.beta1 == 0.0 and cfg.beta2 == 0.0
         assert (cfg.soft_start, cfg.soft_end) == (1.0, 1.0)
         assert (cfg.temperature_start, cfg.temperature_end) == (1.0, 0.01)
         assert cfg.schedule == "quadratic"
@@ -189,8 +187,6 @@ class TestSchedules:
                 _unit_grad_bwd,
                 num_steps=5,
                 lr=1.0,
-                beta1=0.0,
-                beta2=0.0,
                 temperature_end=0.01,
                 schedule="quadratic",
                 scale_lr_by_temperature=scale,
@@ -274,19 +270,6 @@ class TestHistory:
         assert _seq(-1).count("A") > _seq(0).count("A")  # gradient pushes toward alanine
 
 
-class TestOptimizerChoice:
-    def test_adam_converges_and_differs_from_sgd(self) -> None:
-        """beta1/beta2>0 runs the Adam path and diverges from SGD on the same seed."""
-        opt_adam, seg_adam = _make(num_steps=15, lr=0.05, beta1=0.9, beta2=0.999, seed=7)
-        opt_sgd, seg_sgd = _make(num_steps=15, lr=0.05, beta1=0.0, beta2=0.0, seed=7)
-        opt_adam.run()
-        opt_sgd.run()
-        adam, sgd = seg_adam.result_sequences[0].logits, seg_sgd.result_sequences[0].logits
-        assert adam is not None and sgd is not None
-        assert adam[:, 0].mean() > adam[:, 1:].mean()  # still converges toward alanine
-        assert not np.allclose(adam, sgd)
-
-
 class TestMergers:
     def test_pcgrad_differs_from_weighted_sum(self) -> None:
         """PCGrad conflict projection produces different logits than naive weighted sum."""
@@ -305,8 +288,6 @@ class TestMergers:
                     num_results=1,
                     num_steps=10,
                     lr=0.1,
-                    beta1=0.0,
-                    beta2=0.0,
                     merger=merger,
                     normalize_gradients=False,
                     seed=42,
@@ -327,9 +308,7 @@ class TestMergers:
             constructs=[Construct([seg])],
             generators=[gen],
             constraints=[con_a, con_c],
-            config=GradientOptimizerConfig(
-                num_results=1, num_steps=20, lr=0.1, beta1=0.0, beta2=0.0, merger="weighted_sum", seed=42
-            ),
+            config=GradientOptimizerConfig(num_results=1, num_steps=20, lr=0.1, merger="weighted_sum", seed=42),
         )
         opt.run()
         logits = seg.result_sequences[0].logits
@@ -348,8 +327,6 @@ class TestWeightSchedules:
             weight=99.0,
             num_steps=10,
             lr=1.0,
-            beta1=0.0,
-            beta2=0.0,
             normalize_gradients=False,
             constraint_weight_schedules=[
                 ConstraintWeightSchedule(constraint_label="ablang", start_weight=0.0, end_weight=0.2)
@@ -400,7 +377,7 @@ class TestMultiStage:
         gen = PositionWeightGenerator(PositionWeightGeneratorConfig())
         gen.assign(seg)
         con = Constraint(inputs=[seg], backward=_backward, backward_config=_Cfg(), label=label)
-        defaults: dict[str, object] = {"num_results": 1, "num_steps": 5, "lr": 0.1, "beta1": 0.0, "beta2": 0.0}
+        defaults: dict[str, object] = {"num_results": 1, "num_steps": 5, "lr": 0.1}
         defaults.update(kw)
         return GradientOptimizer(
             constructs=[construct], generators=[gen], constraints=[con], config=GradientOptimizerConfig(**defaults)
@@ -526,9 +503,7 @@ class TestGradientOptimizerGPU:
             constructs=[Construct([seg])],
             generators=[gen],
             constraints=[_ablang_constraint(seg)],
-            config=GradientOptimizerConfig(
-                num_results=1, num_steps=10, lr=0.1, beta1=0.0, beta2=0.0, tracking_interval=5
-            ),
+            config=GradientOptimizerConfig(num_results=1, num_steps=10, lr=0.1, tracking_interval=5),
         )
         opt.run()
 
@@ -547,7 +522,7 @@ class TestGradientOptimizerGPU:
             constructs=[construct],
             generators=[gen],
             constraints=[_af2_constraint(binder, target)],
-            config=GradientOptimizerConfig(num_results=1, num_steps=3, lr=0.1, beta1=0.0, beta2=0.0, seed=7),
+            config=GradientOptimizerConfig(num_results=1, num_steps=3, lr=0.1, seed=7),
         )
         opt.run()
         logits = binder.result_sequences[0].logits
@@ -570,8 +545,6 @@ class TestGradientOptimizerGPU:
                 num_results=1,
                 num_steps=2,
                 lr=0.1,
-                beta1=0.0,
-                beta2=0.0,
                 merger="pcgrad",
                 norm_alignment="match_first",
                 normalize_mode="sqrt_length",

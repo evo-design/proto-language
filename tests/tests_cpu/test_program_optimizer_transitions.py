@@ -616,8 +616,6 @@ def create_gradient_optimizer(construct, segment, num_results=3, num_steps=5):
             num_results=num_results,
             num_steps=num_steps,
             lr=0.1,
-            beta1=0.0,
-            beta2=0.0,
         ),
     )
 

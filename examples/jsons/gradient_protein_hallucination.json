@@ -23,8 +23,6 @@
         "config": {
           "num_steps": 65,
           "lr": 0.1,
-          "beta1": 0.0,
-          "beta2": 0.0,
           "soft_start": 0.0,
           "soft_end": 1.0,
           "temperature_start": 1.0,
@@ -57,8 +55,6 @@
         "config": {
           "num_steps": 35,
           "lr": 0.1,
-          "beta1": 0.0,
-          "beta2": 0.0,
           "soft_start": 1.0,
           "soft_end": 1.0,
           "temperature_start": 1.0,

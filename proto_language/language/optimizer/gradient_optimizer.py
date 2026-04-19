@@ -13,7 +13,7 @@ from proto_language.language.core import Constraint, Construct, Generator, Optim
 from proto_language.language.core.constraint import GradientResult
 from proto_language.language.generator import PositionWeightGenerator
 from proto_language.language.optimizer.optimizer_registry import optimizer
-from proto_language.utils.gradients import MERGERS, GradientMergerName, adam_step, align_norms, normalize_gradient
+from proto_language.utils.gradients import MERGERS, GradientMergerName, align_norms, normalize_gradient
 from proto_language.utils.scheduling import SCHEDULES, Schedule, ScheduleName
 
 logger = logging.getLogger(__name__)
@@ -75,8 +75,6 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
         num_results (int | None): Parallel optimization trajectories.
         num_steps (int): Number of gradient steps.
         lr (float): Base learning rate.
-        beta1 (float): Adam first moment decay (0 = SGD).
-        beta2 (float): Adam second moment decay (0 = SGD).
         initial_logit_bias (float): One-time logit bias at starting positions.
         soft_start (float): Soft blending at step 1 (0=hard, 1=softmax).
         soft_end (float): Soft blending at final step.
@@ -124,22 +122,6 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
         gt=0.0,
         title="Learning Rate",
         description="Base learning rate for gradient updates.",
-    )
-    beta1: float = ConfigField(
-        default=0.9,
-        ge=0.0,
-        lt=1.0,
-        title="Adam Beta1",
-        description="Adam first moment decay. Set to 0 for SGD.",
-        advanced=True,
-    )
-    beta2: float = ConfigField(
-        default=0.999,
-        ge=0.0,
-        lt=1.0,
-        title="Adam Beta2",
-        description="Adam second moment decay. Set to 0 for SGD.",
-        advanced=True,
     )
     initial_logit_bias: float = ConfigField(
         default=0.0,
@@ -253,8 +235,6 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
         return cls(
             num_steps=65,
             lr=0.1,
-            beta1=0.0,
-            beta2=0.0,
             soft_start=0.0,
             soft_end=1.0,
             temperature_start=1.0,
@@ -279,8 +259,6 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
         return cls(
             num_steps=35,
             lr=0.1,
-            beta1=0.0,
-            beta2=0.0,
             soft_start=1.0,
             soft_end=1.0,
             temperature_start=1.0,
@@ -407,11 +385,6 @@ class GradientOptimizer(Optimizer):
             else:
                 logger.warning(f"Unknown weight-schedule label '{e.constraint_label}'; ignored.")
 
-        # Adam state (initialized in run)
-        self._adam_m: list[np.ndarray] = []
-        self._adam_v: list[np.ndarray] = []
-        self._adam_t: list[int] = []
-
     def run(self) -> None:
         """Execute gradient optimization.
 
@@ -420,7 +393,7 @@ class GradientOptimizer(Optimizer):
         2. Compute gradients from all gradient-capable constraints
         3. Align norms, apply weights, merge (PCGrad/MGDA/weighted sum)
         4. Normalize merged gradient, zero fixed positions
-        5. Update ``seq.logits`` via Adam/SGD
+        5. Update ``seq.logits`` via SGD: ``logits -= lr * gradient``
         6. At tracked steps: discretize via generator, save snapshot
         """
         self._prepare_run()
@@ -441,10 +414,6 @@ class GradientOptimizer(Optimizer):
                     fixed_positions=self.config.fixed_positions,
                     gumbel_alpha=self.config.gumbel_init_alpha,
                 )
-
-        self._adam_m = [np.zeros_like(seq.logits) for seq in target.proposal_sequences]
-        self._adam_v = [np.zeros_like(seq.logits) for seq in target.proposal_sequences]
-        self._adam_t = [0] * self.num_results
 
         self._generator.sample()
         self._proposal_outcomes = ["accepted"] * self.num_proposals
@@ -536,17 +505,7 @@ class GradientOptimizer(Optimizer):
 
         seq = target.proposal_sequences[k]
         assert seq.logits is not None  # noqa: S101 -- guaranteed by initialization
-        seq.logits = adam_step(
-            seq.logits,
-            merged,
-            lr,
-            self._adam_m,
-            self._adam_v,
-            self._adam_t,
-            k,
-            self.config.beta1,
-            self.config.beta2,
-        )
+        seq.logits = seq.logits - lr * merged
 
     def _capture_initial_state(self) -> None:
         """Capture initial state preserving logits.

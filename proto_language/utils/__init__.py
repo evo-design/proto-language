@@ -20,7 +20,6 @@ from proto_language.utils.gradients import (
     MGDAMerger,
     PCGradMerger,
     WeightedSumMerger,
-    adam_step,
     align_norms,
     normalize_gradient,
 )
@@ -104,7 +103,6 @@ __all__ = [
     "MERGERS",
     "align_norms",
     "normalize_gradient",
-    "adam_step",
     # Scheduling utilities
     "Schedule",
     "ScheduleName",

@@ -1,4 +1,4 @@
-"""Gradient math utilities: mergers, norm alignment, normalization, Adam/SGD steps.
+"""Gradient math utilities: mergers, norm alignment, gradient normalization.
 
 Mergers expect pre-weighted gradients — the optimizer multiplies by ``Constraint.weight``
 before calling ``merge()``.
@@ -164,30 +164,3 @@ def normalize_gradient(
         return np.asarray(gradient * np.sqrt(eff_l) / (gn + 1e-7), dtype=float)
 
     raise ValueError(f"Unknown normalize_mode: {mode}")
-
-
-def adam_step(
-    logits: np.ndarray,
-    gradient: np.ndarray,
-    lr: float,
-    adam_m: list[np.ndarray],
-    adam_v: list[np.ndarray],
-    adam_t: list[int],
-    idx: int,
-    beta1: float,
-    beta2: float,
-    eps: float = 1e-8,
-) -> np.ndarray:
-    """Apply one Adam update and return new logits. Short-circuits to SGD when ``beta1==beta2==0``."""
-    adam_t[idx] += 1
-
-    if beta1 == 0.0 and beta2 == 0.0:
-        return logits - lr * gradient
-
-    adam_m[idx] = beta1 * adam_m[idx] + (1.0 - beta1) * gradient
-    adam_v[idx] = beta2 * adam_v[idx] + (1.0 - beta2) * gradient**2
-
-    m_hat = adam_m[idx] / (1.0 - beta1 ** adam_t[idx])
-    v_hat = adam_v[idx] / (1.0 - beta2 ** adam_t[idx])
-
-    return logits - lr * m_hat / (np.sqrt(v_hat) + eps)
