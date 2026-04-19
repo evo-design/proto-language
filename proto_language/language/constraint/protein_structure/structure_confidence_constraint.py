@@ -7,7 +7,8 @@ Constraints:
 - structure-plddt: Average predicted LDDT score
 - structure-ptm: Predicted TM-score
 - structure-iptm: Interface predicted TM-score (multimer)
-- structure-pae: Average predicted aligned error.
+- structure-pae: Average predicted aligned error
+- structure-composite: Composite of all four above from a single prediction call.
 """
 
 from logging import getLogger
@@ -35,6 +36,7 @@ TOOL_AVAILABLE_METRICS: dict[str, set[str]] = {
     "chai1": {"avg_plddt", "ptm", "iptm", "avg_pae"},
 }
 PAE_MAXIMUM: float = 31.75  # Angstroms.
+COMPOSITE_REQUIRED_METRICS: frozenset[str] = frozenset({"avg_plddt", "iptm", "ptm", "avg_pae"})
 
 
 # ============================================================================
@@ -319,3 +321,127 @@ def structure_pae_constraint(
     """
     raw_metrics = _structure_confidence(input_sequences, config, "avg_pae")
     return [min(metric / PAE_MAXIMUM, 1.0) if metric is not None else 1.0 for metric in raw_metrics]
+
+
+@constraint(
+    key="structure-composite",
+    label="Structure Composite Confidence",
+    config=StructureBasedConstraintConfig,
+    description="Score structure quality using a composite of plddt/iptm/ptm/pae from a single prediction call",
+    uses_gpu=True,
+    tools_called=["alphafold3-prediction", "boltz2-prediction", "chai1-prediction"],
+    category="protein_structure",
+    supported_sequence_types=["protein", "rna", "dna", "ligand"],
+    input_labels=None,
+)
+def structure_composite_constraint(
+    input_sequences: list[tuple[Sequence, ...]], config: StructureBasedConstraintConfig
+) -> list[float]:
+    """Evaluate structure quality using a composite of all confidence metrics from one prediction call.
+
+    Runs ``predict_structures`` once per batch and combines ``avg_plddt``,
+    ``iptm``, ``ptm``, and ``avg_pae`` into a single scalar in ``[0, 1]`` where
+    lower is better (more confident). All four raw metrics plus the resulting
+    structure are also written to each proposal's ``_metadata`` so callers can
+    threshold on individual metrics post-hoc (e.g., Germinal's final-filter
+    gates in ``configs/filter/final/vhh.yaml``) without re-running the predictor.
+
+    The composite is the equal-weighted mean of normalized deviations:
+    ``(1 - plddt_norm + 1 - iptm + 1 - ptm + pae / PAE_MAXIMUM) / 4``.
+
+    Versus stacking ``structure-plddt`` + ``structure-iptm`` + ``structure-ptm``
+    + ``structure-pae`` as four separate constraints, this is 4x cheaper
+    (one ``predict_structures`` call instead of four) and exposes all metrics
+    for post-hoc threshold labeling.
+
+    **Supported tools**: AlphaFold3, Boltz2, Chai1 (NOT ESMFold — ESMFold does
+    not produce ``iptm`` and cannot handle multi-chain complexes).
+
+    Args:
+        input_sequences (list[tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
+        config (StructureBasedConstraintConfig): Constraint configuration controlling evaluation parameters.
+
+    Returns:
+        list[float]: Composite confidence score in ``[0, 1]`` per proposal;
+            lower is better.
+
+    Note:
+        Writes the following keys onto each proposal's ``_metadata`` dict,
+        **all normalized to ``[0, 1]``** so downstream threshold code is
+        tool-agnostic (unlike sibling single-metric constraints, which store
+        raw values and require the caller to know the tool's scale):
+
+        - ``composite_avg_plddt``: Normalized pLDDT in ``[0, 1]`` (divided by
+          100 for alphafold3).
+        - ``composite_iptm``: ipTM in ``[0, 1]``.
+        - ``composite_ptm``: pTM in ``[0, 1]``.
+        - ``composite_avg_pae``: Normalized PAE in ``[0, 1]`` (raw Angstroms
+          divided by ``PAE_MAXIMUM = 31.75``, clamped at 1).
+        - ``pdb_output``: Stored PDB file handle.
+        - ``structure_tool``: Tool name used for prediction.
+
+    Examples:
+        Ranking binder candidates by composite structure quality with Chai-1:
+
+        >>> from proto_language.language.core import Segment
+        >>> binder = Segment(length=80, sequence_type="protein")
+        >>> target = Segment(sequence="MKTL...", sequence_type="protein")
+        >>> chai1_composite = Constraint(
+        ...     inputs=[binder, target],
+        ...     function=structure_composite_constraint,
+        ...     function_config={"structure_tool": "chai1"},
+        ... )
+    """
+    available = TOOL_AVAILABLE_METRICS.get(config.structure_tool, set())
+    if not COMPOSITE_REQUIRED_METRICS.issubset(available):
+        missing = sorted(COMPOSITE_REQUIRED_METRICS - available)
+        raise ValueError(
+            f"structure-composite requires a tool producing all of "
+            f"{sorted(COMPOSITE_REQUIRED_METRICS)}; '{config.structure_tool}' is missing {missing}."
+        )
+
+    # Build complexes from proposal tuples.
+    complexes = []
+    for proposal_tuple in input_sequences:
+        chains = [{"sequence": seq.sequence, "entity_type": seq.sequence_type} for seq in proposal_tuple]
+        complexes.append(StructurePredictionComplex(chains=chains))
+
+    output = predict_structures(complexes, config.structure_tool, config.tool_config)
+
+    scores: list[float] = []
+    for structure, proposal_tuple in zip(output.structures, input_sequences, strict=False):
+        m = structure.metrics
+        plddt_raw = m.get("avg_plddt")
+        iptm = m.get("iptm")
+        ptm = m.get("ptm")
+        pae = m.get("avg_pae")
+
+        if plddt_raw is None or iptm is None or ptm is None or pae is None:
+            logger.warning(
+                f"Missing composite metrics from '{config.structure_tool}': "
+                f"plddt={plddt_raw}, iptm={iptm}, ptm={ptm}, pae={pae}. Returning worst score."
+            )
+            scores.append(1.0)
+            continue
+
+        plddt_norm = plddt_raw / 100.0 if config.structure_tool == "alphafold3" else plddt_raw
+        pae_norm = min(pae / PAE_MAXIMUM, 1.0)
+
+        score = ((1.0 - plddt_norm) + (1.0 - iptm) + (1.0 - ptm) + pae_norm) / 4.0
+
+        if proposal_tuple:
+            proposal_tuple[0].structure = structure
+            proposal_tuple[0]._metadata.update(
+                {
+                    "composite_avg_plddt": plddt_norm,
+                    "composite_iptm": iptm,
+                    "composite_ptm": ptm,
+                    "composite_avg_pae": pae_norm,
+                    "pdb_output": store_file(structure.structure_pdb, FileType.PDB),
+                    "structure_tool": config.structure_tool,
+                }
+            )
+
+        scores.append(score)
+
+    return scores

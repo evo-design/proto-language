@@ -11,6 +11,7 @@ from proto_language.language.constraint.protein_structure.protein_symmetry_ring_
     protein_symmetry_ring_constraint,
 )
 from proto_language.language.constraint.protein_structure.structure_confidence_constraint import (
+    structure_composite_constraint,
     structure_iptm_constraint,
     structure_pae_constraint,
     structure_plddt_constraint,
@@ -37,6 +38,7 @@ __all__ = [
     "structure_ptm_constraint",
     "structure_iptm_constraint",
     "structure_pae_constraint",
+    "structure_composite_constraint",
     "protein_symmetry_ring_constraint",
     "protein_globularity_constraint",
     "boltz_binding_strength_constraint",

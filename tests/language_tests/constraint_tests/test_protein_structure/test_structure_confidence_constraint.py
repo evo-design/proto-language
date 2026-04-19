@@ -6,8 +6,10 @@ import pytest
 from proto_tools import Structure, StructurePredictionOutput
 
 from proto_language.language.constraint.protein_structure.structure_confidence_constraint import (
+    PAE_MAXIMUM,
     TOOL_AVAILABLE_METRICS,
     StructureBasedConstraintConfig,
+    structure_composite_constraint,
     structure_iptm_constraint,
     structure_pae_constraint,
     structure_plddt_constraint,
@@ -958,3 +960,101 @@ class TestIntegrationScenarios:
             # Best proposal (highest ipTM = lowest score)
             best_idx = scores.index(min(scores))
             assert best_idx == 0  # First proposal had ipTM=0.85
+
+
+# ============================================================================
+# Test structure-composite (one-call, all-metrics, composite score)
+# ============================================================================
+
+
+class TestStructureComposite:
+    """Test the composite confidence constraint."""
+
+    @pytest.mark.parametrize(
+        "tool,plddt,iptm,ptm,pae,expected",
+        [
+            # Boundaries.
+            ("chai1", 1.0, 1.0, 1.0, 0.0, 0.0),
+            ("chai1", 0.0, 0.0, 0.0, PAE_MAXIMUM, 1.0),
+            # Interior for each supported tool: (0.1 + 0.2 + 0.3 + 0.1) / 4 = 0.175.
+            ("chai1", 0.9, 0.8, 0.7, 3.175, 0.175),
+            ("boltz2", 0.9, 0.8, 0.7, 3.175, 0.175),
+            # AlphaFold3 reports pLDDT on 0-100 scale; composite must normalize for scoring.
+            ("alphafold3", 90.0, 0.8, 0.7, 3.175, 0.175),
+        ],
+    )
+    def test_composite_scoring(self, protein_sequence, protein_sequence_b, tool, plddt, iptm, ptm, pae, expected):
+        """Composite = mean of (1-plddt_norm, 1-iptm, 1-ptm, pae/PAE_MAX); AF3 plddt is 0-100 scale."""
+        proposals = [(protein_sequence, protein_sequence_b)]
+        config = StructureBasedConstraintConfig(structure_tool=tool)
+
+        with patch(
+            "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
+        ) as mock_predict:
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(avg_plddt=plddt, iptm=iptm, ptm=ptm, avg_pae=pae)]
+            )
+            [score] = structure_composite_constraint(proposals, config)
+            assert abs(score - expected) < 1e-9
+
+    def test_composite_missing_metric_returns_worst(self, protein_sequence, protein_sequence_b):
+        """If the tool omits any of the four metrics (e.g. degenerate single-chain input, missing ``iptm``)."""
+        proposals = [(protein_sequence, protein_sequence_b)]
+        config = StructureBasedConstraintConfig(structure_tool="chai1")
+
+        with patch(
+            "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
+        ) as mock_predict:
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(avg_plddt=0.9, ptm=0.7, avg_pae=3.0)]  # iptm absent
+            )
+            [score] = structure_composite_constraint(proposals, config)
+            assert score == 1.0
+
+    def test_composite_exposes_normalized_metrics_for_post_hoc_thresholding(self, protein_sequence, protein_sequence_b):
+        """All four metadata metrics are normalized to ``[0, 1]`` so downstream threshold code is tool-agnostic.
+
+        AF3 pLDDT is divided by 100 (0-100 scale → 0-1); pAE is divided by ``PAE_MAXIMUM`` (31.75 Å).
+        """
+        proposals = [(protein_sequence, protein_sequence_b)]
+        config = StructureBasedConstraintConfig(structure_tool="alphafold3")
+
+        with patch(
+            "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
+        ) as mock_predict:
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(avg_plddt=90.0, iptm=0.8, ptm=0.7, avg_pae=3.175)]
+            )
+            structure_composite_constraint(proposals, config)
+
+            meta = protein_sequence._metadata
+            # AF3 plddt 90.0 -> 0.9; pae 3.175 Å -> 0.1; others already in [0, 1].
+            assert meta["composite_avg_plddt"] == pytest.approx(0.9)
+            assert meta["composite_iptm"] == pytest.approx(0.8)
+            assert meta["composite_ptm"] == pytest.approx(0.7)
+            assert meta["composite_avg_pae"] == pytest.approx(0.1)
+            assert meta["structure_tool"] == "alphafold3"
+            assert is_file_reference(meta["pdb_output"])
+            assert "ATOM" in get_file_content(meta["pdb_output"])
+
+    def test_composite_rejects_single_chain_tools(self, protein_sequence):
+        """ESMFold is missing ``iptm`` - reject at config time via TOOL_AVAILABLE_METRICS rather than silently degrade."""
+        with pytest.raises(ValueError, match=r"missing.*iptm"):
+            structure_composite_constraint(
+                [(protein_sequence,)], StructureBasedConstraintConfig(structure_tool="esmfold")
+            )
+
+    def test_composite_batches_to_one_predict_call(self, protein_sequence, protein_sequence_b):
+        """Design-intent assert: N proposals → 1 ``predict_structures`` call (vs 4N for stacked single-metric constraints)."""
+        n = 5
+        proposals = [(protein_sequence, protein_sequence_b) for _ in range(n)]
+        config = StructureBasedConstraintConfig(structure_tool="chai1")
+
+        with patch(
+            "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
+        ) as mock_predict:
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(avg_plddt=0.9, iptm=0.8, ptm=0.7, avg_pae=3.0) for _ in range(n)]
+            )
+            scores = structure_composite_constraint(proposals, config)
+            assert len(scores) == n and mock_predict.call_count == 1
