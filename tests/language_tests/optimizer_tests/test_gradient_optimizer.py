@@ -481,7 +481,7 @@ def _ablang_constraint(seg: Segment, label: str = "ablang") -> Constraint:
     return Constraint(
         inputs=[seg],
         backward=ablang_vhh_gradient_backward,
-        backward_config=AbLangConstraintConfig(),
+        backward_config=AbLangConstraintConfig(temperature=0.6),
         label=label,
     )
 

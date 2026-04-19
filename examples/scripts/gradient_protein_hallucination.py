@@ -49,7 +49,7 @@ con1 = Constraint(
 )
 # For real pipelines, add a naturalness constraint:
 # con1_nat = Constraint(inputs=[segment], backward=ablang_vhh_gradient_backward,
-#     backward_config=AbLangConstraintConfig(), label="ablang_s1", weight=0.2)
+#     backward_config=AbLangConstraintConfig(temperature=0.6), label="ablang_s1", weight=0.2)
 
 stage1 = GradientOptimizer(
     constructs=[construct],

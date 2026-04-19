@@ -237,12 +237,12 @@ gen.assign(binder)
 af2_stage1 = Constraint(inputs=[binder, target], backward=af2_binder_backward,
     backward_config=AF2BinderConstraintConfig.germinal_vhh_preset(target_pdb=target_pdb), label="af2")
 ablang_stage1 = Constraint(inputs=[binder], backward=ablang_vhh_gradient_backward,
-    backward_config=AbLangConstraintConfig(), label="ablang", weight=0.2)
+    backward_config=AbLangConstraintConfig(temperature=0.6), label="ablang", weight=0.2)
 
 af2_stage2 = Constraint(inputs=[binder, target], backward=af2_binder_backward,
     backward_config=AF2BinderConstraintConfig.germinal_vhh_preset(target_pdb=target_pdb), label="af2")
 ablang_stage2 = Constraint(inputs=[binder], backward=ablang_vhh_gradient_backward,
-    backward_config=AbLangConstraintConfig(), label="ablang", weight=0.4)
+    backward_config=AbLangConstraintConfig(temperature=0.6), label="ablang", weight=0.4)
 
 gen1 = PositionWeightGenerator(PositionWeightGeneratorConfig())
 gen1.assign(binder)

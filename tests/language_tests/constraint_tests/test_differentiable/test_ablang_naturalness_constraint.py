@@ -58,7 +58,7 @@ class TestBackward:
         vh = _seq_with_logits(np.ones((4, 20)) / 20.0)
         vl = _seq_with_logits(np.ones((3, 20)) / 20.0)
 
-        result = ablang_scfv_gradient_backward((vh, vl), config=AbLangConstraintConfig(device="cpu"))
+        result = ablang_scfv_gradient_backward((vh, vl), config=AbLangConstraintConfig(temperature=0.6, device="cpu"))
 
         assert result.gradient[0].shape == (4, 20)
         assert result.gradient[1].shape == (3, 20)
@@ -72,7 +72,7 @@ class TestForward:
     def test_returns_monotone_increasing_energy(self, mock_run: object) -> None:
         def score_for(loss: float) -> float:
             mock_run.return_value = _mock_tool_output(gradient=None, loss=loss, log_likelihood=-loss)
-            return ablang_vhh_forward([(Sequence("EV", "protein"),)], config=AbLangConstraintConfig())[0]
+            return ablang_vhh_forward([(Sequence("EV", "protein"),)], config=AbLangConstraintConfig(temperature=0.6))[0]
 
         assert score_for(0.0) == pytest.approx(0.5)
         assert score_for(-2.0) < score_for(0.0) < score_for(2.0)
@@ -82,7 +82,7 @@ class TestForward:
         mock_run.return_value = _mock_tool_output(gradient=None, loss=2.0, log_likelihood=-2.0)
         binder = Sequence("EVQLV", "protein")
 
-        ablang_vhh_forward([(binder,)], config=AbLangConstraintConfig(device="cpu"))
+        ablang_vhh_forward([(binder,)], config=AbLangConstraintConfig(temperature=0.6, device="cpu"))
 
         assert mock_run.call_args[0][1].compute_gradient is False
         assert mock_run.call_args[0][1].device == "cpu"
@@ -94,7 +94,7 @@ class TestForward:
         mock_run.return_value = _mock_tool_output(gradient=None, loss=1.0)
         ablang_scfv_forward(
             [(Sequence("EVQL", "protein"), Sequence("DIQ", "protein"))],
-            config=AbLangConstraintConfig(device="cpu"),
+            config=AbLangConstraintConfig(temperature=0.6, device="cpu"),
         )
 
         ab = mock_run.call_args[0][0].antibody
@@ -134,7 +134,7 @@ class TestRegistry:
     def test_factory_builds_dual_capable_constraint(self) -> None:
         vh_seg = Segment(sequence="EVQLVESG", sequence_type="protein")
         vl_seg = Segment(sequence="DIQMTQS", sequence_type="protein")
-        c = ConstraintRegistry.create("ablang-scfv", [vh_seg, vl_seg], {})
+        c = ConstraintRegistry.create("ablang-scfv", [vh_seg, vl_seg], {"temperature": 0.6})
         assert c.supports_gradient and c.supports_discrete
 
 
@@ -145,8 +145,8 @@ class TestGPU:
         biased = _seq_with_logits(np.zeros((20, 20), dtype=np.float64))
         biased.logits[:, 0] = 5.0
 
-        r1 = ablang_vhh_gradient_backward((uniform,), config=AbLangConstraintConfig())
-        r2 = ablang_vhh_gradient_backward((biased,), config=AbLangConstraintConfig())
+        r1 = ablang_vhh_gradient_backward((uniform,), config=AbLangConstraintConfig(temperature=0.6))
+        r2 = ablang_vhh_gradient_backward((biased,), config=AbLangConstraintConfig(temperature=0.6))
 
         assert np.isfinite(r1.gradient[0]).all() and np.isfinite(r2.gradient[0]).all()
         assert r1.loss != r2.loss
@@ -154,7 +154,7 @@ class TestGPU:
 
     def test_forward_matches_backward_loss_on_discrete_sequence(self) -> None:
         """Forward path one-hots a discrete sequence → same argmax as backward input → same loss."""
-        config = AbLangConstraintConfig()
+        config = AbLangConstraintConfig(temperature=0.6)
         sequence = "EVQLVESGGGLVQPGGSLRL"
         aa_order = "ACDEFGHIKLMNPQRSTVWY"
         logits = np.zeros((len(sequence), 20), dtype=np.float64)
@@ -170,7 +170,7 @@ class TestGPU:
         vh = _seq_with_logits(np.zeros((15, 20), dtype=np.float64))
         vl = _seq_with_logits(np.zeros((12, 20), dtype=np.float64))
 
-        result = ablang_scfv_gradient_backward((vh, vl), config=AbLangConstraintConfig())
+        result = ablang_scfv_gradient_backward((vh, vl), config=AbLangConstraintConfig(temperature=0.6))
 
         assert result.gradient[0].shape == (15, 20) and result.gradient[1].shape == (12, 20)
         assert np.isfinite(result.gradient[0]).all() and np.isfinite(result.gradient[1]).all()

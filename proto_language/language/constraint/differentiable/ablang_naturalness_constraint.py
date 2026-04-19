@@ -28,8 +28,10 @@ class AbLangConstraintConfig(BaseConfig):
     """Configuration for AbLang naturalness constraints (forward scoring + gradient).
 
     Attributes:
-        temperature (float): Softmax temperature for AbLang. Germinal uses a fixed 0.6
-            regardless of the AF2 optimizer's temperature schedule.
+        temperature (float): Softmax temperature for AbLang. Required, no default:
+            AbLang's fixed temperature is a scientific parameter of the pipeline (Germinal
+            VHH uses 0.6, ``vhh.yaml:46``), not a framework default, so callers must
+            choose it deliberately.
         use_ste (bool): Use Straight-Through Estimator (hard one-hot forward pass with
             gradients through soft probabilities). Germinal always uses STE.
         device (str): Execution device for AbLang, for example ``"cuda"`` or ``"cpu"``.
@@ -37,7 +39,6 @@ class AbLangConstraintConfig(BaseConfig):
 
     temperature: float = ConfigField(
         title="AbLang Temperature",
-        default=0.6,
         gt=0.0,
         description="Softmax temperature for AbLang (fixed, not varied per step like AF2).",
     )
