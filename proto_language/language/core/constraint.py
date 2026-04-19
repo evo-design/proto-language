@@ -350,15 +350,16 @@ class Constraint:
         input_sequences_to_evaluate = [seq_tuple for _, seq_tuple in indexed_sequences]
         raw_scores = self._function(input_sequences_to_evaluate, config=self._function_config)
 
-        # Validate output: correct count and range [0, 1]
+        # Validate output: correct count and raw score range [0, 1]
         if len(raw_scores) != len(input_sequences_to_evaluate):
             raise ValueError(
                 f"Constraint '{self.label}' returned {len(raw_scores)} scores but expected {len(input_sequences_to_evaluate)}"
             )
         for i, score in enumerate(raw_scores):
-            if not (0.0 <= score <= 1.0):
-                logger.warning(
-                    f"Constraint '{self.label}' returned out-of-range score {score:.4f} at index {i}. Scores should be in [0.0, 1.0]."
+            if not np.isfinite(score) or not (0.0 <= score <= 1.0):
+                raise ValueError(
+                    f"Constraint '{self.label}' returned raw score {score!r} at proposal {indices_to_evaluate[i]}; "
+                    f"expected a finite value in [0.0, 1.0]."
                 )
 
         # Propagate metadata back to original sequences
