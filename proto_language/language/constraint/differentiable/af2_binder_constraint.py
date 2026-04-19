@@ -17,6 +17,9 @@ from proto_language.language.core import PROTEIN_AMINO_ACIDS, Sequence
 from proto_language.language.core.constraint import GradientResult
 from proto_language.utils import one_hot_protein_matrix
 
+# Loss keys registered only under backend="germinal" (see proto-tools ``_configure_germinal_losses``).
+_GERMINAL_ONLY_LOSS_KEYS = frozenset({"rg", "i_ptm", "NC", "helix", "beta_strand"})
+
 
 class AF2BinderConstraintConfig(BaseConfig):
     """Configuration for the AlphaFold2 binder-design constraint.
@@ -148,6 +151,25 @@ class AF2BinderConstraintConfig(BaseConfig):
         """Fail fast at config-time if target_pdb is empty; AF2 can't run without a template."""
         if not self.target_pdb:
             raise ValueError("AF2BinderConstraintConfig.target_pdb must be a non-empty PDB string or file path.")
+        return self
+
+    @model_validator(mode="after")
+    def _reject_germinal_only_fields_on_base(self) -> "AF2BinderConstraintConfig":
+        """Reject germinal-only fields under ``backend="base"`` — they'd otherwise silently drop."""
+        if self.backend == "germinal":
+            return self
+        offenders = [
+            name
+            for name, value in (
+                ("bias_redesign", self.bias_redesign),
+                ("design_positions", self.design_positions),
+                ("starting_binder_seq", self.starting_binder_seq),
+            )
+            if value is not None
+        ]
+        offenders.extend(f"loss_weights[{k!r}]" for k in sorted(_GERMINAL_ONLY_LOSS_KEYS & self.loss_weights.keys()))
+        if offenders:
+            raise ValueError(f"{offenders} require backend='germinal'; got {self.backend!r}.")
         return self
 
     @classmethod

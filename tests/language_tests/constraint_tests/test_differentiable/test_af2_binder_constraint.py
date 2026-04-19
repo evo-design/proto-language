@@ -76,6 +76,20 @@ class TestConfig:
         assert config.loss_weights["i_plddt"] == 1.0
         assert config.omit_aas == "C"
 
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"bias_redesign": 10.0},
+            {"design_positions": [0, 1, 2]},
+            {"starting_binder_seq": "AAAAA"},
+            *({"loss_weights": {"plddt": 1.0, k: 0.1}} for k in ("rg", "i_ptm", "NC", "helix", "beta_strand")),
+        ],
+    )
+    def test_germinal_only_fields_rejected_on_base(self, kwargs: dict[str, object]) -> None:
+        """Each germinal-only field / extension loss key fails validation under backend='base'."""
+        with pytest.raises(ValueError, match="require backend='germinal'"):
+            AF2BinderConstraintConfig(target_pdb=_PDL1_PDB_TEXT, **kwargs)
+
 
 class TestBackward:
     @patch(f"{_TOOL_MODULE}.run_alphafold2_binder")
