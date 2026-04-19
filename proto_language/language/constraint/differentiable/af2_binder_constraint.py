@@ -48,6 +48,10 @@ class AF2BinderConstraintConfig(BaseConfig):
         backend (Literal["base", "germinal"]): ColabDesign backend.
         starting_binder_seq (str | None): Warm-start binder AA sequence. Germinal
             backend only; length must match the binder segment.
+        seed (int | None): Seed forwarded to AF2 (ColabDesign ``set_seed``) for
+            per-call reproducibility — e.g. a per-trajectory seed in the Germinal
+            pipeline. Seeds both the JAX PRNGKey (recycle / Gumbel / uniform noise)
+            and the ``np.random.choice(5)`` model picker when ``sample_models=True``.
     """
 
     target_pdb: str = ConfigField(
@@ -143,6 +147,13 @@ class AF2BinderConstraintConfig(BaseConfig):
         title="Starting Binder Sequence",
         default=None,
         description="Warm-start binder AA sequence (Germinal backend only; length must match binder).",
+        advanced=True,
+    )
+    seed: int | None = ConfigField(
+        title="Seed",
+        default=None,
+        ge=0,
+        description="Forwarded to ColabDesign ``set_seed`` for per-call AF2 reproducibility.",
         advanced=True,
     )
 
@@ -243,6 +254,7 @@ def af2_binder_backward(
             sample_models=config.sample_models,
             backend=config.backend,
             starting_binder_seq=config.starting_binder_seq,
+            seed=config.seed,
             soft=soft,
             compute_gradient=True,
         ),
@@ -319,6 +331,7 @@ def af2_binder_forward(
                 sample_models=config.sample_models,
                 backend=config.backend,
                 starting_binder_seq=config.starting_binder_seq,
+                seed=config.seed,
                 soft=0.0,
                 hard=1.0,
                 compute_gradient=False,
