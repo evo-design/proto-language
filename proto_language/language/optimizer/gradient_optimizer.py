@@ -440,7 +440,7 @@ class GradientOptimizer(Optimizer):
         self.generator.sample()
         self._proposal_outcomes = ["accepted"] * self.num_proposals
         self._proposal_energy_scores = list(self.energy_scores)
-        self._sync_target_proposals_to_results(target)
+        self._sync_proposals_to_results()
         self._save_progress_snapshot(time_step=0)
 
         if self.verbose:
@@ -485,7 +485,7 @@ class GradientOptimizer(Optimizer):
             # 6. At tracked steps: discretize, sync proposals→results, snapshot
             if step % self.tracking_interval == 0 or step == self.config.num_steps:
                 self.generator.sample()
-                self._sync_target_proposals_to_results(target)
+                self._sync_proposals_to_results()
                 self._save_progress_snapshot(time_step=step)
                 self._log_progress(step, temp, lr)
 
@@ -561,11 +561,12 @@ class GradientOptimizer(Optimizer):
         schedule = self._weight_schedules.get(constraint.label)
         return schedule(step, self.config.num_steps) if schedule else constraint.weight
 
-    def _sync_target_proposals_to_results(self, target: Segment) -> None:
-        """Copy current proposals into ``result_sequences`` so snapshots aren't stale."""
+    def _sync_proposals_to_results(self) -> None:
+        """1:1 copy proposals → results across all segments so snapshots aren't stale."""
         assert self.num_results is not None  # noqa: S101 -- mypy type narrowing
-        for k in range(self.num_results):
-            target.result_sequences[k] = copy.deepcopy(target.proposal_sequences[k])
+        for seg in self.segments:
+            for k in range(self.num_results):
+                seg.result_sequences[k] = copy.deepcopy(seg.proposal_sequences[k])
 
 
 def _init_logits(
