@@ -412,7 +412,7 @@ class GradientOptimizer(Optimizer):
         1. Compute soft and temperature from linear/scheduled interpolation
         2. Compute gradients from all gradient-capable constraints
         3. Align norms, apply weights, merge (PCGrad/MGDA/weighted sum)
-        4. Normalize merged gradient, zero fixed positions
+        4. Zero fixed positions, then normalize merged gradient
         5. Update ``seq.logits`` via SGD: ``logits -= lr * gradient``
         6. At tracked steps: discretize via generator, save snapshot
         """
@@ -520,10 +520,10 @@ class GradientOptimizer(Optimizer):
         grads = [g * w for g, w in zip(grads, weights, strict=True)]
         merged = self._merger.merge(grads)
 
-        if self.config.normalize_gradients:
-            merged = normalize_gradient(merged, self.config.normalize_mode)
         if self.config.fixed_positions:
             merged[self.config.fixed_positions] = 0.0
+        if self.config.normalize_gradients:
+            merged = normalize_gradient(merged, self.config.normalize_mode)
 
         seq = target.proposal_sequences[k]
         assert seq.logits is not None  # noqa: S101 -- guaranteed by initialization
