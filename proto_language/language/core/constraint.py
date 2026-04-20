@@ -4,8 +4,8 @@ Constraints score how well sequences satisfy biological or design requirements.
 They support two evaluation modes, both optional (at least one required):
 
 - **Discrete** (``function``): scores proposals via ``evaluate()``, returning
-  values in [0.0, 1.0] where 0.0 is perfect and 1.0 is worst. Supports
-  threshold-based filtering.
+  values in [0.0, 1.0] by default. Some differentiable scorers opt into raw
+  finite losses. Supports threshold-based filtering.
 - **Gradient** (``backward``): computes gradients via ``compute_gradient()``,
   returning a ``GradientResult`` with gradient, loss, and metrics for
   gradient-based optimizers.
@@ -55,7 +55,9 @@ class ConstraintFunction(Protocol):
     All constraint functions must conform to this signature:
     - Accept a list of sequence tuples (one tuple per proposal to evaluate)
     - Accept a Pydantic config object
-    - Return a list of float scores between 0.0 and 1.0
+    - Return a list of float scores between 0.0 and 1.0 by default; specialized
+      functions may opt into raw finite scores via
+      ``_constraint_allow_raw_scores = True``.
 
     The input tuples allow multi-segment constraints where each proposal
     consists of multiple sequences evaluated together (e.g., protein-protein
@@ -188,8 +190,10 @@ class Constraint:
                 as a tuple of sequences (one from each segment).
             function (Callable[..., Any] | None): The constraint scoring function with signature:
                 ``(input_sequences: List[Tuple[Sequence, ...]], config) -> List[float]``.
-                Returns scores between 0.0-1.0 for each proposal. Required for discrete
-                evaluation via ``evaluate()``.
+                Returns scores between 0.0-1.0 for each proposal by default. Specialized
+                scorers may opt into raw finite scores via
+                ``_constraint_allow_raw_scores = True``. Required for discrete evaluation
+                via ``evaluate()``.
             function_config (BaseModel | dict[str, Any] | None): Configuration for the scoring function.
             backward (Callable[..., GradientResult] | None): Gradient computation callable with signature
                 ``(inputs: tuple[Sequence, ...], *, config: BaseModel, **kwargs) -> GradientResult``.
@@ -350,13 +354,18 @@ class Constraint:
         input_sequences_to_evaluate = [seq_tuple for _, seq_tuple in indexed_sequences]
         raw_scores = self._function(input_sequences_to_evaluate, config=self._function_config)
 
-        # Validate output: correct count and raw score range [0, 1]
+        # Validate output: correct count and, by default, the standard [0, 1] score range.
+        allow_raw_scores = bool(getattr(self._function, "_constraint_allow_raw_scores", False))
         if len(raw_scores) != len(input_sequences_to_evaluate):
             raise ValueError(
                 f"Constraint '{self.label}' returned {len(raw_scores)} scores but expected {len(input_sequences_to_evaluate)}"
             )
         for i, score in enumerate(raw_scores):
-            if not np.isfinite(score) or not (0.0 <= score <= 1.0):
+            if not np.isfinite(score):
+                raise ValueError(
+                    f"Constraint '{self.label}' returned non-finite score {score!r} at proposal {indices_to_evaluate[i]}."
+                )
+            if not allow_raw_scores and not (0.0 <= score <= 1.0):
                 raise ValueError(
                     f"Constraint '{self.label}' returned raw score {score!r} at proposal {indices_to_evaluate[i]}; "
                     f"expected a finite value in [0.0, 1.0]."

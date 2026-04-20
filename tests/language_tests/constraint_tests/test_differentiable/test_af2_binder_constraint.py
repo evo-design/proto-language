@@ -132,14 +132,14 @@ class TestBackward:
 
 class TestForward:
     @patch(f"{_TOOL_MODULE}.run_alphafold2_binder")
-    def test_returns_monotone_increasing_energy(self, mock_run: object) -> None:
+    def test_returns_raw_loss(self, mock_run: object) -> None:
         cfg = AF2BinderConstraintConfig(target_pdb=_PDL1_PDB_TEXT, binder_chain="B")
 
         def score_for(loss: float) -> float:
             mock_run.return_value = _mock_tool_output(gradient=None, loss=loss)
             return af2_binder_forward([(Sequence("EVQLV", "protein"), _target_sequence())], config=cfg)[0]
 
-        assert score_for(0.0) == pytest.approx(0.5)
+        assert score_for(0.0) == pytest.approx(0.0)
         assert score_for(-2.0) < score_for(-1.0) < score_for(0.0) < score_for(1.0) < score_for(2.0)
 
     @patch(f"{_TOOL_MODULE}.run_alphafold2_binder")

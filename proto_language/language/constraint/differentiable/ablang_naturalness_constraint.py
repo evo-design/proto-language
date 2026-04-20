@@ -5,7 +5,6 @@ fields enable single-chain scFv mode (paired VH+VL call); unset scores the whole
 binder as a heavy-only chain (VHH / nanobody mode).
 """
 
-import math
 from typing import Any
 
 import numpy as np
@@ -162,7 +161,7 @@ def ablang_naturalness_forward(
         config (AbLangConstraintConfig): Forward-mode config; slice fields control mode.
 
     Returns:
-        list[float]: Per-proposal energy ``sigmoid(loss)`` in ``(0, 1)``; lower is better.
+        list[float]: Per-proposal raw AbLang loss; lower is better.
     """
     scores: list[float] = []
     for (binder_seq,) in input_sequences:
@@ -186,5 +185,10 @@ def ablang_naturalness_forward(
         )
         binder_seq._metadata["ablang_log_likelihood"] = output.metrics["log_likelihood"]
         binder_seq._metadata["ablang_loss"] = output.loss
-        scores.append(1.0 / (1.0 + math.exp(-output.loss)))
+        scores.append(output.loss)
     return scores
+
+
+# Germinal semigreedy ranks proposals on the raw antibody-LM loss, so this
+# intentional exception keeps discrete Stage-2 scoring aligned with that target.
+ablang_naturalness_forward._constraint_allow_raw_scores = True  # type: ignore[attr-defined]

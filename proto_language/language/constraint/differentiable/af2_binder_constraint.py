@@ -1,6 +1,5 @@
 """AlphaFold2 binder-design constraint (dual-mode: discrete scoring + gradient)."""
 
-import math
 from typing import Any, Literal
 
 import numpy as np
@@ -303,7 +302,7 @@ def af2_binder_forward(
         config (AF2BinderForwardConstraintConfig): Binder-design config.
 
     Returns:
-        list[float]: Per-proposal energy ``sigmoid(loss)`` in ``(0, 1)``; lower is better.
+        list[float]: Per-proposal raw AF2 loss; lower is better.
     """
     scores: list[float] = []
     for binder_seq, target_seq in input_sequences:
@@ -344,6 +343,11 @@ def af2_binder_forward(
         binder_seq._metadata.update(output.metrics)
         binder_seq._metadata["complex_pdb"] = output.structure.structure_pdb
         binder_seq._metadata["loss"] = output.loss
-        scores.append(1.0 / (1.0 + math.exp(-output.loss)))
+        scores.append(output.loss)
 
     return scores
+
+
+# Germinal semigreedy ranks proposals on the raw AF2 loss, so this intentional
+# exception keeps discrete Stage-2 scoring aligned with the scientific objective.
+af2_binder_forward._constraint_allow_raw_scores = True  # type: ignore[attr-defined]

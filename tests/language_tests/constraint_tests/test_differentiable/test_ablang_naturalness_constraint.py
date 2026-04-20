@@ -1,6 +1,5 @@
 """Tests for the AbLang naturalness constraint (dual-mode: forward + backward; VHH and scFv)."""
 
-import math
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -49,15 +48,17 @@ class TestVHHMode:
         assert tool_config.use_ste is False and tool_config.compute_gradient is True
         assert len(result.gradient) == 1 and result.gradient[0].shape == (5, 20)
 
+
+class TestForward:
     @patch(f"{_TOOL_MODULE}.run_ablang_gradient")
-    def test_forward_returns_monotone_increasing_energy(self, mock_run: object) -> None:
+    def test_returns_raw_loss(self, mock_run: object) -> None:
         def score_for(loss: float) -> float:
             mock_run.return_value = _mock_tool_output(gradient=None, loss=loss, log_likelihood=-loss)
             return ablang_naturalness_forward(
                 [(Sequence("EV", "protein"),)], config=AbLangConstraintConfig(temperature=0.6)
             )[0]
 
-        assert score_for(0.0) == pytest.approx(0.5)
+        assert score_for(0.0) == pytest.approx(0.0)
         assert score_for(-2.0) < score_for(0.0) < score_for(2.0)
 
     @patch(f"{_TOOL_MODULE}.run_ablang_gradient")
@@ -189,7 +190,7 @@ class TestGPU:
         backward = ablang_naturalness_gradient_backward((_seq_with_logits(logits),), config=config)
         forward_score = ablang_naturalness_forward([(Sequence(sequence, "protein"),)], config=config)[0]
 
-        assert math.isclose(forward_score, 1.0 / (1.0 + math.exp(-backward.loss)), rel_tol=1e-3)
+        assert forward_score == pytest.approx(backward.loss, rel=1e-3)
 
     def test_scfv_mode_produces_full_binder_gradient_with_zero_linker(self) -> None:
         binder = _seq_with_logits(np.zeros((30, 20), dtype=np.float64))
