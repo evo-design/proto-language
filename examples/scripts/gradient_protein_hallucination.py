@@ -6,7 +6,7 @@ Demonstrates the GradientOptimizer in a two-stage pipeline:
 
 This example uses mock backward functions that push toward alanine,
 so it runs on CPU without real models. To use real constraints, replace
-the mock backward with e.g. ``af2_binder_backward`` and ``ablang_vhh_gradient_backward``.
+the mock backward with e.g. ``af2_binder_backward`` and ``ablang_naturalness_gradient_backward``.
 """
 
 import numpy as np
@@ -47,7 +47,7 @@ con1 = Constraint(
     inputs=[segment], backward=mock_structure_backward, backward_config=_EmptyCfg(), label="structure_s1",
 )
 # For real pipelines, add a naturalness constraint:
-# con1_nat = Constraint(inputs=[segment], backward=ablang_vhh_gradient_backward,
+# con1_nat = Constraint(inputs=[segment], backward=ablang_naturalness_gradient_backward,
 #     backward_config=AbLangConstraintConfig(temperature=0.6), label="ablang_s1", weight=0.2)
 
 stage1 = GradientOptimizer(

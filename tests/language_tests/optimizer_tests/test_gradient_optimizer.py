@@ -515,14 +515,14 @@ class TestExport:
 
 
 def _ablang_constraint(seg: Segment, label: str = "ablang") -> Constraint:
-    from proto_language.language.constraint.differentiable import ablang_vhh_gradient_backward
+    from proto_language.language.constraint.differentiable import ablang_naturalness_gradient_backward
     from proto_language.language.constraint.differentiable.ablang_naturalness_constraint import (
         AbLangConstraintConfig,
     )
 
     return Constraint(
         inputs=[seg],
-        backward=ablang_vhh_gradient_backward,
+        backward=ablang_naturalness_gradient_backward,
         backward_config=AbLangConstraintConfig(temperature=0.6),
         label=label,
     )
@@ -560,7 +560,7 @@ class TestGradientOptimizerGPU:
     """GPU integration tests with real differentiable constraints."""
 
     def test_ablang_gradient_descent(self) -> None:
-        """AbLang VHH gradient reduces naturalness loss over 10 steps."""
+        """AbLang naturalness gradient (VHH mode) reduces loss over 10 steps."""
         seg = Segment(sequence="EVQLVESGGGLVQPGGSLRL", sequence_type="protein")
         gen = PositionWeightGenerator(PositionWeightGeneratorConfig())
         opt = GradientOptimizer(

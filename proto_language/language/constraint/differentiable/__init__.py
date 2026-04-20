@@ -1,10 +1,8 @@
 """Differentiable constraints for gradient-based sequence optimization."""
 
 from proto_language.language.constraint.differentiable.ablang_naturalness_constraint import (
-    ablang_scfv_forward,
-    ablang_scfv_gradient_backward,
-    ablang_vhh_forward,
-    ablang_vhh_gradient_backward,
+    ablang_naturalness_forward,
+    ablang_naturalness_gradient_backward,
 )
 from proto_language.language.constraint.differentiable.af2_binder_constraint import (
     af2_binder_backward,
@@ -12,10 +10,8 @@ from proto_language.language.constraint.differentiable.af2_binder_constraint imp
 )
 
 __all__ = [
-    "ablang_vhh_forward",
-    "ablang_vhh_gradient_backward",
-    "ablang_scfv_forward",
-    "ablang_scfv_gradient_backward",
+    "ablang_naturalness_forward",
+    "ablang_naturalness_gradient_backward",
     "af2_binder_backward",
     "af2_binder_forward",
 ]

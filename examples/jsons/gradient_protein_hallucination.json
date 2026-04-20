@@ -1,6 +1,6 @@
 {
   "name": "gradient_protein_hallucination",
-  "description": "Two-stage gradient protein hallucination: logit phase then softmax refinement. Mirrors GradientOptimizerConfig.germinal_logit_preset() + germinal_softmax_preset() (AbLang weight 0.2→0.4 ramp, Gumbel logit init, stage-2 weight 0.4). Uses AbLang VHH naturalness gradient; replace with af2-binder + target structure for true binder design. Requires GPU.",
+  "description": "Two-stage gradient protein hallucination: logit phase then softmax refinement. Mirrors GradientOptimizerConfig.germinal_logit_preset() + germinal_softmax_preset() (AbLang weight 0.2→0.4 ramp, Gumbel logit init, stage-2 weight 0.4). Uses AbLang naturalness gradient; replace with af2-binder + target structure for true binder design. Requires GPU.",
   "version": "1.0",
   "num_results": 1,
   "constructs": [
@@ -52,7 +52,7 @@
       ],
       "constraints": [
         {
-          "key": "ablang-vhh",
+          "key": "ablang-naturalness",
           "targets": ["binder"],
           "config": { "temperature": 0.6, "use_ste": true },
           "label": "ablang"
@@ -86,7 +86,7 @@
       ],
       "constraints": [
         {
-          "key": "ablang-vhh",
+          "key": "ablang-naturalness",
           "targets": ["binder"],
           "config": { "temperature": 0.6, "use_ste": true },
           "weight": 0.4,

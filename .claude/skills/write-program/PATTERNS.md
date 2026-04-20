@@ -212,7 +212,7 @@ from proto_language import (
     Constraint, Construct, GradientOptimizer, GradientOptimizerConfig,
     Program, Segment,
 )
-from proto_language.language.constraint.differentiable import af2_binder_backward, ablang_vhh_gradient_backward
+from proto_language.language.constraint.differentiable import af2_binder_backward, ablang_naturalness_gradient_backward
 from proto_language.language.constraint.differentiable.af2_binder_constraint import AF2BinderConstraintConfig
 from proto_language.language.constraint.differentiable.ablang_naturalness_constraint import AbLangConstraintConfig
 from proto_language.language.generator import PositionWeightGenerator, PositionWeightGeneratorConfig
@@ -232,12 +232,12 @@ construct = Construct([binder, target])
 # Each stage needs its own constraint instances; each config gets the target PDB.
 af2_stage1 = Constraint(inputs=[binder, target], backward=af2_binder_backward,
     backward_config=AF2BinderConstraintConfig.germinal_vhh_preset(target_pdb=target_pdb), label="af2")
-ablang_stage1 = Constraint(inputs=[binder], backward=ablang_vhh_gradient_backward,
+ablang_stage1 = Constraint(inputs=[binder], backward=ablang_naturalness_gradient_backward,
     backward_config=AbLangConstraintConfig(temperature=0.6), label="ablang", weight=0.2)
 
 af2_stage2 = Constraint(inputs=[binder, target], backward=af2_binder_backward,
     backward_config=AF2BinderConstraintConfig.germinal_vhh_preset(target_pdb=target_pdb), label="af2")
-ablang_stage2 = Constraint(inputs=[binder], backward=ablang_vhh_gradient_backward,
+ablang_stage2 = Constraint(inputs=[binder], backward=ablang_naturalness_gradient_backward,
     backward_config=AbLangConstraintConfig(temperature=0.6), label="ablang", weight=0.4)
 
 gen1 = PositionWeightGenerator(PositionWeightGeneratorConfig())

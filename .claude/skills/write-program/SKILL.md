@@ -161,7 +161,7 @@ Constraints: `sequence_composition/` (GC content, homopolymers, k-mers, length),
 
 Generators: **mutation** (RandomNucleotide, RandomProtein, ESM2, MSA, PositionWeight), **autoregressive** (Evo2, ProGen2), **inverse_folding** (ProteinMPNN, LigandMPNN)
 
-Constraints: **differentiable** (AF2 binder gradient, AbLang VHH/scFv gradient) — these support `compute_gradient()` for gradient-based optimization
+Constraints: **differentiable** (AF2 binder gradient, AbLang naturalness gradient) — these support `compute_gradient()` for gradient-based optimization
 
 ## Common Patterns
 

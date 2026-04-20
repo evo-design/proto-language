@@ -3,10 +3,8 @@
 from proto_language.language.constraint import (
     ConstraintRegistry,
     ConstraintSpec,
-    ablang_scfv_forward,
-    ablang_scfv_gradient_backward,
-    ablang_vhh_forward,
-    ablang_vhh_gradient_backward,
+    ablang_naturalness_forward,
+    ablang_naturalness_gradient_backward,
     af2_binder_backward,
     af2_binder_forward,
     alphagenome_interval_track_constraint,
@@ -154,10 +152,8 @@ __all__ = [
     "protein_globularity_constraint",
     "boltz_binding_strength_constraint",
     # Differentiable constraints
-    "ablang_vhh_forward",
-    "ablang_vhh_gradient_backward",
-    "ablang_scfv_forward",
-    "ablang_scfv_gradient_backward",
+    "ablang_naturalness_forward",
+    "ablang_naturalness_gradient_backward",
     "af2_binder_backward",
     "af2_binder_forward",
     # Protein quality constraints
