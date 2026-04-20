@@ -672,51 +672,6 @@ def build_germinal_semigreedy_bias(
     return bias.tolist() if np.any(bias) else None
 
 
-class GerminalPositionWeightGenerator(PositionWeightGenerator):
-    """Decode Germinal stage handoffs from bias-adjusted logits.
-
-    Germinal's soft scaffold preservation acts through the effective sequence
-    distribution after adding the persistent redesign bias. Decoding raw
-    parameter logits discards that bias at stage boundaries, so this generator
-    materializes discrete sequences from ``logits + bias`` instead.
-    """
-
-    def __init__(
-        self,
-        config: PositionWeightGeneratorConfig,
-        *,
-        logit_bias: list[list[float]] | None = None,
-    ) -> None:
-        super().__init__(config)
-        self._logit_bias = np.asarray(logit_bias, dtype=float) if logit_bias is not None else None
-
-    def assign(self, assigned_segment: Segment) -> None:
-        super().assign(assigned_segment)
-        if self._logit_bias is not None and self._logit_bias.shape[0] != assigned_segment.sequence_length:
-            raise ValueError(
-                f"logit_bias has {self._logit_bias.shape[0]} rows but sequence length is {assigned_segment.sequence_length}."
-            )
-
-    def sample(self) -> None:
-        self._validate_generator()
-        vocab = self.segment.ordered_vocab()
-        rng = np.random.default_rng(self._next_seed()) if self.sampling_mode == "categorical" else None
-
-        for proposal in self.segment.proposal_sequences:
-            if proposal.logits is None:
-                raise RuntimeError(f"Proposal on segment '{self.segment.label}' has no logits.")
-            effective_logits = np.asarray(proposal.logits, dtype=float)
-            self._validate_matrix_shape(effective_logits, len(vocab))
-            if self._logit_bias is not None:
-                effective_logits = effective_logits + self._logit_bias
-            matrix = self._prepare_matrix(logits=effective_logits, vocab_size=len(vocab))
-            if self.sampling_mode == "argmax":
-                proposal.sequence = self._decode_argmax(matrix, vocab)
-            else:
-                assert rng is not None  # noqa: S101 -- categorical branch always sets rng
-                proposal.sequence = self._decode_categorical(matrix, vocab, rng)
-
-
 def make_cdr_masked_ablang_backward(cdr_positions: list[int]) -> Any:
     """Return an AbLang backward wrapper that zeroes framework gradients.
 
@@ -804,13 +759,14 @@ def make_gradient_stage(
         starting_binder_seq=af2_starting_binder_seq,
         design_positions=cdr_positions,
     )
-    generator = GerminalPositionWeightGenerator(
-        PositionWeightGeneratorConfig(),
-        logit_bias=build_germinal_semigreedy_bias(
-            binder_seed,
-            design_positions=cdr_positions,
-            bias_redesign=af2_config.bias_redesign,
-            omit_aas=af2_config.omit_aas,
+    generator = PositionWeightGenerator(
+        PositionWeightGeneratorConfig(
+            logit_bias=build_germinal_semigreedy_bias(
+                binder_seed,
+                design_positions=cdr_positions,
+                bias_redesign=af2_config.bias_redesign,
+                omit_aas=af2_config.omit_aas,
+            ),
         ),
     )
     generator.assign(binder)

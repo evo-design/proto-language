@@ -6,7 +6,7 @@ import numpy as np
 from pydantic import field_validator
 
 from proto_language.base_config import BaseConfig, ConfigField
-from proto_language.language.core import Generator
+from proto_language.language.core import Generator, Segment
 from proto_language.language.generator.generator_registry import generator
 from proto_language.utils import mean_peak_probability, softmax
 
@@ -23,6 +23,10 @@ class PositionWeightGeneratorConfig(BaseConfig):
             most likely token at each position or sample stochastically from the
             per-position distribution.
         temperature (float): Softmax temperature applied to logits in ``sample()``.
+        logit_bias (list[list[float]] | None): Optional additive bias matrix
+            applied before decoding discrete handoff sequences.
+        logit_scale (float): Optional scale factor applied to logits before the
+            additive bias and temperature-scaled softmax.
         entropy_positions (list[int] | None): Zero-based positions to include
             when computing the ``mean_peak_probability`` metric (mean per-position
             peak probability). ``None`` = all positions. Segment-length bounds
@@ -41,12 +45,40 @@ class PositionWeightGeneratorConfig(BaseConfig):
         description="Softmax temperature used when logits are provided.",
         advanced=True,
     )
+    logit_bias: list[list[float]] | None = ConfigField(
+        default=None,
+        title="Logit Bias",
+        description="Optional additive bias matrix (L x |vocab|) applied before decoding.",
+        advanced=True,
+        hidden=True,
+    )
+    logit_scale: float = ConfigField(
+        default=1.0,
+        ge=0.0,
+        title="Logit Scale",
+        description="Optional scale factor applied to logits before adding logit_bias and decoding.",
+        advanced=True,
+        hidden=True,
+    )
     entropy_positions: list[int] | None = ConfigField(
         default=None,
         title="Entropy Positions",
         description="Positions to average over when computing mean_peak_probability. None = all.",
         advanced=True,
     )
+
+    @field_validator("logit_bias")
+    @classmethod
+    def _check_logit_bias(cls, value: list[list[float]] | None) -> list[list[float]] | None:
+        """Reject non-matrix / non-finite bias tensors at config time."""
+        if value is None:
+            return None
+        matrix = np.asarray(value, dtype=float)
+        if matrix.ndim != 2:
+            raise ValueError(f"logit_bias must be a 2D matrix, got shape {matrix.shape}.")
+        if not np.isfinite(matrix).all():
+            raise ValueError("logit_bias must contain only finite values.")
+        return value
 
     @field_validator("entropy_positions")
     @classmethod
@@ -87,6 +119,10 @@ class PositionWeightGenerator(Generator):
         config (PositionWeightGeneratorConfig): Generator configuration.
         sampling_mode (Literal["argmax", "categorical"]): Decoding strategy.
         temperature (float): Softmax temperature for logits.
+        logit_bias (np.ndarray | None): Optional additive bias matrix applied
+            before decoding.
+        logit_scale (float): Scale factor applied to logits before the additive
+            bias and temperature-scaled softmax.
         entropy_positions (list[int] | None): Rows included when computing
             ``mean_peak_probability`` on each proposal's metadata. ``None`` = all.
 
@@ -106,7 +142,17 @@ class PositionWeightGenerator(Generator):
         self.config = config
         self.sampling_mode = config.sampling_mode
         self.temperature = config.temperature
+        self._logit_bias = np.asarray(config.logit_bias, dtype=float) if config.logit_bias is not None else None
+        self.logit_scale = config.logit_scale
         self.entropy_positions = config.entropy_positions
+
+    def assign(self, assigned_segment: Segment) -> None:
+        """Assign a segment and validate length-dependent logit-bias config."""
+        super().assign(assigned_segment)
+        if self._logit_bias is not None and self._logit_bias.shape[0] != assigned_segment.sequence_length:
+            row_count = self._logit_bias.shape[0]
+            seq_len = assigned_segment.sequence_length
+            raise ValueError(f"logit_bias has {row_count} rows; sequence length is {seq_len}.")
 
     def sample(self) -> None:
         """Decode discrete sequences from ``seq.logits`` on each proposal.
@@ -131,6 +177,12 @@ class PositionWeightGenerator(Generator):
             out_of_range = [p for p in self.entropy_positions if p >= seq_len]
             if out_of_range:
                 raise ValueError(f"entropy_positions {out_of_range} are >= sequence_length ({seq_len}).")
+        if self._logit_bias is not None:
+            expected_shape = (seq_len, len(vocab))
+            if self._logit_bias.shape != expected_shape:
+                shape = self._logit_bias.shape
+                label = self.segment.label or "unlabeled"
+                raise ValueError(f"logit_bias shape {shape} != {expected_shape} on segment '{label}'.")
 
         rng = np.random.default_rng(self._next_seed()) if self.sampling_mode == "categorical" else None
 
@@ -146,9 +198,12 @@ class PositionWeightGenerator(Generator):
             proposal._metadata["mean_peak_probability"] = mean_peak_probability(matrix, self.entropy_positions)
 
     def _prepare_matrix(self, *, logits: np.ndarray, vocab_size: int) -> np.ndarray:
-        """Validate logits and convert to a probability matrix via softmax."""
+        """Validate, optionally bias/scale, and convert logits to probabilities."""
         matrix = np.asarray(logits, dtype=float)
         self._validate_matrix_shape(matrix, vocab_size)
+        matrix = self.logit_scale * matrix
+        if self._logit_bias is not None:
+            matrix = matrix + self._logit_bias
         return softmax(matrix / self.temperature)
 
     def _validate_matrix_shape(self, matrix: np.ndarray, vocab_size: int) -> None:

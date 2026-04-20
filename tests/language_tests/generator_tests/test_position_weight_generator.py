@@ -73,6 +73,26 @@ class TestPositionWeightGenerator:
 
         assert argmax_seg.proposal_sequences[0].sequence == low_temp_seg.proposal_sequences[0].sequence
 
+    def test_argmax_decoding_respects_logit_bias_and_scale(self):
+        """Decoding uses the configured effective logits, not raw proposal logits."""
+        logits = np.array([[2.0, 0, 0, 0], [0, 2.0, 0, 0]])
+        bias = [[0, 0, 3.0, 0], [3.0, 0, 0, 0]]
+
+        biased_seg = Segment(sequence="AA", sequence_type="dna")
+        biased_seg.proposal_sequences[0].logits = logits
+        biased_gen = PositionWeightGenerator(PositionWeightGeneratorConfig(logit_bias=bias))
+        biased_gen.assign(biased_seg)
+        biased_gen.sample()
+
+        scaled_seg = Segment(sequence="AA", sequence_type="dna")
+        scaled_seg.proposal_sequences[0].logits = logits
+        scaled_gen = PositionWeightGenerator(PositionWeightGeneratorConfig(logit_bias=bias, logit_scale=2.0))
+        scaled_gen.assign(scaled_seg)
+        scaled_gen.sample()
+
+        assert biased_seg.proposal_sequences[0].sequence == "GA"
+        assert scaled_seg.proposal_sequences[0].sequence == "AC"
+
     def test_registry_and_ligand_rejection(self):
         """Generator is discoverable via registry and rejects ligand segments."""
         generator = GeneratorRegistry.create("position-weight", {"sampling_mode": "argmax"})
