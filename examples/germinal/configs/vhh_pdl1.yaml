@@ -1,4 +1,4 @@
-# @package _global_
+# Exact copy of local Germinal preset: germinal/configs/run/vhh_pdl1.yaml
 # VHH (nanobody) run configuration for PDL1
 
 # General run settings
@@ -7,7 +7,7 @@ cdr_lengths: [11, 8, 18]
 fw_lengths: [25,17,38,14]
 pregenerate_seeds: false
 vh_first: null # not needed for nanobodies
-vh_len: null # not needed for nanobodies  
+vh_len: null # not needed for nanobodies
 vl_len: null # not needed for nanobodies
 
 # Loss function parameters
