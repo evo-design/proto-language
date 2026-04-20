@@ -58,9 +58,11 @@ class ConstraintWeightSchedule(BaseConfig):
     )
 
     @model_validator(mode="after")
-    def _check_exponential_endpoints(self) -> "ConstraintWeightSchedule":
+    def _check_schedule_endpoints(self) -> "ConstraintWeightSchedule":
         if self.schedule == "exponential" and min(self.start_weight, self.end_weight) <= 0.0:
             raise ValueError("schedule='exponential' requires start_weight > 0 and end_weight > 0.")
+        if self.schedule == "hinge" and self.start_weight >= self.end_weight:
+            raise ValueError("schedule='hinge' requires start_weight < end_weight.")
         return self
 
 
@@ -240,7 +242,8 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
     def germinal_logit_preset(cls) -> "GradientOptimizerConfig":
         """Logit hallucination phase: 65 SGD steps with soft 0→1, naturalness weight 0.2→0.4.
 
-        Ramps naturalness weight linearly — constraint must be labeled ``"ablang"``.
+        Ramps naturalness weight via hinge schedule ``max(0.4·t, 0.2)`` — flat at 0.2 until
+        50% progress, then linear to 0.4. Constraint must be labeled ``"ablang"``.
         Initial logits get Gumbel(0,1) noise so parallel trajectories diverge.
         """
         return cls(
@@ -255,7 +258,7 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
             norm_alignment="match_first",
             normalize_mode="sqrt_length",
             constraint_weight_schedules=[
-                ConstraintWeightSchedule(constraint_label="ablang", start_weight=0.2, end_weight=0.4, schedule="linear")
+                ConstraintWeightSchedule(constraint_label="ablang", start_weight=0.2, end_weight=0.4, schedule="hinge")
             ],
             gumbel_logit_init=True,
             gumbel_init_alpha=2.0,

@@ -22,6 +22,7 @@ from proto_language.language.optimizer import (
     MCMCOptimizer,
     MCMCOptimizerConfig,
 )
+from proto_language.utils.scheduling import hinge_schedule
 
 
 def _anchor_bias(seed: str, bias: float) -> list[list[float]]:
@@ -109,7 +110,7 @@ class TestConfig:
         assert cfg.gumbel_logit_init is True
         assert cfg.gumbel_init_alpha == 2.0
         assert cfg.constraint_weight_schedules == [
-            ConstraintWeightSchedule(constraint_label="ablang", start_weight=0.2, end_weight=0.4, schedule="linear")
+            ConstraintWeightSchedule(constraint_label="ablang", start_weight=0.2, end_weight=0.4, schedule="hinge")
         ]
 
     def test_germinal_softmax_preset_exact_values(self) -> None:
@@ -411,6 +412,20 @@ class TestWeightSchedules:
             )
         assert any("missing" in r.message for r in caplog.records)
         opt.run()
+
+
+class TestHingeSchedule:
+    def test_flat_then_ramp(self) -> None:
+        s = hinge_schedule(0.2, 0.4)
+        assert s(0, 65) == 0.2
+        assert s(32, 65) == pytest.approx(0.2)
+        assert s(33, 65) > 0.2
+        assert s(49, 65) == pytest.approx(0.4 * 49 / 65)
+        assert s(65, 65) == 0.4
+
+    def test_start_ge_end_rejected(self) -> None:
+        with pytest.raises(ValueError, match="start_weight < end_weight"):
+            ConstraintWeightSchedule(constraint_label="x", start_weight=0.4, end_weight=0.2, schedule="hinge")
 
 
 class TestGumbelLogitInit:
