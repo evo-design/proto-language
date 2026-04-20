@@ -84,6 +84,10 @@ def _structure_confidence(
     raw_metrics: list[float | None] = []
     for structure, proposal_tuple in zip(output.structures, proposals, strict=False):
         metric_value = structure.metrics.get(target_metric)
+        if metric_value is None:
+            alt = {"avg_plddt": "complex_plddt", "avg_pae": "complex_pde"}.get(target_metric)
+            if alt:
+                metric_value = structure.metrics.get(alt)
 
         if metric_value is None:
             logger.warning(f"Metric '{target_metric}' not found in structure output, returning worst score.")
@@ -412,9 +416,13 @@ def structure_composite_constraint(
     for structure, proposal_tuple in zip(output.structures, input_sequences, strict=False):
         m = structure.metrics
         plddt_raw = m.get("avg_plddt")
+        if plddt_raw is None:
+            plddt_raw = m.get("complex_plddt")
         iptm = m.get("iptm")
         ptm = m.get("ptm")
         pae = m.get("avg_pae")
+        if pae is None:
+            pae = m.get("complex_pde")
 
         if plddt_raw is None or iptm is None or ptm is None or pae is None:
             logger.warning(

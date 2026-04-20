@@ -309,7 +309,8 @@ def _prepare_target_structure(config: StructureSimilarityConfig) -> str | None:
 
         output = predict_structures(complexes, config.structure_tool, config.tool_config)
 
-        target_plddt = output.structures[0].metrics["avg_plddt"]
+        metrics = output.structures[0].metrics
+        target_plddt = metrics.get("avg_plddt") or metrics.get("complex_plddt")
         if target_plddt < config.min_target_plddt:
             logger.warning(f"Target fold confidence ({target_plddt:.2f}) below threshold ({config.min_target_plddt}).")
             return None

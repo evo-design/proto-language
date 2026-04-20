@@ -3,7 +3,6 @@ import random
 from pathlib import Path
 
 from proto_tools.tools.masked_models.masking import MaskingStrategy
-from tap import Tap
 
 from proto_language.language.constraint import (
     splice_transformer_intron_boundary,
@@ -76,22 +75,7 @@ def _get_constraints_metadata(sequence: Sequence) -> dict[str, any]:
     return {}
 
 
-class ProgramIntronDesignArgs(Tap):
-    intron_length: int = INTRON_LENGTH
-    n_steps: int = N_STEPS
-    step_size: int = 1
-    temperature: float = 1.0
-    temperature_min: float = 0.001
-    plasmid_context_path: str = "examples/data/intron_plasmid_context.txt"
-    gene_sequence_path: str = "examples/data/mscarlet.txt"
-    gene_insertion_pos: int = 159 * 3  # Canonical mScarlet split complementation site.
-    initialization: str = "random"
-    intron_generator: str = "uniform"
-    multicontext: bool = True
-    specificity_type: str = "max_brain_min_blood"
-
-
-def get_initial_intron(args: ProgramIntronDesignArgs) -> str:
+def get_initial_intron(args: object) -> str:
     if args.initialization == "random":
         initial_intron = "GT" + "".join(random.choices("ACGT", k=(args.intron_length - 4))) + "AG"
     elif args.initialization == "poly_a":
@@ -116,7 +100,7 @@ def get_initial_intron(args: ProgramIntronDesignArgs) -> str:
 
 def process_splice_transformer_input(
     initial_intron: str,
-    args: ProgramIntronDesignArgs,
+    args: object,
 ) -> tuple[str, str, str, str, str, str, str]:
     """
     Process the input to SpliceTransformer.
@@ -226,6 +210,22 @@ def process_splice_transformer_input(
 
 
 if __name__ == "__main__":
+    from tap import Tap
+
+    class ProgramIntronDesignArgs(Tap):
+        intron_length: int = INTRON_LENGTH
+        n_steps: int = N_STEPS
+        step_size: int = 1
+        temperature: float = 1.0
+        temperature_min: float = 0.001
+        plasmid_context_path: str = "examples/data/intron_plasmid_context.txt"
+        gene_sequence_path: str = "examples/data/mscarlet.txt"
+        gene_insertion_pos: int = 159 * 3  # Canonical mScarlet split complementation site.
+        initialization: str = "random"
+        intron_generator: str = "uniform"
+        multicontext: bool = True
+        specificity_type: str = "max_brain_min_blood"
+
     args = ProgramIntronDesignArgs(explicit_bool=True).parse_args()
     _enable_mcmc_energy_logging()
 
