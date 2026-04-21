@@ -279,7 +279,7 @@ def af2_binder_backward(
         metrics=output.metrics,
         structures=(
             output.structure.select_chain(config.binder_chain),
-            output.structure.select_chain(config.target_chain),
+            output.structure.select_chains(config.target_chain),
         ),
     )
 
@@ -349,7 +349,7 @@ def af2_binder_forward(
         )
 
         binder_seq.structure = output.structure.select_chain(config.binder_chain)
-        target_seq.structure = output.structure.select_chain(config.target_chain)
+        target_seq.structure = output.structure.select_chains(config.target_chain)
         # Metrics first so our explicit keys below win on collision.
         binder_seq._metadata.update(output.metrics)
         binder_seq._metadata["complex_pdb"] = output.structure.structure_pdb

@@ -37,14 +37,18 @@ _DEFAULT_METRICS = {"avg_plddt": 0.8, "ptm": 0.7, "iptm": 0.6, "avg_pae": 2.0, "
 
 
 def _mock_tool_output(
-    *, gradient: list[list[float]] | None, loss: float = 0.5, metrics: dict[str, float] | None = None
+    *,
+    gradient: list[list[float]] | None,
+    loss: float = 0.5,
+    metrics: dict[str, float] | None = None,
+    residues: list[tuple[str, int, float]] | None = None,
 ) -> SimpleNamespace:
-    """Build a mock AlphaFold2BinderOutput-shaped object with a two-chain PLDDT structure."""
+    """Build a mock AlphaFold2BinderOutput-shaped object with a PLDDT structure."""
+    if residues is None:
+        residues = [("A", 1, 95.0), ("A", 2, 80.0), ("B", 1, 70.0), ("B", 2, 65.0)]
     lines = [
         f"ATOM  {i:5d}  CA  ALA {chain}{resseq:4d}    {(i - 1) * 3.8:8.3f}   0.000   0.000  1.00{bf:6.2f}           C  "
-        for i, (chain, resseq, bf) in enumerate(
-            [("A", 1, 95.0), ("A", 2, 80.0), ("B", 1, 70.0), ("B", 2, 65.0)], start=1
-        )
+        for i, (chain, resseq, bf) in enumerate(residues, start=1)
     ]
     lines.append("END")
     structure = Structure(structure="\n".join(lines), b_factor_type=BFactorType.PLDDT)
@@ -120,6 +124,29 @@ class TestBackward:
         assert result.structures[1].get_chain_ids() == ["A"]
 
     @patch(f"{_TOOL_MODULE}.run_alphafold2_binder")
+    def test_preserves_multi_chain_target_structure(self, mock_run: object) -> None:
+        mock_run.return_value = _mock_tool_output(
+            gradient=[[0.1] * 20] * 2,
+            residues=[
+                ("A", 1, 95.0),
+                ("A", 2, 90.0),
+                ("B", 1, 80.0),
+                ("B", 2, 75.0),
+                ("H", 1, 70.0),
+                ("H", 2, 65.0),
+            ],
+        )
+        binder = _binder_with_logits(np.ones((2, 20)) / 20.0)
+        target = Sequence("A" * 4, "protein")
+        config = AF2BinderConstraintConfig(target_pdb=_PDL1_PDB_TEXT, target_chain="A,B", binder_chain="H")
+
+        result = af2_binder_backward((binder, target), temperature=1.0, soft=1.0, config=config)
+
+        assert result.structures[0].get_chain_ids() == ["H"]
+        assert result.structures[1].get_chain_ids() == ["A", "B"]
+        assert result.structures[1].per_residue_plddt == pytest.approx([0.95, 0.90, 0.80, 0.75])
+
+    @patch(f"{_TOOL_MODULE}.run_alphafold2_binder")
     def test_soft_kwarg_forwards_to_tool_config(self, mock_run: object) -> None:
         mock_run.return_value = _mock_tool_output(gradient=[[0.0] * 20] * 3, loss=0.0)
         binder = _binder_with_logits(np.zeros((3, 20)))
@@ -166,6 +193,31 @@ class TestForward:
         assert binder._metadata["avg_plddt"] == 0.82
         assert binder._metadata["i_pae"] == 1.3
         assert binder._metadata["loss"] == 0.75
+
+    @patch(f"{_TOOL_MODULE}.run_alphafold2_binder")
+    def test_forward_preserves_multi_chain_target_structure(self, mock_run: object) -> None:
+        mock_run.return_value = _mock_tool_output(
+            gradient=None,
+            residues=[
+                ("A", 1, 95.0),
+                ("A", 2, 90.0),
+                ("B", 1, 80.0),
+                ("B", 2, 75.0),
+                ("H", 1, 70.0),
+                ("H", 2, 65.0),
+            ],
+        )
+        binder = Sequence("EV", "protein")
+        target = Sequence("A" * 4, "protein")
+
+        af2_binder_forward(
+            [(binder, target)],
+            config=AF2BinderConstraintConfig(target_pdb=_PDL1_PDB_TEXT, target_chain="A,B", binder_chain="H"),
+        )
+
+        assert binder.structure.get_chain_ids() == ["H"]
+        assert target.structure.get_chain_ids() == ["A", "B"]
+        assert target.structure.per_residue_plddt == pytest.approx([0.95, 0.90, 0.80, 0.75])
 
     @patch(f"{_TOOL_MODULE}.run_alphafold2_binder")
     def test_forward_sends_true_one_hot_with_hard_ste(self, mock_run: object) -> None:
