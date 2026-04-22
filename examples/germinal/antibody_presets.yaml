@@ -1,0 +1,255 @@
+# Script-owned preset surface for the colocated ``germinal_antibody_binder.py``.
+# Values are derived from the local Germinal run/filter presets, but flattened
+# into the smaller schema this script actually consumes.
+#
+# Schema notes:
+# - ``default_target`` is only present for target-specific presets like ``*_pdl1``.
+# - ``vh_fw_lengths`` / ``vh_cdr_lengths`` / ``vl_fw_lengths`` / ``vl_cdr_lengths``
+#   are already decomposed into binder-local segment lengths, so the script no longer
+#   has to reverse-engineer them from Germinal's mixed ``fw_lengths`` format.
+# - Each preset keeps the same field order:
+#   1. target / scaffold defaults
+#   2. binder geometry
+#   3. stage thresholds and step counts
+#   4. AF2 / AbLang handoff weights
+#   5. redesign sampling settings
+#   6. initial / final filters
+
+presets:
+  # Generic Germinal VHH preset. Target inputs must be supplied on the CLI.
+  vhh:
+    # Scaffold / target defaults
+    default_scaffold_pdb: nb.pdb
+    # Binder geometry
+    vh_fw_lengths: [25, 17, 38, 14]
+    vh_cdr_lengths: [11, 8, 18]
+    linker_length: 0
+    vl_fw_lengths: []
+    vl_cdr_lengths: []
+    # Hallucination thresholds / schedule
+    plddt_threshold: 0.82
+    iptm_threshold: 0.68
+    ipae_threshold: 0.27
+    logits_steps: 65
+    softmax_steps: 35
+    search_steps: 10
+    search_mutation_rate: 0.05
+    # AF2 / AbLang parity knobs used by this script
+    plddt_loss_weight: 1.0
+    iptm_loss_weight: 0.75
+    beta_strand_loss_weight: 0.2
+    framework_contact_offset: 1.0
+    ablm_logit_start_weight: 0.2
+    ablm_logit_end_weight: 0.4
+    min_lr_scale: 0.01
+    lr_schedule: null
+    ban_cysteine: true
+    cofold_tool: chai1
+    # Redesign sampling
+    num_seqs: 40
+    max_mpnn_sequences: 4
+    sampling_temp: 0.2
+    # Pre-redesign filters
+    initial_filter:
+      clashes: {value: 1, operator: "<"}
+      binder_near_hotspot: {value: true, operator: "=="}
+      cdr3_hotspot_contacts: {value: 0, operator: ">"}
+      percent_interface_cdr: {value: 0.5, operator: ">"}
+      interface_sc: {value: 0.6, operator: ">"}
+    # Final filters
+    final_filter:
+      clashes: {value: 1, operator: "<"}
+      sc_rmsd: {value: 6.0, operator: "<"}
+      binder_near_hotspot: {value: true, operator: "=="}
+      cdr3_hotspot_contacts: {value: 0, operator: ">"}
+      percent_interface_cdr: {value: 0.5, operator: ">="}
+      interface_hydrophobicity: {value: 45, operator: ">="}
+      pdockq2: {value: 0.23, operator: ">"}
+      external_plddt: {value: 0.87, operator: ">"}
+      external_iptm: {value: 0.74, operator: ">"}
+      external_ptm: {value: 0.84, operator: ">"}
+      external_pae: {value: 7.5, operator: "<"}
+      interface_sc: {value: 0.6, operator: ">="}
+      interface_hbonds: {value: 3, operator: ">="}
+      surface_hydrophobicity: {value: 0.4, operator: "<="}
+
+  # Generic Germinal scFv preset. Target inputs must be supplied on the CLI.
+  scfv:
+    # Scaffold / target defaults
+    default_scaffold_pdb: scfv.pdb
+    # Heavy chain, then (G4S)3-style linker, then light chain.
+    # Binder geometry
+    vh_fw_lengths: [25, 17, 38, 11]
+    vh_cdr_lengths: [8, 8, 13]
+    linker_length: 14
+    vl_fw_lengths: [27, 17, 33, 10]
+    vl_cdr_lengths: [6, 6, 9]
+    # Hallucination thresholds / schedule
+    plddt_threshold: 0.8
+    iptm_threshold: 0.68
+    ipae_threshold: 0.27
+    logits_steps: 60
+    softmax_steps: 35
+    search_steps: 10
+    search_mutation_rate: 0.05
+    # AF2 / AbLang parity knobs used by this script
+    plddt_loss_weight: 1.0
+    iptm_loss_weight: 0.75
+    beta_strand_loss_weight: 0.1
+    framework_contact_offset: 1.0
+    ablm_logit_start_weight: 0.0
+    ablm_logit_end_weight: 0.2
+    min_lr_scale: 0.01
+    lr_schedule: null
+    ban_cysteine: true
+    cofold_tool: alphafold3
+    # Redesign sampling
+    num_seqs: 40
+    max_mpnn_sequences: 4
+    sampling_temp: 0.2
+    # Pre-redesign filters
+    initial_filter:
+      clashes: {value: 1, operator: "<"}
+      binder_near_hotspot: {value: true, operator: "=="}
+      cdr3_hotspot_contacts: {value: 0, operator: ">"}
+      percent_interface_cdr: {value: 0.5, operator: ">"}
+      interface_sc: {value: 0.5, operator: ">"}
+    # Final filters
+    final_filter:
+      clashes: {value: 1, operator: "<"}
+      sc_rmsd: {value: 7.0, operator: "<"}
+      binder_near_hotspot: {value: true, operator: "=="}
+      cdr3_hotspot_contacts: {value: 0, operator: ">"}
+      percent_interface_cdr: {value: 0.7, operator: ">"}
+      interface_hydrophobicity: {value: 45, operator: ">"}
+      pdockq2: {value: 0.23, operator: ">"}
+      external_plddt: {value: 0.85, operator: ">"}
+      external_iptm: {value: 0.74, operator: ">"}
+      external_ptm: {value: 0.84, operator: ">="}
+      external_pae: {value: 8, operator: "<"}
+      interface_sc: {value: 0.5, operator: ">"}
+      interface_hbonds: {value: 6, operator: ">="}
+      surface_hydrophobicity: {value: 0.42, operator: "<"}
+
+  # PD-L1-specific VHH preset with baked-in target defaults.
+  vhh_pdl1:
+    # Scaffold / target defaults
+    default_scaffold_pdb: nb.pdb
+    default_target:
+      pdb: pdl1.pdb
+      chain: A
+      hotspots: A37,A39,A41,A96,A98
+    # Binder geometry
+    vh_fw_lengths: [25, 17, 38, 14]
+    vh_cdr_lengths: [11, 8, 18]
+    linker_length: 0
+    vl_fw_lengths: []
+    vl_cdr_lengths: []
+    # Hallucination thresholds / schedule
+    plddt_threshold: 0.75
+    iptm_threshold: 0.68
+    ipae_threshold: 0.3
+    logits_steps: 60
+    softmax_steps: 35
+    search_steps: 10
+    search_mutation_rate: 0.05
+    # AF2 / AbLang parity knobs used by this script
+    plddt_loss_weight: 1.0
+    iptm_loss_weight: 0.7
+    beta_strand_loss_weight: 0.1
+    framework_contact_offset: 1.0
+    ablm_logit_start_weight: 0.0
+    ablm_logit_end_weight: 0.2
+    min_lr_scale: 0.25
+    lr_schedule: linear
+    ban_cysteine: false
+    cofold_tool: alphafold3
+    # Redesign sampling
+    num_seqs: 40
+    max_mpnn_sequences: 5
+    sampling_temp: 0.2
+    # Pre-redesign filters
+    initial_filter:
+      clashes: {value: 1, operator: "<"}
+      binder_near_hotspot: {value: true, operator: "=="}
+      cdr3_hotspot_contacts: {value: 0, operator: ">"}
+      percent_interface_cdr: {value: 0.5, operator: ">="}
+      interface_sc: {value: 0.6, operator: ">="}
+    # Final filters
+    final_filter:
+      clashes: {value: 1, operator: "<"}
+      sc_rmsd: {value: 6.0, operator: "<"}
+      binder_near_hotspot: {value: true, operator: "=="}
+      cdr3_hotspot_contacts: {value: 1, operator: ">="}
+      percent_interface_cdr: {value: 0.5, operator: ">="}
+      interface_hydrophobicity: {value: 45, operator: ">="}
+      pdockq2: {value: 0.23, operator: ">"}
+      external_plddt: {value: 0.8, operator: ">="}
+      external_iptm: {value: 0.75, operator: ">="}
+      external_ptm: {value: 0.8, operator: ">="}
+      external_pae: {value: 8, operator: "<"}
+      interface_sc: {value: 0.6, operator: ">="}
+      interface_hbonds: {value: 3, operator: ">="}
+      surface_hydrophobicity: {value: 0.4, operator: "<="}
+
+  # PD-L1-specific scFv preset with baked-in target defaults.
+  scfv_pdl1:
+    # Scaffold / target defaults
+    default_scaffold_pdb: scfv.pdb
+    default_target:
+      pdb: pdl1.pdb
+      chain: A
+      hotspots: A37,A39,A41,A96,A98
+    # Binder geometry
+    vh_fw_lengths: [25, 17, 38, 11]
+    vh_cdr_lengths: [8, 8, 13]
+    # This preset uses the slightly different PD-L1 linker/ VL decomposition.
+    linker_length: 15
+    vl_fw_lengths: [26, 17, 33, 10]
+    vl_cdr_lengths: [6, 6, 9]
+    # Hallucination thresholds / schedule
+    plddt_threshold: 0.8
+    iptm_threshold: 0.67
+    ipae_threshold: 0.28
+    logits_steps: 60
+    softmax_steps: 35
+    search_steps: 10
+    search_mutation_rate: 0.05
+    # AF2 / AbLang parity knobs used by this script
+    plddt_loss_weight: 0.5
+    iptm_loss_weight: 0.75
+    beta_strand_loss_weight: 0.1
+    framework_contact_offset: 1.0
+    ablm_logit_start_weight: 0.0
+    ablm_logit_end_weight: 0.2
+    min_lr_scale: 0.25
+    lr_schedule: linear
+    ban_cysteine: false
+    cofold_tool: alphafold3
+    # Redesign sampling
+    num_seqs: 40
+    max_mpnn_sequences: 4
+    sampling_temp: 0.2
+    # Pre-redesign filters
+    initial_filter:
+      clashes: {value: 1, operator: "<"}
+      binder_near_hotspot: {value: true, operator: "=="}
+      cdr3_hotspot_contacts: {value: 0, operator: ">"}
+      percent_interface_cdr: {value: 0.5, operator: ">"}
+      interface_sc: {value: 0.5, operator: ">"}
+    # Final filters
+    final_filter:
+      clashes: {value: 1, operator: "<"}
+      sc_rmsd: {value: 7.0, operator: "<"}
+      binder_near_hotspot: {value: true, operator: "=="}
+      cdr3_hotspot_contacts: {value: 0, operator: ">"}
+      percent_interface_cdr: {value: 0.7, operator: ">"}
+      interface_hydrophobicity: {value: 45, operator: ">"}
+      pdockq2: {value: 0.23, operator: ">"}
+      external_plddt: {value: 0.85, operator: ">"}
+      external_iptm: {value: 0.74, operator: ">"}
+      external_ptm: {value: 0.84, operator: ">="}
+      external_pae: {value: 8, operator: "<"}
+      interface_sc: {value: 0.5, operator: ">"}
+      interface_hbonds: {value: 6, operator: ">="}
+      surface_hydrophobicity: {value: 0.42, operator: "<"}
