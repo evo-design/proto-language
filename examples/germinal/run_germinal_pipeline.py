@@ -632,7 +632,7 @@ def run_trajectory(
         config=MCMCOptimizerConfig(
             num_steps=geom.search_steps,
             proposals_per_result=max(1, math.ceil(geom.binder_length * geom.search_mutation_rate)),
-            max_temperature=1e-6,
+            max_temperature=2e-6,
             min_temperature=1e-6,
         ),
     )
