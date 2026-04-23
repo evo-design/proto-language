@@ -46,6 +46,14 @@ from proto_language.utils.helpers import (
     softmax,
     validate_range,
 )
+from proto_language.utils.ml_optimizers import (
+    ML_OPTIMIZERS,
+    SGD,
+    Adam,
+    AdamConfig,
+    MLOptimizer,
+    MLOptimizerType,
+)
 from proto_language.utils.scheduling import (
     SCHEDULES,
     Schedule,
@@ -103,6 +111,13 @@ __all__ = [
     "MERGERS",
     "align_norms",
     "normalize_gradient",
+    # ML optimizers
+    "MLOptimizer",
+    "MLOptimizerType",
+    "SGD",
+    "Adam",
+    "AdamConfig",
+    "ML_OPTIMIZERS",
     # Scheduling utilities
     "Schedule",
     "Scheduler",

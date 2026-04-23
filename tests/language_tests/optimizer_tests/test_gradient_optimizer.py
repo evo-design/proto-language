@@ -423,6 +423,18 @@ class TestMergers:
         assert logits[:, 0].mean() > logits[:, 2].mean()  # A dominates C
 
 
+class TestMLOptimizer:
+    def test_adam_produces_different_logits_than_sgd(self) -> None:
+        opt_sgd, seg_sgd = _make(num_steps=10, seed=42, ml_optimizer="sgd")
+        opt_adam, seg_adam = _make(num_steps=10, seed=42, ml_optimizer="adam")
+        opt_sgd.run()
+        opt_adam.run()
+        logits_sgd = seg_sgd.result_sequences[0].logits
+        logits_adam = seg_adam.result_sequences[0].logits
+        assert logits_sgd is not None and logits_adam is not None
+        assert not np.allclose(logits_sgd, logits_adam)
+
+
 class TestWeightSchedules:
     def test_schedule_overrides_static_weight(self) -> None:
         # Static w=99 * unit grad * 10 steps would push logits to ~-990; schedule avg ~0.1 -> ~-1.

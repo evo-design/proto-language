@@ -15,6 +15,7 @@ from proto_language.language.generator import PositionWeightGenerator
 from proto_language.language.optimizer.optimizer_registry import optimizer
 from proto_language.utils import softmax
 from proto_language.utils.gradients import MERGERS, GradientMergerName, align_norms, normalize_gradient
+from proto_language.utils.ml_optimizers import ML_OPTIMIZERS, AdamConfig, MLOptimizerType
 from proto_language.utils.scheduling import SCHEDULES, Schedule, Scheduler
 
 logger = logging.getLogger(__name__)
@@ -87,6 +88,8 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
         softmax_schedule (Scheduler): Softmax sharpening schedule for constraints.
         lr_schedule (Scheduler): Learning rate decay schedule.
         merger (GradientMergerName): Gradient merging strategy.
+        ml_optimizer (MLOptimizerType): Gradient update algorithm (SGD, Adam).
+        adam_config (AdamConfig): Adam hyperparameters. Only visible when ``ml_optimizer="adam"``.
         norm_alignment (Literal["none", "unit", "match_first"]): Per-constraint
             gradient normalization before merging.
         normalize_gradients (bool): Normalize merged gradient before update.
@@ -182,6 +185,17 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
         title="Gradient Merger",
         description="Strategy for merging gradients from multiple constraints.",
     )
+    ml_optimizer: MLOptimizerType = ConfigField(
+        default="sgd",
+        title="ML Optimizer",
+        description="Gradient update algorithm (SGD, Adam).",
+    )
+    adam_config: AdamConfig = ConfigField(
+        default_factory=AdamConfig,
+        title="Adam Config",
+        description="Adam hyperparameters.",
+        depends_on={"field": "ml_optimizer", "value": "adam"},
+    )
     norm_alignment: Literal["none", "unit", "match_first"] = ConfigField(
         default="none",
         title="Norm Alignment",
@@ -252,6 +266,12 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
         advanced=True,
         hidden=True,
     )
+
+    @property
+    def ml_optimizer_config(self) -> BaseConfig | None:
+        """Return the active ML optimizer config, or None for stateless optimizers."""
+        configs: dict[str, BaseConfig] = {"adam": self.adam_config}
+        return configs.get(self.ml_optimizer)
 
     @field_validator("logit_bias", "initial_logits")
     @classmethod
@@ -411,8 +431,9 @@ class GradientOptimizer(Optimizer):
         if skipped:
             logger.warning(f"GradientOptimizer ignoring non-gradient constraints: {skipped}")
 
-        # Build merger and schedule
+        # Merger, ML optimizer, schedules
         self._merger = MERGERS[config.merger]()
+        self._ml_optimizer = ML_OPTIMIZERS[config.ml_optimizer](config.ml_optimizer_config)
         self._softmax_schedule = SCHEDULES[config.softmax_schedule](config.temperature_start, config.temperature_end)
         self._lr_schedule = SCHEDULES[config.lr_schedule](config.temperature_start, config.temperature_end)
 
@@ -469,10 +490,11 @@ class GradientOptimizer(Optimizer):
         2. Compute gradients from all gradient-capable constraints
         3. Align norms, apply weights, merge (PCGrad/MGDA/weighted sum)
         4. Zero fixed positions, then normalize merged gradient
-        5. Update ``seq.logits`` via SGD: ``logits -= lr * gradient``
+        5. Update ``seq.logits`` via the configured ML optimizer
         6. At tracked steps: discretize via generator, save snapshot
         """
         self._prepare_run()
+        self._ml_optimizer.reset()
         assert self.num_results is not None  # noqa: S101 -- mypy type narrowing
         assert self.num_proposals is not None  # noqa: S101 -- mypy type narrowing
         target = self.target_segment
@@ -590,7 +612,7 @@ class GradientOptimizer(Optimizer):
 
         seq = target.proposal_sequences[k]
         assert seq.logits is not None  # noqa: S101 -- guaranteed by initialization
-        seq.logits = seq.logits - lr * merged
+        seq.logits = self._ml_optimizer.step(seq.logits, merged, lr, trajectory=k, step=step)
 
     def _capture_initial_state(self) -> None:
         """Capture initial state preserving logits.
