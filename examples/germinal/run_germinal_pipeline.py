@@ -805,7 +805,7 @@ def run_trajectory(
     print(f"[Traj {traj_idx}] Post-stage-2 structural checks...")
     clashes = complex_struct.ca_clash_score(threshold=CLASH_THRESHOLD)
     general_contacts = complex_struct.interface_contact_residues(
-        binder_chain=binder_chain, target_chains=target_chains, cutoff=4.0
+        binder_chain=binder_chain, target_chains=target_chains, cutoff=4.0, include_hydrogens=True
     )
     if not _check_gate(
         "structural_gate",
@@ -827,6 +827,7 @@ def run_trajectory(
         binder_chain=binder_chain,
         target_chains=target_chains,
         cutoff=ATOM_DISTANCE_CUTOFF,
+        include_hydrogens=True,
     )
     interface_residues = set(interface_contacts)
 
@@ -948,7 +949,7 @@ def run_trajectory(
             cofold_cdr3_contacts = len(cofold_hotspot_hits & cdr3_positions_1idx)
 
         cofold_interface_res = relaxed_struct.interface_contact_residues(
-            binder_chain=COFOLD_BINDER_CHAIN, target_chains=[COFOLD_TARGET_CHAIN], cutoff=4.0
+            binder_chain=COFOLD_BINDER_CHAIN, target_chains=[COFOLD_TARGET_CHAIN], cutoff=4.0, include_hydrogens=True
         )
         cofold_pct_iface_cdr = (
             len(set(cofold_interface_res) & cdr_positions_1idx) / len(cofold_interface_res)
@@ -1251,6 +1252,7 @@ def run_pre_redesign_external_filters(
         binder_chain=COFOLD_BINDER_CHAIN,
         target_chains=[COFOLD_TARGET_CHAIN],
         cutoff=4.0,
+        include_hydrogens=True,
     )
     percent_interface_cdr = (
         len(set(interface_res) & cdr_positions_1idx) / len(interface_res) if interface_res else 0.0
