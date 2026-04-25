@@ -79,6 +79,11 @@ from proto_language.language.constraint.sequence_composition import (
     specific_kmer_constraint,
 )
 
+# Sequence scoring constraints
+from proto_language.language.constraint.sequence_scoring import (
+    mpnn_perplexity_constraint,
+)
+
 __all__ = [
     # Base infrastructure
     "ConstraintRegistry",
@@ -130,6 +135,8 @@ __all__ = [
     "rna_motif_similarity_constraint",
     "rna_feature_similarity_constraint",
     "rna_basepair_similarity_constraint",
+    # Sequence scoring
+    "mpnn_perplexity_constraint",
     # RNA splicing
     "alphagenome_splice_site_usage",
     "splice_transformer_intron_boundary",

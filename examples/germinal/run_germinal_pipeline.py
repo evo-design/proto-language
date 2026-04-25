@@ -33,9 +33,6 @@ Pipeline (same for both modes):
 All numeric defaults come from the colocated script-owned preset file
 ``antibody_presets.yaml``.
 
-Stage-3 divergence (quality > compute): cofolds all 40 AbMPNN samples and ranks
-by ``structure-composite`` directly, instead of MPNN-log-prob pre-screening.
-
 Known parity gaps (intentional):
 - VHH external cofold uses Chai-1/AF3 fallbacks instead of Germinal's Protenix until
   proto-language/proto-tools can pass Protenix full-PAE outputs through final pDockQ2.
@@ -97,6 +94,10 @@ from proto_tools.tools.structure_scoring.pyrosetta.pyrosetta_relax import (
 from proto_tools.tools.structure_scoring.pyrosetta.shared_data_models import ScoringStructureInput
 from scipy.spatial import cKDTree
 
+from proto_language.language.constraint.sequence_scoring.mpnn_perplexity_constraint import (
+    MpnnPerplexityConfig,
+    mpnn_perplexity_constraint,
+)
 from proto_language.language.constraint.differentiable.ablang_naturalness_constraint import (
     AbLangConstraintConfig,
     ablang_naturalness_forward,
@@ -886,11 +887,18 @@ def run_trajectory(
         generators=[abmpnn],
         constraints=[
             Constraint(
+                inputs=[binder],
+                function=mpnn_perplexity_constraint,
+                function_config=MpnnPerplexityConfig(top_k=geom.max_mpnn_sequences),
+                label="mpnn_prescreen",
+                threshold=0.0,
+            ),
+            Constraint(
                 inputs=[binder, target],
                 function=structure_composite_constraint,
                 function_config=_cofold_config(geom.cofold_tool),
                 label="cofold",
-            )
+            ),
         ],
         config=RejectionSamplingOptimizerConfig(
             num_samples=geom.num_seqs,

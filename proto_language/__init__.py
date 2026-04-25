@@ -18,6 +18,7 @@ from proto_language.language.constraint import (
     kmer_frequency_constraint,
     max_homopolymer_constraint,
     mmseqs_similarity_constraint,
+    mpnn_perplexity_constraint,
     overall_protein_quality_constraint,
     promoter_strength_constraint,
     protein_complexity_constraint,
@@ -179,6 +180,8 @@ __all__ = [
     "rna_motif_similarity_constraint",
     "rna_feature_similarity_constraint",
     "rna_basepair_similarity_constraint",
+    # Sequence scoring constraints
+    "mpnn_perplexity_constraint",
     # RNA splicing constraints
     "alphagenome_splice_site_usage",
     "splice_transformer_intron_boundary",

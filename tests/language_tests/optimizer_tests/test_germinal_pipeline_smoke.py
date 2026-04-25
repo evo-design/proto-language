@@ -1,5 +1,6 @@
 """Smoke test for the Germinal PD-L1 antibody design pipeline."""
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -54,6 +55,16 @@ def test_germinal_vhh_smoke(tmp_path: Path) -> None:
     assert len(run_dirs) == 1
     run_dir = run_dirs[0]
     assert any(run_dir.glob("*_binder.pdb"))
+
+    summary_path = run_dir / "trajectory_summary.json"
+    assert summary_path.exists(), "trajectory_summary.json not produced"
+    summary = json.loads(summary_path.read_text())
+    assert summary["num_trajectories"] == 1
+    assert "trajectories" in summary
+    assert len(summary["trajectories"]) == 1
+    assert "stages" in summary["trajectories"][0]
+
+    assert (run_dir / "trajectory_dynamics.png").exists(), "trajectory_dynamics.png not produced"
 
     variant_jsons = sorted(run_dir.glob("traj*_variant*_*.json"))
     for json_path in variant_jsons:
