@@ -14,17 +14,13 @@ from proto_language.language.constraint.protein_structure.structure_similarity_c
     StructureTMScoreConfig,
 )
 from proto_language.language.core import Sequence
+from tests.helpers.mock_structure import MockStructure
 
 CRO_SEQ = "MRKKLDLKKFVEDKNQEYAARALGLSQKLIEEVLKRGLPVYVETNKDGNIKVYITQDGITQPFPP"
 TOP7_SEQ = "MGDIQVQVNIDDNGKNFDYTYTVTTESELQKVLNELMDYIKKQGAKRVRISITARTKKEAEKFAAILIKVFAELGYNDINVTFDGDTVTVEGQLEGGSLEHHHHHH"
 UNCONFIDENT_SEQ = "EASGTYPGREACGGHEASGTYPGREACGGHEASGTYPGREACGGH"
 ROP_SEQ = "MTKQEKTALNMARFIRSQTLTLLEKLNELDADEQADICESLHDHADELYRSCLARFGDDGENL"
 EPSILON = 0.05
-
-
-class MockStructure(NamedTuple):
-    structure_pdb: str = "FAKE_PDB_CONTENT"
-    avg_plddt: float = 0.95
 
 
 class MockResult(NamedTuple):

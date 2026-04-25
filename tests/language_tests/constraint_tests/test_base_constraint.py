@@ -643,8 +643,10 @@ class TestGradientConstraintOutput:
         assert "loss=0.5" in r
 
     def test_frozen(self) -> None:
+        from pydantic import ValidationError
+
         result = GradientConstraintOutput(gradient=(np.zeros((5, 20)),), loss=1.0)
-        with pytest.raises(AttributeError):
+        with pytest.raises(ValidationError, match="frozen"):
             result.loss = 2.0  # type: ignore[misc]
 
 

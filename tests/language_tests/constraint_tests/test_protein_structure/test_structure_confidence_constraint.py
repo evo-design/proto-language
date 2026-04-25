@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from proto_tools import Structure, StructurePredictionOutput
+from proto_tools import StructurePredictionOutput
 
 from proto_language.language.constraint.protein_structure.structure_confidence_constraint import (
     PAE_MAXIMUM,
@@ -17,23 +17,16 @@ from proto_language.language.constraint.protein_structure.structure_confidence_c
 )
 from proto_language.language.core import Sequence
 from proto_language.storage import get_file_content, is_file_reference
+from tests.helpers.mock_structure import MockStructure
 
 # ============================================================================
 # Fixtures
 # ============================================================================
 
-MOCK_PDB = """ATOM      1  N   ALA A   1       0.000   0.000   0.000  1.00  0.90           N
-ATOM      2  CA  ALA A   1       1.458   0.000   0.000  1.00  0.90           C
-END
-"""
 
-
-def make_mock_structure(**metrics) -> Structure:
-    """Create a mock Structure with specified metrics."""
-    structure = MagicMock(spec=Structure)
-    structure.metrics = metrics
-    structure.structure_pdb = MOCK_PDB
-    return structure
+def make_mock_structure(**metrics) -> MockStructure:
+    """Create a real Structure subclass with specified metrics."""
+    return MockStructure(metrics=metrics)
 
 
 def make_mock_output(structures: list) -> StructurePredictionOutput:
@@ -642,13 +635,14 @@ class TestMetadataStorage:
         with patch(
             "proto_language.language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
         ) as mock_predict:
-            mock_predict.return_value = make_mock_output([make_mock_structure(avg_plddt=0.92, ptm=0.88)])
+            mock_struct = make_mock_structure(avg_plddt=0.92, ptm=0.88)
+            mock_predict.return_value = make_mock_output([mock_struct])
 
             metadata = structure_plddt_constraint(proposals, config)[0].metadata
             assert metadata["avg_plddt"] == 0.92
             # pdb_output is now a file reference
             assert is_file_reference(metadata["pdb_output"])
-            assert get_file_content(metadata["pdb_output"]) == MOCK_PDB
+            assert get_file_content(metadata["pdb_output"]) == mock_struct.structure_pdb
             assert metadata["structure_tool"] == "esmfold"
 
     def test_ptm_metadata_storage(self, protein_sequence):

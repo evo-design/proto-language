@@ -22,12 +22,11 @@ Key Features:
 import logging
 import warnings
 from collections.abc import Callable
-from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 import numpy as np
 from proto_tools.entities.structures import Structure
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from proto_language.language.core.segment import Segment
 from proto_language.language.core.sequence import Sequence
@@ -76,8 +75,7 @@ class InputSlot(BaseModel):
     requires_structure: bool = False
 
 
-@dataclass(frozen=True)
-class ConstraintOutput:
+class ConstraintOutput(BaseModel):
     """Typed result of a single-proposal forward constraint.
 
     Attributes:
@@ -95,15 +93,16 @@ class ConstraintOutput:
             for metrics that describe the full input tuple or complex.
     """
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     score: float
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     structures: tuple[Structure | None, ...] = ()
     logits: tuple[np.ndarray | None, ...] = ()
     metadata_recipient: str | None = None
 
 
-@dataclass(frozen=True)
-class GradientConstraintOutput:
+class GradientConstraintOutput(BaseModel):
     """Typed result of a gradient computation through a differentiable backend.
 
     Attributes:
@@ -115,9 +114,11 @@ class GradientConstraintOutput:
             aligned with ``gradient``. Non-``None`` entries are assigned to ``inputs[i].structure``.
     """
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     gradient: tuple[np.ndarray, ...]
     loss: float
-    metrics: dict[str, Any] = field(default_factory=dict)
+    metrics: dict[str, Any] = Field(default_factory=dict)
     structures: tuple[Structure | None, ...] = ()
 
     def __repr__(self) -> str:
