@@ -163,7 +163,8 @@ def my_constraint(
 | `category` | `str` | No | Must match the subdirectory name (e.g., `"sequence_composition"`) |
 | `supported_sequence_types` | `list[str]` | Yes | Non-empty list from: `"dna"`, `"rna"`, `"protein"`, `"ligand"` |
 | `input_labels` | `list[str \| InputSlot] \| None` | No | Default `["Sequence"]`. Strings for plain labels (`["Query", "Reference"]`), or `InputSlot(label=..., requires_logits=True, requires_structure=True)` for per-slot swap-detection. Use `None` for any number of interchangeable inputs |
-| `backward` | `Callable \| None` | No | Gradient callable: `(inputs, *, config, **kwargs) -> GradientConstraintOutput` |
+| `requires_generators` | `list[str] \| None` | No | Generator registry keys required in the same optimizer stage. Validated at construction time |
+| `backward` | `Callable \| None` | No | Gradient callable: `(input_sequences, *, config, **kwargs) -> list[GradientConstraintOutput]` |
 | `backward_config` | `Type[BaseModel] \| None` | No | Separate config class for backward callable. If `None`, uses `config` |
 
 ## Constraint Modes
@@ -173,7 +174,7 @@ A Constraint can expose three capability shapes:
 | Mode | `function` | `backward` | Registered how | Used by |
 |---|---|---|---|---|
 | `"discrete"` | ✅ | — | Decorated function returns `list[ConstraintOutput]` | MCMC, BeamSearch, RejSamp |
-| `"gradient"` | — | ✅ | Decorated function returns `GradientConstraintOutput` | GradientOptimizer |
+| `"gradient"` | — | ✅ | Decorated function returns `list[GradientConstraintOutput]` | GradientOptimizer |
 | `"dual"` | ✅ | ✅ | Decorated forward fn + `backward=` kwarg | Any optimizer — each picks the right path |
 
 **Discovery:**
@@ -186,12 +187,14 @@ c.supports_discrete    # True if forward scoring function is set
 c.supports_gradient    # True if backward callable is set
 ```
 
-**Optimizer routing** is automatic: `GradientOptimizer` filters on `supports_gradient` (`proto_language/language/optimizer/gradient_optimizer.py:357`); MCMC/Beam/RejSamp call `constraint.evaluate()` which guards on `_function is None` (`proto_language/language/core/constraint.py:292`). Dual-mode constraints pass both filters and route to the correct callable per optimizer.
+**Optimizer routing** is automatic: `GradientOptimizer` filters on `supports_gradient`; MCMC/Beam/RejSamp call `constraint.evaluate()` which guards on `_function is None`. Dual-mode constraints pass both filters and route to the correct callable per optimizer.
+
+**Standard kwargs forwarded by GradientOptimizer:** `temperature` (softmax temperature), `soft` (soft blending 0-1), `hard` (straight-through estimator blending 0-1). Accept these via `**kwargs` or explicitly in the backward signature.
 
 ### Gradient-Only Constraints
 
 For constraints that only compute gradients (no discrete scoring path). The `@constraint`
-decorator auto-detects the role from the return type annotation: `-> GradientConstraintOutput`
+decorator auto-detects the role from the return type annotation: `-> list[GradientConstraintOutput]`
 registers the function as the backward callable and sets `mode="gradient"`.
 
 ```python
@@ -206,11 +209,14 @@ from proto_language.language.core.constraint import GradientConstraintOutput
     supported_sequence_types=["protein"],
 )
 def my_backward(
-    inputs: tuple[Sequence, ...], *, config, **kwargs: Any,
-) -> GradientConstraintOutput:
+    input_sequences: list[tuple[Sequence, ...]], *, config: MyConfig, **kwargs: Any,
+) -> list[GradientConstraintOutput]:
     """Compute gradient; no discrete scoring path exists."""
-    grad, loss = run_tool(inputs[0].logits, config)
-    return GradientConstraintOutput(gradient=(grad,), loss=loss)
+    results: list[GradientConstraintOutput] = []
+    for (seq,) in input_sequences:
+        grad, loss = run_tool(seq.logits, config)
+        results.append(GradientConstraintOutput(gradient=(grad,), loss=loss))
+    return results
 ```
 
 This constraint is invisible to MCMC / BeamSearch / RejSamp — `evaluate()` raises because
@@ -230,9 +236,9 @@ evaluator. Register ONE `@constraint` on the forward function and pair it with
 from proto_language.language.core.constraint import GradientConstraintOutput
 
 def my_backward(
-    inputs: tuple[Sequence, ...], *, config: MyConfig, temperature: float, **kwargs: Any,
-) -> GradientConstraintOutput:
-    """Gradient path — returns GradientConstraintOutput."""
+    input_sequences: list[tuple[Sequence, ...]], *, config: MyConfig, temperature: float, **kwargs: Any,
+) -> list[GradientConstraintOutput]:
+    """Gradient path — returns list[GradientConstraintOutput]."""
     ...
 
 
@@ -464,7 +470,7 @@ Copy this and check off as you go:
 
 - [ ] Config class inherits `BaseConfig` with `ConfigField`
 - [ ] `@constraint` decorator with unique kebab-case key
-- [ ] Mode chosen correctly: discrete (score only), gradient (backward only, `-> GradientConstraintOutput`), or dual (`backward=` paired with forward scoring). Prefer dual when the computation supports both.
+- [ ] Mode chosen correctly: discrete (score only), gradient (backward only, `-> list[GradientConstraintOutput]`), or dual (`backward=` paired with forward scoring). Prefer dual when the computation supports both.
 - [ ] `supported_sequence_types` is non-empty
 - [ ] Scoring function returns `list[ConstraintOutput]`; `score` in [0.0, 1.0]
 - [ ] Per-proposal data passed via `ConstraintOutput.metadata`; predicted structures / logits passed via `ConstraintOutput.structures` / `.logits` (tuple aligned with inputs)
