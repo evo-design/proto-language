@@ -36,6 +36,13 @@ class TestAlignNorms:
         assert np.isclose(np.linalg.norm(aligned[1]), np.linalg.norm(large), rtol=1e-5)
         assert np.allclose(aligned[1] / np.linalg.norm(aligned[1]), normal / np.linalg.norm(normal), atol=1e-6)
 
+    def test_match_first_zero_reference_returns_unmodified(self) -> None:
+        zero = np.array([0.0, 0.0])
+        normal = np.array([1.0, 2.0])
+        aligned = align_norms([zero, normal], mode="match_first", zero_norm_eps=1e-4)
+        assert np.allclose(aligned[0], zero)
+        assert np.allclose(aligned[1], normal)
+
 
 class TestNormalizeGradient:
     def test_sqrt_length_formula_matches_germinal(self) -> None:

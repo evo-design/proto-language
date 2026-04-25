@@ -366,7 +366,7 @@ class Constraint:
                     f"'{self.label}' proposal {idx}: expected ConstraintOutput, got {type(result).__name__}"
                 )
             score = result.score
-            if not np.isfinite(score) and not is_filter:
+            if not np.isfinite(score) and not is_filter and not allow_raw_scores:
                 raise ValueError(f"'{self.label}' proposal {idx}: non-finite score {score!r}")
             if not allow_raw_scores and not is_filter and not (0.0 <= score <= 1.0):
                 raise ValueError(f"'{self.label}' proposal {idx}: score {score!r} not in [0.0, 1.0]")

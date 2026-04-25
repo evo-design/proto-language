@@ -148,7 +148,9 @@ def align_norms(
     if mode == "unit":
         return [g / (np.linalg.norm(g) + 1e-7) for g in grads]
     if mode == "match_first":
-        target_norm = np.linalg.norm(grads[0])
+        target_norm = float(np.linalg.norm(grads[0]))
+        if target_norm < zero_norm_eps:
+            return grads
         aligned = [grads[0]]
         for g in grads[1:]:
             g_norm = float(np.linalg.norm(g))

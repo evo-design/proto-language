@@ -268,7 +268,7 @@ def boltz_binding_strength_constraint(
 
     # Scoring each complex
     results: list[ConstraintOutput] = []
-    for seq_obj_tuple, comp, structure in zip(input_sequences, inputs.complexes, outputs.structures, strict=False):
+    for seq_obj_tuple, comp, structure in zip(input_sequences, inputs.complexes, outputs.structures, strict=True):
         # Determine complex type
         n_chains = comp.num_chains()
         has_ligand = "ligand" in comp.get_entity_type_set()
@@ -350,8 +350,13 @@ def boltz_binding_strength_constraint(
         else:
             prot_iptm = m.get("protein_iptm")
             iptm = m.get("iptm")
-            chosen = "protein_iptm" if (prot_iptm and prot_iptm > 0) else "iptm"
+            chosen = "protein_iptm" if (prot_iptm is not None and prot_iptm > 0) else "iptm"
             if chosen == "iptm":
+                if iptm is None:
+                    raise ValueError(
+                        f"Neither 'protein_iptm' nor 'iptm' found in Boltz metrics for multi-chain complex. "
+                        f"Available metrics: {sorted(m.keys())}"
+                    )
                 penalties_dict["iptm_penalty"] = get_penalty_for_metric(
                     metric_name="iptm",
                     metric_value=iptm,

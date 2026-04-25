@@ -473,7 +473,7 @@ def structure_composite_constraint(
     output = predict_structures(complexes, config.structure_tool, config.tool_config)
 
     results: list[ConstraintOutput] = []
-    for structure, proposal_tuple in zip(output.structures, input_sequences, strict=False):
+    for structure, proposal_tuple in zip(output.structures, input_sequences, strict=True):
         m = structure.metrics
         plddt_raw = m.get("avg_plddt")
         if plddt_raw is None:

@@ -526,7 +526,7 @@ class GradientOptimizer(Optimizer):
         target = self.target_segment
 
         vocab = target.ordered_vocab()
-        needs_rng = self.config.initial_logits is not None or (self.config.gumbel_logit_init and self.seed is not None)
+        needs_rng = self.config.initial_logits is not None or self.config.gumbel_logit_init
         init_rng = np.random.default_rng(self.seed) if needs_rng else None
         logit_bias = (
             np.asarray(self.config.logit_bias, dtype=np.float64) if self.config.logit_bias is not None else None
