@@ -62,6 +62,7 @@ import json
 import math
 import os
 import tempfile
+import time
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
@@ -268,6 +269,7 @@ class StageMetrics:
 @dataclass
 class TrajectoryRecord:
     traj_idx: int
+    seed: int
     stage_metrics: dict[str, StageMetrics] = field(default_factory=dict)
     rejected_at: str | None = None
     accepted: bool = False
@@ -557,12 +559,19 @@ def run_germinal_antibody(
 
     num_accepted = 0
     all_records: list[TrajectoryRecord] = []
+    run_seed = int(time.time_ns()) % (2**32 - 1)
+    print(f"Initial seed: {run_seed}")
+    # Match Germinal's run RNG pattern: seed the run, sample a trajectory seed,
+    # then let the trajectory reseed and advance NumPy's global RNG.
+    np.random.seed(run_seed)
     for traj_idx in range(max_trajectories):
-        print(f"\n--- Trajectory {traj_idx + 1}/{max_trajectories} ---")
-        record = TrajectoryRecord(traj_idx=traj_idx)
+        trajectory_seed = int(np.random.randint(0, 999999))
+        print(f"\n--- Trajectory {traj_idx + 1}/{max_trajectories} (seed={trajectory_seed}) ---")
+        record = TrajectoryRecord(traj_idx=traj_idx, seed=trajectory_seed)
         num_accepted += run_trajectory(
             geom,
             traj_idx,
+            trajectory_seed,
             target_structure,
             target_seq,
             binder_template,
@@ -581,11 +590,13 @@ def run_germinal_antibody(
         return None if math.isnan(v) else v
 
     summary = {
+        "run_seed": run_seed,
         "num_trajectories": len(all_records),
         "num_accepted": num_accepted,
         "trajectories": [
             {
                 "traj_idx": r.traj_idx,
+                "seed": r.seed,
                 "rejected_at": r.rejected_at,
                 "accepted": r.accepted,
                 "stages": {
@@ -613,6 +624,7 @@ def run_germinal_antibody(
 def run_trajectory(
     geom: BinderGeometry,
     traj_idx: int,
+    trajectory_seed: int,
     target_structure: Structure,
     target_seq: str,
     binder_template: str,
@@ -624,7 +636,7 @@ def run_trajectory(
     record: TrajectoryRecord | None = None,
 ) -> int:
     """Run one Germinal trajectory; returns number of accepted variants saved."""
-    np.random.seed(traj_idx)
+    np.random.seed(trajectory_seed)
 
     # CDR index sets
     cdr_positions = geom.cdr_positions()
@@ -642,7 +654,7 @@ def run_trajectory(
     af2_cfg = AF2BinderConstraintConfig.germinal_vhh_preset(
         target_pdb=target_structure.structure_pdb, binder_chain=binder_chain
     )
-    af2_cfg.seed = traj_idx
+    af2_cfg.seed = trajectory_seed
     af2_cfg.target_chains = target_chains
     af2_cfg.design_positions = cdr_positions
     af2_cfg.framework_contact_offset = geom.framework_contact_offset
@@ -738,7 +750,7 @@ def run_trajectory(
 
     # ── STAGE 2: semigreedy MCMC ──
     # Discards gradient logits, samples from bias alone (clear_logits=True).
-    # Near-greedy argmin via max_temperature=1e-3.
+    # Near-greedy acceptance via a near-zero MCMC temperature.
     semigreedy = SemigreedyMutationGenerator(
         SemigreedyMutationGeneratorConfig(
             position_weighting="plddt",
@@ -773,7 +785,7 @@ def run_trajectory(
         print(f"[Traj {traj_idx}] rejected at {gate_name}" + (f": {detail}" if detail else ""))
         return False
 
-    hallucination = Program(optimizers=[stage0, stage1, stage2], num_results=1, seed=traj_idx)
+    hallucination = Program(optimizers=[stage0, stage1, stage2], num_results=1, seed=trajectory_seed)
 
     print(f"[Traj {traj_idx}] Stage 0: logit hallucination ({geom.logits_steps} steps)...")
     hallucination.run_stage(0)
@@ -887,7 +899,7 @@ def run_trajectory(
         ),
     )
     print(f"[Traj {traj_idx}] Stage 3: AbMPNN redesign ({geom.num_seqs} samples, keep top {geom.max_mpnn_sequences})...")
-    Program(optimizers=[stage3], num_results=geom.max_mpnn_sequences, seed=traj_idx).run_stage(0)
+    Program(optimizers=[stage3], num_results=geom.max_mpnn_sequences, seed=trajectory_seed).run_stage(0)
 
     print(f"[Traj {traj_idx}] Final filter: relax + evaluate {len(geom.final_filters)} gates per variant...")
     # ── FINAL FILTER: relax + evaluate configured Germinal gates per variant ──
