@@ -618,6 +618,42 @@ class TestMultiStage:
         assert seg.result_sequences[0].logits.shape == (10, 20)
 
 
+class TestSaveBest:
+    """Tests for the save_best config option."""
+
+    @staticmethod
+    def _make_v_shaped_backward() -> Callable[..., list[GradientConstraintOutput]]:
+        """Create a backward that produces V-shaped loss: 5, 3, 1, 2, 4."""
+        state: dict[str, list[float]] = {"losses": [5.0, 3.0, 1.0, 2.0, 4.0], "call": [0]}
+
+        def bwd(
+            input_sequences: list[tuple],
+            *,
+            config: BaseModel,
+            **kwargs: object,
+        ) -> list[GradientConstraintOutput]:
+            idx = min(state["call"][0], len(state["losses"]) - 1)
+            loss = state["losses"][idx]
+            state["call"][0] += 1
+            results: list[GradientConstraintOutput] = []
+            for (seq,) in input_sequences:
+                grad = np.zeros_like(seq.logits)
+                grad[:, idx % seq.logits.shape[1]] = 1.0
+                results.append(GradientConstraintOutput(gradient=(grad,), loss=loss, metrics={}))
+            return results
+
+        return bwd
+
+    def test_save_best_returns_lowest_loss(self) -> None:
+        """V-shaped loss (5,3,1,2,4): save_best=True returns energy 1, False returns 4."""
+        for save_best, expected in [(True, 1.0), (False, 4.0)]:
+            bwd = self._make_v_shaped_backward()
+            seg = Segment(sequence="AA", sequence_type="protein")
+            opt = _make_optimizer(seg, bwd, num_steps=5, lr=0.1, save_best=save_best, normalize_gradients=False)
+            opt.run()
+            assert opt.energy_scores[0] == pytest.approx(expected), f"save_best={save_best}"
+
+
 class TestExport:
     def test_to_dataframe_and_fasta(self) -> None:
         opt, _ = _make()

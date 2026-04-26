@@ -103,6 +103,7 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
         min_lr_scale (float): Floor for effective LR scale.
         tracking_interval (int): Steps between progress snapshots.
         track_proposals (bool): Record per-proposal results in history.
+        save_best (bool): Return the lowest-loss result instead of the last iteration.
         constraint_weight_schedules (list[ConstraintWeightSchedule] | None): Per-label
             weight schedules that override ``Constraint.weight`` each step.
         gumbel_logit_init (bool): If True, add Gumbel(0,1) noise per position on top of
@@ -258,6 +259,12 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
         ge=0.0,
         title="Min LR Scale",
         description="Floor for effective LR scale when temperature scaling is enabled.",
+        advanced=True,
+    )
+    save_best: bool = ConfigField(
+        default=True,
+        title="Save Best",
+        description="Return the lowest-loss result instead of the last iteration.",
         advanced=True,
     )
     constraint_weight_schedules: list[ConstraintWeightSchedule] | None = ConfigField(
@@ -553,6 +560,10 @@ class GradientOptimizer(Optimizer):
         self._sync_proposals_to_results()
         self._save_progress_snapshot(time_step=0)
 
+        if self.config.save_best:
+            best_energies = list(self.energy_scores)
+            best_proposals = [copy.deepcopy(self.target_segment.proposal_sequences[k]) for k in range(self.num_results)]
+
         if self.verbose:
             logger.info(
                 f"GradientOptimizer: {self.num_results} trajectories, {self.config.num_steps} steps, "
@@ -597,6 +608,12 @@ class GradientOptimizer(Optimizer):
             self._proposal_outcomes = ["accepted"] * self.num_proposals
             self._proposal_energy_scores = list(self.energy_scores)
 
+            if self.config.save_best:
+                for k in range(self.num_results):
+                    if self.energy_scores[k] < best_energies[k]:
+                        best_energies[k] = self.energy_scores[k]
+                        best_proposals[k] = copy.deepcopy(self.target_segment.proposal_sequences[k])
+
             # 6. At tracked steps: discretize, sync proposals→results, snapshot
             if step % self.tracking_interval == 0 or step == self.config.num_steps:
                 self.generator.sample()
@@ -605,6 +622,13 @@ class GradientOptimizer(Optimizer):
                 self._log_progress(step, temp, lr)
 
             self._clear_tool_cache()
+
+        if self.config.save_best:
+            for k in range(self.num_results):
+                self.target_segment.proposal_sequences[k] = best_proposals[k]
+            self.energy_scores = best_energies
+            self.generator.sample()
+            self._sync_proposals_to_results()
 
     # =============================================================================
     # Private helpers
