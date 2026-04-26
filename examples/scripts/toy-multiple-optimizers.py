@@ -1,4 +1,4 @@
-from proto_tools.tools.masked_models.masking import MaskingStrategy
+from proto_tools.transforms.masking import MaskingStrategy
 
 from proto_language.language.constraint import gc_content_constraint
 from proto_language.language.core import (

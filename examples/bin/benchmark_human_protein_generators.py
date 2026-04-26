@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 from Bio import SeqIO
 from Bio.Seq import Seq
-from proto_tools.tools.masked_models.masking import MaskingStrategy
+from proto_tools.transforms.masking import MaskingStrategy
 from tqdm import tqdm
 
 
