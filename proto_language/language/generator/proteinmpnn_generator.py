@@ -54,6 +54,9 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
             - A single ``InverseFoldingStructureInput`` object
             - A list of strings or ``InverseFoldingStructureInput`` objects
             - A list of dicts with ``structure``, ``chain_ids``, ``fixed_positions`` keys
+        output_chain_id (str | None): For multi-chain sampling, write only this
+            chain's generated sequence to the assigned segment. If unset, preserve
+            ProteinMPNN's full output sequence.
 
         temperature (float): Controls randomness in amino acid sampling from the
             model's predicted probability distribution:
@@ -139,6 +142,12 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
         default=None,
         title="Structure Inputs",
         description="Structure(s) with optional chain_ids and fixed_positions constraints.",
+    )
+    output_chain_id: str | None = ConfigField(
+        default=None,
+        title="Output Chain",
+        description="When sampling a multi-chain structure, write only this chain's sequence to the target segment.",
+        advanced=True,
     )
 
     # Optional parameters.
@@ -254,6 +263,7 @@ class ProteinMPNNGenerator(Generator):
 
         self.model_choice = config.model_choice
         self.structure_inputs = config.structure_inputs
+        self.output_chain_id = config.output_chain_id
         self.temperature = config.temperature
         self.excluded_amino_acids = config.excluded_amino_acids
         self.batch_size = config.batch_size
@@ -289,9 +299,9 @@ class ProteinMPNNGenerator(Generator):
                 "No structure_inputs provided. Either pass structure_inputs to sample() or configure structure_inputs in the generator config."
             )
 
-        generated_sequences = []
-        perplexities = []
-        sequence_recoveries = []
+        generated_sequences: list[str] = []
+        perplexities: list[float] = []
+        sequence_recoveries: list[float] = []
 
         if len(sampling_structure_inputs) == 1:
             # Single structure: generate num_proposals sequences in chunks of batch_size
@@ -321,21 +331,30 @@ class ProteinMPNNGenerator(Generator):
             inputs=InverseFoldingInput(inputs=sampling_structure_inputs),
             config=tool_config,
         )
-        for designed in result.designed_sequences:
-            generated_sequences.extend(designed.sequences)
+        full_sequences: list[str] = []
+        for designed, struct_input in zip(result.designed_sequences, sampling_structure_inputs, strict=True):
+            full_sequences.extend(designed.sequences)
+            generated_sequences.extend(
+                self._select_output_sequence(sequence, struct_input) for sequence in designed.sequences
+            )
             perplexities.extend(designed.perplexity)
             sequence_recoveries.extend(designed.sequence_recovery)
 
         key = self._spec.key
-        for proposal, sequence, perplexity, recovery in zip(
+        for proposal, sequence, full_sequence, perplexity, recovery in zip(
             self.segment.proposal_sequences,
             generated_sequences,
+            full_sequences,
             perplexities,
             sequence_recoveries,
             strict=True,
         ):
             proposal.sequence = sequence
-            proposal._generator_metadata[key] = {"perplexity": perplexity, "sequence_recovery": recovery}
+            proposal._generator_metadata[key] = {
+                "perplexity": perplexity,
+                "sequence_recovery": recovery,
+                "full_sequence": full_sequence,
+            }
 
         # Write the generating structure onto each proposal sequence
         if len(sampling_structure_inputs) == 1:
@@ -344,3 +363,18 @@ class ProteinMPNNGenerator(Generator):
         else:
             for proposal, struct_input in zip(self.segment.proposal_sequences, sampling_structure_inputs, strict=True):
                 proposal.structure = struct_input.structure
+
+    def _select_output_sequence(self, sequence: str, struct_input: InverseFoldingStructureInput) -> str:
+        """Return the configured output chain from a ProteinMPNN sequence."""
+        if self.output_chain_id is None:
+            return sequence
+        chain_ids = struct_input.chain_ids or []
+        if self.output_chain_id not in chain_ids:
+            raise ValueError(f"output_chain_id {self.output_chain_id!r} not found in chain_ids {chain_ids}")
+        parts = sequence.split("/")
+        if len(parts) != len(chain_ids):
+            raise ValueError(
+                f"Expected {len(chain_ids)} slash-separated chains in ProteinMPNN output "
+                f"(for chain_ids {chain_ids}), got {len(parts)}: {sequence!r}"
+            )
+        return parts[chain_ids.index(self.output_chain_id)]

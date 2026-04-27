@@ -1,6 +1,8 @@
 """tests/language_tests/generator_tests/test_proteinmpnn_generator.py."""
 
 import copy
+from importlib import import_module
+from types import SimpleNamespace
 
 import pytest
 from proto_tools import InverseFoldingStructureInput
@@ -103,6 +105,44 @@ class TestProteinMPNNGenerator:
 
 class TestProteinMPNNGeneratorValidation:
     """Unit tests for ProteinMPNN configuration and validation (no GPU required)."""
+
+    def test_output_chain_id_selects_chain_and_preserves_generator_metadata(
+        self, monkeypatch: pytest.MonkeyPatch, sample_pdb_content: str
+    ) -> None:
+        """Multi-chain sampling can write one selected chain to the target segment."""
+        chain_b = "\n".join(
+            f"{line[:21]}B{line[22:]}" if line.startswith("ATOM") else line
+            for line in sample_pdb_content.splitlines()
+            if line != "END"
+        )
+        two_chain_pdb = sample_pdb_content.replace("END\n", "") + chain_b + "\nEND\n"
+
+        def fake_run_proteinmpnn_sample(*, inputs, config):
+            assert inputs.inputs[0].chain_ids == ["A", "B"]
+            assert config.num_sequences_per_structure == 1
+            designed = SimpleNamespace(sequences=["AAAAA/CCCCC"], perplexity=[2.5], sequence_recovery=[0.4])
+            return SimpleNamespace(designed_sequences=[designed])
+
+        proteinmpnn_module = import_module("proto_language.language.generator.proteinmpnn_generator")
+        monkeypatch.setattr(proteinmpnn_module, "run_proteinmpnn_sample", fake_run_proteinmpnn_sample)
+        generator = ProteinMPNNGenerator(
+            ProteinMPNNGeneratorConfig(
+                structure_inputs=InverseFoldingStructureInput(structure=two_chain_pdb, chain_ids=["A", "B"]),
+                output_chain_id="B",
+            )
+        )
+        segment = Segment(sequence="CCCCC", sequence_type="protein")
+        generator.assign(segment)
+
+        generator.sample()
+
+        proposal = segment.proposal_sequences[0]
+        assert proposal.sequence == "CCCCC"
+        assert proposal._generator_metadata["proteinmpnn"] == {
+            "perplexity": 2.5,
+            "sequence_recovery": 0.4,
+            "full_sequence": "AAAAA/CCCCC",
+        }
 
     @pytest.mark.parametrize("sequence_type", ["dna", "rna"])
     def test_rejects_non_protein_segment(self, temp_pdb_file, sequence_type):
