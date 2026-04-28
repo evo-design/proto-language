@@ -237,8 +237,9 @@ class MCMCOptimizer(Optimizer):
         assert self.num_results is not None  # noqa: S101 -- mypy type narrowing
         assert self.num_proposals is not None  # noqa: S101 -- mypy type narrowing
 
-        # Score initial state if sequences are non-empty (skip for autoregressive generators like ProGen2)
-        if any(seq.sequence for segment in self.segments for seq in segment.proposal_sequences):
+        # all(): score only when every design segment is ready. any() let scoring
+        # run on empty design segments paired with a fixed target.
+        if all(seq.sequence for segment in self.segments for seq in segment.proposal_sequences):
             self.score_energy()
         else:
             self.energy_scores = [float("inf")] * self.num_proposals

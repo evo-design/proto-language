@@ -299,12 +299,12 @@ class SemigreedyMutationGenerator(Generator):
             assert isinstance(result, np.ndarray)  # noqa: S101 -- narrows numpy arithmetic for mypy
             return result
 
-        # plddt weighting: (1 - plddt) so low-confidence positions are favored
+        # 1-plddt weighting; uniform fallback when no pLDDT yet.
         if proposal.structure is None:
-            raise ValueError("position_weighting='plddt' requires a Structure on each proposal.")
+            return uniform
         per_residue = proposal.structure.per_residue_plddt
         if per_residue is None:
-            raise ValueError("plddt weighting needs per-residue pLDDT; set b_factor_type=PLDDT/NORMALIZED_PLDDT.")
+            return uniform
         plddt_array = np.asarray(per_residue, dtype=float)
         if plddt_array.shape != (seq_len,):
             raise ValueError(f"per_residue_plddt length {len(plddt_array)} does not match sequence length {seq_len}.")

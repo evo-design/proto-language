@@ -120,11 +120,12 @@ class TestSemigreedyMutationGenerator:
             gen.sample()
 
     @pytest.mark.parametrize(
-        ("structure", "error_match"),
+        ("structure", "expect_error"),
         [
-            pytest.param(None, "requires a Structure", id="no-structure"),
-            # Default MockStructure uses BFactorType.UNSPECIFIED, so per_residue_plddt returns None.
-            pytest.param(MockStructure(), "per-residue pLDDT", id="no-plddt-bfactors"),
+            # Missing structure or pLDDT B-factors: fall back to uniform (matches
+            # upstream ColabDesign _mutate when plddt is None).
+            pytest.param(None, None, id="no-structure-falls-back-to-uniform"),
+            pytest.param(MockStructure(), None, id="no-plddt-bfactors-falls-back-to-uniform"),
             pytest.param(
                 MockStructure.with_plddt([0.5, 0.5]),
                 "does not match sequence length",
@@ -132,8 +133,8 @@ class TestSemigreedyMutationGenerator:
             ),
         ],
     )
-    def test_plddt_validation(self, structure, error_match):
-        """PLDDT weighting validates structure requirements."""
+    def test_plddt_validation(self, structure, expect_error):
+        """PLDDT weighting falls back to uniform on missing structure / pLDDT."""
         segment = Segment(sequence="ACD", sequence_type="protein")
         segment.proposal_sequences[0].logits = np.zeros((3, VOCAB_SIZE))
         if structure is not None:
@@ -141,8 +142,11 @@ class TestSemigreedyMutationGenerator:
         gen = SemigreedyMutationGenerator(SemigreedyMutationGeneratorConfig(position_weighting="plddt"))
         gen._set_program_seed(42)
         gen.assign(segment)
-        with pytest.raises(ValueError, match=error_match):
-            gen.sample()
+        if expect_error is None:
+            gen.sample()  # must not raise; uniform fallback applied
+        else:
+            with pytest.raises(ValueError, match=expect_error):
+                gen.sample()
 
     def test_logit_bias_shifts_sampling(self):
         """Additive logit_bias shifts AA sampling away from proposal.logits preference."""
