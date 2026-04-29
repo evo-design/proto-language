@@ -1,43 +1,45 @@
 {
-  "name": "multiple_segments_test",
-  "description": "Test program with multiple constructs each having multiple segments to validate segment separation",
+  "name": "multiple_segments",
+  "description": "Multi-construct, multi-segment DNA design. Construct 1 is a three-part bacterial regulatory unit (variable promoter at 35-55% GC, variable coding region at 45-55% GC, variable terminator pushed to 55-75% GC for a GC-rich stem); construct 2 is a two-part regulatory pair (variable 100 bp enhancer at 40-60% GC, variable 100 bp coding region at 45-55% GC). Each variable segment gets its own random-nucleotide generator and a segment-specific GC constraint, plus `max-homopolymer 5` on the two coding-length segments (`gene`, `coding_region`) where long mononucleotide runs would compromise synthesis and ORF calling. This exercises the parser's segment-separation behavior - each constraint scores only its own targets - and demonstrating how to compose constructs that the optimizer treats as independent during MCMC. The biology is intentionally generic so the example stays focused on multi-segment / multi-construct mechanics; for a biologically rigorous bacterial expression cassette see `sigma70_promoter_tuning.json`. The 45-55% GC band on coding regions reflects E. coli K-12 typical CDS GC, and the max-homopolymer 5 cap is the synthesis-friendly run-length limit from the IDT gBlocks design guidelines.",
   "version": "1.0",
   "num_results": 1,
   "constructs": [
     {
       "id": "construct1",
       "type": "dna",
+      "label": "Bacterial regulatory unit",
       "segments": [
         {
           "id": "promoter",
-          "label": "promoter",
-          "length": 10
+          "label": "Variable promoter region",
+          "length": 50
         },
         {
           "id": "gene",
-          "label": "gene",
-          "length": 12
+          "label": "Variable coding region",
+          "length": 300
         },
         {
           "id": "terminator",
-          "label": "terminator",
-          "length": 8
+          "label": "Variable terminator region",
+          "length": 50
         }
       ]
     },
     {
       "id": "construct2",
       "type": "dna",
+      "label": "Eukaryotic regulatory pair",
       "segments": [
         {
           "id": "enhancer",
-          "label": "enhancer",
-          "length": 10
+          "label": "Variable enhancer",
+          "length": 100
         },
         {
           "id": "coding_region",
-          "label": "coding_region",
-          "length": 10
+          "label": "Variable coding region",
+          "length": 100
         }
       ]
     }
@@ -47,144 +49,73 @@
       "generators": [
         {
           "key": "random-nucleotide",
-          "config": {
-            "masking_strategy": { "num_mutations": 2 }
-          },
-          "target": "promoter"
+          "target": "promoter",
+          "config": { "masking_strategy": { "num_mutations": 2 } }
         },
         {
           "key": "random-nucleotide",
-          "config": {
-            "masking_strategy": { "num_mutations": 2 }
-          },
-          "target": "gene"
+          "target": "gene",
+          "config": { "masking_strategy": { "num_mutations": 3 } }
         },
         {
           "key": "random-nucleotide",
-          "config": {
-            "masking_strategy": { "num_mutations": 2 }
-          },
-          "target": "terminator"
+          "target": "terminator",
+          "config": { "masking_strategy": { "num_mutations": 2 } }
         },
         {
           "key": "random-nucleotide",
-          "config": {
-            "masking_strategy": { "num_mutations": 2 }
-          },
-          "target": "enhancer"
+          "target": "enhancer",
+          "config": { "masking_strategy": { "num_mutations": 2 } }
         },
         {
           "key": "random-nucleotide",
-          "config": {
-            "masking_strategy": { "num_mutations": 2 }
-          },
-          "target": "coding_region"
+          "target": "coding_region",
+          "config": { "masking_strategy": { "num_mutations": 2 } }
         }
       ],
       "constraints": [
         {
           "key": "gc-content",
-          "config": {
-            "min_gc": 45.0,
-            "max_gc": 55.0
-          },
-          "targets": [
-            "promoter"
-          ]
+          "targets": ["promoter"],
+          "config": { "min_gc": 35.0, "max_gc": 55.0 }
         },
         {
           "key": "gc-content",
-          "config": {
-            "min_gc": 40.0,
-            "max_gc": 60.0
-          },
-          "targets": [
-            "gene"
-          ]
+          "targets": ["gene"],
+          "config": { "min_gc": 45.0, "max_gc": 55.0 }
         },
         {
           "key": "gc-content",
-          "config": {
-            "min_gc": 30.0,
-            "max_gc": 50.0
-          },
-          "targets": [
-            "terminator"
-          ]
+          "targets": ["terminator"],
+          "config": { "min_gc": 55.0, "max_gc": 75.0 }
         },
         {
           "key": "gc-content",
-          "config": {
-            "min_gc": 50.0,
-            "max_gc": 60.0
-          },
-          "targets": [
-            "enhancer"
-          ]
+          "targets": ["enhancer"],
+          "config": { "min_gc": 40.0, "max_gc": 60.0 }
         },
         {
           "key": "gc-content",
-          "config": {
-            "min_gc": 45.0,
-            "max_gc": 55.0
-          },
-          "targets": [
-            "coding_region"
-          ]
+          "targets": ["coding_region"],
+          "config": { "min_gc": 45.0, "max_gc": 55.0 }
         },
         {
-          "key": "sequence-length",
-          "config": {
-            "target_length": 10
-          },
-          "targets": [
-            "promoter"
-          ]
+          "key": "max-homopolymer",
+          "targets": ["gene"],
+          "config": { "max_length": 5 }
         },
         {
-          "key": "sequence-length",
-          "config": {
-            "target_length": 12
-          },
-          "targets": [
-            "gene"
-          ]
-        },
-        {
-          "key": "sequence-length",
-          "config": {
-            "target_length": 8
-          },
-          "targets": [
-            "terminator"
-          ]
-        },
-        {
-          "key": "sequence-length",
-          "config": {
-            "target_length": 10
-          },
-          "targets": [
-            "enhancer"
-          ]
-        },
-        {
-          "key": "sequence-length",
-          "config": {
-            "target_length": 10
-          },
-          "targets": [
-            "coding_region"
-          ]
+          "key": "max-homopolymer",
+          "targets": ["coding_region"],
+          "config": { "max_length": 5 }
         }
       ],
       "optimizer": {
         "method": "mcmc",
         "config": {
-          "num_results": 1,
-          "num_steps": 5,
+          "num_steps": 100,
           "max_temperature": 1.5,
-          "min_temperature": 0.5
+          "min_temperature": 0.01
         }
       }
     }

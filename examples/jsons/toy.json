@@ -1,6 +1,6 @@
 {
-  "name": "random_nucleotide_single_construct_gc_constraint",
-  "description": "Generate a single DNA sequence with random nucleotide mutation and GC content constraint",
+  "name": "toy",
+  "description": "Smoke test: generate a 100 bp DNA segment with balanced GC content (40-60%) and no long homopolymers, using random nucleotide mutation under MCMC. Used as the canonical fast end-to-end example to verify the registry, parser, optimizer, and result wiring without invoking GPU tools or external services. Targets the GC range typical of E. coli K-12 coding sequences (~50% GC; Hershberg & Petrov 2008) so the optimizer's solution is biologically reasonable rather than a single homopolymer of G/C.",
   "version": "1.0",
   "num_results": 1,
   "constructs": [
@@ -9,8 +9,9 @@
       "type": "dna",
       "segments": [
         {
-          "id": "construct1-segment1",
-          "length": 20
+          "id": "variable_dna",
+          "label": "100 bp variable DNA",
+          "length": 100
         }
       ]
     }
@@ -20,30 +21,35 @@
       "generators": [
         {
           "key": "random-nucleotide",
-          "target": "construct1-segment1",
+          "target": "variable_dna",
           "config": {
-            "masking_strategy": { "num_mutations": 1 }
+            "masking_strategy": { "num_mutations": 2 }
           }
         }
       ],
       "constraints": [
         {
           "key": "gc-content",
-          "targets": [
-            "construct1-segment1"
-          ],
+          "targets": ["variable_dna"],
           "config": {
-            "min_gc": 80,
-            "max_gc": 90
+            "min_gc": 40.0,
+            "max_gc": 60.0
+          }
+        },
+        {
+          "key": "max-homopolymer",
+          "targets": ["variable_dna"],
+          "config": {
+            "max_length": 5
           }
         }
       ],
       "optimizer": {
         "method": "mcmc",
         "config": {
-          "num_results": 1,
           "num_steps": 100,
-          "max_temperature": 2.0
+          "max_temperature": 1.0,
+          "min_temperature": 0.01
         }
       }
     }

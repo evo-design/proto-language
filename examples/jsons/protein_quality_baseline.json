@@ -1,0 +1,93 @@
+{
+  "name": "protein_quality_baseline",
+  "description": "Two-stage protein redesign on the streptococcal protein G B1 domain (GB1, 56 aa, PDB 2QMT; Gronenborn et al. 1991, Frericks Schmidt et al. 2007 for the high-resolution coordinates). Stage 1 uses rejection-sampling to broadly explore the local sequence neighborhood with ESM2-650M (Lin et al. 2023) at temperature 1.0 and a 3-mutation budget, retaining the top samples by ESMFold pLDDT. Stage 2 narrows to single-mutation MCMC at lower ESM2 temperature (0.7) and adds three additional constraints to discipline ESM2's tendency to drift toward low-complexity, high-pLDDT 'AAAEEK'-style sequences: `structure-ptm` rewards globally consistent fold prediction; `protein-complexity` (max_low_complexity 0.30) caps the SEG-style low-complexity fraction (Wootton & Federhen 1996); `balanced-aa` (min_aa_frequency=0.01, max_underrepresented_count=8) flags severe amino-acid collapse without penalizing the natural sparseness of a 56 aa protein (wild-type GB1 has 5 amino acids absent and 4 at 1.79% frequency, well within the relaxed thresholds). The thresholds are tuned for short-protein redesign; for full-length protein redesign use the constraint defaults (min_aa_frequency=0.02, max_underrepresented_count=3). Canonical baseline for the protein-quality teaching example.",
+  "version": "1.0",
+  "num_results": 3,
+  "constructs": [
+    {
+      "id": "construct1",
+      "type": "protein",
+      "label": "GB1 (immunoglobulin-binding domain of protein G)",
+      "segments": [
+        {
+          "id": "gb1",
+          "label": "GB1 56 aa monomer (PDB 2QMT)",
+          "sequence": "MTYKLILNGKTLKGETTTEAVDAATAEKVFKQYANDNGVDGEWTYDDATKTFTVTE"
+        }
+      ]
+    }
+  ],
+  "optimization_stages": [
+    {
+      "generators": [
+        {
+          "key": "esm2",
+          "target": "gb1",
+          "config": {
+            "model_checkpoint": "esm2_t33_650M_UR50D",
+            "temperature": 1.0,
+            "masking_strategy": { "num_mutations": 3 }
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "structure-plddt",
+          "targets": ["gb1"],
+          "config": { "structure_tool": "esmfold" }
+        }
+      ],
+      "optimizer": {
+        "method": "rejection-sampling",
+        "config": {
+          "num_samples": 100,
+          "num_results": 10,
+          "samples_per_round": 10
+        }
+      }
+    },
+    {
+      "generators": [
+        {
+          "key": "esm2",
+          "target": "gb1",
+          "config": {
+            "model_checkpoint": "esm2_t33_650M_UR50D",
+            "temperature": 0.7,
+            "masking_strategy": { "num_mutations": 1 }
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "structure-plddt",
+          "targets": ["gb1"],
+          "config": { "structure_tool": "esmfold" }
+        },
+        {
+          "key": "structure-ptm",
+          "targets": ["gb1"],
+          "config": { "structure_tool": "esmfold" }
+        },
+        {
+          "key": "protein-complexity",
+          "targets": ["gb1"],
+          "config": { "max_low_complexity": 0.30 }
+        },
+        {
+          "key": "balanced-aa",
+          "targets": ["gb1"],
+          "config": { "min_aa_frequency": 0.01, "max_underrepresented_count": 8 }
+        }
+      ],
+      "optimizer": {
+        "method": "mcmc",
+        "config": {
+          "num_steps": 50,
+          "max_temperature": 1.0,
+          "min_temperature": 0.01
+        }
+      }
+    }
+  ]
+}

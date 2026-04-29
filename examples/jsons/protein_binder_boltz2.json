@@ -1,0 +1,111 @@
+{
+  "name": "protein_binder_boltz2",
+  "description": "De novo binder design against the IgV domain of human PD-L1 (CD274, UniProt Q9NZQ7 residues 19-127, as resolved in PDB 5IUS chain B; Lin et al. 2008, Zak et al. 2017). Two constructs: `binder_construct` holds the variable 80 aa binder, and `target_construct` holds the fixed PD-L1 IgV target. The `boltz2-binding-strength` constraint takes both segments as inputs - Boltz2 (Wohlwend et al. 2025) co-folds the heterodimer and returns confidence metrics (iptm, iplddt, ipde, complex_plddt, complex_ptm); the default protein-protein weight scheme rewards high iptm and low ipde, i.e. confident interface predictions. Stage 1 uses rejection-sampling with ESM2-650M at temperature 1.0 and a 3-mutation budget for broad exploration, scoring with binding-strength + binder-only pLDDT + protein-complexity (so the optimizer doesn't drift toward low-complexity glycine/serine soup). Stage 2 narrows to single-mutation MCMC with ESM2 at temperature 0.7 and retains the same constraint set. The 80 aa fixed length sits in the 60-100 aa range of de-novo binders from Cao et al. 2022 (RFdiffusion); ESM2 substitutes residues without changing length so a `protein-length` constraint would be a no-op. The starting binder is a synthetic 80 aa all-alpha mini-protein scaffold (acidic-residue-biased de-novo helical bundle, used here only to give MCMC a defined-length seed); replace with your own designed seed (e.g. an RFdiffusion or BindCraft scaffold) for a real binder campaign. Companion gradient-based example for the same target: `germinal_pdl1_binder.json`.",
+  "version": "1.0",
+  "num_results": 5,
+  "constructs": [
+    {
+      "id": "binder_construct",
+      "type": "protein",
+      "label": "Variable 80 aa de novo binder",
+      "segments": [
+        {
+          "id": "binder",
+          "label": "80 aa synthetic all-alpha mini-protein binder seed",
+          "sequence": "DKEAYDQAKAEYKRLLAEAEKFKEEAKKAREEAEKLAREAEELLSKAAQLAREAEELLNKAGELLAKALRDLKEVQERFR"
+        }
+      ]
+    },
+    {
+      "id": "target_construct",
+      "type": "protein",
+      "label": "Fixed PD-L1 IgV target",
+      "segments": [
+        {
+          "id": "pdl1_target",
+          "label": "Human PD-L1 IgV domain (UniProt Q9NZQ7 res 19-127, PDB 5IUS chain B)",
+          "sequence": "FTVTVPKDLYVVEYGSNMTIECKFPVEKQLDLAALIVYWEMEDKNIIQFVHGEEDLKVQHSSYRQRARLLKDQLSLGNAALQITDVKLQDAGVYRCMISYGGADYKRIT"
+        }
+      ]
+    }
+  ],
+  "optimization_stages": [
+    {
+      "generators": [
+        {
+          "key": "esm2",
+          "target": "binder",
+          "config": {
+            "model_checkpoint": "esm2_t33_650M_UR50D",
+            "temperature": 1.0,
+            "masking_strategy": { "num_mutations": 3 }
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "boltz2-binding-strength",
+          "targets": ["binder", "pdl1_target"],
+          "config": {}
+        },
+        {
+          "key": "structure-plddt",
+          "targets": ["binder"],
+          "config": { "structure_tool": "esmfold" }
+        },
+        {
+          "key": "protein-complexity",
+          "targets": ["binder"],
+          "config": { "max_low_complexity": 0.30 }
+        }
+      ],
+      "optimizer": {
+        "method": "rejection-sampling",
+        "config": {
+          "num_samples": 200,
+          "num_results": 20,
+          "samples_per_round": 10
+        }
+      }
+    },
+    {
+      "generators": [
+        {
+          "key": "esm2",
+          "target": "binder",
+          "config": {
+            "model_checkpoint": "esm2_t33_650M_UR50D",
+            "temperature": 0.7,
+            "masking_strategy": { "num_mutations": 1 }
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "boltz2-binding-strength",
+          "targets": ["binder", "pdl1_target"],
+          "config": {}
+        },
+        {
+          "key": "structure-plddt",
+          "targets": ["binder"],
+          "config": { "structure_tool": "esmfold" }
+        },
+        {
+          "key": "protein-complexity",
+          "targets": ["binder"],
+          "config": { "max_low_complexity": 0.30 }
+        }
+      ],
+      "optimizer": {
+        "method": "mcmc",
+        "config": {
+          "num_results": 5,
+          "num_steps": 50,
+          "max_temperature": 1.0,
+          "min_temperature": 0.01
+        }
+      }
+    }
+  ]
+}

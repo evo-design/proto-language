@@ -1,0 +1,64 @@
+{
+  "name": "chromatin_accessibility_beam_search",
+  "description": "De novo design of a 16,384 bp DNA region whose central 1,024 bp interval has high predicted DNase-seq accessibility in K562 cells (`EFO:0002067`, ENCODE/Roadmap Epigenomics reference erythroleukemia line). Generation uses the `beam-search` optimizer driving Evo2-7B (Nguyen et al. 2024) with KV-cache reuse: a 16 bp prompt seeds the autoregressive generation but is *not* prepended to the output (`prepend_prompt: false` in both the optimizer and the generator configs, so the output segment length is exactly 8 * 2048 = 16384 = AlphaGenome's smallest supported context). At each beam boundary the optimizer keeps the top `num_results=2` continuations by score. The `alphagenome-interval-track` constraint (Avsec et al. 2024 `AlphaGenome` model, on-device with `requested_output=DNASE`, `direction=maximize`, `intervals=[(7680, 8704)]`) calls AlphaGenome on each candidate and scores the DNase track signal averaged over the central 1 kb. AlphaGenome requires the input length to be exactly one of (16384, 131072, 524288, 1048576) - we use the smallest. Cell-type ontology drives K562; swap `ontology_terms` to e.g. `[\"EFO:0002824\"]` (HepG2) or `[\"EFO:0001086\"]` (GM12878) to retarget.",
+  "version": "1.0",
+  "num_results": 2,
+  "constructs": [
+    {
+      "id": "chromatin_construct",
+      "type": "dna",
+      "label": "16,384 bp synthetic accessibility region",
+      "segments": [
+        {
+          "id": "chromatin_region",
+          "label": "Variable 16 kb region (DNase-tunable in K562)",
+          "length": 16384
+        }
+      ]
+    }
+  ],
+  "optimization_stages": [
+    {
+      "optimizer": {
+        "method": "beam-search",
+        "target_segment": "chromatin_region",
+        "config": {
+          "prompt": "ATCGATCGATCGATCG",
+          "beam_length": 2048,
+          "num_results": 2,
+          "proposals_per_result": 2,
+          "score_by": "mean",
+          "prepend_prompt": false,
+          "use_kv_caching": true
+        }
+      },
+      "generators": [
+        {
+          "key": "evo2",
+          "target": "chromatin_region",
+          "config": {
+            "prompts": ["ATCGATCGATCGATCG"],
+            "model_checkpoint": "evo2_7b",
+            "temperature": 0.9,
+            "prepend_prompt": false
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "alphagenome-interval-track",
+          "targets": ["chromatin_region"],
+          "config": {
+            "intervals": [[7680, 8704]],
+            "ontology_terms": ["EFO:0002067"],
+            "requested_output": "DNASE",
+            "direction": "maximize",
+            "maximize_inflection_value": 5.0,
+            "maximize_sigmoid_scale": 1.0,
+            "organism": "human"
+          }
+        }
+      ]
+    }
+  ]
+}

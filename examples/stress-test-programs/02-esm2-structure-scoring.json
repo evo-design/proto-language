@@ -33,7 +33,7 @@
           "config": {
             "model_checkpoint": "esm2_t33_650M_UR50D",
             "temperature": 1.0,
-            "num_mutations": 2
+            "masking_strategy": { "num_mutations": 2 }
           }
         }
       ],
@@ -67,7 +67,7 @@
           "config": {
             "model_checkpoint": "esm2_t33_650M_UR50D",
             "temperature": 0.8,
-            "num_mutations": 1
+            "masking_strategy": { "num_mutations": 1 }
           }
         }
       ],

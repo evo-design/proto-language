@@ -1,0 +1,46 @@
+{
+  "name": "protein_hunter",
+  "description": "De novo protein hallucination via the Protein Hunter cycle: structure prediction (Boltz2) <-> inverse folding (ProteinMPNN). Starting from an all-X 100 aa protein (no prior structural information), each cycle (1) predicts the 3D structure of the current proposal sequences with Boltz2 (Wohlwend et al. 2025), then (2) uses ProteinMPNN (Dauparas et al. 2022) to design a fresh sequence that is consistent with the predicted backbone. Over 5 cycles the proposal converges from random noise to a self-consistent sequence/structure pair (the algorithm pattern: Anishchenko et al. 2021 trRosetta hallucination, Wang et al. 2022 RFdesign hallucination, generalized to use any structure predictor + any inverse-folding model). The `cycling` optimizer routes conditioning through the registered `protein-hunter` pipeline (`pipeline: \"protein-hunter\"` on the optimizer config), which is the JSON-friendly counterpart of programmatically passing a Python `conditioning_fn`. ProteinMPNN excludes cysteine from the design alphabet (de-novo proteins typically avoid disulfides unless explicitly required) and uses temperature 0.1 for low-stochasticity sampling, both per the Cao et al. 2022 and Dauparas et al. 2022 defaults. The cycling optimizer requires `targets_single_segment=True` -> set `target_segment` to the protein segment id.",
+  "version": "1.0",
+  "num_results": 2,
+  "constructs": [
+    {
+      "id": "construct1",
+      "type": "protein",
+      "label": "100 aa de novo hallucination target",
+      "segments": [
+        {
+          "id": "designed_protein",
+          "label": "Variable 100 aa protein (initialized to all-X)",
+          "sequence": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+        }
+      ]
+    }
+  ],
+  "optimization_stages": [
+    {
+      "optimizer": {
+        "method": "cycling",
+        "target_segment": "designed_protein",
+        "config": {
+          "num_steps": 5,
+          "num_results": 2,
+          "conditioning_param_name": "structure_inputs",
+          "pipeline": "protein-hunter",
+          "protein_hunter": { "structure_tool": "boltz2" }
+        }
+      },
+      "generators": [
+        {
+          "key": "proteinmpnn",
+          "target": "designed_protein",
+          "config": {
+            "temperature": 0.1,
+            "excluded_amino_acids": ["C"]
+          }
+        }
+      ],
+      "constraints": []
+    }
+  ]
+}

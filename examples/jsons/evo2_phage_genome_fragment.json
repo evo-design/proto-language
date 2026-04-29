@@ -1,0 +1,72 @@
+{
+  "name": "evo2_phage_genome_fragment",
+  "description": "Sample 1024 bp phage-like DNA fragments from Evo2 (the 7B genome-scale autoregressive DNA model; Nguyen et al. 2024) seeded by a canonical bacterial gene-start prompt, then keep the best draws by three biological filters: (1) `mmseqs-gene-similarity` against the PHROGs phage protein database (Terzian et al. 2021) with the percent-identity range 30-80%, so the design is recognizably phage-like but not a direct copy of a known protein; (2) `gc-content` 40-55%, the typical range for tailed-phage genomes (Almpanis et al. 2018); (3) `max-homopolymer` 5, a synthesis-friendly cap that also avoids the long mononucleotide runs that confuse Prodigal/orfipy ORF callers. Rejection-sampling is the right optimizer for a fully autoregressive generator: every sample is a fresh draw from the Evo2 prior conditioned on the prompt, so the optimizer's job is simply to score and rank, not to perturb a current state. For local refinement of a single Evo2 draft via random-nucleotide mutations, layer an MCMC stage on top using the `random-nucleotide` generator (cf. `protein_quality_baseline.json` for the protein-side analogue).",
+  "version": "1.0",
+  "num_results": 5,
+  "constructs": [
+    {
+      "id": "phage_construct",
+      "type": "dna",
+      "label": "1 kb phage-like DNA fragment",
+      "segments": [
+        {
+          "id": "phage_fragment",
+          "label": "Variable 1024 bp phage fragment",
+          "length": 1024
+        }
+      ]
+    }
+  ],
+  "optimization_stages": [
+    {
+      "generators": [
+        {
+          "key": "evo2",
+          "target": "phage_fragment",
+          "config": {
+            "prompts": ["ATGAGTAAAGGAGAA"],
+            "model_checkpoint": "evo2_7b",
+            "temperature": 0.8,
+            "prepend_prompt": true
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "mmseqs-gene-similarity",
+          "targets": ["phage_fragment"],
+          "config": {
+            "min_similarity": 30.0,
+            "max_similarity": 80.0,
+            "mmseqs_db": "gcs://evo-design/phrogs_mmseqs_db",
+            "orf_predictor": "orfipy",
+            "orfipy_config": {
+              "min_len": 90,
+              "max_len": 3000,
+              "start_codons": ["ATG"],
+              "stop_codons": ["TAA", "TAG", "TGA"]
+            }
+          }
+        },
+        {
+          "key": "gc-content",
+          "targets": ["phage_fragment"],
+          "config": { "min_gc": 40.0, "max_gc": 55.0 }
+        },
+        {
+          "key": "max-homopolymer",
+          "targets": ["phage_fragment"],
+          "config": { "max_length": 5 }
+        }
+      ],
+      "optimizer": {
+        "method": "rejection-sampling",
+        "config": {
+          "num_samples": 100,
+          "num_results": 5,
+          "samples_per_round": 10
+        }
+      }
+    }
+  ]
+}

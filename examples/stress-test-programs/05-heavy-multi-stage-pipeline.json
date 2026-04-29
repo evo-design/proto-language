@@ -33,21 +33,31 @@
           "config": {
             "model_checkpoint": "esm2_t33_650M_UR50D",
             "temperature": 1.2,
-            "num_mutations": 5
+            "masking_strategy": {
+              "num_mutations": 5
+            }
           }
         }
       ],
       "constraints": [
         {
           "key": "structure-plddt",
-          "targets": ["target_protein"],
-          "config": { "structure_tool": "esmfold" },
+          "targets": [
+            "target_protein"
+          ],
+          "config": {
+            "structure_tool": "esmfold"
+          },
           "weight": 1.0
         },
         {
           "key": "structure-ptm",
-          "targets": ["target_protein"],
-          "config": { "structure_tool": "esmfold" },
+          "targets": [
+            "target_protein"
+          ],
+          "config": {
+            "structure_tool": "esmfold"
+          },
           "weight": 0.5
         }
       ]
@@ -68,27 +78,41 @@
           "config": {
             "model_checkpoint": "esm2_t33_650M_UR50D",
             "temperature": 0.9,
-            "num_mutations": 3
+            "masking_strategy": {
+              "num_mutations": 3
+            }
           }
         }
       ],
       "constraints": [
         {
           "key": "structure-plddt",
-          "targets": ["target_protein"],
-          "config": { "structure_tool": "esmfold" },
+          "targets": [
+            "target_protein"
+          ],
+          "config": {
+            "structure_tool": "esmfold"
+          },
           "weight": 1.5
         },
         {
           "key": "structure-ptm",
-          "targets": ["target_protein"],
-          "config": { "structure_tool": "esmfold" },
+          "targets": [
+            "target_protein"
+          ],
+          "config": {
+            "structure_tool": "esmfold"
+          },
           "weight": 1.0
         },
         {
           "key": "structure-pae",
-          "targets": ["target_protein"],
-          "config": { "structure_tool": "esmfold" },
+          "targets": [
+            "target_protein"
+          ],
+          "config": {
+            "structure_tool": "esmfold"
+          },
           "weight": 0.5
         }
       ]
@@ -108,27 +132,41 @@
           "config": {
             "model_checkpoint": "esm2_t33_650M_UR50D",
             "temperature": 0.7,
-            "num_mutations": 1
+            "masking_strategy": {
+              "num_mutations": 1
+            }
           }
         }
       ],
       "constraints": [
         {
           "key": "structure-plddt",
-          "targets": ["target_protein"],
-          "config": { "structure_tool": "esmfold" },
+          "targets": [
+            "target_protein"
+          ],
+          "config": {
+            "structure_tool": "esmfold"
+          },
           "weight": 2.0
         },
         {
           "key": "structure-ptm",
-          "targets": ["target_protein"],
-          "config": { "structure_tool": "esmfold" },
+          "targets": [
+            "target_protein"
+          ],
+          "config": {
+            "structure_tool": "esmfold"
+          },
           "weight": 1.0
         },
         {
           "key": "structure-pae",
-          "targets": ["target_protein"],
-          "config": { "structure_tool": "esmfold" },
+          "targets": [
+            "target_protein"
+          ],
+          "config": {
+            "structure_tool": "esmfold"
+          },
           "weight": 1.0
         }
       ]

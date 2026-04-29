@@ -44,7 +44,9 @@
           "config": {
             "model_checkpoint": "esm2_t33_650M_UR50D",
             "temperature": 1.0,
-            "num_mutations": 2
+            "masking_strategy": {
+              "num_mutations": 2
+            }
           }
         },
         {
@@ -53,33 +55,51 @@
           "config": {
             "model_checkpoint": "esm2_t33_650M_UR50D",
             "temperature": 1.0,
-            "num_mutations": 2
+            "masking_strategy": {
+              "num_mutations": 2
+            }
           }
         }
       ],
       "constraints": [
         {
           "key": "structure-plddt",
-          "targets": ["binder_domain"],
-          "config": { "structure_tool": "esmfold" },
+          "targets": [
+            "binder_domain"
+          ],
+          "config": {
+            "structure_tool": "esmfold"
+          },
           "weight": 1.0
         },
         {
           "key": "structure-plddt",
-          "targets": ["scaffold_domain"],
-          "config": { "structure_tool": "esmfold" },
+          "targets": [
+            "scaffold_domain"
+          ],
+          "config": {
+            "structure_tool": "esmfold"
+          },
           "weight": 1.0
         },
         {
           "key": "structure-ptm",
-          "targets": ["binder_domain"],
-          "config": { "structure_tool": "esmfold" },
+          "targets": [
+            "binder_domain"
+          ],
+          "config": {
+            "structure_tool": "esmfold"
+          },
           "weight": 0.5
         },
         {
           "key": "structure-ptm",
-          "targets": ["scaffold_domain"],
-          "config": { "structure_tool": "esmfold" },
+          "targets": [
+            "scaffold_domain"
+          ],
+          "config": {
+            "structure_tool": "esmfold"
+          },
           "weight": 0.5
         }
       ]
@@ -99,7 +119,9 @@
           "config": {
             "model_checkpoint": "esm2_t33_650M_UR50D",
             "temperature": 0.7,
-            "num_mutations": 1
+            "masking_strategy": {
+              "num_mutations": 1
+            }
           }
         },
         {
@@ -108,21 +130,31 @@
           "config": {
             "model_checkpoint": "esm2_t33_650M_UR50D",
             "temperature": 0.7,
-            "num_mutations": 1
+            "masking_strategy": {
+              "num_mutations": 1
+            }
           }
         }
       ],
       "constraints": [
         {
           "key": "structure-plddt",
-          "targets": ["binder_domain"],
-          "config": { "structure_tool": "esmfold" },
+          "targets": [
+            "binder_domain"
+          ],
+          "config": {
+            "structure_tool": "esmfold"
+          },
           "weight": 1.5
         },
         {
           "key": "structure-plddt",
-          "targets": ["scaffold_domain"],
-          "config": { "structure_tool": "esmfold" },
+          "targets": [
+            "scaffold_domain"
+          ],
+          "config": {
+            "structure_tool": "esmfold"
+          },
           "weight": 1.5
         }
       ]

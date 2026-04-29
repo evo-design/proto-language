@@ -1,0 +1,172 @@
+{
+  "name": "germinal_pdl1_binder",
+  "description": "Three-stage Germinal-style VHH (single-domain antibody / nanobody) redesign against PD-L1, ported from `examples/scripts/germinal_pdl1_sampling.py` (Wang et al. 2024). Stages: (1) gradient *logit* phase (65 SGD steps, `germinal_logit_preset` defaults: soft=0->1 ramp, AbLang weight 0.2->0.4 hinge schedule, Gumbel logit init) backprops AF2 + AbLang gradients into a `position-weight` softmax distribution over the binder; (2) gradient *softmax* phase (35 SGD steps, `germinal_softmax_preset`: soft=1.0 frozen, quadratic temperature anneal 1.0->0.01 with LR scaling, AbLang weight fixed at 0.4) sharpens the distribution toward a near-discrete proposal; (3) MCMC *semigreedy* refinement (`semigreedy-mutation` generator + MCMC optimizer at near-zero temperature) starts from the discrete sequence produced by stage 2 and proposes single-position mutations weighted by per-position pLDDT confidence (`position_weighting: \"plddt\"`), so low-confidence residues mutate more often; AF2 and AbLang are re-evaluated at each MCMC step in *forward* mode (no backprop). The starting binder is a 115 aa VHH-style framework (FR1+CDR1+FR2+CDR2+FR3+placeholder-CDR3+FR4 in IGHV3 family layout); replace with a real anti-PD-L1 nanobody scaffold (e.g. KN035 / envafolimab clinical sequence, or RCSB 7CHF chain B) for a serious redesign campaign. Set `target_pdb` to your local PD-L1 chain-B-only PDB (extracted from PDB 5IUS) before running. AF2 uses the Germinal ColabDesign backend (Wang et al. 2024).",
+  "version": "1.0",
+  "num_results": 1,
+  "constructs": [
+    {
+      "id": "vhh_target_complex",
+      "type": "protein",
+      "label": "Anti-PD-L1 VHH + target",
+      "segments": [
+        {
+          "id": "binder",
+          "label": "VHH-style framework + placeholder CDR3 (115 aa)",
+          "sequence": "EVQLVESGGGLVQPGGSLRLSCAASGFTFSSYAMSWVRQAPGKGLEWVSAISGSGGSTYYADSVKGRFTISRDNSKNTLYLQMNSLRAEDTAVYYCAKDYRVTHWGQGTLVTVSS"
+        },
+        {
+          "id": "pdl1_target",
+          "label": "Human PD-L1 IgV domain (UniProt Q9NZQ7 res 19-127, PDB 5IUS chain B)",
+          "sequence": "FTVTVPKDLYVVEYGSNMTIECKFPVEKQLDLAALIVYWEMEDKNIIQFVHGEEDLKVQHSSYRQRARLLKDQLSLGNAALQITDVKLQDAGVYRCMISYGGADYKRIT"
+        }
+      ]
+    }
+  ],
+  "optimization_stages": [
+    {
+      "optimizer": {
+        "method": "gradient",
+        "target_segment": "binder",
+        "config": {
+          "num_steps": 65,
+          "lr": 0.1,
+          "soft_start": 0.0,
+          "soft_end": 1.0,
+          "temperature_start": 1.0,
+          "temperature_end": 1.0,
+          "softmax_schedule": "constant",
+          "lr_schedule": "constant",
+          "merger": "pcgrad",
+          "norm_alignment": "match_first",
+          "normalize_mode": "sqrt_length",
+          "constraint_weight_schedules": [
+            {
+              "constraint_label": "ablang",
+              "start_weight": 0.2,
+              "end_weight": 0.4,
+              "schedule": "hinge"
+            }
+          ],
+          "gumbel_logit_init": true,
+          "gumbel_init_alpha": 2.0
+        }
+      },
+      "generators": [
+        {
+          "key": "position-weight",
+          "target": "binder",
+          "config": { "sampling_mode": "argmax" }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "af2-binder",
+          "label": "af2",
+          "targets": ["binder", "pdl1_target"],
+          "config": {
+            "target_pdb": "examples/data/pd_l1_5ius.pdb",
+            "target_chains": ["B"],
+            "binder_chain": "A",
+            "backend": "germinal"
+          }
+        },
+        {
+          "key": "ablang-naturalness",
+          "label": "ablang",
+          "targets": ["binder"],
+          "config": { "temperature": 0.6, "use_ste": true }
+        }
+      ]
+    },
+    {
+      "optimizer": {
+        "method": "gradient",
+        "target_segment": "binder",
+        "config": {
+          "num_steps": 35,
+          "lr": 0.1,
+          "soft_start": 1.0,
+          "soft_end": 1.0,
+          "temperature_start": 1.0,
+          "temperature_end": 0.01,
+          "softmax_schedule": "quadratic",
+          "lr_schedule": "quadratic",
+          "merger": "pcgrad",
+          "norm_alignment": "match_first",
+          "normalize_mode": "sqrt_length",
+          "scale_lr_by_temperature": true,
+          "min_lr_scale": 0.01
+        }
+      },
+      "generators": [
+        {
+          "key": "position-weight",
+          "target": "binder",
+          "config": { "sampling_mode": "argmax" }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "af2-binder",
+          "label": "af2",
+          "targets": ["binder", "pdl1_target"],
+          "config": {
+            "target_pdb": "examples/data/pd_l1_5ius.pdb",
+            "target_chains": ["B"],
+            "binder_chain": "A",
+            "backend": "germinal"
+          }
+        },
+        {
+          "key": "ablang-naturalness",
+          "label": "ablang",
+          "targets": ["binder"],
+          "config": { "temperature": 0.6, "use_ste": true },
+          "weight": 0.4
+        }
+      ]
+    },
+    {
+      "optimizer": {
+        "method": "mcmc",
+        "config": {
+          "num_steps": 50,
+          "proposals_per_result": 4,
+          "max_temperature": 0.1,
+          "min_temperature": 0.001
+        }
+      },
+      "generators": [
+        {
+          "key": "semigreedy-mutation",
+          "target": "binder",
+          "config": {
+            "position_weighting": "plddt",
+            "temperature": 1.0,
+            "exclude_current": true
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "af2-binder",
+          "label": "af2",
+          "targets": ["binder", "pdl1_target"],
+          "config": {
+            "target_pdb": "examples/data/pd_l1_5ius.pdb",
+            "target_chains": ["B"],
+            "binder_chain": "A",
+            "backend": "germinal"
+          }
+        },
+        {
+          "key": "ablang-naturalness",
+          "label": "ablang",
+          "targets": ["binder"],
+          "config": { "temperature": 0.6, "use_ste": false },
+          "weight": 0.4
+        }
+      ]
+    }
+  ]
+}

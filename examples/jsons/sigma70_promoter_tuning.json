@@ -1,0 +1,95 @@
+{
+  "name": "sigma70_promoter_tuning",
+  "description": "Bacterial expression cassette with a *variable* sigma70 promoter and a *variable* rho-independent terminator flanking a fixed reporter context. The variable 50 bp promoter is scored by the `sigma70-promoter` constraint against the canonical E. coli consensus (-35 box `TTGACA`, -10 box `TATAAT`, spacer 17 bp; Hawley & McClure 1983), and by `gc-content` and `max-homopolymer` to keep the upstream sequence within a synthesis-friendly composition window. Between the promoter and terminator we hold three pieces fixed because the optimizer cannot enforce frame-integrity at the constraint level: a strong synthetic Shine-Dalgarno + 5' UTR + ATG start codon + NdeI cloning site (5'-AAGGAGGAGAAAATGCATATG-3'; SD core AGGAGG matches the anti-SD region of E. coli 16S rRNA), a fixed 84 bp synthetic codon-optimized prefix encoding the first ~28 residues of sfGFP (Pédelacq et al. 2006, PDB 2B3P) as a representative reporter CDS prefix, and a TAA stop. Replace the SD with the literal Anderson B0034 part (`AAAGAGGAGAAA`) or a Salis RBS Calculator-tuned part (Salis et al. 2009) for canonical E. coli expression; replace the sfGFP prefix with your own CDS to retarget. The 40 bp terminator segment is variable; we drive it toward high GC (55-75%) consistent with the GC-rich stem typical of rho-independent intrinsic terminators (Lesnik et al. 2001, Nudler & Gottesman 2002), with a `max-homopolymer` cap so the U-tract that normally follows the stem isn't degraded into a runaway A/T run during sampling. This is a focused teaching example for two-region tuning around a fixed reporter; for a richer multi-construct multi-segment template see `multiple_segments.json`.",
+  "version": "1.0",
+  "num_results": 1,
+  "constructs": [
+    {
+      "id": "expression_cassette",
+      "type": "dna",
+      "label": "sigma70 expression cassette",
+      "segments": [
+        {
+          "id": "promoter",
+          "label": "Variable sigma70 promoter region (-35 / spacer / -10 / discriminator)",
+          "length": 50
+        },
+        {
+          "id": "rbs_atg",
+          "label": "Fixed strong synthetic SD + 5' UTR + ATG + NdeI cloning context (21 bp)",
+          "sequence": "AAGGAGGAGAAAATGCATATG"
+        },
+        {
+          "id": "reporter_cds_prefix",
+          "label": "Fixed sfGFP-style CDS prefix, first ~28 residues codon-optimized for E. coli (84 bp)",
+          "sequence": "AGTAAAGGAGAAGAACTTTTCACTGGAGTTGTCCCAATTCTTGTTGAATTAGATGGTGATGTTAATGGGCACAAATTTTCTGTC"
+        },
+        {
+          "id": "stop_codon",
+          "label": "Fixed TAA stop codon",
+          "sequence": "TAA"
+        },
+        {
+          "id": "terminator",
+          "label": "Variable rho-independent terminator (target: GC-rich stem + biased toward U-rich 3' tract)",
+          "length": 40
+        }
+      ]
+    }
+  ],
+  "optimization_stages": [
+    {
+      "generators": [
+        {
+          "key": "random-nucleotide",
+          "target": "promoter",
+          "config": { "masking_strategy": { "num_mutations": 2 } }
+        },
+        {
+          "key": "random-nucleotide",
+          "target": "terminator",
+          "config": { "masking_strategy": { "num_mutations": 2 } }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "sigma70-promoter",
+          "targets": ["promoter"],
+          "config": {
+            "consensus_35": "TTGACA",
+            "consensus_10": "TATAAT",
+            "optimal_spacer": 17
+          }
+        },
+        {
+          "key": "gc-content",
+          "targets": ["promoter"],
+          "config": { "min_gc": 35.0, "max_gc": 55.0 }
+        },
+        {
+          "key": "max-homopolymer",
+          "targets": ["promoter"],
+          "config": { "max_length": 5 }
+        },
+        {
+          "key": "gc-content",
+          "targets": ["terminator"],
+          "config": { "min_gc": 55.0, "max_gc": 75.0 }
+        },
+        {
+          "key": "max-homopolymer",
+          "targets": ["terminator"],
+          "config": { "max_length": 5 }
+        }
+      ],
+      "optimizer": {
+        "method": "mcmc",
+        "config": {
+          "num_steps": 500,
+          "max_temperature": 2.0,
+          "min_temperature": 0.001
+        }
+      }
+    }
+  ]
+}
