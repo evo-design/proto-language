@@ -11,13 +11,6 @@ from proto_tools import (
     run_borzoi,
 )
 
-try:
-    from proto_tools.tools.causal_models.evo2 import clear_evo2_cache
-except ImportError:
-    from proto_tools.tools.causal_models.evo2._in_process_mode.evo2_cache import (
-        clear_evo2_cache,
-    )
-
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import ConstraintRegistry
 from proto_language.language.core import (
@@ -130,8 +123,6 @@ def _borzoi_creb_dna_design(
     """
     Returns Borzoi-predicted activity of DNA sequence.
     """
-    clear_evo2_cache()  # Manually clear cache to free memory.
-
     config.borzoi_config.verbose = False  # Suppress output that prints full input sequence.
 
     # For this constraint, always take the mean over all tracks.
