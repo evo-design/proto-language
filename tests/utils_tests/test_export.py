@@ -141,6 +141,7 @@ def sample_history():
     return [
         {
             "time_step": 0,
+            "optimizer": {"type": "test", "iteration": 0},
             "results": [
                 {
                     "result_idx": 0,
@@ -198,6 +199,7 @@ def sample_history():
         },
         {
             "time_step": 10,
+            "optimizer": {"type": "test", "iteration": 10},
             "results": [
                 {
                     "result_idx": 0,
@@ -543,6 +545,39 @@ class TestFlattenOptimization:
         t0_b1 = next(r for r in rows if r["timepoint"] == 0 and r["result_idx"] == 1)
         assert t0_b1["energy_score"] == 0.9
 
+    def test_optimizer_metadata_columns(self):
+        """Snapshot-level optimizer metadata is available on optimization rows."""
+        history = [
+            {
+                "time_step": 3,
+                "optimizer": {"type": "beam-search", "beam_width": 2, "config": {"score_by": "last"}},
+                "results": [
+                    {
+                        "result_idx": 0,
+                        "energy_score": 0.5,
+                        "constructs": [{"label": "construct", "type": "dna", "segments": []}],
+                    }
+                ],
+                "proposal_results": [
+                    {
+                        "proposal_idx": 0,
+                        "accepted": True,
+                        "rejected_by": None,
+                        "energy_score": 0.5,
+                        "constructs": [{"label": "construct", "type": "dna", "segments": []}],
+                    }
+                ],
+            }
+        ]
+
+        rows = flatten_optimization(history, include_proposals=True)
+
+        assert rows[0]["optimizer.type"] == "beam-search"
+        assert rows[0]["optimizer.beam_width"] == 2
+        assert rows[0]["optimizer.config"] == '{"score_by": "last"}'
+        assert rows[1]["pool"] == "proposal"
+        assert rows[1]["optimizer.type"] == "beam-search"
+
     def test_empty_history(self):
         """Handles empty history."""
         assert flatten_optimization([]) == []
@@ -552,6 +587,7 @@ class TestFlattenOptimization:
         history = [
             {
                 "time_step": 0,
+                "optimizer": {"type": "test"},
                 "results": [
                     {
                         "result_idx": 0,
@@ -982,7 +1018,7 @@ class TestFiltering:
             k
             for r in rows
             for k in r
-            if not k.startswith(("timepoint", "result_idx", "energy_score", "sequence_type", "stage"))
+            if not k.startswith(("timepoint", "result_idx", "energy_score", "sequence_type", "stage", "optimizer."))
         }
         assert all(k.startswith("promoter.") for k in non_fixed_keys)
 
@@ -1197,6 +1233,7 @@ class TestStageColumn:
             {
                 "time_step": 0,
                 "stage": 0,
+                "optimizer": {"type": "test", "stage": 0},
                 "results": [
                     {
                         "result_idx": 0,
@@ -1221,6 +1258,7 @@ class TestStageColumn:
             {
                 "time_step": 0,
                 "stage": 1,
+                "optimizer": {"type": "test", "stage": 1},
                 "results": [
                     {
                         "result_idx": 0,
@@ -1253,7 +1291,7 @@ class TestStageColumn:
         assert rows[1]["timepoint"] == 0
 
     def test_no_stage_column_when_absent(self, sample_history):
-        """Legacy history without 'stage' key doesn't produce stage column."""
+        """History without 'stage' key doesn't produce a stage column."""
         rows = flatten_optimization(sample_history)
         assert "stage" not in rows[0]
 
@@ -1636,6 +1674,7 @@ class TestFlattenOptimizationProposals:
         return [
             {
                 "time_step": 0,
+                "optimizer": {"type": "test"},
                 "results": [
                     {
                         "result_idx": 0,
@@ -1746,7 +1785,7 @@ class TestFlattenOptimizationProposals:
         assert rejected_cand["seg.GC Filter.score"] == 1.0
         assert rejected_cand["seg.GC Filter.gc_content"] == 100.0
 
-    def test_backward_compat_no_proposal_results_key(self, sample_history):
+    def test_include_proposals_without_proposal_results(self, sample_history):
         """History without proposal_results key works with include_proposals=True."""
         rows = flatten_optimization(sample_history, include_proposals=True)
         result_rows = [r for r in rows if r.get("pool") == "result"]

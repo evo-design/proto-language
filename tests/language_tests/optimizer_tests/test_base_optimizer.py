@@ -763,12 +763,13 @@ class TestProgressSnapshot:
 
         # energy_scores must have length num_results before snapshot
         optimizer.energy_scores = [0.1]
-        optimizer._save_progress_snapshot(time_step=5)
+        optimizer._save_progress_snapshot(time_step=5, optimizer_metadata={"type": "test"})
 
         assert len(optimizer.history) == 1
         snapshot = optimizer.history[0]
 
         assert snapshot["time_step"] == 5
+        assert snapshot["optimizer"] == {"type": "test"}
         assert "results" in snapshot
         assert len(snapshot["results"]) == 1
         assert snapshot["results"][0]["energy_score"] == 0.1
@@ -783,7 +784,7 @@ class TestProgressSnapshot:
         optimizer.energy_scores = [0.1, 0.9]
 
         with pytest.raises(RuntimeError, match="energy_scores has length 2, expected 1"):
-            optimizer._save_progress_snapshot(time_step=5)
+            optimizer._save_progress_snapshot(time_step=5, optimizer_metadata={"type": "test"})
 
     def test_snapshot_allows_partial_result(self):
         """Tests that snapshot allows partial result_sequences (e.g. Rejection Sampling mid-run)."""
@@ -795,7 +796,7 @@ class TestProgressSnapshot:
         optimizer.energy_scores = [0.1, 0.5]
 
         # Should NOT raise; relaxed validation allows partial
-        optimizer._save_progress_snapshot(time_step=1)
+        optimizer._save_progress_snapshot(time_step=1, optimizer_metadata={"type": "test"})
         assert len(optimizer.history) == 1
         assert len(optimizer.history[0]["results"]) == 2
 
@@ -928,7 +929,7 @@ class TestProposalTracking:
         optimizer._proposal_outcomes = ["accepted", "GC Filter"]
         optimizer._proposal_energy_scores = [0.5, float("inf")]
 
-        optimizer._save_progress_snapshot(time_step=1)
+        optimizer._save_progress_snapshot(time_step=1, optimizer_metadata={"type": "test"})
 
         snapshot = optimizer.history[0]
         assert "proposal_results" in snapshot
@@ -948,7 +949,7 @@ class TestProposalTracking:
         optimizer.energy_scores = [0.5]
         optimizer._proposal_outcomes = ["accepted", "GC Filter"]
         optimizer._proposal_energy_scores = [0.5, float("inf")]
-        optimizer._save_progress_snapshot(time_step=1)
+        optimizer._save_progress_snapshot(time_step=1, optimizer_metadata={"type": "test"})
 
         assert "proposal_results" not in optimizer.history[0]
 
@@ -959,7 +960,7 @@ class TestProposalTracking:
         optimizer.track_proposals = True
 
         optimizer.energy_scores = [0.5]
-        optimizer._save_progress_snapshot(time_step=0)
+        optimizer._save_progress_snapshot(time_step=0, optimizer_metadata={"type": "test"})
 
         assert "proposal_results" not in optimizer.history[0]
 
@@ -973,7 +974,7 @@ class TestProposalTracking:
         for step in range(11):
             optimizer.energy_scores = [0.5]
             if step % optimizer.tracking_interval == 0 or step == 10:
-                optimizer._save_progress_snapshot(time_step=step)
+                optimizer._save_progress_snapshot(time_step=step, optimizer_metadata={"type": "test"})
 
         # Steps saved: 0, 3, 6, 9, 10 = 5 snapshots
         assert len(optimizer.history) == 5
@@ -1087,7 +1088,7 @@ class TestOptimizerExport:
         segment.proposal_sequences = [Sequence("ATCGATCG"), Sequence("GCTAGCTA")]
         self.optimizer.score_energy()
         segment.result_sequences = list(segment.proposal_sequences)
-        self.optimizer._save_progress_snapshot(time_step=0)
+        self.optimizer._save_progress_snapshot(time_step=0, optimizer_metadata={"type": "test"})
 
     def test_export_all_tables(self, tmp_path):
         """export() without table creates directory with all table files."""

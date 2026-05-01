@@ -253,7 +253,18 @@ class MCMCOptimizer(Optimizer):
             logger.info(f"  Initial energy: {self.energy_scores[0]:.4f}")
 
         # Track initial state
-        self._save_progress_snapshot(time_step=0)
+        self._save_progress_snapshot(
+            time_step=0,
+            optimizer_metadata={
+                "type": "mcmc",
+                "num_steps": self.num_steps,
+                "num_results": self.num_results,
+                "proposals_per_result": self._proposals_per_result,
+                "temperature": self._temperature_schedule(0, self.num_steps),
+                "proposal_count": len(self._proposal_outcomes),
+                "accepted_proposal_count": self._proposal_outcomes.count("accepted"),
+            },
+        )
 
         # MCMC loop
         for step in range(1, self.num_steps + 1):
@@ -275,7 +286,18 @@ class MCMCOptimizer(Optimizer):
 
             # Save snapshot and log at tracking interval or final step
             if step % self.tracking_interval == 0 or step == self.num_steps:
-                self._save_progress_snapshot(time_step=step)
+                self._save_progress_snapshot(
+                    time_step=step,
+                    optimizer_metadata={
+                        "type": "mcmc",
+                        "num_steps": self.num_steps,
+                        "num_results": self.num_results,
+                        "proposals_per_result": self._proposals_per_result,
+                        "temperature": self._temperature_schedule(step, self.num_steps),
+                        "proposal_count": len(self._proposal_outcomes),
+                        "accepted_proposal_count": self._proposal_outcomes.count("accepted"),
+                    },
+                )
                 self._log_mcmc_progress(step)
 
     def _save_sequence_state(self) -> list[tuple[dict[int, Sequence], float]]:

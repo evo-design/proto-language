@@ -547,12 +547,11 @@ def flatten_optimization(
         include_proposals (bool): If True, add proposal rows alongside result rows.
             Result rows get ``pool="result"``, proposal rows get
             ``pool="proposal"`` with ``proposal_idx``, ``accepted``,
-            ``rejected_by`` columns. When False, output is identical to
-            previous behavior (no new columns).
+            ``rejected_by`` columns.
         resolve_files (bool): Whether to resolve file references to local paths.
 
     Columns:
-        Fixed: timepoint, result_idx, energy_score
+        Fixed: timepoint, result_idx, energy_score, optimizer.*
         Single construct: sequence_type, {segment}.sequence, {segment}.{constraint}.score, ...
         Multi-construct: {construct}.sequence_type, {construct}.{segment}.sequence, ...
         When include_proposals=True:
@@ -561,6 +560,7 @@ def flatten_optimization(
     rows = []
     for entry in history:
         timepoint = entry["time_step"]
+        optimizer_columns = {f"optimizer.{key}": _serialize_value(value) for key, value in entry["optimizer"].items()}
         for result_entry in entry.get("results", []):
             if result_indices is not None and result_entry["result_idx"] not in result_indices:
                 continue
@@ -569,6 +569,7 @@ def flatten_optimization(
                 "result_idx": result_entry["result_idx"],
                 "energy_score": result_entry["energy_score"],
             }
+            row.update(optimizer_columns)
             if "stage" in entry:
                 row["stage"] = entry["stage"]
             if include_proposals:
@@ -610,6 +611,7 @@ def flatten_optimization(
                     "rejected_by": proposal["rejected_by"],
                     "energy_score": proposal.get("energy_score"),
                 }
+                row.update(optimizer_columns)
                 if "stage" in entry:
                     row["stage"] = entry["stage"]
                 multi_construct = len(proposal["constructs"]) > 1

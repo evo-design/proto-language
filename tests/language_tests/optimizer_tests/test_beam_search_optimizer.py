@@ -825,6 +825,22 @@ class TestBeamSearchProposalTracking:
 
         assert all_rejectors.issubset(valid_rejectors)
 
+    def test_snapshots_include_beam_search_summary(self):
+        optimizer, _, _, _ = _setup_beam_search(num_results=2, proposals_per_result=2, beam_length=10)
+        optimizer.track_proposals = True
+        optimizer.run()
+
+        snapshot = optimizer.history[-1]
+        summary = snapshot["optimizer"]
+
+        assert summary["type"] == "beam-search"
+        assert snapshot["time_step"] == optimizer.num_beams
+        assert summary["beam_width"] == 2
+        assert summary["proposals_per_beam"] == 2
+        assert summary["proposal_count"] == len(snapshot["proposal_results"])
+        assert summary["accepted_proposal_count"] == 2
+        assert summary["best_energy"] == min(result["energy_score"] for result in snapshot["results"])
+
 
 class TestBeamSearchNonTargetSegmentSync:
     """Tests that BeamSearch syncs non-target segment pools when resizing target.

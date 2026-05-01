@@ -354,7 +354,20 @@ class RejectionSamplingOptimizer(Optimizer):
         """Save a progress snapshot using the sorted result energies."""
         saved_energy_scores = self.energy_scores
         self.energy_scores = list(self._result_energies)
-        self._save_progress_snapshot(time_step=round_num)
+        self._save_progress_snapshot(
+            time_step=round_num,
+            optimizer_metadata={
+                "type": "rejection-sampling",
+                "num_rounds": self.num_steps,
+                "num_samples": self.num_samples,
+                "samples_per_round": self.samples_per_round,
+                "num_results": self.num_results,
+                "result_count": len(self._result_energies),
+                "energy_threshold": self.energy_threshold,
+                "proposal_count": len(self._proposal_outcomes),
+                "accepted_proposal_count": self._proposal_outcomes.count("accepted"),
+            },
+        )
         self.energy_scores = saved_energy_scores
         self._log_round_progress(round_num)
 

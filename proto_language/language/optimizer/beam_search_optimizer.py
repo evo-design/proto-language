@@ -366,7 +366,31 @@ class BeamSearchOptimizer(Optimizer):
             self._select_topk_beams(proposal_beams)
 
             if beam_num % self.tracking_interval == 0 or beam_num == self.num_beams:
-                self._save_progress_snapshot(time_step=beam_num)
+                result_energies = [score for score in self.energy_scores if math.isfinite(score)]
+                accepted_energies = [
+                    score
+                    for outcome, score in zip(self._proposal_outcomes, self._proposal_energy_scores, strict=True)
+                    if outcome == "accepted" and math.isfinite(score)
+                ]
+                self._save_progress_snapshot(
+                    time_step=beam_num,
+                    optimizer_metadata={
+                        "type": "beam-search",
+                        "beam_width": self.num_results,
+                        "num_beams": self.num_beams,
+                        "beam_length": self.beam_length,
+                        "target_length": self.target_segment.sequence_length,
+                        "proposals_per_beam": self._proposals_per_result,
+                        "score_by": self.score_by,
+                        "best_energy": min(result_energies) if result_energies else None,
+                        "mean_energy": float(np.mean(result_energies)) if result_energies else None,
+                        "proposal_count": len(self._proposal_outcomes),
+                        "accepted_proposal_count": self._proposal_outcomes.count("accepted"),
+                        "accepted_min_energy": min(accepted_energies) if accepted_energies else None,
+                        "accepted_mean_energy": float(np.mean(accepted_energies)) if accepted_energies else None,
+                        "accepted_max_energy": max(accepted_energies) if accepted_energies else None,
+                    },
+                )
                 self._log_beamsearch_progress(beam_num, beam_tokens)
 
             tokens_generated += beam_tokens

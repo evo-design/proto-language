@@ -627,7 +627,12 @@ class Optimizer(ABC):
         self._labels_deduplicated = False
         self.history = []
 
-    def _save_progress_snapshot(self, time_step: int) -> None:
+    def _save_progress_snapshot(
+        self,
+        time_step: int,
+        *,
+        optimizer_metadata: dict[str, Any],
+    ) -> None:
         """Save current optimization state to history.
 
         Validates internal consistency: all segments have the same number of
@@ -636,6 +641,7 @@ class Optimizer(ABC):
 
         Args:
             time_step (int): Current optimization time step index.
+            optimizer_metadata (dict[str, Any]): Timepoint-level optimizer data.
         """
         expected_len = len(self.segments[0].result_sequences)
         for segment in self.segments:
@@ -650,6 +656,7 @@ class Optimizer(ABC):
 
         result = build_results(self.constructs, self.energy_scores)
         result["time_step"] = time_step
+        result["optimizer"] = optimizer_metadata
 
         if self.track_proposals and self._proposal_outcomes:
             result["proposal_results"] = build_proposal_results(

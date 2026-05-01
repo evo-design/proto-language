@@ -559,7 +559,22 @@ class GradientOptimizer(Optimizer):
         self._proposal_outcomes = ["accepted"] * self.num_proposals
         self._proposal_energy_scores = list(self.energy_scores)
         self._sync_proposals_to_results()
-        self._save_progress_snapshot(time_step=0)
+        initial_temp = self._softmax_schedule(0, self.config.num_steps)
+        initial_lr = self._effective_lr(self._lr_schedule(0, self.config.num_steps), self.config.soft_start)
+        self._save_progress_snapshot(
+            time_step=0,
+            optimizer_metadata={
+                "type": "gradient",
+                "num_steps": self.config.num_steps,
+                "num_results": self.num_results,
+                "temperature": initial_temp,
+                "learning_rate": initial_lr,
+                "soft": self.config.soft_start,
+                "hard": self.config.hard_start,
+                "proposal_count": len(self._proposal_outcomes),
+                "accepted_proposal_count": self._proposal_outcomes.count("accepted"),
+            },
+        )
 
         if self.config.save_best:
             best_energies = list(self.energy_scores)
@@ -619,7 +634,20 @@ class GradientOptimizer(Optimizer):
             if step % self.tracking_interval == 0 or step == self.config.num_steps:
                 self.generator.sample()
                 self._sync_proposals_to_results()
-                self._save_progress_snapshot(time_step=step)
+                self._save_progress_snapshot(
+                    time_step=step,
+                    optimizer_metadata={
+                        "type": "gradient",
+                        "num_steps": self.config.num_steps,
+                        "num_results": self.num_results,
+                        "temperature": temp,
+                        "learning_rate": lr,
+                        "soft": soft,
+                        "hard": hard,
+                        "proposal_count": len(self._proposal_outcomes),
+                        "accepted_proposal_count": self._proposal_outcomes.count("accepted"),
+                    },
+                )
                 self._log_progress(step, temp, lr)
 
             self._clear_tool_cache()

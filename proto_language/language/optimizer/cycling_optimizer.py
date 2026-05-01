@@ -376,7 +376,19 @@ class CyclingOptimizer(Optimizer):
 
         # Track initial state only if we have meaningful scores (not all inf/nan)
         if any(math.isfinite(score) for score in self.energy_scores):
-            self._save_progress_snapshot(time_step=0)
+            self._save_progress_snapshot(
+                time_step=0,
+                optimizer_metadata={
+                    "type": "cycling",
+                    "num_steps": self.num_steps,
+                    "num_results": self.num_results,
+                    "num_proposals": self.num_proposals,
+                    "conditioning_param_name": self.conditioning_param_name,
+                    "pipeline": self.pipeline,
+                    "proposal_count": len(self._proposal_outcomes),
+                    "accepted_proposal_count": self._proposal_outcomes.count("accepted"),
+                },
+            )
 
         for step in range(1, self.num_steps + 1):
             # 1. Condition from current best (result_sequences)
@@ -413,7 +425,19 @@ class CyclingOptimizer(Optimizer):
                 self._proposal_energy_scores = [0] * self.num_proposals
 
             if step % self.tracking_interval == 0 or step == self.num_steps:
-                self._save_progress_snapshot(time_step=step)
+                self._save_progress_snapshot(
+                    time_step=step,
+                    optimizer_metadata={
+                        "type": "cycling",
+                        "num_steps": self.num_steps,
+                        "num_results": self.num_results,
+                        "num_proposals": self.num_proposals,
+                        "conditioning_param_name": self.conditioning_param_name,
+                        "pipeline": self.pipeline,
+                        "proposal_count": len(self._proposal_outcomes),
+                        "accepted_proposal_count": self._proposal_outcomes.count("accepted"),
+                    },
+                )
                 self._log_step_progress(step)
 
     def _validate_optimizer(self) -> None:
