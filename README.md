@@ -51,17 +51,6 @@ pip install -e "./proto-tools[dev]"
 
 ```
 
-> [!NOTE]
-> Beam search with Evo2 does not work in the main environment. To fix this issue, clone from Brian's env
-> on Chimera (instructions below) and use Evo2 `_in_process_mode`:
-
-```bash
-conda create --name proto-language --clone /home/brianhie/miniconda/envs/gpro/
-pip uninstall -y numcodecs zarr
-pip install --no-cache-dir --force-reinstall numcodecs zarr
-pip install -e /home/{USERNAME}/proto-language
-```
-
 ## Tests
 
 Tests can be run with various filtering options based on hardware utilization and execution time.

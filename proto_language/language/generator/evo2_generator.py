@@ -2,10 +2,14 @@
 
 from typing import Any, final
 
-from proto_tools import Evo2SampleConfig, Evo2SampleInput, run_evo2_sample
-from proto_tools.tools.causal_models.evo2.evo2_sample import (
-    EVO2_MODEL_CHECKPOINTS,
+from proto_tools import (
+    Evo2KVCacheRef,
+    Evo2SampleConfig,
+    Evo2SampleInput,
+    release_evo2_kv_caches,
+    run_evo2_sample,
 )
+from proto_tools.tools.causal_models.evo2.evo2_sample import EVO2_MODEL_CHECKPOINTS
 from pydantic import field_validator, model_validator
 
 from proto_language.base_config import BaseConfig, ConfigField
@@ -239,7 +243,7 @@ class Evo2Generator(Generator):
         prompts: Prompt sequences for generation.
         model_checkpoint: Evo2 model checkpoint name.
         temperature: Sampling temperature for diversity control.
-        kv_caches: Stored KV caches when ``store_kv_cache=True``.
+        kv_caches: Stored KV cache handles when ``store_kv_cache=True``.
         batch_size (int): Number of sequences to generate per batch.
 
     Example:
@@ -280,14 +284,14 @@ class Evo2Generator(Generator):
         self.batch_size = config.batch_size
         self.store_kv_cache = config.store_kv_cache
         self.prepend_prompt = config.prepend_prompt
-        self.kv_caches: list[dict[str, Any]] = []
+        self.kv_caches: list[Evo2KVCacheRef] = []
 
     def sample(
         self,
         prompts: list[str] | None = None,
         prepend_prompt: bool | None = None,
         num_tokens: int | None = None,
-        old_kv_cache: dict[str, Any] | None = None,
+        old_kv_cache: Evo2KVCacheRef | None = None,
     ) -> None:
         """Generate sequences using the Evo2 model.
 
@@ -295,7 +299,7 @@ class Evo2Generator(Generator):
             prompts (list[str] | None): Optional prompts to use instead of self.prompts.
             prepend_prompt (bool | None): Optional override for prepend_prompt setting.
             num_tokens (int | None): Optional explicit token count (used by beam search).
-            old_kv_cache (dict[str, Any] | None): Optional cache state to continue from (batched format).
+            old_kv_cache (Evo2KVCacheRef | None): Optional worker-local cache handle to continue from.
         """
         self._validate_generator()
 
@@ -304,7 +308,6 @@ class Evo2Generator(Generator):
         if num_tokens is None:
             num_tokens = self._compute_num_tokens(len(sampling_prompts[0]), prepend_prompt)
 
-        inputs = Evo2SampleInput(prompts=sampling_prompts)
         sample_config = Evo2SampleConfig(
             prepend_prompt=prepend_prompt,
             model_checkpoint=self.model_checkpoint,
@@ -317,78 +320,26 @@ class Evo2Generator(Generator):
             cached_generation=self.cached_generation,
             force_prompt_threshold=self.force_prompt_threshold,
             max_seqlen=self.max_seqlen,
+            print_generation=False,
             verbose=self.verbose,
             stop_at_eos=self.stop_at_eos,
             old_kv_cache=old_kv_cache,
+            return_kv_cache=self.store_kv_cache,
             batch_size=self.batch_size,
+            return_logits=False,
             seed=self._next_seed(),
         )
 
-        evo2_output = run_evo2_sample(inputs=inputs, config=sample_config)
+        evo2_output = run_evo2_sample(inputs=Evo2SampleInput(prompts=sampling_prompts), config=sample_config)
         generated_sequences = evo2_output.sequences
-        self.kv_caches = evo2_output.kv_caches if self.store_kv_cache else []
+        self.kv_caches = (evo2_output.kv_caches or []) if self.store_kv_cache else []
 
         for proposal, sequence in zip(self.segment.proposal_sequences, generated_sequences, strict=True):
             proposal.sequence = sequence
 
-    def replicate_cache(self, cache: dict[str, Any], n_replicates: int) -> dict[str, Any]:
-        """Replicate cache N times for beam branching."""
-        from vortex.model.cache import (
-            HyenaCascadeFIRInferenceParams,
-            HyenaCascadeIIRInferenceParams,
-            InferenceParams,
-        )
-
-        if not cache:
-            return cache
-
-        if n_replicates < 1:
-            raise ValueError(f"n_replicates must be at least 1 (found {n_replicates}).")
-
-        kv = next(iter(cache["mha"].key_value_memory_dict.values()))
-        if kv.shape[0] != 1:
-            raise ValueError(f"Cache must only have one cache entry to replicate (found {kv.shape[0]}).")
-
-        mha, hcl, hcm, hcs = cache["mha"], cache["hcl"], cache["hcm"], cache["hcs"]
-
-        return {
-            "mha": InferenceParams(
-                max_seqlen=mha.max_seqlen,
-                max_batch_size=mha.max_batch_size,
-                seqlen_offset=mha.seqlen_offset,
-                batch_size_offset=mha.batch_size_offset,
-                key_value_memory_dict={
-                    key: data.repeat(n_replicates, 1, 1, 1, 1) for key, data in mha.key_value_memory_dict.items()
-                },
-            ),
-            "hcl": HyenaCascadeIIRInferenceParams(
-                fir_filter_length=hcl.fir_filter_length,
-                state_dim=hcl.state_dim,
-                seqlen_offset=hcl.seqlen_offset,
-                fir_state_dict={key: data.repeat(n_replicates, 1, 1) for key, data in hcl.fir_state_dict.items()},
-                state_dict={key: data.repeat(n_replicates, 1, 1) for key, data in hcl.state_dict.items()},
-            ),
-            "hcm": HyenaCascadeFIRInferenceParams(
-                fir_filter_length=hcm.fir_filter_length,
-                seqlen_offset=hcm.seqlen_offset,
-                fir_inner_filter_length=hcm.fir_inner_filter_length,
-                fir_state_dict={key: data.repeat(n_replicates, 1, 1) for key, data in hcm.fir_state_dict.items()},
-                fir_inner_state_dict={
-                    key: data.repeat(n_replicates, 1, 1) for key, data in hcm.fir_inner_state_dict.items()
-                },
-                state_dict={key: data.repeat(n_replicates, 1, 1) for key, data in hcm.state_dict.items()},
-            ),
-            "hcs": HyenaCascadeFIRInferenceParams(
-                fir_filter_length=hcs.fir_filter_length,
-                seqlen_offset=hcs.seqlen_offset,
-                fir_inner_filter_length=hcs.fir_inner_filter_length,
-                fir_state_dict={key: data.repeat(n_replicates, 1, 1) for key, data in hcs.fir_state_dict.items()},
-                fir_inner_state_dict={
-                    key: data.repeat(n_replicates, 1, 1) for key, data in hcs.fir_inner_state_dict.items()
-                },
-                state_dict={key: data.repeat(n_replicates, 1, 1) for key, data in hcs.state_dict.items()},
-            ),
-        }
+    def release_kv_cache(self, cache: Evo2KVCacheRef | list[Evo2KVCacheRef | None] | None) -> None:
+        """Release worker-local cache handles held by the Evo2 worker."""
+        release_evo2_kv_caches(cache)
 
     def _replicate_prompts(self, prompts: list[str]) -> list[str]:
         """Match prompt count to proposal count, replicating single prompts."""

@@ -5,7 +5,8 @@ performs beam search, accumulating KV cache state across beams.
 
 import logging
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -32,12 +33,12 @@ class BeamState:
 
     Attributes:
         running_sequence (str): Accumulated sequence (initial prompt + all generated tokens so far)
-        kv_cache (dict[str, Any] | None): KV cache state for this beam (None if KV caching disabled)
+        kv_cache (Any | None): Opaque generator cache handle for this beam (None if KV caching disabled)
         beam_scores (list[float]): Per-beam energy scores for score aggregation
     """
 
     running_sequence: str
-    kv_cache: dict[str, Any] | None = None
+    kv_cache: Any | None = None
     beam_scores: list[float] = field(default_factory=list)
 
 
@@ -80,7 +81,7 @@ class BeamSearchOptimizerConfig(BaseOptimizerConfig):
             sequential generation. KV caching stores intermediate model states to
             avoid recomputing prefix-context at each step. Significantly speeds
             up generation but requires more GPU memory. Only works with compatible
-            generators (e.g., Evo2). Default: ``True``.
+            generators (e.g., Evo2). Default: ``False``.
 
         max_resample_attempts (int): Maximum number of resampling attempts when
             beams produce invalid (inf/NaN) energy proposals. The optimizer will
@@ -128,7 +129,7 @@ class BeamSearchOptimizerConfig(BaseOptimizerConfig):
         description="Whether to prepend the prompt to the generated sequence in the output.",
     )
     use_kv_caching: bool = ConfigField(
-        default=True,
+        default=False,
         title="KV Caching",
         description="Whether to use KV caching for generation. Enables faster sequential generation.",
     )
@@ -289,19 +290,16 @@ class BeamSearchOptimizer(Optimizer):
         self._validate_target_segment(self.target_segment)
 
         # KV caching support (if enabled)
-        if self.use_kv_caching:
-            if not hasattr(self.generator, "replicate_cache") or not callable(
-                getattr(self.generator, "replicate_cache", None)
-            ):
-                raise ValueError(
-                    f"Generator '{self.generator.__class__.__name__}' does not support KV caching (missing replicate_cache method). "
-                    f"Set use_kv_caching=False or use a generator that supports KV caching."
-                )
-            if not hasattr(self.generator, "kv_caches"):
-                raise ValueError(
-                    f"Generator '{self.generator.__class__.__name__}' does not support KV caching (missing kv_caches attribute). "
-                    f"Set use_kv_caching=False or use a generator that supports KV caching."
-                )
+        if self.use_kv_caching and not hasattr(self.generator, "kv_caches"):
+            raise ValueError(
+                f"Generator '{self.generator.__class__.__name__}' does not support KV caching (missing kv_caches attribute). "
+                f"Set use_kv_caching=False or use a generator that supports KV caching."
+            )
+        if self.use_kv_caching and not callable(getattr(self.generator, "release_kv_cache", None)):
+            raise ValueError(
+                f"Generator '{self.generator.__class__.__name__}' does not support KV caching "
+                f"(missing release_kv_cache method). Set use_kv_caching=False or use a generator that supports KV caching."
+            )
 
         # Prompt + beam_length
         if not self.prompt:
@@ -333,6 +331,14 @@ class BeamSearchOptimizer(Optimizer):
         3. Score all proposals using FULL accumulated sequence
         4. Select top K proposals and update beam states for next beam
         """
+        with self._kv_cache_worker_context():
+            try:
+                self._run_beam_search()
+            finally:
+                self._release_current_beam_caches()
+
+    def _run_beam_search(self) -> None:
+        """Run the beam search loop after execution context setup."""
         self._prepare_run()
         assert self.num_results is not None  # noqa: S101 -- mypy type narrowing
         assert self.num_proposals is not None  # noqa: S101 -- mypy type narrowing
@@ -349,31 +355,22 @@ class BeamSearchOptimizer(Optimizer):
         if self.verbose:
             self._log_run_start()
 
-        # Track tokens generated so far
         tokens_generated = 0
-
         for beam_num in range(1, self.num_beams + 1):
-            # Calculate tokens to generate this beam (may be less for final beam)
             remaining_tokens = self.target_segment.sequence_length - tokens_generated
             beam_tokens = min(self.beam_length, remaining_tokens)
-
-            prepend_prompt_to_first_beam = self.prepend_prompt and beam_num == 1
-
-            # Generate and score proposals, resampling until all beams have valid proposals
-            proposal_beams = self._generate_and_score_with_resampling(prepend_prompt_to_first_beam, beam_tokens)
-
-            # Select top num_results proposals and update beam states
+            proposal_beams = self._generate_and_score_with_resampling(
+                self.prepend_prompt and beam_num == 1,
+                beam_tokens,
+            )
             self._select_topk_beams(proposal_beams)
 
-            # Save per-beam snapshot (result_sequences set by _select_topk_beams)
             if beam_num % self.tracking_interval == 0 or beam_num == self.num_beams:
                 self._save_progress_snapshot(time_step=beam_num)
                 self._log_beamsearch_progress(beam_num, beam_tokens)
 
             tokens_generated += beam_tokens
 
-        # Write final sequences to segment (same content as last _select_topk_beams
-        # snapshot, so no additional snapshot needed)
         self.target_segment.result_sequences = [
             Sequence(
                 sequence=beam.running_sequence if self.prepend_prompt else beam.running_sequence[len(self.prompt) :],
@@ -409,13 +406,10 @@ class BeamSearchOptimizer(Optimizer):
         for batch_start in range(0, self._proposals_per_result, self.batch_size):
             batch_count = min(self.batch_size, self._proposals_per_result - batch_start)
 
-            # Replicate prompt and KV cache for this batch
+            # The worker clones from old_kv_cache; it does not consume the handle,
+            # so one beam cache can seed multiple proposal batches.
             prompts = [beam.running_sequence] * batch_count
-            kv_cache = (
-                self.generator.replicate_cache(beam.kv_cache, batch_count)  # type: ignore[attr-defined]
-                if self.use_kv_caching and beam.kv_cache
-                else None
-            )
+            kv_cache = beam.kv_cache if self.use_kv_caching and beam.kv_cache is not None else None
 
             # Resize proposal pool to match batch for zip(strict=True) compatibility
             self.target_segment.proposal_sequences = [
@@ -427,15 +421,23 @@ class BeamSearchOptimizer(Optimizer):
                 self._log_cache_state(kv_cache)
 
             # Generate proposals
-            self.generator.sample(  # type: ignore[call-arg]
-                prompts=prompts,
-                prepend_prompt=prepend_prompt,
-                num_tokens=num_tokens,
-                old_kv_cache=kv_cache,
-            )
+            with self._cached_generation_context():
+                self.generator.sample(  # type: ignore[call-arg]
+                    prompts=prompts,
+                    prepend_prompt=prepend_prompt,
+                    num_tokens=num_tokens,
+                    old_kv_cache=kv_cache,
+                )
 
             # Collect results from this batch
-            kv_caches = self.generator.kv_caches if self.use_kv_caching else [None] * batch_count  # type: ignore[attr-defined]
+            if self.use_kv_caching:
+                kv_caches = self.generator.kv_caches  # type: ignore[attr-defined]
+                if len(kv_caches) != batch_count:
+                    raise RuntimeError(
+                        f"Generator returned {len(kv_caches)} KV cache handles for {batch_count} generated prompts."
+                    )
+            else:
+                kv_caches = [None] * batch_count
             for i in range(batch_count):
                 generated_seq = self.target_segment.proposal_sequences[i].sequence
                 new_prompt = generated_seq if prepend_prompt else beam.running_sequence + generated_seq
@@ -489,6 +491,9 @@ class BeamSearchOptimizer(Optimizer):
                 beam_idx = i // self._proposals_per_result
                 proposal.beam_scores.append(score)
                 beam_proposals[beam_idx].append(proposal)
+            else:
+                # Rejected proposals will not be scored again or continued.
+                self._release_kv_cache(proposal.kv_cache)
 
         # Resample beams until each has proposals_per_result valid proposals
         for attempt in range(1, self.max_resample_attempts + 1):
@@ -518,11 +523,18 @@ class BeamSearchOptimizer(Optimizer):
                     if self._proposal_outcomes[j] == "accepted":
                         proposal.beam_scores.append(score)
                         beam_proposals[beam_idx].append(proposal)
+                    else:
+                        # Rejected resamples will not be scored again or continued.
+                        self._release_kv_cache(proposal.kv_cache)
 
         # Verify each beam has at least proposals_per_result valid proposals
         insufficient_beams = [b for b in range(self.num_results) if len(beam_proposals[b]) < self._proposals_per_result]
         if insufficient_beams:
             counts = {b: len(beam_proposals[b]) for b in insufficient_beams}
+            for proposals in beam_proposals.values():
+                for proposal in proposals:
+                    # The run is aborting, so no accepted proposal can continue.
+                    self._release_kv_cache(proposal.kv_cache)
             raise RuntimeError(
                 f"After {self.max_resample_attempts} attempts, {len(insufficient_beams)} beams could not produce "
                 f"{self._proposals_per_result} valid proposals: {counts}. Constraints may be too restrictive."
@@ -532,10 +544,11 @@ class BeamSearchOptimizer(Optimizer):
         all_valid_proposals = []
         for beam_idx in range(self.num_results):
             # Sort by most recent score and take top proposals_per_result
-            sorted_proposals = sorted(beam_proposals[beam_idx], key=lambda b: b.beam_scores[-1])[
-                : self._proposals_per_result
-            ]
-            all_valid_proposals.extend(sorted_proposals)
+            sorted_proposals = sorted(beam_proposals[beam_idx], key=lambda b: b.beam_scores[-1])
+            all_valid_proposals.extend(sorted_proposals[: self._proposals_per_result])
+            for proposal in sorted_proposals[self._proposals_per_result :]:
+                # Extra valid proposals beyond the per-beam quota are dropped.
+                self._release_kv_cache(proposal.kv_cache)
 
         return all_valid_proposals
 
@@ -559,7 +572,17 @@ class BeamSearchOptimizer(Optimizer):
         # 2. Sort by score and keep top num_results
         sorted_proposals = sorted(scored_proposals, key=lambda x: x[2])
         result_indices = {orig_idx for orig_idx, _, _ in sorted_proposals[: self.num_results]}
-        self.beams = [beam for _, beam, _ in sorted_proposals[: self.num_results]]
+        selected_beams = [beam for _, beam, _ in sorted_proposals[: self.num_results]]
+        selected_beam_ids = {id(beam) for beam in selected_beams}
+        for beam in proposal_beams:
+            if id(beam) not in selected_beam_ids:
+                # Globally pruned proposal branches will not continue.
+                self._release_kv_cache(beam.kv_cache)
+        for beam in self.beams:
+            # Parent beams are replaced by selected child beams after this step.
+            self._release_kv_cache(beam.kv_cache)
+
+        self.beams = selected_beams
         self.energy_scores = [score for _, _, score in sorted_proposals[: self.num_results]]
 
         # 3. Update _proposal_outcomes and _proposal_energy_scores
@@ -596,6 +619,46 @@ class BeamSearchOptimizer(Optimizer):
             return float("inf")
         return float(np.mean(beam.beam_scores)) if self.score_by == "mean" else beam.beam_scores[-1]
 
+    def _release_kv_cache(self, kv_cache: Any | None) -> None:
+        if not self.use_kv_caching or kv_cache is None:
+            return
+        self.generator.release_kv_cache(kv_cache)  # type: ignore[attr-defined]
+
+    def _release_current_beam_caches(self) -> None:
+        for beam in self.beams:
+            # The optimizer is exiting, so remaining beam handles are no longer usable.
+            self._release_kv_cache(beam.kv_cache)
+            beam.kv_cache = None
+
+    @contextmanager
+    def _kv_cache_worker_context(self) -> Iterator[None]:
+        """Keep worker-local cache handles alive across beam-search sample calls."""
+        if not self.use_kv_caching:
+            yield
+            return
+
+        from proto_tools.utils import ToolInstance
+
+        with ToolInstance.persist():
+            yield
+
+    @contextmanager
+    def _cached_generation_context(self) -> Iterator[None]:
+        """Bypass ToolPool prompt partitioning while passing worker-local cache handles."""
+        if not self.use_kv_caching:
+            yield
+            return
+
+        # Evo2 KV-cache handles are worker-local, so cached continuations must
+        # stay on the persistent worker that created the handle.
+        from proto_tools.utils.tool_pool import _pool_executing
+
+        token = _pool_executing.set(True)
+        try:
+            yield
+        finally:
+            _pool_executing.reset(token)
+
     ###########
     # LOGGING #
     ###########
@@ -623,11 +686,10 @@ class BeamSearchOptimizer(Optimizer):
         logger.debug(f"  Prompt length: {len(beam.running_sequence)}")
         logger.debug(f"  Batch size: {self.batch_size}")
 
-    def _log_cache_state(self, kv_cache: dict[str, Any] | None) -> None:
+    def _log_cache_state(self, kv_cache: Any | None) -> None:
         """Log KV cache state for debugging."""
-        if kv_cache:
-            kv = next(iter(kv_cache["mha"].key_value_memory_dict.values()))
-            logger.debug(f"  Cache: KV shape={kv.shape}, seqlen_offset={kv_cache['mha'].seqlen_offset}")
+        if kv_cache is not None:
+            logger.debug("  Cache: present")
         else:
             logger.debug("  Cache: None (first beam, will build cache)")
 

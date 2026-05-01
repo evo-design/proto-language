@@ -92,8 +92,8 @@ class MockAutoregressiveGenerator(Generator):
         else:
             self.kv_caches = []
 
-    def replicate_cache(self, cache: dict, n_replicates: int) -> dict:
-        return cache
+    def release_kv_cache(self, cache: dict) -> None:
+        pass
 
 
 class MockCyclingGenerator(Generator):
