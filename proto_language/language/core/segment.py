@@ -49,7 +49,7 @@ class Segment:
         Args:
             sequence (str | None): Optional biological sequence string. If provided, length is inferred.
             length (int | None): Optional desired length for sequences. Required if sequence not provided.
-            sequence_type (SequenceType): Type of biological sequence ("dna", "rna", or "protein"). Defaults to "dna".
+            sequence_type (SequenceType): Type of biological sequence ("dna", "rna", "protein", or "ligand"). Defaults to "dna".
             valid_chars (set[str] | frozenset[str] | None): Optional custom set of valid characters for sequence validation.
             label (str | None): Optional label for this segment (e.g., "promoter", "coding_region").
             metadata (dict[str, Any] | None): Additional data associated with this sequence.

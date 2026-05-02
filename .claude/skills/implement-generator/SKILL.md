@@ -88,7 +88,7 @@ Summary of the workflow:
 | `category` | `str` | Yes | `"mutation"`, `"autoregressive"`, or `"inverse_folding"` |
 | `uses_gpu` | `bool` | No | Whether generator requires GPU |
 | `tools_called` | `List[str]` | No | Default `[]` |
-| `supported_sequence_types` | `List[str]` | No | Default `[]` (= all types). Options: `"dna"`, `"rna"`, `"protein"` |
+| `supported_sequence_types` | `List[str]` | No | Default `[]` (= all types). Options: `"dna"`, `"rna"`, `"protein"`. Ligand segments are immutable fixed targets — `Generator.assign()` rejects them, so do not list `"ligand"` here. |
 
 ## Export Chain
 

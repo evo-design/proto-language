@@ -60,7 +60,7 @@ class Sequence:
 
         Args:
             sequence (str): The biological sequence string. Defaults to empty string.
-            sequence_type (SequenceType): Type of biological sequence ("dna", "rna", or "protein"). Defaults to "dna".
+            sequence_type (SequenceType): Type of biological sequence ("dna", "rna", "protein", or "ligand"). Defaults to "dna".
             valid_chars (set[str] | frozenset[str] | None): Optional custom set of valid characters for sequence validation.
                 If provided, overrides the default character set for the sequence_type.
             metadata (dict[str, Any] | None): Additional data associated with this sequence.
