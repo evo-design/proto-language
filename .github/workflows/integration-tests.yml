@@ -20,6 +20,7 @@ jobs:
         submodules: recursive
     - uses: astral-sh/setup-uv@v5
       with:
+        version: "0.11.8"
         enable-cache: true
         cache-dependency-glob: "**/pyproject.toml"
     - uses: actions/setup-python@v5
