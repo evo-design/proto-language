@@ -1,11 +1,13 @@
-"""promoter_calculator is mocked; it accepts a single sequence string.
+"""Tests for the promoter_strength constraint."""
 
-and returns a flat list of result objects (one per detected promoter).
-"""
-
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
+from proto_tools import (
+    PromoterCalculatorOutput,
+    PromoterCalculatorSequenceResult,
+    PromoterPrediction,
+)
 
 from proto_language.language.constraint import (
     ConstraintRegistry,
@@ -16,28 +18,43 @@ from proto_language.language.constraint.sequence_annotation.promoter_strength_co
 )
 from proto_language.language.core import Constraint, Segment
 
-PATCH_TARGET = "proto_language.language.constraint.sequence_annotation.promoter_strength_constraint.promoter_calculator"
+PATCH_TARGET = (
+    "proto_language.language.constraint.sequence_annotation.promoter_strength_constraint.run_promoter_calculator"
+)
 
 
-def _mock_result(dG_total=-4.0, Tx_rate=15000.0, strand="+"):
-    result = Mock()
-    result.dG_total = dG_total
-    result.Tx_rate = Tx_rate
-    result.strand = strand
-    result.__dict__ = {"dG_total": dG_total, "Tx_rate": Tx_rate, "strand": strand}
-    return result
+def _prediction(dG_total: float = -4.0, Tx_rate: float = 15000.0, strand: str = "+") -> PromoterPrediction:
+    return PromoterPrediction(
+        tss_name=f"{'Fwd' if strand == '+' else 'Rev'}45",
+        tss=45,
+        strand=strand,
+        dG_total=dG_total,
+        Tx_rate=Tx_rate,
+        promoter_sequence="A" * 50,
+        length=50,
+        UP_position=[0, 10],
+        hex35_position=[10, 16],
+        spacer_position=[16, 33],
+        hex10_position=[33, 39],
+        disc_position=[39, 45],
+    )
 
 
-def _evaluate(segment, config, mock_return):
-    """Patch promoter_calculator with return_value and evaluate."""
-    with patch(PATCH_TARGET) as mock_calc:
-        mock_calc.return_value = mock_return
+def _output(predictions: list[PromoterPrediction]) -> PromoterCalculatorOutput:
+    return PromoterCalculatorOutput(
+        results=[PromoterCalculatorSequenceResult(sequence_id="seq_0", predictions=predictions)],
+    )
+
+
+def _evaluate(segment: Segment, config: PromoterStrengthConfig, predictions: list[PromoterPrediction]):
+    with patch(PATCH_TARGET) as mock_call:
+        mock_call.return_value = _output(predictions)
         scores = Constraint(
             inputs=[segment],
             function=promoter_strength_constraint,
             function_config=config,
         ).evaluate()
-    return scores, mock_calc
+    return scores, mock_call
 
 
 class TestPromoterStrengthConstraint:
@@ -54,7 +71,7 @@ class TestPromoterStrengthConstraint:
     def test_dG_scoring(self, dG, expected):
         segment = Segment(sequence="ATCGATCGATCG", sequence_type="dna")
         config = PromoterStrengthConfig(scoring_type="dG")
-        scores, _ = _evaluate(segment, config, [_mock_result(dG_total=dG)])
+        scores, _ = _evaluate(segment, config, [_prediction(dG_total=dG)])
         assert scores[0] == pytest.approx(expected)
 
     @pytest.mark.parametrize(
@@ -71,14 +88,13 @@ class TestPromoterStrengthConstraint:
     def test_tx_rate_scoring(self, tx_rate, expected):
         segment = Segment(sequence="ATCGATCGATCG", sequence_type="dna")
         config = PromoterStrengthConfig(scoring_type="tx_rate")
-        scores, _ = _evaluate(segment, config, [_mock_result(Tx_rate=tx_rate)])
+        scores, _ = _evaluate(segment, config, [_prediction(Tx_rate=tx_rate)])
         assert scores[0] == pytest.approx(expected)
 
-    @pytest.mark.parametrize("return_value", [[], None])
-    def test_no_promoter_found(self, return_value):
-        """Empty or None results -> penalty 1.0 with no_promoter_found metadata."""
+    def test_no_promoter_found(self):
+        """Empty predictions -> penalty 1.0 with no_promoter_found metadata."""
         segment = Segment(sequence="ATCGATCGATCG", sequence_type="dna")
-        scores, _ = _evaluate(segment, PromoterStrengthConfig(), return_value)
+        scores, _ = _evaluate(segment, PromoterStrengthConfig(), [])
         assert scores == [1.0]
         data = segment.proposal_sequences[0]._constraints_metadata
         meta = data["promoter_strength_constraint"]["data"]["promoter_strength"]
@@ -89,7 +105,7 @@ class TestPromoterStrengthConstraint:
         """Verify constraint metadata is propagated correctly."""
         segment = Segment(sequence="ATCGATCGATCG", sequence_type="dna")
         config = PromoterStrengthConfig(scoring_type="dG")
-        _evaluate(segment, config, [_mock_result(dG_total=-4.0)])
+        _evaluate(segment, config, [_prediction(dG_total=-4.0)])
 
         data = segment.proposal_sequences[0]._constraints_metadata
         meta = data["promoter_strength_constraint"]["data"]["promoter_strength"]
@@ -98,30 +114,27 @@ class TestPromoterStrengthConstraint:
         assert "raw_output" in meta
 
     def test_minus_strand_filtered(self):
-        """Only + strand results are used; - strand alone -> no promoter."""
+        """Only + strand contributes to the score."""
         segment = Segment(sequence="ATCGATCGATCG", sequence_type="dna")
         config = PromoterStrengthConfig(scoring_type="dG")
+        plus = _prediction(dG_total=-2.0, strand="+")
+        minus = _prediction(dG_total=-5.0, strand="-")
 
-        plus = _mock_result(dG_total=-2.0, strand="+")
-        minus = _mock_result(dG_total=-5.0, strand="-")
-
-        # Only minus strand -> no promoter
         scores, _ = _evaluate(segment, config, [minus])
         assert scores == [1.0]
 
-        # Mixed strands -> uses only plus (dG=-2.0, moderate)
         segment2 = Segment(sequence="ATCGATCGATCG", sequence_type="dna")
         scores, _ = _evaluate(segment2, config, [plus, minus])
         assert scores[0] == pytest.approx(5 / 6)
 
     def test_add_context(self):
-        """add_context pads with flanking 'A' nucleotides."""
+        """add_context pads with flanking 'A' nucleotides before dispatch."""
         segment = Segment(sequence="ATCG", sequence_type="dna")
         config = PromoterStrengthConfig(add_context=True, context_length=5)
-        _, mock_calc = _evaluate(segment, config, [_mock_result(dG_total=-2.0)])
+        _, mock_call = _evaluate(segment, config, [_prediction(dG_total=-2.0)])
 
-        processed_seq = mock_calc.call_args[0][0]
-        assert processed_seq == "AAAAA" + "ATCG" + "AAAAA"
+        sent_inputs = mock_call.call_args[0][0]
+        assert sent_inputs.sequences == ["AAAAA" + "ATCG" + "AAAAA"]
 
     def test_registry_integration(self):
         spec = ConstraintRegistry.get("promoter-strength")
@@ -131,3 +144,22 @@ class TestPromoterStrengthConstraint:
         segment = Segment(sequence="ATCGATCGATCG", sequence_type="dna")
         constraint = ConstraintRegistry.create("promoter-strength", [segment], {})
         assert isinstance(constraint, Constraint)
+
+
+@pytest.mark.integration
+def test_run_against_real_wrapper_lac_uv5():
+    """End-to-end through the real run_promoter_calculator subprocess."""
+    seq = "A" * 20 + "AAAATTGTGAGCGGATAACAATTTCACACAGGAAACAGCTATGACC" + "A" * 20
+    segment = Segment(sequence=seq, sequence_type="dna")
+    scores = Constraint(
+        inputs=[segment],
+        function=promoter_strength_constraint,
+        function_config=PromoterStrengthConfig(scoring_type="dG"),
+    ).evaluate()
+
+    assert len(scores) == 1
+    assert 0.0 <= scores[0] <= 1.0
+    meta = segment.proposal_sequences[0]._constraints_metadata
+    payload = meta["promoter_strength_constraint"]["data"]["promoter_strength"]
+    assert "penalty" in payload
+    assert "raw_output" in payload
