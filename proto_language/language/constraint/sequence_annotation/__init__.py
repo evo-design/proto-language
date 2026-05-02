@@ -3,6 +3,14 @@
 from proto_language.language.constraint.sequence_annotation.alphagenome_interval_track_constraint import (
     alphagenome_interval_track_constraint,
 )
+from proto_language.language.constraint.sequence_annotation.borzoi_chromatin_accessibility_morse_constraint import (
+    BorzoiChromatinAccessibilityMorseConfig,
+    borzoi_chromatin_accessibility_morse_constraint,
+)
+from proto_language.language.constraint.sequence_annotation.enformer_chromatin_accessibility_morse_constraint import (
+    EnformerChromatinAccessibilityMorseConfig,
+    enformer_chromatin_accessibility_morse_constraint,
+)
 from proto_language.language.constraint.sequence_annotation.mmseqs_similarity_constraint import (
     mmseqs_similarity_constraint,
 )
@@ -15,6 +23,10 @@ from proto_language.language.constraint.sequence_annotation.sigma70_promoter_con
 )
 
 __all__ = [
+    "BorzoiChromatinAccessibilityMorseConfig",
+    "borzoi_chromatin_accessibility_morse_constraint",
+    "EnformerChromatinAccessibilityMorseConfig",
+    "enformer_chromatin_accessibility_morse_constraint",
     "mmseqs_similarity_constraint",
     "sigma70_promoter_constraint",
     "seq_motif_constraint",

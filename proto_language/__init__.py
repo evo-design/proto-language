@@ -1,8 +1,10 @@
 """Public API surface for proto-language."""
 
 from proto_language.language.constraint import (
+    BorzoiChromatinAccessibilityMorseConfig,
     ConstraintRegistry,
     ConstraintSpec,
+    EnformerChromatinAccessibilityMorseConfig,
     ablang_naturalness_forward,
     ablang_naturalness_gradient_backward,
     af2_binder_backward,
@@ -11,7 +13,9 @@ from proto_language.language.constraint import (
     alphagenome_splice_site_usage,
     balanced_aa_constraint,
     boltz_binding_strength_constraint,
+    borzoi_chromatin_accessibility_morse_constraint,
     constraint,
+    enformer_chromatin_accessibility_morse_constraint,
     gap_gini_constraint,
     gc_content_constraint,
     gyration_radius_constraint,
@@ -170,6 +174,10 @@ __all__ = [
     # Sequence alignment constraints
     "gap_gini_constraint",
     # Sequence annotation constraints
+    "BorzoiChromatinAccessibilityMorseConfig",
+    "borzoi_chromatin_accessibility_morse_constraint",
+    "EnformerChromatinAccessibilityMorseConfig",
+    "enformer_chromatin_accessibility_morse_constraint",
     "alphagenome_interval_track_constraint",
     "mmseqs_similarity_constraint",
     "sigma70_promoter_constraint",

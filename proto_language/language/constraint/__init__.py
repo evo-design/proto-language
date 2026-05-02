@@ -63,7 +63,11 @@ from proto_language.language.constraint.sequence_alignment import gap_gini_const
 
 # Sequence annotation constraints
 from proto_language.language.constraint.sequence_annotation import (
+    BorzoiChromatinAccessibilityMorseConfig,
+    EnformerChromatinAccessibilityMorseConfig,
     alphagenome_interval_track_constraint,
+    borzoi_chromatin_accessibility_morse_constraint,
+    enformer_chromatin_accessibility_morse_constraint,
     mmseqs_similarity_constraint,
     promoter_strength_constraint,
     seq_motif_constraint,
@@ -125,6 +129,10 @@ __all__ = [
     # Sequence alignment
     "gap_gini_constraint",
     # Sequence annotation
+    "BorzoiChromatinAccessibilityMorseConfig",
+    "borzoi_chromatin_accessibility_morse_constraint",
+    "EnformerChromatinAccessibilityMorseConfig",
+    "enformer_chromatin_accessibility_morse_constraint",
     "mmseqs_similarity_constraint",
     "sigma70_promoter_constraint",
     "seq_motif_constraint",
