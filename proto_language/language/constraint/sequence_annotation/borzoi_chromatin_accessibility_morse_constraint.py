@@ -275,7 +275,6 @@ def borzoi_chromatin_accessibility_morse_constraint(
             output_tracks=config.borzoi_output_tracks,
             species=config.organism,
             avg_output_tracks=True,
-            use_flash_attn=config.organism == "human",
             batch_size=config.batch_size,
             device=config.device,
         ),
