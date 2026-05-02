@@ -60,10 +60,12 @@ def _create_protein_hunter_conditioning_fn(config: "CyclingOptimizerConfig") -> 
     from proto_tools import StructurePredictionComplex, predict_structures
 
     structure_tool = config.protein_hunter.structure_tool if config.protein_hunter else "boltz2"
+    # Hallucinated sequences have no homologs, so skip ColabFold MSA search.
+    tool_config = {"use_msa": False}
 
     def conditioning_fn(sequences: list[Sequence]) -> list[Any]:
         complexes = [StructurePredictionComplex(chains=[seq.sequence]) for seq in sequences]
-        structures = predict_structures(complexes, structure_tool, {}).structures
+        structures = predict_structures(complexes, structure_tool, tool_config).structures
         for seq, structure in zip(sequences, structures, strict=True):
             seq.structure = structure
         return structures  # type: ignore[no-any-return]
