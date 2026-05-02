@@ -497,18 +497,18 @@ def tracr_filter(
     Returns 0.0 for PASS, 1.0 for FAIL.
     """
     from proto_tools import (
-        CrisprTracrConfig,
-        CrisprTracrInput,
-        run_crispr_tracr,
+        CrisprTracrRNAConfig,
+        CrisprTracrRNAInput,
+        run_crispr_tracr_rna,
     )
 
     sequences = [seq_tuple[0].sequence for seq_tuple in input_sequences]
 
     tracr_workers = len(os.sched_getaffinity(0)) or 1
     logger.info(f"tracr_filter: CRISPRtracrRNA prediction ({tracr_workers} workers)...")
-    tracr_result = run_crispr_tracr(
-        CrisprTracrInput(sequences=sequences),
-        CrisprTracrConfig(model_type="II", num_workers=tracr_workers),
+    tracr_result = run_crispr_tracr_rna(
+        CrisprTracrRNAInput(sequences=sequences),
+        CrisprTracrRNAConfig(model_type="II", num_workers=tracr_workers),
     )
     if tracr_result.success is False:
         raise RuntimeError(f"tracrRNA prediction failed: {tracr_result.errors}")
@@ -520,9 +520,9 @@ def tracr_filter(
 
         if i < len(tracr_result.predictions):
             pred = tracr_result.predictions[i]
-            CACHE[dna]["tracr_sequence"] = pred.tracr_hit
+            CACHE[dna]["tracr_sequence"] = pred.tracr_rna_sequence
             CACHE[dna]["interaction_energy"] = pred.interaction_energy
-            metadata = {"tracr_sequence": pred.tracr_hit, "interaction_energy": pred.interaction_energy}
+            metadata = {"tracr_sequence": pred.tracr_rna_sequence, "interaction_energy": pred.interaction_energy}
 
             has_tracr = pred.has_tracr
             has_intarna = pred.intarna_anti_repeat_interaction is not None
