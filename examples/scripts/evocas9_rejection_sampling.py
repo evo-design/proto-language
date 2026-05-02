@@ -518,14 +518,17 @@ def tracr_filter(
         if dna not in CACHE:
             CACHE[dna] = {}
 
-        if i < len(tracr_result.predictions):
-            pred = tracr_result.predictions[i]
-            CACHE[dna]["tracr_sequence"] = pred.tracr_rna_sequence
-            CACHE[dna]["interaction_energy"] = pred.interaction_energy
-            metadata = {"tracr_sequence": pred.tracr_rna_sequence, "interaction_energy": pred.interaction_energy}
+        if i < len(tracr_result.results):
+            seq_result = tracr_result.results[i]
+            top = seq_result.top_candidate
+            tracr_sequence = top.tracr_rna_sequence if top else None
+            interaction_energy = top.interaction_energy if top else None
+            CACHE[dna]["tracr_sequence"] = tracr_sequence
+            CACHE[dna]["interaction_energy"] = interaction_energy
+            metadata = {"tracr_sequence": tracr_sequence, "interaction_energy": interaction_energy}
 
-            has_tracr = pred.has_tracr
-            has_intarna = pred.intarna_anti_repeat_interaction is not None
+            has_tracr = seq_result.has_tracr
+            has_intarna = top is not None and top.intarna_anti_repeat_interaction is not None
             score = 0.0 if (has_tracr and has_intarna) else 1.0
             results.append(ConstraintOutput(score=score, metadata=metadata))
         else:
