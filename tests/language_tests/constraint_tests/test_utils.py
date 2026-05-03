@@ -1,6 +1,7 @@
 """Tests for range validation, deviation calculation, and normalization utilities."""
 
 import pytest
+from pydantic import BaseModel, ValidationError, model_validator
 
 from proto_language.utils import (
     MAX_ENERGY,
@@ -10,6 +11,7 @@ from proto_language.utils import (
     calculate_range_deviation,
     validate_range,
 )
+from proto_language.utils.helpers import format_pydantic_error
 
 
 class TestValidateRange:
@@ -247,3 +249,38 @@ class TestCalculateNormalizedDeviation:
 
         # actual=99.5, target=100.0 -> deviation = 0.5/100 = 0.005
         assert abs(calculate_normalized_deviation(99.5, 100.0) - 0.005) < 1e-9
+
+
+class TestFormatPydanticError:
+    """Tests for format_pydantic_error() — used at every Registry.create() boundary."""
+
+    def test_field_error_renders_loc_msg_input(self):
+        """Field errors include loc, msg, and (truncated) input; multiple errors join with '; '."""
+
+        class Cfg(BaseModel):
+            x: int
+            y: int
+
+        with pytest.raises(ValidationError) as exc_info:
+            Cfg(x="abc", y="x" * 500)
+        msg = format_pydantic_error(exc_info.value, "constraint 'foo' config invalid")
+        assert msg.startswith("constraint 'foo' config invalid — ")
+        assert "x:" in msg and "[got='abc']" in msg
+        assert "y:" in msg and "..." in msg  # 500-char input got truncated
+        assert "; " in msg  # multi-error joiner
+
+    def test_root_validator_renders_as_root(self):
+        """``@model_validator`` errors have empty ``loc``; render as ``__root__`` not bare ``:``."""
+
+        class Cfg(BaseModel):
+            x: int = 1
+
+            @model_validator(mode="after")
+            def check(self) -> "Cfg":
+                raise ValueError("root failed")
+
+        with pytest.raises(ValidationError) as exc_info:
+            Cfg()
+        msg = format_pydantic_error(exc_info.value, "p")
+        assert "__root__:" in msg
+        assert " — :" not in msg  # ensure we didn't fall back to empty loc

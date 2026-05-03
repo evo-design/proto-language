@@ -131,7 +131,12 @@ def specific_kmer_constraint(
         seq_length = len(seq_str)
 
         if seq_length < k:
-            results.append(ConstraintOutput(score=MAX_ENERGY))
+            results.append(
+                ConstraintOutput(
+                    score=MAX_ENERGY,
+                    metadata={"specific_kmer_error": f"sequence length {seq_length} < kmer length {k}"},
+                )
+            )
             continue
 
         # Validate kmer characters against sequence alphabet

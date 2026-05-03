@@ -2,7 +2,6 @@
 
 import logging
 import random
-import warnings
 from abc import ABC, abstractmethod
 
 from proto_language.language.core.segment import Segment
@@ -107,17 +106,19 @@ class Generator(ABC):
 
         # Warn if segment already has populated sequences that will be overwritten (autoregressive only)
         if self._spec.category == "autoregressive" and segment.proposals_populated:
-            warnings.warn(
-                f"Segment '{segment.label or 'unlabeled'}' has an input sequence that will be overwritten by {self.__class__.__name__}.",
-                stacklevel=2,
+            logger.warning(
+                "Segment %r input sequence will be overwritten by autoregressive generator %s",
+                segment.label or "unlabeled",
+                self.__class__.__name__,
             )
 
         # Initialize random sequences for mutation generators if no input template sequence provided.
         # This is only an initial proposal seed for the local mutation step.
         if self._spec.category == "mutation" and not segment.proposals_populated:
-            warnings.warn(
-                f"Generator {self.__class__.__name__} is a mutation generator, but proposals have no sequences. Initializing random starting sequences before local mutation.",
-                stacklevel=2,
+            logger.warning(
+                "Mutation generator %s has no input proposals; seeding %d random starting sequences",
+                self.__class__.__name__,
+                len(segment.proposal_sequences),
             )
             assert segment.valid_chars is not None  # noqa: S101 -- mypy type narrowing
             valid_chars = list(segment.valid_chars - set(" "))

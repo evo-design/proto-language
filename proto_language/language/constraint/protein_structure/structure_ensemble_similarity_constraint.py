@@ -476,9 +476,10 @@ def structure_ensemble_rmsd_constraint(
 
     results: list[ConstraintOutput] = []
 
+    n = len(input_sequences)
     for seq_idx, (seq,) in enumerate(input_sequences):
         if config.verbose:
-            logger.info(f"Processing sequence {seq_idx + 1}/{len(input_sequences)}")
+            logger.info(f"Processing sequence {seq_idx + 1}/{n}")
 
         try:
             # Extract proposal subsequence if range is specified.
@@ -508,8 +509,13 @@ def structure_ensemble_rmsd_constraint(
             result = run_bioemu(bioemu_input, config.bioemu_config)
 
             if not result.ensembles or len(result.ensembles[0].structures) == 0:
-                logger.warning(f"BioEmu returned no structures for sequence {seq_idx}")
-                results.append(ConstraintOutput(score=1.0))
+                logger.warning("structure-ensemble-rmsd: BioEmu returned no structures for sequence %d", seq_idx)
+                results.append(
+                    ConstraintOutput(
+                        score=MAX_ENERGY,
+                        metadata={"ensemble_rmsd_error": f"BioEmu returned no structures for sequence {seq_idx}"},
+                    )
+                )
                 continue
 
             ensemble = result.ensembles[0]
@@ -560,7 +566,8 @@ def structure_ensemble_rmsd_constraint(
             )
 
         except Exception as e:
-            logger.error(f"Error processing sequence {seq_idx}: {e}")
-            results.append(ConstraintOutput(score=MAX_ENERGY))
+            # Per-proposal soft-fail (see CLAUDE.md error policy).
+            logger.warning("structure-ensemble-rmsd: sequence %d/%d failed: %s", seq_idx, n, e)
+            results.append(ConstraintOutput(score=MAX_ENERGY, metadata={"ensemble_rmsd_error": str(e)}))
 
     return results

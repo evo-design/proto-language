@@ -277,7 +277,10 @@ def alphagenome_splice_site_usage(
     # 2. Validate target lengths are consistent (batch requirement).
     target_lengths = {len(t) for t in target_seqs}
     if len(target_lengths) != 1:
-        raise ValueError("AlphaGenome SSU scoring requires equal-length target sequences in a batch.")
+        raise ValueError(
+            f"AlphaGenome SSU: batch requires equal-length target sequences; got lengths {sorted(target_lengths)} "
+            f"({len(target_seqs)} sequences)"
+        )
     target_length = target_lengths.pop()
 
     # 3. Validate splice_pos against target length.
@@ -288,7 +291,7 @@ def alphagenome_splice_site_usage(
     # 4. Build integrated sequences via cassette insertion.
     integrated_seqs = []
     insert_start_ref = None
-    for target_seq in target_seqs:
+    for idx, target_seq in enumerate(target_seqs):
         cassette = config.cassette_left_context + target_seq + config.cassette_right_context
         integrated, insert_start = _integrate_cassette_into_context(
             genomic_context=config.genomic_context,
@@ -297,11 +300,14 @@ def alphagenome_splice_site_usage(
         if insert_start_ref is None:
             insert_start_ref = insert_start
         elif insert_start != insert_start_ref:
-            raise RuntimeError("Cassette insertion start drifted across batch.")
+            raise RuntimeError(
+                f"AlphaGenome SSU: cassette insertion drifted at sequence {idx}/{len(target_seqs)} "
+                f"(start={insert_start} vs ref={insert_start_ref})"
+            )
         integrated_seqs.append(integrated)
 
     if insert_start_ref is None:
-        raise RuntimeError("insert_start_ref was not set during sequence integration")
+        raise RuntimeError("AlphaGenome SSU: insert_start_ref unset after integration loop (empty input?)")
     cassette_offset = insert_start_ref + len(config.cassette_left_context)
     absolute_splice_pos = [cassette_offset + pos for pos in config.splice_pos]
 

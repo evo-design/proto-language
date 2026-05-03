@@ -20,7 +20,6 @@ Key Features:
 """
 
 import logging
-import warnings
 from collections.abc import Callable
 from typing import Any, Protocol
 
@@ -524,9 +523,9 @@ class Constraint:
         # Check sequence types are supported
         supported_types = getattr(source_fn, "_constraint_supported_sequence_types", None)
         if supported_types is None:
-            warnings.warn(
-                f"Constraint '{self.label}' missing supported_sequence_types attribute. Allowing all sequence types as input to constraint.",
-                stacklevel=2,
+            logger.warning(
+                "Constraint %r missing supported_sequence_types attribute; allowing all sequence types as input",
+                self.label,
             )
         else:
             for seg in self._inputs:
@@ -539,9 +538,10 @@ class Constraint:
         # Check number of input segments matches input_labels length
         expected_inputs = getattr(source_fn, "_constraint_num_input_sequences_per_tuple", None)
         if expected_inputs is None:
-            warnings.warn(
-                f"Constraint '{self.label}' does not specify input_labels. Using {len(self._inputs)} input segment(s).",
-                stacklevel=2,
+            logger.warning(
+                "Constraint %r does not specify input_labels; using %d input segment(s)",
+                self.label,
+                len(self._inputs),
             )
         else:
             num_inputs = len(self._inputs)

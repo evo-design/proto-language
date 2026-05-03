@@ -229,16 +229,18 @@ def gap_gini_constraint(
                 MafftInput(sequences=[query_str, ref_str]),
                 MafftConfig(),
             )
-        except Exception:
-            logger.exception(
-                "MAFFT alignment failed for pair (len %d, len %d)",
+        except Exception as e:
+            logger.warning(
+                "gap-gini: MAFFT alignment failed for pair (len %d, len %d): %s",
                 len(query_str),
                 len(ref_str),
+                e,
+                exc_info=True,
             )
             results.append(
                 ConstraintOutput(
                     score=MAX_ENERGY,
-                    metadata={"gap_gini": None, "gap_gini_error": True},
+                    metadata={"gap_gini": None, "gap_gini_error": str(e)},
                     metadata_recipient="Query Sequence",
                 )
             )

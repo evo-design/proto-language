@@ -11,6 +11,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from pydantic import ValidationError
+
+from proto_language.utils.helpers import format_pydantic_error
+
 if TYPE_CHECKING:
     from proto_language.language.core import Sequence
 
@@ -251,7 +255,16 @@ def test_constraint(
     if spec.function is None:
         raise ValueError(f"Constraint '{key}' is gradient-only; test_constraint requires a forward score.")
     typed_inputs = _coerce_constraint_inputs(sequences, sequence_type)
-    cfg = spec.config_model(**(config or {}))
+    try:
+        cfg = spec.config_model(**(config or {}))
+    except ValidationError as exc:
+        return TestResult(
+            passed=False,
+            actual=None,
+            expected=config,
+            diffs=[format_pydantic_error(exc, f"constraint {key!r} config invalid")],
+            message=f"{key}: config validation failed",
+        )
     actual = [out.score for out in spec.function(typed_inputs, cfg)]
 
     if expected_scores is None:
@@ -324,7 +337,16 @@ def test_generator(
     from proto_language.language.core import Segment
     from proto_language.language.generator import GeneratorRegistry
 
-    generator = GeneratorRegistry.create(key, config or {})
+    try:
+        generator = GeneratorRegistry.create(key, config or {})
+    except ValueError as exc:
+        return TestResult(
+            passed=False,
+            actual=None,
+            expected=config,
+            diffs=[str(exc)],
+            message=f"{key}: config validation failed",
+        )
     segment = Segment(length=segment_length, sequence_type=sequence_type)
     segment.proposal_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(n_samples)]
 
@@ -380,8 +402,6 @@ def test_optimizer(
     """
     if load is not None:
         _exec_component_file(load)
-    from pydantic import ValidationError
-
     from proto_language.language.optimizer import OptimizerRegistry
 
     spec = OptimizerRegistry.get(key)
@@ -392,7 +412,7 @@ def test_optimizer(
             passed=False,
             actual=None,
             expected=config,
-            diffs=[str(exc)],
+            diffs=[format_pydantic_error(exc, f"optimizer {key!r} config invalid")],
             message=f"{key}: config validation failed",
         )
 

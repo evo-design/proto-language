@@ -94,7 +94,9 @@ class Construct:
         """
         # 1. Non-empty
         if not self.segments:
-            raise ValueError("Construct must contain at least one segment")
+            raise ValueError(
+                "Construct requires at least one Segment (got empty); construct = ordered list of segments to concatenate"
+            )
 
         # 2. Homogeneous sequence types
         types = {seg.sequence_type for seg in self.segments}

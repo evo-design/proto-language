@@ -67,8 +67,7 @@ def download_gcs_file(gcs_url: str, destination: Path) -> Path:
         else:
             logger.info("Downloaded to %s", destination)
     except Exception as e:
-        logger.error("Failed to download from GCS: %s", e)
-        raise RuntimeError(f"Failed to download {gcs_url}: {e}") from e
+        raise RuntimeError(f"GCS download failed for {gcs_url!r} -> {destination}: {e}") from e
 
     return destination
 

@@ -83,7 +83,12 @@ def gyration_radius_constraint(
     for i in range(len(sequences)):
         m = metrics_by_idx.get(i)
         if m is None:
-            results.append(ConstraintOutput(score=MAX_ENERGY))
+            results.append(
+                ConstraintOutput(
+                    score=MAX_ENERGY,
+                    metadata={"gyration_radius_error": f"structure_metrics returned no result for sequence {i}"},
+                )
+            )
             continue
         score = min(1.0, max(0.0, (m.gyration_radius - threshold) / threshold))
         results.append(

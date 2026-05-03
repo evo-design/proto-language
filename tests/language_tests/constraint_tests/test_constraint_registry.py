@@ -4,7 +4,7 @@ import copy
 from typing import Any
 
 import pytest
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
 from proto_language.language.constraint import ConstraintRegistry, constraint
 from proto_language.language.core import Constraint, ConstraintOutput, Segment
@@ -338,8 +338,8 @@ class TestFactoryMethod:
         assert constraint.function_config.max_gc == 60.0
 
     def test_create_raises_on_invalid_config(self, dna_segment):
-        """Test that create raises ValidationError for invalid config."""
-        with pytest.raises(ValidationError):
+        """create() reformats Pydantic ValidationError into a ValueError."""
+        with pytest.raises(ValueError, match=r"config invalid"):
             ConstraintRegistry.create(
                 key="gc-content",
                 segments=[dna_segment],
@@ -347,8 +347,8 @@ class TestFactoryMethod:
             )
 
     def test_create_raises_on_missing_required_params(self, dna_segment):
-        """Test that create raises ValidationError for missing required params."""
-        with pytest.raises(ValidationError):
+        """create() reformats missing-required-field ValidationError into a ValueError."""
+        with pytest.raises(ValueError, match=r"config invalid"):
             ConstraintRegistry.create(
                 key="gc-content",
                 segments=[dna_segment],
@@ -651,7 +651,7 @@ class TestModeAndBackwardConfig:
             )
             assert isinstance(c2.backward_config, _GradCfg) and c2.backward_config.lr == 0.01
 
-            with pytest.raises(ValidationError):
+            with pytest.raises(ValueError, match=r"backward config invalid"):
                 ConstraintRegistry.create(
                     key="_test-m4",
                     segments=[dna_segment],

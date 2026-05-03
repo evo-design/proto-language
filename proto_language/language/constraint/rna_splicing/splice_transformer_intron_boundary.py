@@ -151,7 +151,10 @@ def splice_transformer_intron_boundary(
         return []
 
     if not (len(config.left_context) == len(config.right_context) == SPLICE_TRANSFORMER_CONTEXT_LENGTH):
-        raise ValueError(f"Context lengths must be {SPLICE_TRANSFORMER_CONTEXT_LENGTH}")
+        raise ValueError(
+            f"splice-transformer: left/right context must each be {SPLICE_TRANSFORMER_CONTEXT_LENGTH} bp; "
+            f"got left={len(config.left_context)}, right={len(config.right_context)}"
+        )
     context_length = len(config.left_context)
 
     # Concatenate 3-part tuples into target sequences for batched inference.

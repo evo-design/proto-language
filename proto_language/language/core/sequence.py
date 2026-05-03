@@ -5,12 +5,14 @@ Optionally carries continuous logits for gradient-based optimization and 3D stru
 """
 
 import copy
-import warnings
+import logging
 from collections.abc import Iterable
 from typing import Any, Literal
 
 import numpy as np
 from proto_tools.entities.structures import Structure
+
+logger = logging.getLogger(__name__)
 
 # Valid characters for different sequence types
 DNA_NUCLEOTIDES = "ACGT"
@@ -84,7 +86,9 @@ class Sequence:
         elif self._sequence_type == "ligand":
             self._valid_chars = None  # Validation handled by RDKit.
         else:
-            raise ValueError(f"Unsupported sequence_type: {self._sequence_type}")
+            raise ValueError(
+                f"Unsupported sequence_type {self._sequence_type!r}; valid: 'dna', 'rna', 'protein', 'ligand'"
+            )
 
         self._validate_sequence(sequence)
         self._sequence: str = sequence
@@ -100,10 +104,9 @@ class Sequence:
         if self._metadata:
             collisions = _RESERVED_METADATA_KEYS & self._metadata.keys()
             if collisions:
-                warnings.warn(
-                    f"Metadata contains reserved keys {collisions} that will be "
-                    f"overwritten by identity fields in the .metadata property.",
-                    stacklevel=2,
+                logger.warning(
+                    "Sequence metadata contains reserved keys %s that will be overwritten by identity fields",
+                    collisions,
                 )
 
     def _validate_sequence(self, sequence: str) -> None:
@@ -124,10 +127,10 @@ class Sequence:
         assert self._valid_chars is not None  # noqa: S101 -- mypy type narrowing
         invalid_chars = _return_invalid_chars(sequence, self._valid_chars)
         if invalid_chars:
-            warnings.warn(
-                f"Invalid characters found: {', '.join(invalid_chars)}. "
-                f"Valid characters are: {', '.join(sorted(self._valid_chars))}",
-                stacklevel=2,
+            logger.warning(
+                "Invalid characters %s; valid: %s",
+                ", ".join(invalid_chars),
+                ", ".join(sorted(self._valid_chars)),
             )
 
     @property
@@ -439,7 +442,7 @@ def validate_smiles(smiles: str, verbose: bool = True) -> bool:
     mol: object = Chem.MolFromSmiles(smiles)
     if mol is None:
         if verbose:
-            warnings.warn(f"RDKit could not parse SMILES: '{smiles}'. This may not be a valid molecule.", stacklevel=2)
+            logger.warning("RDKit could not parse SMILES %r; not a valid molecule", smiles)
         return False
     return True
 

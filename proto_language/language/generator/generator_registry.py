@@ -6,10 +6,12 @@ automatic schema generation for API/client integration.
 from collections.abc import Callable
 from typing import Any, ClassVar, Literal
 
+import pydantic
 from pydantic import BaseModel, Field
 
 from proto_language.base_registry import BaseRegistry, BaseSpec
 from proto_language.language.core import Generator
+from proto_language.utils.helpers import format_pydantic_error
 
 
 class GeneratorSpec(BaseSpec):
@@ -184,8 +186,9 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
             Generator: Configured Generator instance ready to use
 
         Raises:
-            ValueError: If key is not registered
-            ValidationError: If config_dict has invalid values
+            ValueError: If key is not registered or if ``config_dict`` fails
+                Pydantic validation. ValidationError is reformatted as
+                ``generator '<key>' config invalid — <field>: <msg>; ...``.
 
         Examples:
             >>> # From API endpoint receiving JSON
@@ -197,10 +200,11 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
         """
         spec = cls.get(key)
 
-        # Validate config with Pydantic (raises ValidationError if invalid)
-        validated_config = spec.config_model(**config_dict)
+        try:
+            validated_config = spec.config_model(**config_dict)
+        except pydantic.ValidationError as e:
+            raise ValueError(format_pydantic_error(e, f"generator {key!r} config invalid")) from e
 
-        # Create Generator with validated Pydantic model
         return spec.generator_class(validated_config)  # type: ignore[call-arg]
 
     @classmethod

@@ -242,7 +242,8 @@ def mmseqs_similarity_constraint(
 
     # Validate all same type
     if not all(seq.sequence_type == sequence_type for seq in sequences):
-        raise ValueError("All sequences must be same type (all DNA or all PROTEIN)")
+        types_seen = sorted({seq.sequence_type for seq in sequences})
+        raise ValueError(f"mmseqs-similarity: all sequences must share one type; got mixed {types_seen}")
 
     # Per-sequence metadata accumulator (one dict per input sequence)
     metadata_by_seq: list[dict[str, Any]] = [{} for _ in sequences]

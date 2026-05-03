@@ -7,12 +7,14 @@ import typing
 from collections.abc import Callable
 from typing import Any, ClassVar, Literal
 
+import pydantic
 from pydantic import BaseModel, Field, field_serializer
 from pydantic.json_schema import SkipJsonSchema
 
 from proto_language.base_registry import BaseRegistry, BaseSpec
 from proto_language.language.core import Constraint, Segment
 from proto_language.language.core.constraint import GradientConstraintOutput, InputSlot
+from proto_language.utils.helpers import format_pydantic_error
 
 __all__ = ["ConstraintRegistry", "ConstraintSpec", "InputSlot", "constraint"]
 
@@ -293,8 +295,9 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             Constraint: Configured Constraint instance ready to evaluate
 
         Raises:
-            ValueError: If key is not registered
-            ValidationError: If config_dict has invalid values
+            ValueError: If key is not registered or if ``config_dict``/
+                ``backward_config_dict`` fails Pydantic validation. ValidationError
+                is reformatted as ``constraint '<key>' config invalid — <field>: <msg>; ...``.
 
         Examples:
             >>> # Scoring mode (default)
@@ -317,17 +320,21 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         if spec.function is None and spec.backward is None:
             raise ValueError(f"Registered constraint '{key}' has neither function nor backward")
 
-        # Validate config with Pydantic (raises ValidationError if invalid)
-        validated_config = spec.config_model(**config_dict)
+        try:
+            validated_config = spec.config_model(**config_dict)
+        except pydantic.ValidationError as e:
+            raise ValueError(format_pydantic_error(e, f"constraint {key!r} config invalid")) from e
 
-        # Validate backward config: use backward_config_model if registered,
-        # otherwise fall back to config_model; use backward_config_dict if
-        # provided, otherwise fall back to config_dict
+        # Backward config: backward_config_model if registered else config_model;
+        # backward_config_dict if provided else config_dict.
         validated_backward_config = None
         if spec.backward is not None:
             bw_model = spec.backward_config_model or spec.config_model
             bw_dict = backward_config_dict if backward_config_dict is not None else config_dict
-            validated_backward_config = bw_model(**bw_dict)
+            try:
+                validated_backward_config = bw_model(**bw_dict)
+            except pydantic.ValidationError as e:
+                raise ValueError(format_pydantic_error(e, f"constraint {key!r} backward config invalid")) from e
 
         return Constraint(
             inputs=segments,

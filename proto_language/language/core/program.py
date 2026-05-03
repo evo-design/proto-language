@@ -123,7 +123,9 @@ class Program:
                        the same construct objects.
         """
         if not optimizers:
-            raise ValueError("optimizers list cannot be empty")
+            raise ValueError(
+                "Program requires at least one Optimizer (got empty list); pass optimizers=[opt1, opt2, ...] to chain stages"
+            )
 
         if compute is None:
             from proto_tools.tools.tool_registry import ToolRegistry

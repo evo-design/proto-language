@@ -36,7 +36,7 @@ class TestConstruct:
     def test_validation(self):
         """Tests validation rules for creating a Construct."""
         # Empty segments list
-        with pytest.raises(ValueError, match="must contain at least one segment"):
+        with pytest.raises(ValueError, match=r"requires at least one Segment"):
             Construct([])
 
         # Inconsistent sequence types
@@ -83,7 +83,7 @@ class TestConstructValidation:
     # 1. Non-empty
     def test_empty_segments_raises(self):
         """Tests that empty segments list raises ValueError."""
-        with pytest.raises(ValueError, match="must contain at least one segment"):
+        with pytest.raises(ValueError, match=r"requires at least one Segment"):
             Construct([])
 
     # 2. Homogeneous sequence types

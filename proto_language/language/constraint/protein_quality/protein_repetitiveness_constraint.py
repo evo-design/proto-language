@@ -155,7 +155,7 @@ def _calculate_repetitiveness_score(seq: str, min_repeat_length: int = 3) -> flo
         ValueError: If length of sequence is shorter than the minimum repeat length
     """
     if len(seq) < min_repeat_length:
-        raise ValueError("Sequence must be longer that the minimum repeat length")
+        raise ValueError(f"sequence length {len(seq)} is shorter than min_repeat_length {min_repeat_length}")
 
     seq_len = len(seq)
     seq_array = np.array(list(seq))

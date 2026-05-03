@@ -342,8 +342,9 @@ def structure_rmsd_constraint(
     # Prepare target.
     target_pdb = _prepare_target_structure(config)
     if not target_pdb:
-        logger.warning("Target preparation failed, returning worst score.")
-        return [ConstraintOutput(score=1.0) for _ in input_sequences]
+        raise RuntimeError(
+            "structure-rmsd: target preparation returned no PDB; check config.target_chains / config.target_structure"
+        )
 
     # Prepare proposals.
     structure_complexes = []
@@ -354,8 +355,9 @@ def structure_rmsd_constraint(
     try:
         prediction = predict_structures(structure_complexes, config.structure_tool, config.tool_config)
     except Exception as e:
-        logger.error(f"Structure prediction failed: {e}")
-        return [ConstraintOutput(score=MAX_ENERGY) for _ in input_sequences]
+        raise RuntimeError(
+            f"structure-rmsd: {config.structure_tool} prediction failed for {len(structure_complexes)} complexes: {e}"
+        ) from e
 
     results: list[ConstraintOutput] = []
     for proposal_structure, proposal_tuple in zip(prediction.structures, input_sequences, strict=False):
@@ -431,8 +433,10 @@ def structure_tmscore_constraint(
     # Prepare target.
     target_pdb = _prepare_target_structure(config)
     if not target_pdb:
-        logger.warning("Target preparation failed, returning worst score.")
-        return [ConstraintOutput(score=1.0) for _ in input_sequences]
+        raise RuntimeError(
+            "structure-tmscore: target preparation returned no PDB; "
+            "check config.target_chains / config.target_structure"
+        )
 
     n_target_chains = _count_pdb_chains(target_pdb)
 
@@ -444,8 +448,9 @@ def structure_tmscore_constraint(
     try:
         prediction = predict_structures(structure_complexes, config.structure_tool, config.tool_config)
     except Exception as e:
-        logger.error(f"Structure prediction failed: {e}")
-        return [ConstraintOutput(score=MAX_ENERGY) for _ in input_sequences]
+        raise RuntimeError(
+            f"structure-tmscore: {config.structure_tool} prediction failed for {len(structure_complexes)} complexes: {e}"
+        ) from e
 
     results: list[ConstraintOutput] = []
     for proposal_structure, proposal_tuple in zip(prediction.structures, input_sequences, strict=False):
@@ -456,7 +461,14 @@ def structure_tmscore_constraint(
         if config.plddt_threshold is not None:
             proposal_pdb = _filter_pdb_by_plddt(proposal_pdb, config.plddt_threshold)
             if not any(line.startswith("ATOM") for line in proposal_pdb.splitlines()):
-                results.append(ConstraintOutput(score=1.0))
+                results.append(
+                    ConstraintOutput(
+                        score=MAX_ENERGY,
+                        metadata={
+                            "structure_tmscore_error": f"all atoms filtered out by plddt_threshold={config.plddt_threshold}"
+                        },
+                    )
+                )
                 continue
 
         if n_target_chains == 1 and n_cand_chains == 1:
@@ -468,8 +480,13 @@ def structure_tmscore_constraint(
                 TMalignConfig(),
             )
             if _tmalign_out.success is False:
-                logger.warning(f"TMalign failed: {_tmalign_out.errors}")
-                results.append(ConstraintOutput(score=1.0))
+                logger.warning("structure-tmscore: TMalign failed: %s", _tmalign_out.errors)
+                results.append(
+                    ConstraintOutput(
+                        score=MAX_ENERGY,
+                        metadata={"structure_tmscore_error": f"tmalign failed: {_tmalign_out.errors}"},
+                    )
+                )
                 continue
             s1, s2 = _tmalign_out.tm_score_chain_1, _tmalign_out.tm_score_chain_2
         else:
@@ -481,8 +498,13 @@ def structure_tmscore_constraint(
                 USalignConfig(),
             )
             if _usalign_out.success is False:
-                logger.warning(f"USalign failed: {_usalign_out.errors}")
-                results.append(ConstraintOutput(score=1.0))
+                logger.warning("structure-tmscore: USalign failed: %s", _usalign_out.errors)
+                results.append(
+                    ConstraintOutput(
+                        score=MAX_ENERGY,
+                        metadata={"structure_tmscore_error": f"usalign failed: {_usalign_out.errors}"},
+                    )
+                )
                 continue
             s1, s2 = _usalign_out.tm_score_structure_1, _usalign_out.tm_score_structure_2
 

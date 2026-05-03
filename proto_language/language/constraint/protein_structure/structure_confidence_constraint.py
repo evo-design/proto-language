@@ -21,6 +21,7 @@ from proto_language.language.constraint.protein_structure.structure_constraint_c
 )
 from proto_language.language.core import ConstraintOutput, Sequence
 from proto_language.storage import FileType, store_file
+from proto_language.utils import MAX_ENERGY
 
 logger = getLogger(__name__)
 
@@ -176,7 +177,12 @@ def structure_plddt_constraint(
     results: list[ConstraintOutput] = []
     for (metric, structure), proposal_tuple in zip(outcomes, input_sequences, strict=True):
         if metric is None:
-            results.append(ConstraintOutput(score=1.0))
+            results.append(
+                ConstraintOutput(
+                    score=MAX_ENERGY,
+                    metadata={"structure_plddt_error": f"avg_plddt missing from {config.structure_tool} output"},
+                )
+            )
             continue
         normalized = metric / 100.0 if config.structure_tool == "alphafold3" else metric
         results.append(
@@ -235,7 +241,12 @@ def structure_ptm_constraint(
     results: list[ConstraintOutput] = []
     for (metric, structure), proposal_tuple in zip(outcomes, input_sequences, strict=True):
         if metric is None:
-            results.append(ConstraintOutput(score=1.0))
+            results.append(
+                ConstraintOutput(
+                    score=MAX_ENERGY,
+                    metadata={"structure_ptm_error": f"ptm missing from {config.structure_tool} output"},
+                )
+            )
             continue
         results.append(
             _assemble_result(metric, structure, "ptm", 1.0 - metric, config.structure_tool, len(proposal_tuple))
@@ -310,7 +321,12 @@ def structure_iptm_constraint(
     results: list[ConstraintOutput] = []
     for (metric, structure), proposal_tuple in zip(outcomes, input_sequences, strict=True):
         if metric is None:
-            results.append(ConstraintOutput(score=1.0))
+            results.append(
+                ConstraintOutput(
+                    score=MAX_ENERGY,
+                    metadata={"structure_iptm_error": f"iptm missing from {config.structure_tool} output"},
+                )
+            )
             continue
         results.append(
             _assemble_result(metric, structure, "iptm", 1.0 - metric, config.structure_tool, len(proposal_tuple))
@@ -374,7 +390,12 @@ def structure_pae_constraint(
     results: list[ConstraintOutput] = []
     for (metric, structure), proposal_tuple in zip(outcomes, input_sequences, strict=True):
         if metric is None:
-            results.append(ConstraintOutput(score=1.0))
+            results.append(
+                ConstraintOutput(
+                    score=MAX_ENERGY,
+                    metadata={"structure_pae_error": f"avg_pae missing from {config.structure_tool} output"},
+                )
+            )
             continue
         results.append(
             _assemble_result(
@@ -485,11 +506,12 @@ def structure_composite_constraint(
             pae = m.get("complex_pde")
 
         if plddt_raw is None or iptm is None or ptm is None or pae is None:
-            logger.warning(
-                f"Missing composite metrics from '{config.structure_tool}': "
-                f"plddt={plddt_raw}, iptm={iptm}, ptm={ptm}, pae={pae}. Returning worst score."
+            err_msg = (
+                f"missing composite metrics from {config.structure_tool}: "
+                f"plddt={plddt_raw}, iptm={iptm}, ptm={ptm}, pae={pae}"
             )
-            results.append(ConstraintOutput(score=1.0))
+            logger.warning("structure-composite: %s", err_msg)
+            results.append(ConstraintOutput(score=MAX_ENERGY, metadata={"structure_composite_error": err_msg}))
             continue
 
         plddt_norm = plddt_raw / 100.0 if config.structure_tool == "alphafold3" else plddt_raw

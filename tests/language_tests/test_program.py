@@ -448,7 +448,7 @@ class TestProgramValidation:
 
     def test_empty_optimizers_raises(self):
         """Test that empty optimizer list raises ValueError."""
-        with pytest.raises(ValueError, match="optimizers list cannot be empty"):
+        with pytest.raises(ValueError, match=r"requires at least one Optimizer"):
             Program(optimizers=[], num_results=1)
 
     def test_mismatched_construct_count_raises(self):

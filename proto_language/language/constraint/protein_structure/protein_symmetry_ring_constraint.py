@@ -1,6 +1,7 @@
 """Protein symmetry ring constraint for symmetric multimeric structures."""
 
 import json
+import logging
 from io import StringIO
 
 import numpy as np
@@ -25,6 +26,8 @@ from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.language.core import ConstraintOutput, Sequence
 from proto_language.storage import FileType, store_file
 from proto_language.utils import MAX_ENERGY
+
+logger = logging.getLogger(__name__)
 
 
 class ProteinSymmetryRingConfig(BaseConfig):
@@ -283,10 +286,24 @@ def _evaluate_dna_symmetry(dna_sequences: list[Sequence], config: ProteinSymmetr
             for seq in protein_seqs
         ]
 
-        esmfold_output = run_esmfold(
-            inputs=ESMFoldInput(complexes=complexes),
-            config=config.esmfold_config,
-        )
+        try:
+            esmfold_output = run_esmfold(
+                inputs=ESMFoldInput(complexes=complexes),
+                config=config.esmfold_config,
+            )
+        except Exception as e:
+            logger.warning(
+                "protein-symmetry-ring: ESMFold failed for DNA proposal with %d ORFs: %s; using worst score",
+                len(protein_seqs),
+                e,
+            )
+            results.append(
+                ConstraintOutput(
+                    score=MAX_ENERGY,
+                    metadata={**metadata, "symmetry_ring_error": f"ESMFold failed: {e}"},
+                )
+            )
+            continue
 
         symmetry_stds = []
         for structure in esmfold_output.structures:

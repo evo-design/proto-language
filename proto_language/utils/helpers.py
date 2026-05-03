@@ -8,8 +8,32 @@ import random
 import subprocess
 
 import numpy as np
+import pydantic
 
 from proto_language.language.core.sequence import PROTEIN_AMINO_ACIDS
+
+
+def format_pydantic_error(e: pydantic.ValidationError, prefix: str) -> str:
+    """Reformat a Pydantic ValidationError as a one-line ``<prefix> — <field>: <msg> [got=<input>]; ...``.
+
+    Each per-field error becomes ``loc.path: msg`` plus the rejected ``input`` when present
+    and short, so an LLM agent reading the error sees both *which* field broke and *what*
+    value was rejected.
+    """
+    parts: list[str] = []
+    for err in e.errors():
+        loc = ".".join(str(p) for p in err["loc"]) or "__root__"
+        msg = err["msg"]
+        item = f"{loc}: {msg}"
+        bad = err.get("input")
+        if bad is not None:
+            preview = repr(bad)
+            if len(preview) > 80:
+                preview = preview[:77] + "..."
+            item += f" [got={preview}]"
+        parts.append(item)
+    return f"{prefix} — {'; '.join(parts)}"
+
 
 _PROTEIN_AA_INDEX = {aa: i for i, aa in enumerate(PROTEIN_AMINO_ACIDS)}
 

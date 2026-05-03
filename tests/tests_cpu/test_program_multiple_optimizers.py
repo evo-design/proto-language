@@ -279,7 +279,7 @@ class TestMultipleOptimizers:
 
     def test_empty_optimizers_list_fails(self):
         """Test that empty optimizers list raises ValueError."""
-        with pytest.raises(ValueError, match="cannot be empty"):
+        with pytest.raises(ValueError, match=r"requires at least one Optimizer"):
             Program(optimizers=[], num_results=1)
 
     def test_energy_scores_from_final_optimizer(self):

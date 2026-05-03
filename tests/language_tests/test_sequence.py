@@ -1,7 +1,7 @@
 """tests/language_tests/test_sequence.py."""
 
 import copy
-import warnings
+import logging
 
 import numpy as np
 import pytest
@@ -24,27 +24,31 @@ class TestSequence:
             # specific validity tests.
         ],
     )
-    def test_sequence_validation(self, seq_type, valid_seq, invalid_char):
+    def test_sequence_validation(self, seq_type, valid_seq, invalid_char, caplog):
         """Tests character validation for each sequence type."""
         # Test valid sequence
         seq = Sequence(valid_seq, seq_type)
         assert seq.sequence == valid_seq
 
         # Test invalid character on creation
-        with pytest.warns(UserWarning):
+        with caplog.at_level(logging.WARNING, logger="proto_language.language.core.sequence"):
             Sequence(valid_seq + invalid_char, seq_type)
+        assert "Invalid characters" in caplog.text
+        caplog.clear()
 
         # Test invalid character on setter
-        with pytest.warns(UserWarning):
+        with caplog.at_level(logging.WARNING, logger="proto_language.language.core.sequence"):
             seq.sequence = valid_seq + invalid_char
+        assert "Invalid characters" in caplog.text
 
-    def test_custom_validation(self):
+    def test_custom_validation(self, caplog):
         """Tests sequence validation with a custom character set."""
         custom_chars = {"0", "1"}
         seq = Sequence("0101", valid_chars=custom_chars)
         assert seq.sequence == "0101"
-        with pytest.warns(UserWarning):
+        with caplog.at_level(logging.WARNING, logger="proto_language.language.core.sequence"):
             seq.sequence = "01012"
+        assert "Invalid characters" in caplog.text
 
     def test_metadata(self):
         """Tests automatic and custom metadata handling."""
@@ -60,24 +64,26 @@ class TestSequence:
         assert seq.metadata["sequence"] == "GATTACA"
         assert seq.metadata["sequence_length"] == 7
 
-    def test_metadata_identity_fields_cannot_be_shadowed(self):
+    def test_metadata_identity_fields_cannot_be_shadowed(self, caplog):
         """Identity fields in .metadata always reflect the actual sequence."""
-        with pytest.warns(UserWarning, match="reserved keys"):
+        with caplog.at_level(logging.WARNING, logger="proto_language.language.core.sequence"):
             seq = Sequence(
                 "ATCG",
                 "dna",
                 metadata={"sequence": "WRONG", "sequence_length": 999},
             )
+        assert "reserved keys" in caplog.text
         # Identity fields must win over user metadata
         assert seq.metadata["sequence"] == "ATCG"
         assert seq.metadata["sequence_length"] == 4
         # User data is still accessible in _metadata
         assert seq._metadata["sequence"] == "WRONG"
 
-    def test_metadata_reserved_key_warning(self):
+    def test_metadata_reserved_key_warning(self, caplog):
         """Warn when user-provided metadata contains reserved keys."""
-        with pytest.warns(UserWarning, match="reserved keys"):
+        with caplog.at_level(logging.WARNING, logger="proto_language.language.core.sequence"):
             Sequence("ATCG", "dna", metadata={"constraints": {}})
+        assert "reserved keys" in caplog.text
 
 
 class TestLigandSequence:
@@ -111,20 +117,22 @@ class TestLigandSequence:
             "XYZ",  # Invalid atoms
         ],
     )
-    def test_invalid_smiles(self, invalid_smiles):
+    def test_invalid_smiles(self, invalid_smiles, caplog):
         """Tests that invalid SMILES strings trigger a warning."""
-        with pytest.warns(UserWarning, match="RDKit could not parse SMILES"):
+        with caplog.at_level(logging.WARNING, logger="proto_language.language.core.sequence"):
             Sequence(invalid_smiles, "ligand")
+        assert "could not parse SMILES" in caplog.text
 
-    def test_smiles_setter(self):
+    def test_smiles_setter(self, caplog):
         """Tests sequence setter with SMILES."""
         seq = Sequence("C", "ligand")
         seq.sequence = "CCO"
         assert seq.sequence == "CCO"
         assert seq.metadata["sequence"] == "CCO"
 
-        with pytest.warns(UserWarning, match="RDKit could not parse SMILES"):
+        with caplog.at_level(logging.WARNING, logger="proto_language.language.core.sequence"):
             seq.sequence = "invalid(("
+        assert "could not parse SMILES" in caplog.text
 
 
 class TestValidateSmiles:
@@ -136,14 +144,15 @@ class TestValidateSmiles:
     def test_invalid_smiles_returns_false(self):
         assert validate_smiles("C(C(C", verbose=False) is False
 
-    def test_invalid_smiles_warns_when_verbose(self):
-        with pytest.warns(UserWarning, match="RDKit could not parse SMILES"):
+    def test_invalid_smiles_warns_when_verbose(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="proto_language.language.core.sequence"):
             validate_smiles("C(C(C", verbose=True)
+        assert "could not parse SMILES" in caplog.text
 
-    def test_valid_smiles_no_warning_when_verbose(self):
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            validate_smiles("CCO", verbose=True)  # Should not raise
+    def test_valid_smiles_no_warning_when_verbose(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="proto_language.language.core.sequence"):
+            validate_smiles("CCO", verbose=True)
+        assert "could not parse SMILES" not in caplog.text
 
 
 class TestSequenceDeepCopy:

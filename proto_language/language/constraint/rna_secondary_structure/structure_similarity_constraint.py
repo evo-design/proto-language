@@ -12,6 +12,7 @@ from proto_tools import ViennaRNAConfig, ViennaRNAInput, run_viennarna
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.language.core import ConstraintOutput, Sequence
+from proto_language.utils import MAX_ENERGY
 
 logger = getLogger(__name__)
 
@@ -375,8 +376,11 @@ def rna_property_similarity_constraint(
     ref_results = _fold_sequences([config.reference_sequence], config.temperature)
     ref_structure, _ = ref_results[0]
     if not ref_structure:
-        logger.warning("Reference folding failed, returning worst scores")
-        return [ConstraintOutput(score=1.0) for _ in input_sequences]
+        raise RuntimeError(
+            f"rna structure-similarity: reference folding returned empty for "
+            f"reference_sequence (len={len(config.reference_sequence)}, T={config.temperature}); "
+            "check sequence is valid RNA and ViennaRNA is installed"
+        )
 
     ref_len = len(ref_structure)
     ref_pairs = ref_structure.count("(")
@@ -389,7 +393,12 @@ def rna_property_similarity_constraint(
     results: list[ConstraintOutput] = []
     for cand_structure, _ in cand_results:
         if not cand_structure:
-            results.append(ConstraintOutput(score=1.0))
+            results.append(
+                ConstraintOutput(
+                    score=MAX_ENERGY,
+                    metadata={"rna_similarity_error": "candidate fold returned empty structure"},
+                )
+            )
             continue
 
         cand_len = len(cand_structure)
@@ -457,8 +466,11 @@ def rna_motif_similarity_constraint(
     ref_results = _fold_sequences([config.reference_sequence], config.temperature)
     ref_structure, _ = ref_results[0]
     if not ref_structure:
-        logger.warning("Reference folding failed, returning worst scores")
-        return [ConstraintOutput(score=1.0) for _ in input_sequences]
+        raise RuntimeError(
+            f"rna structure-similarity: reference folding returned empty for "
+            f"reference_sequence (len={len(config.reference_sequence)}, T={config.temperature}); "
+            "check sequence is valid RNA and ViennaRNA is installed"
+        )
     ref_motifs = set(_extract_structural_motifs(ref_structure))
 
     # Fold all proposals
@@ -468,7 +480,12 @@ def rna_motif_similarity_constraint(
     results: list[ConstraintOutput] = []
     for cand_structure, _ in cand_results:
         if not cand_structure:
-            results.append(ConstraintOutput(score=1.0))
+            results.append(
+                ConstraintOutput(
+                    score=MAX_ENERGY,
+                    metadata={"rna_similarity_error": "candidate fold returned empty structure"},
+                )
+            )
             continue
 
         cand_motifs = set(_extract_structural_motifs(cand_structure))
@@ -532,8 +549,11 @@ def rna_feature_similarity_constraint(
     ref_results = _fold_sequences([config.reference_sequence], config.temperature)
     ref_structure, ref_mfe = ref_results[0]
     if not ref_structure:
-        logger.warning("Reference folding failed, returning worst scores")
-        return [ConstraintOutput(score=1.0) for _ in input_sequences]
+        raise RuntimeError(
+            f"rna structure-similarity: reference folding returned empty for "
+            f"reference_sequence (len={len(config.reference_sequence)}, T={config.temperature}); "
+            "check sequence is valid RNA and ViennaRNA is installed"
+        )
     ref_features = _extract_structure_features(ref_structure, ref_mfe)
     ref_norm = np.linalg.norm(ref_features)
 
@@ -544,7 +564,12 @@ def rna_feature_similarity_constraint(
     results: list[ConstraintOutput] = []
     for cand_structure, cand_mfe in cand_results:
         if not cand_structure:
-            results.append(ConstraintOutput(score=1.0))
+            results.append(
+                ConstraintOutput(
+                    score=MAX_ENERGY,
+                    metadata={"rna_similarity_error": "candidate fold returned empty structure"},
+                )
+            )
             continue
 
         cand_features = _extract_structure_features(cand_structure, cand_mfe)
@@ -607,8 +632,11 @@ def rna_basepair_similarity_constraint(
     ref_results = _fold_sequences([config.reference_sequence], config.temperature)
     ref_structure, _ = ref_results[0]
     if not ref_structure:
-        logger.warning("Reference folding failed, returning worst scores")
-        return [ConstraintOutput(score=1.0) for _ in input_sequences]
+        raise RuntimeError(
+            f"rna structure-similarity: reference folding returned empty for "
+            f"reference_sequence (len={len(config.reference_sequence)}, T={config.temperature}); "
+            "check sequence is valid RNA and ViennaRNA is installed"
+        )
     ref_pairs = _get_base_pairs(ref_structure)
     ref_len = len(ref_structure)
 
@@ -619,7 +647,12 @@ def rna_basepair_similarity_constraint(
     results: list[ConstraintOutput] = []
     for cand_structure, _ in cand_results:
         if not cand_structure:
-            results.append(ConstraintOutput(score=1.0))
+            results.append(
+                ConstraintOutput(
+                    score=MAX_ENERGY,
+                    metadata={"rna_similarity_error": "candidate fold returned empty structure"},
+                )
+            )
             continue
 
         cand_len = len(cand_structure)

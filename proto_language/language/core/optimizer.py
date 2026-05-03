@@ -238,11 +238,13 @@ class Optimizer(ABC):
         elif operation == "multiply":
             self.energy_scores = [math.prod(s[i] for s in all_scores) for i in range(num_sequences)]
         else:
-            raise ValueError("Operation must be 'add' or 'multiply'")
+            raise ValueError(f"Optimizer aggregation operation must be 'add' or 'multiply', got {operation!r}")
 
         # Check for inconsistent state
         if len(self.energy_scores) != num_sequences:
-            raise RuntimeError("Inconsistent state: energy scores should have the same length as proposals")
+            raise RuntimeError(
+                f"Inconsistent state: {len(self.energy_scores)} energy scores for {num_sequences} proposals"
+            )
 
         # NaN signals "not evaluated" and propagates through arithmetic, making bugs visible
         for i, score in enumerate(self.energy_scores):
@@ -317,37 +319,53 @@ class Optimizer(ABC):
         """
         # 1. Non-empty lists
         if not self.constructs:
-            raise ValueError("Constructs list cannot be empty")
+            raise ValueError(
+                "Optimizer requires at least one Construct (got empty list); each construct holds the segments to optimize"
+            )
         if not self.generators:
-            raise ValueError("Generators list cannot be empty")
+            raise ValueError(
+                "Optimizer requires at least one Generator (got empty list); generators propose new sequences for assigned segments"
+            )
         if self._require_non_empty_constraints and not self.constraints:
-            raise ValueError("Constraints list cannot be empty")
+            raise ValueError(
+                "Optimizer requires at least one Constraint (got empty list); use a no-op constraint if intentional"
+            )
 
         # 2. Type validation
         for i, construct in enumerate(self.constructs):
             if not isinstance(construct, Construct):
-                raise TypeError(f"Construct {i} has type {type(construct)}, expected Construct")
+                raise TypeError(
+                    f"Construct at index {i} has type {type(construct).__name__!r}, expected Construct subclass"
+                )
         for i, generator in enumerate(self.generators):
             if not isinstance(generator, Generator):
-                raise TypeError(f"Generator {i} has type {type(generator)}, expected Generator")
+                raise TypeError(
+                    f"Generator at index {i} has type {type(generator).__name__!r}, expected Generator subclass"
+                )
         for i, constraint in enumerate(self.constraints):
             if not isinstance(constraint, Constraint):
-                raise TypeError(f"Constraint {i} has type {type(constraint)}, expected Constraint")
+                raise TypeError(
+                    f"Constraint at index {i} has type {type(constraint).__name__!r}, expected Constraint subclass"
+                )
 
         # 3. Structure validation
         for i, construct in enumerate(self.constructs):
             if not construct.segments:
-                raise ValueError(f"Construct {i} has no segments")
+                raise ValueError(f"Construct at index {i} has no segments; each construct must contain >=1 Segment")
 
         assigned_segments: set[Segment] = set()
         for i, gen in enumerate(self.generators):
             if not gen._assigned_segment:
-                raise RuntimeError(f"Generator {i} ({gen.__class__.__name__}) has no segment assigned")
+                raise RuntimeError(
+                    f"Generator at index {i} ({gen.__class__.__name__}) has no segment assigned; call generator.assign(segment) before optimizer init"
+                )
             assigned_segments.add(gen._assigned_segment)
 
         for i, con in enumerate(self.constraints):
             if not con.inputs:
-                raise RuntimeError(f"Constraint {i} has no input segment(s) assigned")
+                raise RuntimeError(
+                    f"Constraint at index {i} ({con.label!r}) has no input segments; pass segments via Constraint(inputs=[...])"
+                )
 
         # 4. No duplicate instances
         seen_gen_ids: set[int] = set()
@@ -569,14 +587,16 @@ class Optimizer(ABC):
             num_results (int): Requested number of result sequences.
         """
         if num_results < 1:
-            raise ValueError(f"num_results must be >= 1, got {num_results}")
+            raise ValueError(f"num_results must be >= 1 (number of result sequences to keep), got {num_results}")
         self.num_results = num_results
         if hasattr(self, "config"):
             self.config.num_results = num_results
         if self.num_proposals is None:
             self.num_proposals = num_results * self._proposals_per_result
         if self.num_proposals < 1:
-            raise ValueError(f"num_proposals must be >= 1, got {self.num_proposals}")
+            raise ValueError(
+                f"num_proposals must be >= 1 (= num_results * proposals_per_result), got {self.num_proposals}"
+            )
         self.energy_scores = [float("inf")] * self.num_proposals
         self._initialize_sequence_pools()
 

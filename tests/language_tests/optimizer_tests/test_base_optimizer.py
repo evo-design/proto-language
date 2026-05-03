@@ -104,19 +104,19 @@ class TestOptimizerValidation:
     def test_empty_constructs_raises(self):
         """Tests that empty constructs list raises ValueError."""
         _, generator, constraint, _ = _setup_optimizer_components()
-        with pytest.raises(ValueError, match="Constructs list cannot be empty"):
+        with pytest.raises(ValueError, match=r"at least one Construct"):
             ConcreteOptimizer([], [generator], [constraint], 4, 2)
 
     def test_empty_generators_raises(self):
         """Tests that empty generators list raises ValueError."""
         construct, _, constraint, _ = _setup_optimizer_components()
-        with pytest.raises(ValueError, match="Generators list cannot be empty"):
+        with pytest.raises(ValueError, match=r"at least one Generator"):
             ConcreteOptimizer([construct], [], [constraint], 4, 2)
 
     def test_empty_constraints_raises(self):
         """Tests that empty constraints list raises ValueError."""
         construct, generator, _, _ = _setup_optimizer_components()
-        with pytest.raises(ValueError, match="Constraints list cannot be empty"):
+        with pytest.raises(ValueError, match=r"at least one Constraint"):
             ConcreteOptimizer([construct], [generator], [], 4, 2)
 
     # num_results / num_proposals validation
@@ -168,7 +168,8 @@ class TestOptimizerValidation:
         construct, generator, _, _ = _setup_optimizer_components()
         empty_constraint = MagicMock(spec=Constraint)
         empty_constraint.inputs = []
-        with pytest.raises(RuntimeError, match="has no input segment"):
+        empty_constraint.label = "EmptyConstraint"
+        with pytest.raises(RuntimeError, match=r"has no input segment"):
             ConcreteOptimizer([construct], [generator], [empty_constraint], 4, 2)
 
     # 4. No duplicate instances
@@ -562,7 +563,7 @@ class TestScoreEnergy:
         optimizer = ConcreteOptimizer([construct], [generator], [constraint], 2, 2)
         segment.proposal_sequences = [Sequence("A"), Sequence("C")]
 
-        with pytest.raises(ValueError, match="Operation must be 'add' or 'multiply'"):
+        with pytest.raises(ValueError, match=r"operation must be 'add' or 'multiply'"):
             optimizer.score_energy(operation="invalid")
 
 
