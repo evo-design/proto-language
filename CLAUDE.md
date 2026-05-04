@@ -119,7 +119,7 @@ for proposal_pair in input_sequences:
     results.append(ConstraintOutput(score=score, ...))
 ```
 
-This is the only place soft-fail belongs. Canonical: `gap_gini_constraint.py`. Other examples: `structure_ensemble_similarity` per-sequence, `structure_confidence` per-proposal missing-metric, `specific_kmer` sequence-too-short, `gyration_radius` no-metric, per-DNA-proposal sites in `protein_globularity` and `protein_symmetry_ring` (where Prodigal returns multiple ORFs per DNA proposal and ESMFold may fail for one ORF set but not others).
+This is the only place soft-fail belongs. Canonical: `gap_gini_constraint.py`. Other examples: `structure_ensemble_similarity` per-sequence, `structure_confidence` per-proposal missing-metric, `specific_kmer` sequence-too-short, `gyration_radius` no-metric, per-DNA-proposal sites in `protein_globularity` and `protein_symmetry_ring` (where ORFipy may find no canonical ATG-to-stop ORF, or ESMFold may fail for the selected longest CDS).
 
 **Config-construction-time errors raise too**, with reformatted messages:
 

@@ -1,6 +1,5 @@
 """Protein symmetry ring constraint for symmetric multimeric structures."""
 
-import json
 import logging
 from io import StringIO
 
@@ -9,8 +8,6 @@ from biotite.structure import get_chains
 from proto_tools import (
     ESMFoldConfig,
     ESMFoldInput,
-    ProdigalConfig,
-    ProdigalInput,
     StructurePredictionComplex,
     adjacent_distances,
     get_backbone_atoms,
@@ -18,7 +15,6 @@ from proto_tools import (
     pairwise_distances,
     pdb_file_to_atomarray,
     run_esmfold,
-    run_prodigal_prediction,
 )
 
 from proto_language.base_config import BaseConfig, ConfigField
@@ -26,6 +22,7 @@ from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.language.core import ConstraintOutput, Sequence
 from proto_language.storage import FileType, store_file
 from proto_language.utils import MAX_ENERGY
+from proto_language.utils.orf_selection import predict_longest_canonical_cds
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +107,7 @@ class ProteinSymmetryRingConfig(BaseConfig):
     config=ProteinSymmetryRingConfig,
     description="Constrain protein to form symmetric ring-like multimeric structure",
     uses_gpu=True,
-    tools_called=["esmfold-prediction", "prodigal-prediction"],
+    tools_called=["esmfold-prediction", "orfipy-prediction"],
     category="protein_structure",
     supported_sequence_types=["dna", "protein"],
 )
@@ -131,9 +128,9 @@ def protein_symmetry_ring_constraint(
     ring-shaped enzymes. This constraint is useful for designing or selecting
     proteins that form such symmetric assemblies.
 
-    For DNA sequences, the function first runs Prodigal to predict protein-coding
-    regions (ORFs), then evaluates the ring symmetry of each predicted protein
-    structure, using the best (most symmetric) score among all predictions.
+    For DNA sequences, the function first uses ORFipy to scan both strands for
+    canonical ATG-to-stop ORFs, selects the longest ORF as the single CDS for
+    that proposal, and evaluates the ring symmetry of the translated protein.
 
     Structure prediction is GPU-intensive and may take several minutes per protein
     depending on length and hardware.
@@ -141,8 +138,8 @@ def protein_symmetry_ring_constraint(
     Args:
         input_sequences (list[tuple[Sequence, ...]]): List of single-sequence tuples to
             evaluate. Each tuple contains one protein or DNA sequence. All sequences
-            must be the same type. For DNA sequences, ORF prediction is performed
-            automatically.
+            must be the same type. For DNA sequences, canonical ORF prediction is
+            performed automatically and the longest ORF is scored.
 
         config (ProteinSymmetryRingConfig): Configuration object containing
             ``n_replications`` (number of protomers in ring, default: 2),
@@ -167,12 +164,14 @@ def protein_symmetry_ring_constraint(
 
             **For DNA sequences:**
 
-            - ``prodigal_proteins``: DataFrame of predicted proteins from Prodigal
-            - ``prodigal_protein_count``: Integer count of predicted ORFs
-            - ``esmfold_protein_symmetry_stds``: List of float symmetry standard
-              deviations for each predicted protein (in Ångströms)
-            - ``esmfold_best_symmetry``: Float best (lowest) symmetry std among all
-              predicted proteins (in Ångströms)
+            - ``orfipy_orfs``: Stored JSON of canonical ORFs detected by ORFipy
+            - ``orfipy_orf_count``: Integer count of candidate ORFs
+            - ``selected_cds``: Coordinates and length for the longest ORF used as
+              the single CDS for scoring
+            - ``esmfold_cds_symmetry_std``: Float symmetry standard deviation for
+              the selected CDS protein (in Ångströms)
+            - ``esmfold_normalized_symmetry``: Float normalized selected-CDS
+              symmetry score (0.0-1.0, capped by max_symmetry_std)
 
     Examples:
         Designing a symmetric hexameric ring:
@@ -259,31 +258,20 @@ def _evaluate_protein_symmetry(
 
 
 def _evaluate_dna_symmetry(dna_sequences: list[Sequence], config: ProteinSymmetryRingConfig) -> list[ConstraintOutput]:
-    """Evaluate DNA sequences via Prodigal then symmetry."""
-    prodigal_result = run_prodigal_prediction(
-        ProdigalInput(input_sequences=[seq.sequence for seq in dna_sequences]), ProdigalConfig()
-    )
-
+    """Evaluate DNA sequences via the longest canonical ORF on either strand."""
     distance_func = pairwise_distances if config.all_to_all_protomer_symmetry else adjacent_distances
     results: list[ConstraintOutput] = []
 
-    for proteins_list, num_genes in zip(
-        prodigal_result.predicted_orfs, prodigal_result.num_orfs_per_sequence, strict=False
-    ):
-        orf_dicts = [orf.model_dump() for orf in proteins_list]
-        metadata: dict[str, object] = {
-            "prodigal_proteins": store_file(json.dumps(orf_dicts), FileType.JSON) if orf_dicts else None,
-            "prodigal_protein_count": num_genes,
-        }
-
-        if num_genes == 0 or len(proteins_list) == 0:
+    for selected_orf, metadata in predict_longest_canonical_cds(dna_sequences):
+        if selected_orf is None:
             results.append(ConstraintOutput(score=MAX_ENERGY, metadata=metadata))
             continue
 
-        protein_seqs = [orf.amino_acid_sequence for orf in proteins_list]
         complexes = [
-            StructurePredictionComplex(chains=[{"sequence": seq, "entity_type": "protein"}] * config.n_replications)
-            for seq in protein_seqs
+            StructurePredictionComplex(
+                chains=[{"sequence": selected_orf.amino_acid_sequence, "entity_type": "protein"}]
+                * config.n_replications
+            )
         ]
 
         try:
@@ -293,8 +281,8 @@ def _evaluate_dna_symmetry(dna_sequences: list[Sequence], config: ProteinSymmetr
             )
         except Exception as e:
             logger.warning(
-                "protein-symmetry-ring: ESMFold failed for DNA proposal with %d ORFs: %s; using worst score",
-                len(protein_seqs),
+                "protein-symmetry-ring: ESMFold failed for selected DNA CDS %s: %s; using worst score",
+                selected_orf.id,
                 e,
             )
             results.append(
@@ -305,22 +293,19 @@ def _evaluate_dna_symmetry(dna_sequences: list[Sequence], config: ProteinSymmetr
             )
             continue
 
-        symmetry_stds = []
-        for structure in esmfold_output.structures:
-            atom_array = pdb_file_to_atomarray(StringIO(structure.structure_pdb))
-            centroids = []
-            for chain_id in get_chains(atom_array):
-                chain_backbone = get_backbone_atoms(atom_array[atom_array.chain_id == chain_id]).coord
-                centroids.append(get_centroid(chain_backbone))
+        structure = esmfold_output.structures[0]
+        atom_array = pdb_file_to_atomarray(StringIO(structure.structure_pdb))
+        centroids = []
+        for chain_id in get_chains(atom_array):
+            chain_backbone = get_backbone_atoms(atom_array[atom_array.chain_id == chain_id]).coord
+            centroids.append(get_centroid(chain_backbone))
 
-            centroids_arr = np.vstack(centroids)
-            symmetry_stds.append(float(np.std(distance_func(centroids_arr))))
+        centroids_arr = np.vstack(centroids)
+        symmetry_std = float(np.std(distance_func(centroids_arr)))
+        normalized_score = min(1.0, symmetry_std / config.max_symmetry_std)
 
-        best_symmetry_std = min(symmetry_stds)
-        normalized_score = min(1.0, best_symmetry_std / config.max_symmetry_std)
-
-        metadata["esmfold_protein_symmetry_stds"] = symmetry_stds
-        metadata["esmfold_best_symmetry"] = best_symmetry_std
+        metadata["esmfold_cds_symmetry_std"] = symmetry_std
+        metadata["esmfold_normalized_symmetry"] = normalized_score
         results.append(ConstraintOutput(score=normalized_score, metadata=metadata))
 
     return results

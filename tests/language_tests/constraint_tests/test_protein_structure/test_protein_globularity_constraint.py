@@ -2,7 +2,7 @@
 
 from unittest.mock import Mock, patch
 
-from proto_tools import BFactorType, ProdigalOutput, StructurePredictionOutput
+from proto_tools import BFactorType, OrfipyOutput, StructurePredictionOutput
 
 from proto_language.language.constraint import protein_globularity_constraint
 from proto_language.language.constraint.protein_structure.protein_globularity_constraint import (
@@ -89,29 +89,39 @@ class TestProteinGlobularityConstraint:
             assert scores[0] >= 0.0  # Score should be non-negative
 
     def test_dna_sequence_input(self):
-        """Test that DNA/RNA sequences work via translation to protein."""
-        segment = Segment(sequence="ATGAAAAAACGT", sequence_type="dna")  # Codes for MKR
+        """DNA sequences are scored through the longest canonical ORF only."""
+        segment = Segment(sequence="ATGAAAAAACGTTAA", sequence_type="dna")
         config = ProteinGlobularityConfig()
 
-        # Mock the Prodigal output with ORF objects
         from proto_tools import ORF
 
-        mock_orf = ORF(
+        short_orf = ORF(
             parent_id="seq_0",
-            orf_id="gene_1",
+            orf_id="orf_short",
             strand="+",
             frame=1,
             amino_acid_sequence="MKR",
-            nucleotide_sequence="ATGAAAAAACGT",
+            nucleotide_sequence="ATGAAAAAACGTTAA",
             amino_acid_length=3,
-            nucleotide_length=12,
+            nucleotide_length=15,
             nucleotide_start=1,
-            nucleotide_end=12,
+            nucleotide_end=15,
+        )
+        longest_orf = ORF(
+            parent_id="seq_0",
+            orf_id="orf_longest",
+            strand="-",
+            frame=2,
+            amino_acid_sequence="MKTAYIAK",
+            nucleotide_sequence="ATGAAAACCGCCTACATTGCAAAGTAA",
+            amino_acid_length=8,
+            nucleotide_length=27,
+            nucleotide_start=10,
+            nucleotide_end=36,
         )
 
-        mock_prodigal_output = Mock(spec=ProdigalOutput)
-        mock_prodigal_output.predicted_orfs = [[mock_orf]]
-        mock_prodigal_output.num_orfs_per_sequence = [1]
+        mock_orfipy_output = Mock(spec=OrfipyOutput)
+        mock_orfipy_output.predicted_orfs = [[short_orf, longest_orf]]
 
         # Mock the ESMFold output
         mock_structure = MockStructure(
@@ -130,15 +140,13 @@ class TestProteinGlobularityConstraint:
             metadata={},
         )
         with (
-            patch(
-                "proto_language.language.constraint.protein_structure.protein_globularity_constraint.run_prodigal_prediction"
-            ) as mock_prodigal,
+            patch("proto_language.utils.orf_selection.run_orfipy_prediction") as mock_orfipy,
             patch(
                 "proto_language.language.constraint.protein_structure.protein_globularity_constraint.run_esmfold"
             ) as mock_esmfold,
         ):
             # Setup mock return values
-            mock_prodigal.return_value = mock_prodigal_output
+            mock_orfipy.return_value = mock_orfipy_output
             mock_esmfold.return_value = mock_structure_prediction_output
 
             constraint = Constraint(
@@ -147,10 +155,23 @@ class TestProteinGlobularityConstraint:
                 function_config=config,
             )
 
-            # DNA sequences are translated to protein before evaluation
+            # DNA sequences use the single longest canonical ORF before evaluation.
             scores = constraint.evaluate()
             assert len(scores) == 1
             assert scores[0] >= 0.0
+            mock_orfipy.assert_called_once()
+            assert mock_orfipy.call_args.kwargs["config"].start_codons == ["ATG"]
+            assert mock_orfipy.call_args.kwargs["config"].stop_codons == ["TAA", "TAG", "TGA"]
+            assert mock_orfipy.call_args.kwargs["config"].strand == "b"
+            passed_input = mock_esmfold.call_args.kwargs["inputs"]
+            assert [chain.sequence for chain in passed_input.complexes[0].chains] == ["MKTAYIAK"]
+
+            data = segment.proposal_sequences[0]._constraints_metadata["protein_globularity_constraint"]["data"]
+            assert data["orfipy_orf_count"] == 2
+            assert data["selected_cds"]["id"] == "seq_0_orf_longest"
+            assert data["selected_cds"]["orf_id"] == "orf_longest"
+            assert data["selected_cds"]["strand"] == "-"
+            assert "esmfold_cds_globularity" in data
 
     def test_n_replications_parameter(self):
         """Test that n_replications correctly replicates the sequence."""

@@ -1,6 +1,5 @@
 """Protein globularity constraint for compact protein structures."""
 
-import json
 import logging
 from io import StringIO
 
@@ -8,14 +7,11 @@ import numpy as np
 from proto_tools import (
     ESMFoldConfig,
     ESMFoldInput,
-    ProdigalConfig,
-    ProdigalInput,
     StructurePredictionComplex,
     distances_to_centroid,
     get_backbone_atoms,
     pdb_file_to_atomarray,
     run_esmfold,
-    run_prodigal_prediction,
 )
 
 from proto_language.base_config import BaseConfig, ConfigField
@@ -23,6 +19,7 @@ from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.language.core import ConstraintOutput, Sequence
 from proto_language.storage import FileType, store_file
 from proto_language.utils import MAX_ENERGY
+from proto_language.utils.orf_selection import predict_longest_canonical_cds
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +87,7 @@ class ProteinGlobularityConfig(BaseConfig):
     config=ProteinGlobularityConfig,
     description="Encourage compact, globular protein structures",
     uses_gpu=True,
-    tools_called=["esmfold-prediction", "prodigal-prediction"],
+    tools_called=["esmfold-prediction", "orfipy-prediction"],
     category="protein_structure",
     supported_sequence_types=["dna", "protein"],
 )
@@ -107,9 +104,9 @@ def protein_globularity_constraint(
     well-folded globular proteins, while higher values indicate extended,
     elongated, or poorly folded structures.
 
-    For DNA sequences, the function first runs Prodigal to predict protein-coding
-    regions (ORFs), then evaluates the globularity of each predicted protein
-    structure, using the best (most compact) globularity score among all predictions.
+    For DNA sequences, the function first uses ORFipy to scan both strands for
+    canonical ATG-to-stop ORFs, selects the longest ORF as the single CDS for
+    that proposal, and evaluates the globularity of the translated protein.
 
     Structure prediction is GPU-intensive and may take several minutes per protein
     depending on length and hardware.
@@ -117,8 +114,8 @@ def protein_globularity_constraint(
     Args:
         input_sequences (list[tuple[Sequence, ...]]): List of single-sequence tuples to
             evaluate. Each tuple contains one protein or DNA sequence. All sequences
-            must be the same type. For DNA sequences, ORF prediction is performed
-            automatically.
+            must be the same type. For DNA sequences, canonical ORF prediction is
+            performed automatically and the longest ORF is scored.
 
         config (ProteinGlobularityConfig): Configuration object containing
             ``n_replications`` (oligomeric state, default: 1) and optional
@@ -142,14 +139,14 @@ def protein_globularity_constraint(
 
             **For DNA sequences:**
 
-            - ``prodigal_proteins``: DataFrame of predicted proteins from Prodigal
-            - ``prodigal_protein_count``: Integer count of predicted ORFs
-            - ``esmfold_protein_globularities``: List of float globularity scores
-              for each predicted protein (in Ångströms)
-            - ``esmfold_best_globularity``: Float best (lowest) globularity score
-              among all predicted proteins (in Ångströms)
-            - ``esmfold_normalized_globularity``: Float normalized best globularity
-              (0.0-1.0, capped by max_globularity)
+            - ``orfipy_orfs``: Stored JSON of canonical ORFs detected by ORFipy
+            - ``orfipy_orf_count``: Integer count of candidate ORFs
+            - ``selected_cds``: Coordinates and length for the longest ORF used as
+              the single CDS for scoring
+            - ``esmfold_cds_globularity``: Float globularity score for the selected
+              CDS protein (in Ångströms)
+            - ``esmfold_normalized_globularity``: Float normalized selected-CDS
+              globularity (0.0-1.0, capped by max_globularity)
 
     Examples:
         Evaluating protein structural compactness:
@@ -169,9 +166,9 @@ def protein_globularity_constraint(
         >>> config = ProteinGlobularityConfig(n_replications=1)
         >>> results = protein_globularity_constraint([(dna_seq,)], config)
         >>> print(results[0].score)  # Normalized score (0.0-1.0)
-        >>> print(results[0].metadata["prodigal_protein_count"])  # e.g., 2
-        >>> print(results[0].metadata["esmfold_best_globularity"])  # e.g., 7.8 Å
-        >>> print(results[0].metadata["esmfold_protein_globularities"])  # e.g., [9.2, 7.8]
+        >>> print(results[0].metadata["orfipy_orf_count"])  # e.g., 2
+        >>> print(results[0].metadata["selected_cds"]["amino_acid_length"])  # longest ORF length
+        >>> print(results[0].metadata["esmfold_cds_globularity"])  # e.g., 7.8 Å
     """
     sequences = [seq for (seq,) in input_sequences]
     if sequences[0].sequence_type == "protein":
@@ -221,30 +218,19 @@ def _evaluate_protein_globularity(
 def _evaluate_dna_globularity(
     dna_sequences: list[Sequence], config: ProteinGlobularityConfig
 ) -> list[ConstraintOutput]:
-    """Evaluate DNA sequences via Prodigal then globularity."""
-    prodigal_result = run_prodigal_prediction(
-        ProdigalInput(input_sequences=[seq.sequence for seq in dna_sequences]), ProdigalConfig()
-    )
-
+    """Evaluate DNA sequences via the longest canonical ORF on either strand."""
     results: list[ConstraintOutput] = []
 
-    for proteins_list, num_genes in zip(
-        prodigal_result.predicted_orfs, prodigal_result.num_orfs_per_sequence, strict=False
-    ):
-        orf_dicts = [orf.model_dump() for orf in proteins_list]
-        metadata: dict[str, object] = {
-            "prodigal_proteins": store_file(json.dumps(orf_dicts), FileType.JSON) if orf_dicts else None,
-            "prodigal_protein_count": num_genes,
-        }
-
-        if num_genes == 0 or len(proteins_list) == 0:
+    for selected_orf, metadata in predict_longest_canonical_cds(dna_sequences):
+        if selected_orf is None:
             results.append(ConstraintOutput(score=MAX_ENERGY, metadata=metadata))
             continue
 
-        protein_seqs = [orf.amino_acid_sequence for orf in proteins_list]
         complexes = [
-            StructurePredictionComplex(chains=[{"sequence": seq, "entity_type": "protein"}] * config.n_replications)
-            for seq in protein_seqs
+            StructurePredictionComplex(
+                chains=[{"sequence": selected_orf.amino_acid_sequence, "entity_type": "protein"}]
+                * config.n_replications
+            )
         ]
 
         try:
@@ -254,8 +240,8 @@ def _evaluate_dna_globularity(
             )
         except Exception as e:
             logger.warning(
-                "protein-globularity: ESMFold failed for DNA proposal with %d ORFs: %s; using worst score",
-                len(protein_seqs),
+                "protein-globularity: ESMFold failed for selected DNA CDS %s: %s; using worst score",
+                selected_orf.id,
                 e,
             )
             results.append(
@@ -266,16 +252,12 @@ def _evaluate_dna_globularity(
             )
             continue
 
-        globularities = []
-        for structure in esmfold_output.structures:
-            atom_array = pdb_file_to_atomarray(StringIO(structure.structure_pdb))
-            backbone = get_backbone_atoms(atom_array).coord
-            globularities.append(float(np.std(distances_to_centroid(backbone))))
-
-        best_globularity = min(globularities)
-        globularity_score = min(1.0, best_globularity / config.max_globularity)
-        metadata["esmfold_protein_globularities"] = globularities
-        metadata["esmfold_best_globularity"] = best_globularity
+        structure = esmfold_output.structures[0]
+        atom_array = pdb_file_to_atomarray(StringIO(structure.structure_pdb))
+        backbone = get_backbone_atoms(atom_array).coord
+        raw_globularity = float(np.std(distances_to_centroid(backbone)))
+        globularity_score = min(1.0, raw_globularity / config.max_globularity)
+        metadata["esmfold_cds_globularity"] = raw_globularity
         metadata["esmfold_normalized_globularity"] = globularity_score
         results.append(ConstraintOutput(score=globularity_score, metadata=metadata))
 
