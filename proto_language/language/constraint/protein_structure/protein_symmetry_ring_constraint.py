@@ -213,6 +213,9 @@ def protein_symmetry_ring_constraint(
             results[idx] = ConstraintOutput(
                 score=normalized_score,
                 metadata=metadata,
+                # ESMFold returns one full-complex structure, not per-chain structures.
+                # Following the protein-structure constraint convention, attach it
+                # to slot 0 as the canonical carrier; metadata is broadcast to all inputs.
                 structures=(structure,) + (None,) * (len(chain_sequences) - 1),
             )
 
