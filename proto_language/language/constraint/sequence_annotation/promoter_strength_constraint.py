@@ -38,9 +38,6 @@ class PromoterStrengthConfig(BaseConfig):
             predictions. Higher values speed up batch processing but use more CPU
             resources. Default: 8.
 
-        verbosity (int): Verbosity level for promoter calculator output. 0 is quiet
-            (no output). Default: 0.
-
         circular (bool): If True, treats sequences as circular DNA for promoter
             detection across sequence ends. Useful for plasmids where promoters
             may span the origin. If False, treats sequences as linear. Default: False.
@@ -86,13 +83,6 @@ class PromoterStrengthConfig(BaseConfig):
         default=8,
         ge=1,
         description="Number of threads for parallel processing of promoter calculations",
-        hidden=True,
-    )
-    verbosity: int = ConfigField(
-        title="Verbosity Level",
-        default=0,
-        ge=0,
-        description="Verbosity level for promoter calculator output (0=quiet, higher=more verbose)",
         hidden=True,
     )
     circular: bool = ConfigField(
@@ -204,7 +194,6 @@ def promoter_strength_constraint(
         PromoterCalculatorInput(sequences=sequences),
         PromoterCalculatorConfig(
             threads=config.threads,
-            verbosity=config.verbosity,
             circular=config.circular,
         ),
     )
