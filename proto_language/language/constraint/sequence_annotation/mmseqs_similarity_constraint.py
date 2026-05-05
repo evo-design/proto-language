@@ -57,8 +57,9 @@ class MMseqsSimilarityConfig(BaseConfig):
 
         mmseqs_config (Mmseqs2SearchProteinsConfig): MMseqs2 configuration including
             sensitivity, threads, E-value threshold, and other search parameters.
-            Example: ``Mmseqs2SearchProteinsConfig(threads=16, sensitivity=8.0)``
-            for faster, more sensitive searches. Default: Mmseqs2SearchProteinsConfig().
+            Example: ``Mmseqs2SearchProteinsConfig(threads=16, sensitivity=7.5)``
+            to parallelize across 16 cores at maximum sensitivity (valid range
+            is 1.0-7.5). Default: Mmseqs2SearchProteinsConfig().
 
         orf_predictor (Literal['orfipy', 'prodigal']): ORF prediction tool for
             DNA sequences (ignored for protein inputs). Options:
