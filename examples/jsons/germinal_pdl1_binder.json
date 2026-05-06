@@ -60,18 +60,22 @@
       ],
       "constraints": [
         {
-          "key": "af2-binder",
-          "label": "af2",
+          "key": "structure-plddt",
+          "label": "af2_plddt",
           "targets": ["binder", "pdl1_target"],
           "config": {
-            "target_pdb": "examples/data/pd_l1_5ius.pdb",
-            "target_chains": ["B"],
-            "binder_chain": "A",
-            "backend": "germinal"
-          }
+            "structure_tool": "alphafold2_multimer",
+            "alphafold2_multimer_config": {
+              "target_pdb": "examples/germinal/pdbs/pdl1.pdb",
+              "target_chains": ["B"],
+              "binder_chain": "A",
+              "backend": "germinal"
+            }
+          },
+          "weight": 1.0
         },
         {
-          "key": "ablang-naturalness",
+          "key": "ablang-perplexity",
           "label": "ablang",
           "targets": ["binder"],
           "config": { "temperature": 0.6, "use_ste": true }
@@ -107,18 +111,22 @@
       ],
       "constraints": [
         {
-          "key": "af2-binder",
-          "label": "af2",
+          "key": "structure-plddt",
+          "label": "af2_plddt",
           "targets": ["binder", "pdl1_target"],
           "config": {
-            "target_pdb": "examples/data/pd_l1_5ius.pdb",
-            "target_chains": ["B"],
-            "binder_chain": "A",
-            "backend": "germinal"
-          }
+            "structure_tool": "alphafold2_multimer",
+            "alphafold2_multimer_config": {
+              "target_pdb": "examples/germinal/pdbs/pdl1.pdb",
+              "target_chains": ["B"],
+              "binder_chain": "A",
+              "backend": "germinal"
+            }
+          },
+          "weight": 1.0
         },
         {
-          "key": "ablang-naturalness",
+          "key": "ablang-perplexity",
           "label": "ablang",
           "targets": ["binder"],
           "config": { "temperature": 0.6, "use_ste": true },
@@ -149,18 +157,22 @@
       ],
       "constraints": [
         {
-          "key": "af2-binder",
-          "label": "af2",
+          "key": "structure-plddt",
+          "label": "af2_plddt",
           "targets": ["binder", "pdl1_target"],
           "config": {
-            "target_pdb": "examples/data/pd_l1_5ius.pdb",
-            "target_chains": ["B"],
-            "binder_chain": "A",
-            "backend": "germinal"
-          }
+            "structure_tool": "alphafold2_multimer",
+            "alphafold2_multimer_config": {
+              "target_pdb": "examples/germinal/pdbs/pdl1.pdb",
+              "target_chains": ["B"],
+              "binder_chain": "A",
+              "backend": "germinal"
+            }
+          },
+          "weight": 1.0
         },
         {
-          "key": "ablang-naturalness",
+          "key": "ablang-perplexity",
           "label": "ablang",
           "targets": ["binder"],
           "config": { "temperature": 0.6, "use_ste": false },

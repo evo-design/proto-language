@@ -725,6 +725,75 @@ class TestConstraintGradientSupport:
         assert results[0].gradient[0].shape == (8, 4)
         np.testing.assert_array_almost_equal(results[0].gradient[0], -logits)
 
+    def test_gradient_positions_mask_rows(self) -> None:
+        """gradient_positions keeps selected rows and zeroes the rest."""
+        segment = _make_segment_with_proposals(["ACTGACTG"])
+        logits = np.arange(32, dtype=float).reshape(8, 4)
+        segment.proposal_sequences[0].logits = logits
+        c = _make_gradient_constraint(segment=segment, gradient_positions=[1, 3, 3])
+
+        results = c.compute_gradient(temperature=1.0)
+
+        expected = -logits
+        expected[[0, 2, 4, 5, 6, 7]] = 0.0
+        assert c.gradient_positions == (1, 3)
+        np.testing.assert_array_equal(results[0].gradient[0], expected)
+        assert results[0].loss == pytest.approx(float(np.mean(logits**2)))
+        assert results[0].metrics["temperature"] == 1.0
+
+    @pytest.mark.parametrize(
+        ("gradient_positions", "match"),
+        [
+            pytest.param([], "non-empty", id="empty"),
+            pytest.param([-1], "non-negative", id="negative"),
+            pytest.param([True], "integers", id="bool"),
+        ],
+    )
+    def test_gradient_positions_config_validation(self, gradient_positions: list[int], match: str) -> None:
+        """Invalid gradient_positions fail at constraint construction."""
+        segment = _make_segment_with_proposals(["ACTGACTG"])
+        with pytest.raises(ValueError, match=match):
+            _make_gradient_constraint(segment=segment, gradient_positions=gradient_positions)
+
+    def test_gradient_positions_out_of_range_raises(self) -> None:
+        """Bounds that need the returned gradient shape are checked during compute_gradient()."""
+        segment = _make_segment_with_proposals(["ACTGACTG"])
+        segment.proposal_sequences[0].logits = np.zeros((8, 4))
+        c = _make_gradient_constraint(segment=segment, gradient_positions=[8])
+
+        with pytest.raises(ValueError, match=r"gradient_positions .* >= gradient length"):
+            c.compute_gradient(temperature=1.0)
+
+    def test_gradient_positions_reject_multiple_logit_inputs(self) -> None:
+        """The first mask API is intentionally single-gradient-input only."""
+
+        def backward(
+            input_sequences: list[tuple[Sequence, ...]], *, config: BaseModel, **kwargs: Any
+        ) -> list[GradientConstraintOutput]:
+            return [
+                GradientConstraintOutput(
+                    gradient=(np.zeros_like(seq_a.logits), np.zeros_like(seq_b.logits)),
+                    loss=0.0,
+                )
+                for seq_a, seq_b in input_sequences
+            ]
+
+        seg_a = _make_segment_with_proposals(["AAAA"])
+        seg_b = _make_segment_with_proposals(["CCCC"])
+        seg_a.proposal_sequences[0].logits = np.zeros((4, 4))
+        seg_b.proposal_sequences[0].logits = np.zeros((4, 4))
+        c = Constraint(
+            inputs=[seg_a, seg_b],
+            function=mock_multi_input_scoring_function_disjoint,
+            function_config=MockConfig(),
+            backward=backward,
+            backward_config=MockConfig(),
+            gradient_positions=[1],
+        )
+
+        with pytest.raises(ValueError, match="exactly one input sequence with logits"):
+            c.compute_gradient(temperature=1.0)
+
     def test_compute_gradient_propagates_metadata(self) -> None:
         segment = _make_segment_with_proposals(["ACTGACTG"])
         segment.proposal_sequences[0].logits = np.ones((8, 4))

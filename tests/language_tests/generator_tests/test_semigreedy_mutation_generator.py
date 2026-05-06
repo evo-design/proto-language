@@ -11,6 +11,7 @@ from proto_language.language.generator import (
     GeneratorRegistry,
     SemigreedyMutationGenerator,
     SemigreedyMutationGeneratorConfig,
+    SequenceLogitBiasConfig,
 )
 from tests.helpers.mock_structure import MockStructure
 
@@ -168,6 +169,26 @@ class TestSemigreedyMutationGenerator:
 
         result = segment.proposal_sequences[0].sequence
         mutated_aa = [c for c in result if c != "A"]
+        assert len(mutated_aa) == 1
+        assert mutated_aa[0] == "L"
+
+    def test_sequence_bias_shifts_sampling(self):
+        """Declarative sequence_bias shifts replacement sampling without a raw matrix."""
+        segment = Segment(sequence="AAAAA", sequence_type="protein")
+        segment.proposal_sequences[0].logits = np.zeros((5, VOCAB_SIZE))
+
+        gen = SemigreedyMutationGenerator(
+            SemigreedyMutationGeneratorConfig(
+                exclude_current=True,
+                sequence_bias=SequenceLogitBiasConfig(reference_sequence="LLLLL", reference_bias=100.0),
+            ),
+        )
+        gen._set_program_seed(42)
+        gen.assign(segment)
+        gen.sample()
+
+        result = segment.proposal_sequences[0].sequence
+        mutated_aa = [char for char in result if char != "A"]
         assert len(mutated_aa) == 1
         assert mutated_aa[0] == "L"
 

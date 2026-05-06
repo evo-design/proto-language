@@ -10,6 +10,7 @@ from proto_language.language.generator import (
     GeneratorRegistry,
     PositionWeightGenerator,
     PositionWeightGeneratorConfig,
+    SequenceLogitBiasConfig,
 )
 
 
@@ -92,6 +93,36 @@ class TestPositionWeightGenerator:
 
         assert biased_seg.proposal_sequences[0].sequence == "GA"
         assert scaled_seg.proposal_sequences[0].sequence == "AC"
+
+    def test_sequence_bias_applies_to_cross_type_decoding(self):
+        """Declarative sequence_bias works with the cross-type position-weight generator."""
+        dna_segment = Segment(sequence="AA", sequence_type="dna")
+        dna_segment.proposal_sequences[0].logits = np.zeros((2, 4))
+        dna_gen = PositionWeightGenerator(
+            PositionWeightGeneratorConfig(
+                sequence_bias=SequenceLogitBiasConfig(
+                    reference_sequence="AT",
+                    reference_bias=5.0,
+                    unbiased_positions=[1],
+                    excluded_symbols=["A"],
+                )
+            )
+        )
+        dna_gen.assign(dna_segment)
+        dna_gen.sample()
+
+        rna_segment = Segment(sequence="AA", sequence_type="rna")
+        rna_segment.proposal_sequences[0].logits = np.zeros((2, 4))
+        rna_gen = PositionWeightGenerator(
+            PositionWeightGeneratorConfig(
+                sequence_bias=SequenceLogitBiasConfig(reference_sequence="AU", reference_bias=5.0)
+            )
+        )
+        rna_gen.assign(rna_segment)
+        rna_gen.sample()
+
+        assert dna_segment.proposal_sequences[0].sequence == "AC"
+        assert rna_segment.proposal_sequences[0].sequence == "AU"
 
     def test_registry_and_ligand_rejection(self):
         """Generator is discoverable via registry and rejects ligand segments."""

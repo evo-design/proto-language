@@ -1,9 +1,12 @@
 """Tests for the GradientOptimizer, multi-stage pipelines, and GPU integration."""
 
 from collections.abc import Callable
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 import pytest
+from proto_tools import Structure
 from pydantic import BaseModel
 
 from proto_language.language.core import Constraint, ConstraintOutput, Construct, Program, Segment
@@ -122,6 +125,47 @@ def _make_optimizer(
         constraints=[con],
         config=GradientOptimizerConfig(num_results=1, **cfg),  # type: ignore[arg-type]
     )
+
+
+def _af2_multimer_confidence_problem() -> tuple[Segment, Segment, Construct, list[Constraint]]:
+    from proto_language.language.constraint.protein_structure.structure_confidence_constraint import (
+        structure_ipae_constraint,
+        structure_plddt_constraint,
+    )
+    from proto_language.language.constraint.protein_structure.structure_constraint_config import (
+        AlphaFold2MultimerStructureConfig,
+        StructureBasedConstraintConfig,
+    )
+    from tests.helpers.mock_structure import PDL1_PDB
+
+    binder = Segment(sequence="EVQLV", sequence_type="protein", label="binder")
+    target = Segment(sequence="A" * 10, sequence_type="protein", label="target")
+    construct = Construct([binder, target])
+    config = StructureBasedConstraintConfig(
+        structure_tool="alphafold2_multimer",
+        alphafold2_multimer_config=AlphaFold2MultimerStructureConfig(
+            target_pdb=PDL1_PDB.read_text(),
+            binder_chain="B",
+            target_chains=["A"],
+        ),
+    )
+    constraints = [
+        Constraint(
+            inputs=[binder, target],
+            function=structure_plddt_constraint,
+            function_config=config,
+            label="af2_plddt",
+            weight=2.0,
+        ),
+        Constraint(
+            inputs=[binder, target],
+            function=structure_ipae_constraint,
+            function_config=config,
+            label="af2_ipae",
+            weight=0.5,
+        ),
+    ]
+    return binder, target, construct, constraints
 
 
 class TestConfig:
@@ -517,6 +561,163 @@ class TestWeightSchedules:
         opt.run()
 
 
+class TestCompiledConstraints:
+    @pytest.mark.parametrize(("mode", "tool_loss"), [("gradient", 3.0), ("scoring", 4.0)])
+    def test_groups_af2_structure_terms_into_one_tool_call(self, mode: str, tool_loss: float) -> None:
+        from proto_language.language.optimizer.constraint_compiler import evaluate_scoring_constraints
+        from proto_language.utils.alphafold2_multimer import (
+            af2_multimer_tool_loss_key,
+        )
+        from tests.helpers.mock_structure import PDL1_PDB
+
+        binder, target, construct, constraints = _af2_multimer_confidence_problem()
+        if mode == "scoring":
+            binder.proposal_sequences = [binder.original_sequence]
+            target.proposal_sequences = [target.original_sequence]
+        output = SimpleNamespace(
+            gradient=[[0.1] * 20 for _ in range(5)] if mode == "gradient" else None,
+            loss=tool_loss,
+            metrics={"plddt": 1.0, "ipae": 2.0, "iptm": 0.8},
+            structure=Structure(structure=PDL1_PDB.read_text(), structure_format="pdb"),
+        )
+
+        with patch(
+            "proto_language.language.optimizer.constraint_compiler.alphafold2_multimer_provider.run_alphafold2_binder"
+        ) as mock_af2:
+            mock_af2.return_value = output
+            if mode == "gradient":
+                generator = PositionWeightGenerator(PositionWeightGeneratorConfig())
+                generator.assign(binder)
+                opt = GradientOptimizer(
+                    target_segment=binder,
+                    constructs=[construct],
+                    generators=[generator],
+                    constraints=constraints,
+                    config=GradientOptimizerConfig(
+                        num_results=1,
+                        num_steps=1,
+                        lr=0.1,
+                        normalize_gradients=False,
+                    ),
+                )
+                opt.run()
+                assert opt.energy_scores == [pytest.approx(tool_loss)]
+                metadata = binder.result_sequences[0]._constraints_metadata
+            else:
+                scores = evaluate_scoring_constraints(constraints, mask=[True])
+                assert scores == [[tool_loss]]
+                metadata = binder.proposal_sequences[0]._constraints_metadata
+
+        assert mock_af2.call_count == 1
+        assert mock_af2.call_args[0][1].loss_weights == {"plddt": 2.0, af2_multimer_tool_loss_key("ipae"): 0.5}
+        assert "af2_plddt" in metadata and "af2_ipae" in metadata
+
+    def test_scoring_compiler_evaluates_non_af2_dict_config_directly(self) -> None:
+        """Non-AF2 constraints with dict configs should not be parsed as structure configs."""
+        from proto_language.language.optimizer.constraint_compiler import evaluate_scoring_constraints
+
+        seg = Segment(sequence="AA", sequence_type="protein")
+        constraint = Constraint(inputs=[seg], function=_scorer, function_config={"unused": True}, label="plain")
+
+        scores = evaluate_scoring_constraints([constraint], mask=[True])
+
+        assert scores == [[0.0]]
+
+    def test_af2_config_parse_is_strict_only_when_requested(self) -> None:
+        """Compiler probes can be lenient, while execution paths preserve validation errors."""
+        from pydantic import ValidationError
+
+        from proto_language.language.constraint.protein_structure.structure_confidence_constraint import (
+            structure_plddt_constraint,
+        )
+        from proto_language.language.constraint.protein_structure.structure_constraint_config import (
+            AlphaFold2MultimerStructureConfig,
+            StructureBasedConstraintConfig,
+        )
+        from proto_language.language.optimizer.constraint_compiler.alphafold2_multimer_provider import (
+            config_for_constraint,
+        )
+
+        binder = Segment(sequence="EVQLV", sequence_type="protein", label="binder")
+        target = Segment(sequence="A" * 10, sequence_type="protein", label="target")
+        constraint = Constraint(
+            inputs=[binder, target],
+            function=structure_plddt_constraint,
+            function_config=StructureBasedConstraintConfig(
+                structure_tool="alphafold2_multimer",
+                alphafold2_multimer_config=AlphaFold2MultimerStructureConfig(target_pdb="x"),
+            ),
+            label="af2_plddt",
+        )
+        constraint._function_config = {  # type: ignore[attr-defined]
+            "structure_tool": "alphafold2_multimer",
+            "alphafold2_multimer_config": {"target_pdb": "x", "target_input_indices": "not-an-int"},
+        }
+
+        assert config_for_constraint(constraint) is None
+        with pytest.raises(ValidationError, match="target_input_indices"):
+            config_for_constraint(constraint, strict=True)
+
+    def test_af2_term_score_missing_metric_warns_and_falls_back(self, caplog: pytest.LogCaptureFixture) -> None:
+        from proto_language.language.optimizer.constraint_compiler.alphafold2_multimer_provider import _term_score
+
+        with caplog.at_level(
+            "WARNING", logger="proto_language.language.optimizer.constraint_compiler.alphafold2_multimer_provider"
+        ):
+            score = _term_score({"iptm": 0.8}, "plddt", 4.0)
+
+        assert score == 4.0
+        assert any("Using grouped loss" in record.message for record in caplog.records)
+
+    def test_rejects_discrete_constraint_without_compiled_gradient(self) -> None:
+        seg = Segment(sequence="AA", sequence_type="protein")
+        con = Constraint(inputs=[seg], function=_scorer, function_config=_Cfg(), label="plain")
+        with pytest.raises(ValueError, match="does not support gradient evaluation"):
+            GradientOptimizer(
+                target_segment=seg,
+                constructs=[Construct([seg])],
+                generators=[PositionWeightGenerator(PositionWeightGeneratorConfig())],
+                constraints=[con],
+                config=GradientOptimizerConfig(num_steps=1),
+            )
+
+    def test_rejects_af2_ptm_gradient_even_though_forward_is_supported(self) -> None:
+        from proto_language.language.constraint.protein_structure.structure_confidence_constraint import (
+            structure_ptm_constraint,
+        )
+        from proto_language.language.constraint.protein_structure.structure_constraint_config import (
+            AlphaFold2MultimerStructureConfig,
+            StructureBasedConstraintConfig,
+        )
+        from tests.helpers.mock_structure import PDL1_PDB
+
+        binder = Segment(sequence="EVQLV", sequence_type="protein", label="binder")
+        target = Segment(sequence="A" * 10, sequence_type="protein", label="target")
+        config = StructureBasedConstraintConfig(
+            structure_tool="alphafold2_multimer",
+            alphafold2_multimer_config=AlphaFold2MultimerStructureConfig(
+                target_pdb=PDL1_PDB.read_text(),
+                binder_chain="B",
+                target_chains=["A"],
+            ),
+        )
+        con = Constraint(
+            inputs=[binder, target],
+            function=structure_ptm_constraint,
+            function_config=config,
+            label="af2_ptm",
+        )
+
+        with pytest.raises(ValueError, match="structure-iptm"):
+            GradientOptimizer(
+                target_segment=binder,
+                constructs=[Construct([binder, target])],
+                generators=[PositionWeightGenerator(PositionWeightGeneratorConfig())],
+                constraints=[con],
+                config=GradientOptimizerConfig(num_steps=1),
+            )
+
+
 class TestHingeSchedule:
     def test_flat_then_ramp(self) -> None:
         s = hinge_schedule(0.2, 0.4)
@@ -673,42 +874,50 @@ class TestExport:
 
 
 def _ablang_constraint(seg: Segment, label: str = "ablang") -> Constraint:
-    from proto_language.language.constraint.differentiable import ablang_naturalness_gradient_backward
-    from proto_language.language.constraint.differentiable.ablang_naturalness_constraint import (
-        AbLangConstraintConfig,
+    from proto_language.language.constraint.sequence_scoring.ablang_perplexity_constraint import (
+        AbLangPerplexityConfig,
+        ablang_perplexity_gradient_backward,
     )
 
     return Constraint(
         inputs=[seg],
-        backward=ablang_naturalness_gradient_backward,
-        backward_config=AbLangConstraintConfig(temperature=0.6),
+        backward=ablang_perplexity_gradient_backward,
+        backward_config=AbLangPerplexityConfig(temperature=0.6),
         label=label,
     )
 
 
-def _af2_constraint(binder: Segment, target: Segment, label: str = "af2") -> Constraint:
-    from proto_language.language.constraint.differentiable.af2_binder_constraint import (
-        AF2BinderConstraintConfig,
-        af2_binder_backward,
+def _af2_constraint(
+    binder: Segment, target: Segment, label: str = "af2", function: Callable | None = None
+) -> Constraint:
+    from proto_language.language.constraint.protein_structure.structure_confidence_constraint import (
+        structure_plddt_constraint,
+    )
+    from proto_language.language.constraint.protein_structure.structure_constraint_config import (
+        AlphaFold2MultimerStructureConfig,
+        StructureBasedConstraintConfig,
     )
     from tests.helpers.mock_structure import PDL1_PDB
 
+    af2_config = AlphaFold2MultimerStructureConfig(
+        target_pdb=PDL1_PDB.read_text(),
+        target_chains="A",
+        binder_chain="B",
+        num_recycles=1,
+    )
     return Constraint(
         inputs=[binder, target],
-        backward=af2_binder_backward,
-        backward_config=AF2BinderConstraintConfig(
-            target_pdb=PDL1_PDB.read_text(),
-            target_chains="A",
-            binder_chain="B",
-            num_recycles=1,
-            loss_weights={"plddt": 1.0},
+        function=function or structure_plddt_constraint,
+        function_config=StructureBasedConstraintConfig(
+            structure_tool="alphafold2_multimer",
+            alphafold2_multimer_config=af2_config,
         ),
         label=label,
     )
 
 
 def _target_segment() -> Segment:
-    """Target Segment for AF2 binder design — slot is pure output, no pre-population needed."""
+    """Target Segment for AF2 multimer design — slot is pure output, no pre-population needed."""
     return Segment(sequence="A" * 10, sequence_type="protein", label="target")
 
 
@@ -735,8 +944,8 @@ class TestGradientOptimizerGPU:
         assert min(energies) < energies[0]
         assert seg.result_sequences[0].logits is not None
 
-    def test_af2_binder_gradient_descent(self) -> None:
-        """AF2 binder gradient produces finite logit updates over 3 steps against a target."""
+    def test_af2_multimer_gradient_descent(self) -> None:
+        """AF2 multimer gradient produces finite logit updates over 3 steps against a target."""
         binder = Segment(length=10, sequence_type="protein", label="binder")
         target = _target_segment()
         construct = Construct([binder, target])
@@ -753,6 +962,37 @@ class TestGradientOptimizerGPU:
         logits = binder.result_sequences[0].logits
         assert logits is not None and logits.shape == (10, 20)
         assert np.isfinite(logits).all()
+
+    def test_af2_multimer_grouped_confidence_terms_end_to_end(self) -> None:
+        """Real AF2 multimer run with grouped pLDDT+iPAE compiler objectives."""
+        from proto_language.language.constraint.protein_structure.structure_confidence_constraint import (
+            structure_ipae_constraint,
+        )
+
+        binder = Segment(length=10, sequence_type="protein", label="binder")
+        target = _target_segment()
+        construct = Construct([binder, target])
+        gen = PositionWeightGenerator(PositionWeightGeneratorConfig())
+        constraints = [
+            _af2_constraint(binder, target, "af2_plddt"),
+            _af2_constraint(binder, target, "af2_ipae", function=structure_ipae_constraint),
+        ]
+
+        opt = GradientOptimizer(
+            target_segment=binder,
+            constructs=[construct],
+            generators=[gen],
+            constraints=constraints,
+            config=GradientOptimizerConfig(num_results=1, num_steps=1, lr=0.1, seed=7),
+        )
+        assert len(opt._gradient_providers) == 1
+
+        opt.run()
+
+        result = binder.result_sequences[0]
+        assert result.logits is not None and np.isfinite(result.logits).all()
+        assert np.isfinite(opt.energy_scores[0])
+        assert {"af2_plddt", "af2_ipae"}.issubset(result._constraints_metadata)
 
     def test_af2_plus_ablang_pcgrad(self) -> None:
         """AF2 + AbLang merged via PCGrad — both real gradients, finite logits, both losses recorded."""

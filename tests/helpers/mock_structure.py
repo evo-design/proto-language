@@ -8,7 +8,7 @@ from proto_tools import BFactorType, Structure, load_structure_file
 MOCK_PDB = load_structure_file(Path(__file__).parent.parent / "dummy_data" / "renin_af3.pdb")
 MOCK_CIF = load_structure_file(Path(__file__).parent.parent / "dummy_data" / "renin.cif")
 
-# Target+binder complex from proto-tools (submodule) used by AF2 binder-gradient tests.
+# Target+binder complex from proto-tools (submodule) used by AF2 multimer-gradient tests.
 # Kept as a Path so callers can choose between .read_text() and load_structure_file().
 PDL1_PDB: Path = Path(__file__).parent.parent.parent / "proto-tools" / "tests" / "dummy_data" / "pdl1.pdb"
 

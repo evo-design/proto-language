@@ -20,7 +20,7 @@ Key Features:
 """
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Any, Protocol
 
 import numpy as np
@@ -29,7 +29,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from proto_language.language.core.segment import Segment
 from proto_language.language.core.sequence import Sequence
-from proto_language.utils.helpers import filter_inf_nan_scores
+from proto_language.utils.helpers import filter_inf_nan_scores, is_plain_int
 
 logger = logging.getLogger(__name__)
 
@@ -185,6 +185,7 @@ class Constraint:
         threshold: float | None = None,
         weight: float | None = None,
         input_slots: list[InputSlot] | None = None,
+        gradient_positions: Iterable[int] | None = None,
     ):
         """Initialize a constraint.
 
@@ -218,6 +219,12 @@ class Constraint:
                 Mutually exclusive with ``threshold`` (setting both raises a ValueError).
             input_slots (list[InputSlot] | None): Per-slot requirements enforced in
                 ``compute_gradient``. Normally plumbed by ``ConstraintRegistry.create()``.
+            gradient_positions (Iterable[int] | None): Optional zero-based
+                sequence positions allowed to receive gradient. When set, all
+                other rows in the single gradient-bearing input are zeroed after
+                the backward callable returns. Currently requires exactly one
+                input with logits; multi-input or tied-segment constraints must
+                mask their gradients in the backward callable instead.
 
         Raises:
             ValueError: If neither ``function`` nor ``backward`` is provided.
@@ -229,6 +236,7 @@ class Constraint:
         self._function = function
         self._backward_fn = backward
         self._input_slots = input_slots or []
+        self._gradient_positions = self._normalize_gradient_positions(gradient_positions)
 
         # Label: prefer explicit, then function name, then backward name
         if label is not None:
@@ -263,6 +271,22 @@ class Constraint:
             if config_cls is not None:
                 return config_cls(**config)
         return config
+
+    @staticmethod
+    def _normalize_gradient_positions(positions: Iterable[int] | None) -> tuple[int, ...] | None:
+        """Normalize and validate user-provided gradient positions."""
+        if positions is None:
+            return None
+        normalized = tuple(positions)
+        if not normalized:
+            raise ValueError("gradient_positions must be None or non-empty; got [].")
+        invalid = [position for position in normalized if not is_plain_int(position)]
+        if invalid:
+            raise ValueError(f"gradient_positions must contain integers; got {invalid}.")
+        negative = [position for position in normalized if position < 0]
+        if negative:
+            raise ValueError(f"gradient_positions must be non-negative; got {negative}.")
+        return tuple(sorted(set(normalized)))
 
     # Read-only properties for external access
     @property
@@ -299,6 +323,11 @@ class Constraint:
     def weight(self) -> float:
         """Weight multiplier for scores (read-only)."""
         return self._weight
+
+    @property
+    def gradient_positions(self) -> tuple[int, ...] | None:
+        """Positions allowed to receive gradient, or ``None`` when unmasked."""
+        return self._gradient_positions
 
     @property
     def supports_discrete(self) -> bool:
@@ -609,6 +638,7 @@ class Constraint:
             raise ValueError(f"'{self.label}' returned {len(results)} gradient results, expected {num_proposals}")
 
         n_inputs = len(self._inputs)
+        masked_results: list[GradientConstraintOutput] = []
         for idx, (result, inputs_tuple) in enumerate(zip(results, all_input_tuples, strict=True)):
             if not isinstance(result, GradientConstraintOutput):
                 raise TypeError(f"'{self.label}': expected GradientConstraintOutput, got {type(result).__name__}")
@@ -620,13 +650,50 @@ class Constraint:
                         f"'{self.label}' segment {seg_idx}: gradient shape {grad.shape} != logits shape {seq.logits.shape}"
                     )
 
-            if result.structures:
-                if len(result.structures) != n_inputs:
-                    raise ValueError(f"'{self.label}': {len(result.structures)} structures, expected {n_inputs}")
-                for seq, struct in zip(inputs_tuple, result.structures, strict=True):
+            masked_result = self._apply_gradient_positions(result, inputs_tuple)
+
+            if masked_result.structures:
+                if len(masked_result.structures) != n_inputs:
+                    raise ValueError(f"'{self.label}': {len(masked_result.structures)} structures, expected {n_inputs}")
+                for seq, struct in zip(inputs_tuple, masked_result.structures, strict=True):
                     if struct is not None:
                         seq.structure = struct
 
-            self._write_constraint_metadata(idx, result.loss, result.metrics)
+            self._write_constraint_metadata(idx, masked_result.loss, masked_result.metrics)
+            masked_results.append(masked_result)
 
-        return results
+        return masked_results
+
+    def _apply_gradient_positions(
+        self,
+        result: GradientConstraintOutput,
+        inputs_tuple: tuple[Sequence, ...],
+    ) -> GradientConstraintOutput:
+        """Apply the optional single-input gradient-position mask."""
+        if self._gradient_positions is None:
+            return result
+
+        gradient_input_indices = [idx for idx, seq in enumerate(inputs_tuple) if seq.logits is not None]
+        if len(gradient_input_indices) != 1:
+            raise ValueError(
+                f"'{self.label}' gradient_positions currently supports exactly one input sequence with logits; "
+                f"found {len(gradient_input_indices)}."
+            )
+
+        target_idx = gradient_input_indices[0]
+        gradient = result.gradient[target_idx]
+        sequence_length = gradient.shape[0]
+        out_of_range = [position for position in self._gradient_positions if position >= sequence_length]
+        if out_of_range:
+            raise ValueError(
+                f"'{self.label}' gradient_positions {out_of_range} are >= gradient length ({sequence_length})."
+            )
+
+        mask = np.zeros(sequence_length, dtype=bool)
+        mask[list(self._gradient_positions)] = True
+        masked_gradient = gradient.copy()
+        masked_gradient[~mask] = 0.0
+
+        gradients = list(result.gradient)
+        gradients[target_idx] = masked_gradient
+        return result.model_copy(update={"gradient": tuple(gradients)})

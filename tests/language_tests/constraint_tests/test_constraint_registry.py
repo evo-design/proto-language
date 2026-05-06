@@ -34,6 +34,14 @@ def protein_segment():
 class TestRegistration:
     """Test constraint registration mechanism."""
 
+    def test_structure_based_config_is_publicly_reexported(self):
+        """StructureBasedConstraintConfig should be available from the public API."""
+        from proto_language import StructureBasedConstraintConfig as RootConfig
+        from proto_language.language.constraint import StructureBasedConstraintConfig as ConstraintConfig
+        from proto_language.language.constraint.protein_structure import StructureBasedConstraintConfig as ProteinConfig
+
+        assert RootConfig is ConstraintConfig is ProteinConfig
+
     def test_register_stores_constraint_spec(self):
         """Test that register decorator stores ConstraintSpec in registry."""
         initial_count = ConstraintRegistry.count()
@@ -440,10 +448,16 @@ class TestFactoryMethod:
             return [ConstraintOutput(score=0.0) for _ in input_sequences]
 
         try:
-            c = ConstraintRegistry.create(key="_test-diff", segments=[dna_segment], config_dict={})
+            c = ConstraintRegistry.create(
+                key="_test-diff",
+                segments=[dna_segment],
+                config_dict={},
+                gradient_positions=[1, 3],
+            )
             assert isinstance(c, Constraint)
             assert c.supports_gradient
             assert c.backward is _backward
+            assert c.gradient_positions == (1, 3)
 
             # Without backward, create() returns Constraint without gradient support.
             plain = ConstraintRegistry.create(
@@ -697,8 +711,8 @@ class TestModeAndBackwardConfig:
             assert spec.mode in ("discrete", "gradient", "dual"), f"{spec.key}: invalid mode {spec.mode}"
 
     def test_ablang_dual_mode_constraints(self):
-        """AbLang naturalness constraint is dual-mode (function + backward both set)."""
-        spec = ConstraintRegistry.get("ablang-naturalness")
+        """AbLang perplexity constraint is dual-mode (function + backward both set)."""
+        spec = ConstraintRegistry.get("ablang-perplexity")
         assert spec.mode == "dual"
         assert spec.function is not None and spec.backward is not None
 

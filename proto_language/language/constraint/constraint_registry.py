@@ -185,8 +185,8 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
 
             Gradient constraint (auto-detected from return type):
 
-            >>> @constraint(key="af2-binder", ...)
-            ... def af2_backward(input_sequences, *, config, temperature, **kwargs) -> list[GradientConstraintOutput]: ...
+            >>> @constraint(key="ablang-perplexity", ...)
+            ... def ablang_backward(input_sequences, *, config, temperature, **kwargs) -> list[GradientConstraintOutput]: ...
 
             Scoring function with explicit backward callable:
 
@@ -265,6 +265,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         label: str | None = None,
         threshold: float | None = None,
         weight: float | None = None,
+        gradient_positions: list[int] | None = None,
     ) -> Constraint:
         """Factory method to create a Constraint from JSON-compatible config.
 
@@ -290,6 +291,9 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
                 scores for optimization.
             weight (float | None): Optional weight to scale constraint scores.
                 Defaults to 1.0 if not provided.
+            gradient_positions (list[int] | None): Optional zero-based positions
+                allowed to receive gradient when the registered constraint has a
+                backward callable.
 
         Returns:
             Constraint: Configured Constraint instance ready to evaluate
@@ -348,6 +352,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             input_slots=None
             if spec.input_labels is None
             else [s if isinstance(s, InputSlot) else InputSlot(label=s) for s in spec.input_labels],
+            gradient_positions=gradient_positions,
         )
 
     @classmethod

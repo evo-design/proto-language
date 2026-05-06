@@ -15,6 +15,11 @@ from proto_language.language.core import (
 )
 from proto_language.language.generator.generator_registry import generator
 from proto_language.utils import softmax
+from proto_language.utils.sequence_logit_bias import (
+    SequenceLogitBiasConfig,
+    build_sequence_logit_bias_matrix,
+    combine_logit_biases,
+)
 
 
 class SemigreedyMutationGeneratorConfig(BaseConfig):
@@ -40,6 +45,9 @@ class SemigreedyMutationGeneratorConfig(BaseConfig):
         logit_bias (list[list[float]] | None): Additive bias matrix of shape
             ``(L, 20)`` added to ``proposal.logits`` before AA sampling. Position
             weighting still uses ``proposal.logits`` alone.
+        sequence_bias (SequenceLogitBiasConfig | None): Declarative additive
+            bias built against the assigned segment vocabulary. Combined with
+            ``logit_bias``.
         clear_logits (bool): If True, ignore ``proposal.logits`` when sampling the
             replacement amino acid; sample from ``logit_bias`` only (or uniform if
             ``logit_bias`` is None). Incompatible with ``position_weighting="entropy"``.
@@ -73,6 +81,12 @@ class SemigreedyMutationGeneratorConfig(BaseConfig):
         description="Additive bias matrix (L x 20) added to logits before AA sampling.",
         advanced=True,
         hidden=True,
+    )
+    sequence_bias: SequenceLogitBiasConfig | None = ConfigField(
+        default=None,
+        title="Sequence Bias",
+        description="Optional declarative sequence-symbol bias applied before AA sampling.",
+        advanced=True,
     )
     clear_logits: bool = ConfigField(
         default=False,
@@ -180,7 +194,9 @@ class SemigreedyMutationGenerator(Generator):
         """Initialize the semigreedy mutation generator."""
         super().__init__()
         self.config = config
-        self._logit_bias = np.asarray(config.logit_bias, dtype=float) if config.logit_bias is not None else None
+        self._raw_logit_bias = np.asarray(config.logit_bias, dtype=float) if config.logit_bias is not None else None
+        self._sequence_bias_config = config.sequence_bias
+        self._logit_bias: np.ndarray | None = None
         self._frozen_positions: frozenset[int] | None = (
             frozenset(config.frozen_positions) if config.frozen_positions is not None else None
         )
@@ -193,8 +209,10 @@ class SemigreedyMutationGenerator(Generator):
         """Assign segment(s) and validate length-dependent config against them."""
         super().assign(segments)
         seq_len = self.segment.sequence_length
-        if self._logit_bias is not None and self._logit_bias.shape[0] != seq_len:
-            raise ValueError(f"logit_bias has {self._logit_bias.shape[0]} rows but sequence length is {seq_len}.")
+        if self._raw_logit_bias is not None and self._raw_logit_bias.shape[0] != seq_len:
+            raise ValueError(f"logit_bias has {self._raw_logit_bias.shape[0]} rows but sequence length is {seq_len}.")
+        sequence_logit_bias = build_sequence_logit_bias_matrix(self._sequence_bias_config, self.segment)
+        self._logit_bias = combine_logit_biases(self._raw_logit_bias, sequence_logit_bias)
         if self._frozen_positions is not None:
             for pos in self._frozen_positions:
                 if pos >= seq_len:

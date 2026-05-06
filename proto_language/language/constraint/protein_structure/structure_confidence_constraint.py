@@ -1,7 +1,9 @@
-"""Generic structure prediction confidence constraints for ESMFold, AlphaFold3, Boltz2, and Chai1.
+"""Generic structure prediction confidence constraints.
 
 Normalizes confidence metrics to be between 0 and 1, inclusive, where lower is
-better (more confident).
+better (more confident). AlphaFold2 multimer-backed outputs are adapted to the
+same predictor-style metric names as the other structure predictors, while
+ColabDesign objective values are preserved separately in ``loss_*`` metadata.
 
 Constraints:
 - structure-plddt: Average predicted LDDT score
@@ -9,9 +11,13 @@ Constraints:
 - structure-iptm: Interface predicted TM-score (multimer)
 - structure-pae: Average predicted aligned error
 - structure-composite: Composite of all four above from a single prediction call.
+- structure-iplddt: Interface predicted LDDT score
+- structure-ipae: Interface predicted aligned error
 """
 
+from dataclasses import dataclass
 from logging import getLogger
+from typing import Any
 
 from proto_tools import Structure, StructurePredictionComplex, predict_structures
 
@@ -22,6 +28,10 @@ from proto_language.language.constraint.protein_structure.structure_constraint_c
 from proto_language.language.core import ConstraintOutput, Sequence
 from proto_language.storage import FileType, store_file
 from proto_language.utils import MAX_ENERGY
+from proto_language.utils.alphafold2_multimer import (
+    af2_multimer_confidence_output_metadata,
+    evaluate_af2_multimer_confidence_predictions,
+)
 
 logger = getLogger(__name__)
 
@@ -35,9 +45,27 @@ TOOL_AVAILABLE_METRICS: dict[str, set[str]] = {
     "alphafold3": {"avg_plddt", "ptm", "iptm", "avg_pae"},
     "boltz2": {"avg_plddt", "ptm", "iptm", "avg_pae"},
     "chai1": {"avg_plddt", "ptm", "iptm", "avg_pae"},
+    "alphafold2_multimer": {"avg_plddt", "ptm", "iptm", "avg_pae", "iplddt", "ipae"},
 }
 PAE_MAXIMUM: float = 31.75  # Angstroms.
 COMPOSITE_REQUIRED_METRICS: frozenset[str] = frozenset({"avg_plddt", "iptm", "ptm", "avg_pae"})
+COMPOSITE_SUPPORTED_TOOLS: frozenset[str] = frozenset({"alphafold3", "boltz2", "chai1"})
+
+
+@dataclass(frozen=True)
+class _StructureConfidenceRecord:
+    """One confidence prediction with complex-level metrics and structures.
+
+    Most predictors return a ``Structure`` whose metrics and full-complex
+    coordinates are enough. AF2 multimer needs one extra carrier because its
+    adapter returns canonical metrics, the full complex for metadata/PDB
+    output, and optional per-input chain structures. Keeping those fields
+    together prevents each public confidence constraint from branching on AF2M.
+    """
+
+    metrics: dict[str, Any]
+    complex_structure: Structure
+    per_input_structures: tuple[Structure | None, ...] | None = None
 
 
 # ============================================================================
@@ -45,16 +73,56 @@ COMPOSITE_REQUIRED_METRICS: frozenset[str] = frozenset({"avg_plddt", "iptm", "pt
 # ============================================================================
 
 
+def _predict_confidence_records(
+    proposals: list[tuple[Sequence, ...]],
+    config: StructureBasedConstraintConfig,
+    target_metric: str,
+) -> list[_StructureConfidenceRecord]:
+    """Run the configured confidence predictor once and return canonical records.
+
+    Standard structure predictors flow through ``predict_structures`` and
+    return a ``Structure`` per proposal. AF2 multimer uses the binder /
+    ColabDesign API, so this adapter converts its richer output into the same
+    private record shape before metric extraction and scoring happen.
+    """
+    if config.structure_tool == "alphafold2_multimer":
+        predictions = evaluate_af2_multimer_confidence_predictions(
+            proposals,
+            config,
+            target_metric=target_metric,
+        )
+        return [
+            _StructureConfidenceRecord(
+                metrics=prediction.metrics,
+                complex_structure=prediction.structure,
+                per_input_structures=prediction.structures,
+            )
+            for prediction in predictions
+        ]
+
+    complexes = []
+    for proposal_tuple in proposals:
+        chains = [{"sequence": seq.sequence, "entity_type": seq.sequence_type} for seq in proposal_tuple]
+        complexes.append(StructurePredictionComplex(chains=chains))
+
+    output = predict_structures(complexes, config.structure_tool, config.tool_config)
+    return [
+        _StructureConfidenceRecord(metrics=dict(structure.metrics.items()), complex_structure=structure)
+        for structure in output.structures
+    ]
+
+
 def _structure_confidence(
     proposals: list[tuple[Sequence, ...]],
     config: StructureBasedConstraintConfig,
     target_metric: str,
-) -> list[tuple[float | None, Structure | None]]:
+) -> list[tuple[float | None, _StructureConfidenceRecord | None]]:
     """Core helper for structure confidence constraints.
 
     Runs the configured structure predictor on all proposals and returns the
-    requested raw metric plus the predicted ``Structure`` per proposal, without
-    mutating inputs. Callers assemble a ``ConstraintOutput`` from these values.
+    requested canonical metric plus the predicted ``Structure`` per proposal,
+    without mutating inputs. Callers assemble a ``ConstraintOutput`` from these
+    values.
 
     Args:
         proposals (list[tuple[Sequence, ...]]): Per-proposal sequence tuples.
@@ -62,8 +130,9 @@ def _structure_confidence(
         target_metric (str): Metric to extract from structure predictions.
 
     Returns:
-        list[tuple[float | None, Structure | None]]: ``(metric, structure)`` per
-            proposal. ``metric`` is ``None`` when the predictor omits it.
+        list[tuple[float | None, _StructureConfidenceRecord | None]]: ``(metric,
+            record)`` per proposal. ``metric`` is ``None`` when the predictor
+            omits it.
 
     Raises:
         ValueError: If target_metric is not available for the specified tool.
@@ -75,34 +144,29 @@ def _structure_confidence(
             f"Available metrics: {', '.join(sorted(available))}"
         )
 
-    complexes = []
-    for proposal_tuple in proposals:
-        chains = [{"sequence": seq.sequence, "entity_type": seq.sequence_type} for seq in proposal_tuple]
-        complexes.append(StructurePredictionComplex(chains=chains))
+    records = _predict_confidence_records(proposals, config, target_metric)
 
-    output = predict_structures(complexes, config.structure_tool, config.tool_config)
-
-    outcomes: list[tuple[float | None, Structure | None]] = []
-    for structure in output.structures:
-        metric_value = structure.metrics.get(target_metric)
+    outcomes: list[tuple[float | None, _StructureConfidenceRecord | None]] = []
+    for record, _proposal_tuple in zip(records, proposals, strict=True):
+        metric_value = record.metrics.get(target_metric)
         if metric_value is None:
             alt = {"avg_plddt": "complex_plddt", "avg_pae": "complex_pde"}.get(target_metric)
             if alt:
-                metric_value = structure.metrics.get(alt)
+                metric_value = record.metrics.get(alt)
 
         if metric_value is None:
-            logger.warning(f"Metric '{target_metric}' not found in structure output, returning worst score.")
+            logger.warning("Metric %r not found in structure output, returning worst score.", target_metric)
             outcomes.append((None, None))
             continue
 
-        outcomes.append((metric_value, structure))
+        outcomes.append((metric_value, record))
 
     return outcomes
 
 
 def _assemble_result(
     metric: float | None,
-    structure: Structure | None,
+    record: _StructureConfidenceRecord | None,
     target_metric: str,
     score: float,
     structure_tool: str,
@@ -113,14 +177,22 @@ def _assemble_result(
     Metadata describes the predicted input tuple/complex and is broadcast by
     default; the predicted Structure attaches to slot 0 as the canonical carrier.
     """
-    if structure is None:
+    if record is None:
         return ConstraintOutput(score=score)
-    metadata = {
-        target_metric: metric,
-        "pdb_output": store_file(structure.structure_pdb, FileType.PDB),
-        "structure_tool": structure_tool,
-    }
-    structures = (structure,) + (None,) * (n_segments - 1)
+    if structure_tool == "alphafold2_multimer":
+        metadata = af2_multimer_confidence_output_metadata(
+            record.metrics,
+            output_loss=score,
+            output_structure=record.complex_structure,
+            target_metric=target_metric,
+        )
+    else:
+        metadata = {
+            target_metric: metric,
+            "pdb_output": store_file(record.complex_structure.structure_pdb, FileType.PDB),
+            "structure_tool": structure_tool,
+        }
+    structures = record.per_input_structures or ((record.complex_structure,) + (None,) * (n_segments - 1))
     return ConstraintOutput(score=score, metadata=metadata, structures=structures)
 
 
@@ -130,7 +202,13 @@ def _assemble_result(
     config=StructureBasedConstraintConfig,
     description="Evaluate structure quality using predicted LDDT score",
     uses_gpu=True,
-    tools_called=["esmfold-prediction", "alphafold3-prediction", "boltz2-prediction", "chai1-prediction"],
+    tools_called=[
+        "esmfold-prediction",
+        "alphafold3-prediction",
+        "boltz2-prediction",
+        "chai1-prediction",
+        "alphafold2-multimer",
+    ],
     category="protein_structure",
     supported_sequence_types=["protein", "rna", "dna", "ligand"],
     input_labels=None,
@@ -151,10 +229,10 @@ def structure_plddt_constraint(
     Note that for Boltz2, this is based on the ``"complex_plddt"`` score
     returned natively by the package.
 
-    **Supported tools**: ESMFold, AlphaFold3, Boltz2, Chai1
+    **Supported tools**: ESMFold, AlphaFold3, Boltz2, Chai1, AlphaFold2 multimer
 
     Args:
-        input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
+        input_sequences (list[tuple[Sequence, ...]]): Per-proposal tuples of input sequences.
         config (StructureBasedConstraintConfig): Constraint configuration controlling evaluation parameters.
 
     Returns:
@@ -175,7 +253,7 @@ def structure_plddt_constraint(
     """
     outcomes = _structure_confidence(input_sequences, config, "avg_plddt")
     results: list[ConstraintOutput] = []
-    for (metric, structure), proposal_tuple in zip(outcomes, input_sequences, strict=True):
+    for (metric, record), proposal_tuple in zip(outcomes, input_sequences, strict=True):
         if metric is None:
             results.append(
                 ConstraintOutput(
@@ -184,11 +262,9 @@ def structure_plddt_constraint(
                 )
             )
             continue
-        normalized = metric / 100.0 if config.structure_tool == "alphafold3" else metric
+        normalized = metric / 100.0 if metric > 1.0 else metric
         results.append(
-            _assemble_result(
-                metric, structure, "avg_plddt", 1.0 - normalized, config.structure_tool, len(proposal_tuple)
-            )
+            _assemble_result(metric, record, "avg_plddt", 1.0 - normalized, config.structure_tool, len(proposal_tuple))
         )
     return results
 
@@ -199,7 +275,13 @@ def structure_plddt_constraint(
     config=StructureBasedConstraintConfig,
     description="Evaluate structure quality using predicted TM score",
     uses_gpu=True,
-    tools_called=["esmfold-prediction", "alphafold3-prediction", "boltz2-prediction", "chai1-prediction"],
+    tools_called=[
+        "esmfold-prediction",
+        "alphafold3-prediction",
+        "boltz2-prediction",
+        "chai1-prediction",
+        "alphafold2-multimer",
+    ],
     category="protein_structure",
     supported_sequence_types=["protein", "rna", "dna", "ligand"],
     input_labels=None,
@@ -216,10 +298,10 @@ def structure_ptm_constraint(
     This constraint returns ``1.0 - ptm``, so lower scores indicate
     better predicted structure quality.
 
-    **Supported tools**: ESMFold, AlphaFold3, Boltz2, Chai1
+    **Supported tools**: ESMFold, AlphaFold3, Boltz2, Chai1, AlphaFold2 multimer
 
     Args:
-        input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
+        input_sequences (list[tuple[Sequence, ...]]): Per-proposal tuples of input sequences.
         config (StructureBasedConstraintConfig): Constraint configuration controlling evaluation parameters.
 
     Returns:
@@ -239,7 +321,7 @@ def structure_ptm_constraint(
     """
     outcomes = _structure_confidence(input_sequences, config, "ptm")
     results: list[ConstraintOutput] = []
-    for (metric, structure), proposal_tuple in zip(outcomes, input_sequences, strict=True):
+    for (metric, record), proposal_tuple in zip(outcomes, input_sequences, strict=True):
         if metric is None:
             results.append(
                 ConstraintOutput(
@@ -249,7 +331,7 @@ def structure_ptm_constraint(
             )
             continue
         results.append(
-            _assemble_result(metric, structure, "ptm", 1.0 - metric, config.structure_tool, len(proposal_tuple))
+            _assemble_result(metric, record, "ptm", 1.0 - metric, config.structure_tool, len(proposal_tuple))
         )
     return results
 
@@ -260,7 +342,7 @@ def structure_ptm_constraint(
     config=StructureBasedConstraintConfig,
     description="Evaluate interface quality using predicted interface TM score",
     uses_gpu=True,
-    tools_called=["alphafold3-prediction", "boltz2-prediction", "chai1-prediction"],
+    tools_called=["alphafold3-prediction", "boltz2-prediction", "chai1-prediction", "alphafold2-multimer"],
     category="protein_structure",
     supported_sequence_types=["protein", "rna", "dna", "ligand"],
     input_labels=None,
@@ -278,10 +360,10 @@ def structure_iptm_constraint(
     This constraint returns ``1.0 - iptm``, so lower scores indicate
     better predicted interface quality.
 
-    **Supported tools**: AlphaFold3, Boltz2, Chai1 (NOT ESMFold)
+    **Supported tools**: AlphaFold3, Boltz2, Chai1, AlphaFold2 multimer (NOT ESMFold)
 
     Args:
-        input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
+        input_sequences (list[tuple[Sequence, ...]]): Per-proposal tuples of input sequences.
         config (StructureBasedConstraintConfig): Constraint configuration controlling evaluation parameters.
 
     Returns:
@@ -319,7 +401,7 @@ def structure_iptm_constraint(
     """
     outcomes = _structure_confidence(input_sequences, config, "iptm")
     results: list[ConstraintOutput] = []
-    for (metric, structure), proposal_tuple in zip(outcomes, input_sequences, strict=True):
+    for (metric, record), proposal_tuple in zip(outcomes, input_sequences, strict=True):
         if metric is None:
             results.append(
                 ConstraintOutput(
@@ -329,7 +411,7 @@ def structure_iptm_constraint(
             )
             continue
         results.append(
-            _assemble_result(metric, structure, "iptm", 1.0 - metric, config.structure_tool, len(proposal_tuple))
+            _assemble_result(metric, record, "iptm", 1.0 - metric, config.structure_tool, len(proposal_tuple))
         )
     return results
 
@@ -340,7 +422,13 @@ def structure_iptm_constraint(
     config=StructureBasedConstraintConfig,
     description="Evaluate structure quality using predicted aligned error",
     uses_gpu=True,
-    tools_called=["esmfold-prediction", "alphafold3-prediction", "boltz2-prediction", "chai1-prediction"],
+    tools_called=[
+        "esmfold-prediction",
+        "alphafold3-prediction",
+        "boltz2-prediction",
+        "chai1-prediction",
+        "alphafold2-multimer",
+    ],
     category="protein_structure",
     supported_sequence_types=["protein", "rna", "dna", "ligand"],
     input_labels=None,
@@ -361,10 +449,10 @@ def structure_pae_constraint(
            by all major structure predictors).
         3. Returns that value without flipping the sign, as lower is better.
 
-    **Supported tools**: ESMFold, AlphaFold3, Boltz2, Chai1
+    **Supported tools**: ESMFold, AlphaFold3, Boltz2, Chai1, AlphaFold2 multimer
 
     Args:
-        input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
+        input_sequences (list[tuple[Sequence, ...]]): Per-proposal tuples of input sequences.
         config (StructureBasedConstraintConfig): Constraint configuration controlling evaluation parameters.
 
     Returns:
@@ -388,7 +476,7 @@ def structure_pae_constraint(
     """
     outcomes = _structure_confidence(input_sequences, config, "avg_pae")
     results: list[ConstraintOutput] = []
-    for (metric, structure), proposal_tuple in zip(outcomes, input_sequences, strict=True):
+    for (metric, record), proposal_tuple in zip(outcomes, input_sequences, strict=True):
         if metric is None:
             results.append(
                 ConstraintOutput(
@@ -397,9 +485,112 @@ def structure_pae_constraint(
                 )
             )
             continue
+        score = min(metric / PAE_MAXIMUM, 1.0)
+        results.append(_assemble_result(metric, record, "avg_pae", score, config.structure_tool, len(proposal_tuple)))
+    return results
+
+
+@constraint(
+    key="structure-iplddt",
+    label="Structure Interface pLDDT",
+    config=StructureBasedConstraintConfig,
+    description="Evaluate AF2 multimer interface pLDDT confidence.",
+    uses_gpu=True,
+    tools_called=["alphafold2-multimer"],
+    category="protein_structure",
+    supported_sequence_types=["protein"],
+    input_labels=None,
+)
+def structure_iplddt_constraint(
+    input_sequences: list[tuple[Sequence, ...]], config: StructureBasedConstraintConfig
+) -> list[ConstraintOutput]:
+    """Evaluate AF2 multimer interface pLDDT confidence.
+
+    This reads the predictor-style ``iplddt`` metric exposed through the AF2
+    multimer adapter and returns ``1.0 - iplddt`` so lower scores indicate
+    better interface-local confidence. The underlying ColabDesign objective is
+    still preserved separately as ``loss_iplddt`` metadata.
+
+    Args:
+        input_sequences (list[tuple[Sequence, ...]]): Per-proposal input tuples.
+        config (StructureBasedConstraintConfig): AF2 multimer structure config.
+
+    Returns:
+        list[ConstraintOutput]: Per-proposal interface pLDDT confidence scores.
+    """
+    outcomes = _structure_confidence(input_sequences, config, "iplddt")
+    results: list[ConstraintOutput] = []
+    for (metric, record), proposal_tuple in zip(outcomes, input_sequences, strict=True):
+        if metric is None:
+            results.append(
+                ConstraintOutput(
+                    score=MAX_ENERGY,
+                    metadata={"structure_iplddt_error": f"iplddt missing from {config.structure_tool} output"},
+                )
+            )
+            continue
+        normalized = metric / 100.0 if metric > 1.0 else metric
         results.append(
             _assemble_result(
-                metric, structure, "avg_pae", min(metric / PAE_MAXIMUM, 1.0), config.structure_tool, len(proposal_tuple)
+                metric,
+                record,
+                "iplddt",
+                1.0 - normalized,
+                config.structure_tool,
+                len(proposal_tuple),
+            )
+        )
+    return results
+
+
+@constraint(
+    key="structure-ipae",
+    label="Structure Interface pAE",
+    config=StructureBasedConstraintConfig,
+    description="Evaluate AF2 multimer interface PAE confidence.",
+    uses_gpu=True,
+    tools_called=["alphafold2-multimer"],
+    category="protein_structure",
+    supported_sequence_types=["protein"],
+    input_labels=None,
+)
+def structure_ipae_constraint(
+    input_sequences: list[tuple[Sequence, ...]], config: StructureBasedConstraintConfig
+) -> list[ConstraintOutput]:
+    """Evaluate AF2 multimer interface PAE confidence.
+
+    This reads the predictor-style ``ipae`` metric exposed through the AF2
+    multimer adapter and returns normalized interface PAE, so lower scores
+    indicate better interface-local confidence. The underlying ColabDesign
+    objective is still preserved separately as ``loss_ipae`` metadata.
+
+    Args:
+        input_sequences (list[tuple[Sequence, ...]]): Per-proposal input tuples.
+        config (StructureBasedConstraintConfig): AF2 multimer structure config.
+
+    Returns:
+        list[ConstraintOutput]: Per-proposal interface PAE confidence scores.
+    """
+    outcomes = _structure_confidence(input_sequences, config, "ipae")
+    results: list[ConstraintOutput] = []
+    for (metric, record), proposal_tuple in zip(outcomes, input_sequences, strict=True):
+        if metric is None:
+            results.append(
+                ConstraintOutput(
+                    score=MAX_ENERGY,
+                    metadata={"structure_ipae_error": f"ipae missing from {config.structure_tool} output"},
+                )
+            )
+            continue
+        score = min(metric / PAE_MAXIMUM, 1.0)
+        results.append(
+            _assemble_result(
+                metric,
+                record,
+                "ipae",
+                score,
+                config.structure_tool,
+                len(proposal_tuple),
             )
         )
     return results
@@ -437,10 +628,12 @@ def structure_composite_constraint(
     for post-hoc threshold labeling.
 
     **Supported tools**: AlphaFold3, Boltz2, Chai1 (NOT ESMFold — ESMFold does
-    not produce ``iptm`` and cannot handle multi-chain complexes).
+    not produce ``iptm`` and cannot handle multi-chain complexes; NOT AF2
+    multimer because its interface TM value is exposed as a differentiable
+    objective rather than the same forward confidence metric used here).
 
     Args:
-        input_sequences (list[tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
+        input_sequences (list[tuple[Sequence, ...]]): Per-proposal tuples of input sequences.
         config (StructureBasedConstraintConfig): Constraint configuration controlling evaluation parameters.
 
     Returns:
@@ -485,17 +678,16 @@ def structure_composite_constraint(
             f"structure-composite requires a tool producing all of "
             f"{sorted(COMPOSITE_REQUIRED_METRICS)}; '{config.structure_tool}' is missing {missing}."
         )
+    if config.structure_tool not in COMPOSITE_SUPPORTED_TOOLS:
+        raise ValueError(
+            f"structure-composite requires one of {sorted(COMPOSITE_SUPPORTED_TOOLS)}; got {config.structure_tool!r}."
+        )
 
-    complexes = []
-    for proposal_tuple in input_sequences:
-        chains = [{"sequence": seq.sequence, "entity_type": seq.sequence_type} for seq in proposal_tuple]
-        complexes.append(StructurePredictionComplex(chains=chains))
-
-    output = predict_structures(complexes, config.structure_tool, config.tool_config)
+    records = _predict_confidence_records(input_sequences, config, "avg_plddt")
 
     results: list[ConstraintOutput] = []
-    for structure, proposal_tuple in zip(output.structures, input_sequences, strict=True):
-        m = structure.metrics
+    for record, proposal_tuple in zip(records, input_sequences, strict=True):
+        m = record.metrics
         plddt_raw = m.get("avg_plddt")
         if plddt_raw is None:
             plddt_raw = m.get("complex_plddt")
@@ -514,7 +706,7 @@ def structure_composite_constraint(
             results.append(ConstraintOutput(score=MAX_ENERGY, metadata={"structure_composite_error": err_msg}))
             continue
 
-        plddt_norm = plddt_raw / 100.0 if config.structure_tool == "alphafold3" else plddt_raw
+        plddt_norm = plddt_raw / 100.0 if plddt_raw > 1.0 else plddt_raw
         pae_norm = min(pae / PAE_MAXIMUM, 1.0)
 
         score = ((1.0 - plddt_norm) + (1.0 - iptm) + (1.0 - ptm) + pae_norm) / 4.0
@@ -528,10 +720,10 @@ def structure_composite_constraint(
                     "composite_iptm": iptm,
                     "composite_ptm": ptm,
                     "composite_avg_pae": pae_norm,
-                    "pdb_output": store_file(structure.structure_pdb, FileType.PDB),
+                    "pdb_output": store_file(record.complex_structure.structure_pdb, FileType.PDB),
                     "structure_tool": config.structure_tool,
                 },
-                structures=(structure,) + (None,) * (n - 1),
+                structures=record.per_input_structures or ((record.complex_structure,) + (None,) * (n - 1)),
             )
         )
 

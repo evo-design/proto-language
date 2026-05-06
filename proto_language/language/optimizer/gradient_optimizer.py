@@ -10,8 +10,13 @@ from pydantic import ValidationInfo, field_validator, model_validator
 
 from proto_language.base_config import BaseConfig, BaseOptimizerConfig, ConfigField
 from proto_language.language.core import Constraint, Construct, Generator, Optimizer, Segment
-from proto_language.language.core.constraint import GradientConstraintOutput
 from proto_language.language.generator import PositionWeightGenerator
+from proto_language.language.optimizer.constraint_compiler import (
+    GradientProvider,
+    GradientProviderOutput,
+    compile_gradient_providers,
+    constraint_supports_compiled_gradient,
+)
 from proto_language.language.optimizer.optimizer_registry import optimizer
 from proto_language.utils import softmax
 from proto_language.utils.gradients import MERGERS, GradientMergerName, align_norms, normalize_gradient
@@ -443,11 +448,13 @@ class GradientOptimizer(Optimizer):
         self.config = config
         self.target_segment: Segment = target_segment
         self.generator: Generator = generator
-        non_gradient = [c.label for c in constraints if not c.supports_gradient]
-        if non_gradient:
-            raise ValueError(
-                f"GradientOptimizer requires all constraints to support gradient evaluation, but {non_gradient} do not"
-            )
+        unsupported = []
+        for constraint in constraints:
+            ok, reason = constraint_supports_compiled_gradient(constraint, target_segment)
+            if not ok:
+                unsupported.append(reason or f"Constraint '{constraint.label}' does not support gradient evaluation.")
+        if unsupported:
+            raise ValueError("GradientOptimizer requires differentiable constraints: " + "; ".join(unsupported))
         self._gradient_constraints = list(constraints)
         super().__init__(
             constructs=constructs,
@@ -464,8 +471,6 @@ class GradientOptimizer(Optimizer):
         )
 
         self.num_steps: int = config.num_steps
-        self._gradient_indices: list[int] = [c.inputs.index(target_segment) for c in self._gradient_constraints]
-
         # Merger, ML optimizer, schedules
         self._merger = MERGERS[config.merger]()
         self._ml_optimizer = ML_OPTIMIZERS[config.ml_optimizer](config.ml_optimizer_config)
@@ -479,7 +484,10 @@ class GradientOptimizer(Optimizer):
             if e.constraint_label in known:
                 self._weight_schedules[e.constraint_label] = SCHEDULES[e.schedule](e.start_weight, e.end_weight)
             else:
-                logger.warning(f"Unknown weight-schedule label '{e.constraint_label}'; ignored.")
+                logger.warning("Unknown weight-schedule label %r; ignored.", e.constraint_label)
+        self._gradient_providers: list[GradientProvider] = compile_gradient_providers(
+            self._gradient_constraints, self.target_segment
+        )
 
     def _validate_optimizer(self) -> None:
         """Extend base validation with gradient-specific checks against the target segment."""
@@ -514,6 +522,51 @@ class GradientOptimizer(Optimizer):
             out_of_bounds = [p for p in self.config.softmax_init_positions if p < 0 or p >= seq_len]
             if out_of_bounds:
                 raise ValueError(f"softmax_init_positions {out_of_bounds} out of bounds for segment length {seq_len}.")
+
+    def _validate_component_compatibility(self) -> None:
+        """Validate dependencies while allowing compiler-backed gradient constraints."""
+        from proto_language.language.constraint.constraint_registry import ConstraintRegistry
+        from proto_language.language.generator.generator_registry import GeneratorRegistry
+        from proto_language.language.optimizer.optimizer_registry import OptimizerRegistry
+
+        opt_key = OptimizerRegistry.find_key(self)
+        opt = OptimizerRegistry.get(opt_key) if opt_key else None
+        opt_label = opt.label if opt else self.__class__.__name__
+        gen_keys = {k for gen in self.generators if (k := GeneratorRegistry.find_key(gen)) is not None}
+
+        if opt and opt.compatible_generators is not None:
+            for key in gen_keys:
+                if key not in opt.compatible_generators:
+                    raise ValueError(
+                        f"Generator '{key}' is not compatible with {opt_label}. "
+                        f"Compatible generators: {', '.join(opt.compatible_generators)}"
+                    )
+
+        if opt and opt.required_constraint_mode is not None:
+            required = opt.required_constraint_mode
+            ok_modes = {"gradient": ("gradient", "dual"), "discrete": ("discrete", "dual")}[required]
+            for con in self.constraints:
+                con_key = ConstraintRegistry.find_key(con)
+                if con_key and ConstraintRegistry.get(con_key).mode in ok_modes:
+                    continue
+                ok, reason = constraint_supports_compiled_gradient(con, self.target_segment)
+                if ok:
+                    continue
+                detail = f": {reason}" if reason else ""
+                raise ValueError(
+                    f"Constraint '{con.label}' does not support {required} evaluation, required by {opt_label}{detail}"
+                )
+
+        for con in self.constraints:
+            con_key = ConstraintRegistry.find_key(con)
+            spec = ConstraintRegistry.get(con_key) if con_key else None
+            if not spec or not spec.requires_generators:
+                continue
+            missing = [r for r in spec.requires_generators if r not in gen_keys]
+            if missing:
+                raise ValueError(
+                    f"Constraint '{con.label}' requires a {', '.join(missing)} generator in the same optimization stage"
+                )
 
     def run(self) -> None:
         """Execute gradient optimization.
@@ -587,7 +640,6 @@ class GradientOptimizer(Optimizer):
                 f"temp {self.config.temperature_start}→{self.config.temperature_end}"
             )
 
-        all_results: list[list[GradientConstraintOutput]]
         for step in range(1, self.config.num_steps + 1):
             # 1. Compute soft and temperature from linear/scheduled interpolation
             progress = step / self.config.num_steps
@@ -598,28 +650,27 @@ class GradientOptimizer(Optimizer):
             lr = self._effective_lr(lr_temp, soft)
 
             # 2. Compute gradients from all gradient-capable constraints
-            all_results = [
-                c.compute_gradient(temperature=temp, soft=soft, hard=hard) for c in self._gradient_constraints
+            provider_outputs = [
+                provider.compute(
+                    temperature=temp,
+                    soft=soft,
+                    hard=hard,
+                    step=step,
+                    effective_weight=self._effective_weight,
+                )
+                for provider in self._gradient_providers
             ]
-            for i, constraint in enumerate(self._gradient_constraints):
-                for k, r in enumerate(all_results[i]):
-                    if not np.isfinite(r.gradient[self._gradient_indices[i]]).all():
-                        raise ValueError(
-                            f"Non-finite gradient from '{constraint.label}' at step {step} (proposal {k})."
-                        )
+            for output in provider_outputs:
+                for k, grad in enumerate(output.gradients):
+                    if not np.isfinite(grad).all():
+                        raise ValueError(f"Non-finite gradient from '{output.label}' at step {step} (proposal {k}).")
 
             # 3-5. Merge gradients and update logits for each trajectory
             for k in range(self.num_results):
-                self._update_trajectory(k, all_results, lr, target, step)
+                self._update_trajectory(k, provider_outputs, lr, target, step)
 
             # Report the same weighted objective that gradient descent is actually minimizing.
-            self.energy_scores = [
-                sum(
-                    self._effective_weight(c, step) * all_results[i][k].loss
-                    for i, c in enumerate(self._gradient_constraints)
-                )
-                for k in range(self.num_results)
-            ]
+            self.energy_scores = [sum(output.losses[k] for output in provider_outputs) for k in range(self.num_results)]
             self._proposal_outcomes = ["accepted"] * self.num_proposals
             self._proposal_energy_scores = list(self.energy_scores)
 
@@ -676,11 +727,11 @@ class GradientOptimizer(Optimizer):
             self.custom_logging(step, self.segments)
 
     def _update_trajectory(
-        self, k: int, all_results: list[list[GradientConstraintOutput]], lr: float, target: Segment, step: int
+        self, k: int, provider_outputs: list[GradientProviderOutput], lr: float, target: Segment, step: int
     ) -> None:
         """Align, merge, normalize, and apply one gradient step for trajectory *k*."""
-        grads = [all_results[i][k].gradient[self._gradient_indices[i]] for i in range(len(self._gradient_constraints))]
-        weights = [self._effective_weight(c, step) for c in self._gradient_constraints]
+        grads = [output.gradients[k] for output in provider_outputs]
+        weights = [output.weight for output in provider_outputs]
 
         # Align norms first so ``match_first`` doesn't wash out weights.
         grads = align_norms(grads, self.config.norm_alignment, zero_norm_eps=self.config.zero_norm_eps)

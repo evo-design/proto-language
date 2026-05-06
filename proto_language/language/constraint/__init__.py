@@ -8,14 +8,6 @@ from proto_language.language.constraint.constraint_registry import (
     constraint,
 )
 
-# Differentiable constraints
-from proto_language.language.constraint.differentiable import (
-    ablang_naturalness_forward,
-    ablang_naturalness_gradient_backward,
-    af2_binder_backward,
-    af2_binder_forward,
-)
-
 # Protein quality constraints
 from proto_language.language.constraint.protein_quality import (
     balanced_aa_constraint,
@@ -32,17 +24,28 @@ from proto_language.language.constraint.protein_quality import (
 
 # Protein structure constraints
 from proto_language.language.constraint.protein_structure import (
+    AlphaFold2MultimerStructureConfig,
+    StructureBasedConstraintConfig,
     boltz_binding_strength_constraint,
     gyration_radius_constraint,
     protein_globularity_constraint,
     protein_symmetry_ring_constraint,
+    structure_beta_strand_constraint,
     structure_composite_constraint,
+    structure_contact_constraint,
+    structure_distogram_cce_constraint,
     structure_ensemble_rmsd_constraint,
+    structure_helix_constraint,
+    structure_interface_contact_constraint,
+    structure_ipae_constraint,
+    structure_iplddt_constraint,
     structure_iptm_constraint,
     structure_pae_constraint,
     structure_plddt_constraint,
     structure_ptm_constraint,
+    structure_radius_gyration_constraint,
     structure_rmsd_constraint,
+    structure_termini_distance_constraint,
     structure_tmscore_constraint,
 )
 
@@ -91,6 +94,9 @@ from proto_language.language.constraint.sequence_composition import (
 
 # Sequence scoring constraints
 from proto_language.language.constraint.sequence_scoring import (
+    AbLangPerplexityConfig,
+    ablang_perplexity_constraint,
+    ablang_perplexity_gradient_backward,
     mpnn_perplexity_constraint,
 )
 
@@ -100,11 +106,6 @@ __all__ = [
     "ConstraintSpec",
     "InputSlot",
     "constraint",
-    # Differentiable
-    "ablang_naturalness_forward",
-    "ablang_naturalness_gradient_backward",
-    "af2_binder_backward",
-    "af2_binder_forward",
     # Sequence composition
     "sequence_length_constraint",
     "gc_content_constraint",
@@ -112,14 +113,25 @@ __all__ = [
     "kmer_frequency_constraint",
     "specific_kmer_constraint",
     # Protein structure
+    "AlphaFold2MultimerStructureConfig",
+    "StructureBasedConstraintConfig",
     "gyration_radius_constraint",
     "structure_rmsd_constraint",
     "structure_tmscore_constraint",
     "structure_ensemble_rmsd_constraint",
     "structure_plddt_constraint",
+    "structure_iplddt_constraint",
     "structure_ptm_constraint",
     "structure_iptm_constraint",
     "structure_pae_constraint",
+    "structure_ipae_constraint",
+    "structure_contact_constraint",
+    "structure_interface_contact_constraint",
+    "structure_radius_gyration_constraint",
+    "structure_helix_constraint",
+    "structure_beta_strand_constraint",
+    "structure_distogram_cce_constraint",
+    "structure_termini_distance_constraint",
     "structure_composite_constraint",
     "protein_symmetry_ring_constraint",
     "protein_globularity_constraint",
@@ -156,6 +168,9 @@ __all__ = [
     "rna_feature_similarity_constraint",
     "rna_basepair_similarity_constraint",
     # Sequence scoring
+    "AbLangPerplexityConfig",
+    "ablang_perplexity_constraint",
+    "ablang_perplexity_gradient_backward",
     "mpnn_perplexity_constraint",
     # RNA splicing
     "alphagenome_splice_site_usage",

@@ -41,6 +41,7 @@ from proto_language.language.generator import (
     RandomProteinGeneratorConfig,
     SemigreedyMutationGenerator,
     SemigreedyMutationGeneratorConfig,
+    SequenceLogitBiasConfig,
     generator,
 )
 from proto_language.language.optimizer import (
@@ -90,6 +91,7 @@ __all__ = [
     "RandomNucleotideGeneratorConfig",
     "PositionWeightGenerator",
     "PositionWeightGeneratorConfig",
+    "SequenceLogitBiasConfig",
     "MSAGenerator",
     "MSAGeneratorConfig",
     "SemigreedyMutationGenerator",

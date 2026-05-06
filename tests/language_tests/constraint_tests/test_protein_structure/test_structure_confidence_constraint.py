@@ -1,23 +1,38 @@
 """Tests for structure confidence constraints across all metrics and prediction tools."""
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-from proto_tools import StructurePredictionOutput
+from proto_tools import Structure, StructurePredictionOutput
 
 from proto_language.language.constraint.protein_structure.structure_confidence_constraint import (
     PAE_MAXIMUM,
     TOOL_AVAILABLE_METRICS,
     StructureBasedConstraintConfig,
     structure_composite_constraint,
+    structure_ipae_constraint,
+    structure_iplddt_constraint,
     structure_iptm_constraint,
     structure_pae_constraint,
     structure_plddt_constraint,
     structure_ptm_constraint,
 )
+from proto_language.language.constraint.protein_structure.structure_constraint_config import (
+    AlphaFold2MultimerStructureConfig,
+)
+from proto_language.language.constraint.protein_structure.structure_geometry_constraint import (
+    structure_contact_constraint,
+)
 from proto_language.language.core import Sequence
 from proto_language.storage import get_file_content, is_file_reference
-from tests.helpers.mock_structure import MockStructure
+from proto_language.utils.alphafold2_multimer import (
+    AF2_MULTIMER_CONFIDENCE_LOSS_BY_METRIC,
+    AF2_MULTIMER_PAE_MAXIMUM,
+    af2_multimer_confidence_loss_weights,
+    af2_multimer_tool_loss_key,
+)
+from tests.helpers.mock_structure import PDL1_PDB, MockStructure
 
 # ============================================================================
 # Fixtures
@@ -264,6 +279,95 @@ class TestToolDispatching:
             call_args = mock_predict.call_args[0]
             assert call_args[1] == tool_name
 
+    @pytest.mark.parametrize(
+        "constraint_fn,expected_loss,expected_tool_loss,tool_metrics",
+        [
+            (
+                structure_plddt_constraint,
+                "plddt",
+                "plddt",
+                {"avg_plddt": 0.75, "plddt": 0.25, "iptm": 0.8},
+            ),
+            (structure_iplddt_constraint, "iplddt", af2_multimer_tool_loss_key("iplddt"), None),
+            (structure_ipae_constraint, "ipae", af2_multimer_tool_loss_key("ipae"), None),
+            (structure_iptm_constraint, "iptm", af2_multimer_tool_loss_key("iptm"), None),
+            (structure_contact_constraint, "con", "con", None),
+        ],
+    )
+    def test_first_class_af2_terms(
+        self,
+        protein_sequence,
+        constraint_fn,
+        expected_loss,
+        expected_tool_loss,
+        tool_metrics,
+    ):
+        """First-class AF2 structure terms expose canonical names and adapt tool-layer keys."""
+        binder = Sequence("EVQLVESG", "protein")
+        config = StructureBasedConstraintConfig(
+            structure_tool="alphafold2_multimer",
+            alphafold2_multimer_config=AlphaFold2MultimerStructureConfig(
+                target_pdb=PDL1_PDB.read_text(),
+                binder_chain="B",
+                target_chains=["A"],
+            ),
+        )
+        structure = Structure(structure=PDL1_PDB.read_text(), structure_format="pdb")
+        output = SimpleNamespace(
+            loss=0.5,
+            metrics=tool_metrics or {expected_tool_loss: 0.5},
+            structure=structure,
+        )
+
+        with patch("proto_language.utils.alphafold2_multimer.run_alphafold2_binder") as mock_af2:
+            mock_af2.return_value = output
+            (result,) = constraint_fn([(binder, protein_sequence)], config)
+
+        if expected_loss == "plddt":
+            assert result.score == 0.25
+            assert result.metadata["avg_plddt"] == 0.75
+            assert result.metadata["loss_plddt"] == 0.25
+        elif expected_loss == "ipae":
+            expected_score = (0.5 * AF2_MULTIMER_PAE_MAXIMUM) / PAE_MAXIMUM
+            assert result.score == pytest.approx(expected_score)
+            assert result.metadata[expected_loss] == pytest.approx(0.5 * AF2_MULTIMER_PAE_MAXIMUM)
+        else:
+            assert result.score == 0.5
+            if expected_loss in result.metadata:
+                assert result.metadata[expected_loss] == 0.5
+        tool_input, tool_config = mock_af2.call_args[0]
+        assert tool_input.binder_chain == "B"
+        assert tool_input.target_chain == "A"
+        assert tool_config.compute_gradient is False
+        assert result.metadata["af2_loss_key"] == expected_loss
+        assert result.metadata[f"loss_{expected_loss}"] == (0.25 if expected_loss == "plddt" else 0.5)
+        assert tool_config.loss_weights == {expected_tool_loss: 1.0}
+        assert len(result.structures) == 2
+
+    def test_af2_ptm_forward_scores_metric(self, protein_sequence):
+        """AF2 pTM is available for forward scoring even though it is not compiler-backed."""
+        config = StructureBasedConstraintConfig(
+            structure_tool="alphafold2_multimer",
+            alphafold2_multimer_config=AlphaFold2MultimerStructureConfig(
+                target_pdb=PDL1_PDB.read_text(),
+                binder_chain="B",
+                target_chains=["A"],
+            ),
+        )
+        structure = Structure(structure=PDL1_PDB.read_text(), structure_format="pdb")
+        output = SimpleNamespace(loss=0.0, metrics={"ptm": 0.8}, structure=structure)
+
+        with patch("proto_language.utils.alphafold2_multimer.run_alphafold2_binder") as mock_af2:
+            mock_af2.return_value = output
+            (result,) = structure_ptm_constraint([(protein_sequence, Sequence("A" * 10, "protein"))], config)
+
+        assert result.score == pytest.approx(0.2)
+        assert result.metadata["ptm"] == 0.8
+        assert "af2_loss_key" not in result.metadata
+        assert AF2_MULTIMER_CONFIDENCE_LOSS_BY_METRIC["ptm"] is None
+        assert af2_multimer_confidence_loss_weights("ptm") == {}
+        assert mock_af2.call_args[0][1].loss_weights == {}
+
     @pytest.mark.parametrize("tool_name", ["alphafold3", "boltz2", "chai1"])
     def test_iptm_dispatches_to_correct_tool(self, protein_sequence, protein_sequence_b, tool_name):
         """Test that ipTM constraint dispatches to supported tools."""
@@ -390,6 +494,18 @@ class TestMetricAvailability:
             structure_iptm_constraint(proposals, config)
             structure_pae_constraint(proposals, config)
 
+    @pytest.mark.parametrize("structure_tool", ["alphafold3", "boltz2", "chai1"])
+    @pytest.mark.parametrize(
+        "constraint_fn,metric",
+        [(structure_iplddt_constraint, "iplddt"), (structure_ipae_constraint, "ipae")],
+    )
+    def test_interface_confidence_metrics_are_af2m_only(self, protein_sequence, structure_tool, constraint_fn, metric):
+        """Interface-local confidence constraints are only wired for AF2 multimer."""
+        config = StructureBasedConstraintConfig(structure_tool=structure_tool)
+
+        with pytest.raises(ValueError, match=f"Metric '{metric}' is not available for tool '{structure_tool}'"):
+            constraint_fn([(protein_sequence,)], config)
+
     def test_tool_available_metrics_constant(self):
         """Test that TOOL_AVAILABLE_METRICS has expected structure."""
         assert "esmfold" in TOOL_AVAILABLE_METRICS
@@ -399,6 +515,17 @@ class TestMetricAvailability:
 
         # ESMFold has limited metrics
         assert TOOL_AVAILABLE_METRICS["esmfold"] == {"avg_plddt", "ptm", "avg_pae"}
+        assert TOOL_AVAILABLE_METRICS["alphafold3"] == {"avg_plddt", "ptm", "iptm", "avg_pae"}
+        assert TOOL_AVAILABLE_METRICS["boltz2"] == {"avg_plddt", "ptm", "iptm", "avg_pae"}
+        assert TOOL_AVAILABLE_METRICS["chai1"] == {"avg_plddt", "ptm", "iptm", "avg_pae"}
+        assert TOOL_AVAILABLE_METRICS["alphafold2_multimer"] == {
+            "avg_plddt",
+            "ptm",
+            "iptm",
+            "avg_pae",
+            "iplddt",
+            "ipae",
+        }
 
 
 # ============================================================================
@@ -727,11 +854,9 @@ class TestErrorHandling:
         """Test that unknown tool raises ValidationError at config time."""
         from pydantic import ValidationError
 
-        # Pydantic's Literal validation catches invalid tools before our validator runs
+        # Pydantic's Literal validation catches invalid tools at construction.
         with pytest.raises(ValidationError):
-            config = StructureBasedConstraintConfig(structure_tool="unknown_tool")
-            # If this passes, check the error message contains expected info
-            assert "esmfold" in str(config) or "alphafold3" in str(config)
+            StructureBasedConstraintConfig(structure_tool="unknown_tool")
 
     def test_prediction_failure_raises_error(self, protein_sequence):
         """Test that prediction failure raises an error."""

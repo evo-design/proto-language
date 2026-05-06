@@ -79,7 +79,7 @@ def _compute_ce_aligned_rmsd(pdb_text1: str, pdb_text2: str) -> dict[str, Any]:
             "alignment_score": result.get("raw_score", None),
         }
     except Exception as e:
-        logger.warning(f"PyMOL alignment failed: {e}, returning very bad RMSD value")
+        logger.warning("PyMOL alignment failed: %s, returning very bad RMSD value", e)
         # Return bad values on failure.
         return {"rmsd": 999.0, "aligned_length": 0}
     finally:
@@ -135,7 +135,8 @@ class StructureSimilarityConfig(StructureBasedConstraintConfig):
 
     Inherits tool selection and per-tool configuration from
     ``StructureBasedConstraintConfig`` (``structure_tool``, ``esmfold_config``,
-    ``alphafold3_config``, ``boltz2_config``, ``chai1_config``).
+    ``alphafold3_config``, ``boltz2_config``, ``chai1_config``,
+    ``alphafold2_multimer_config``).
 
     Attributes:
         target_chains (tuple[str, ...] | StructurePredictionComplex | None):
@@ -199,7 +200,8 @@ class StructureRMSDConfig(StructureSimilarityConfig):
     Inherits target specification (``target_chains``, ``target_structure``,
     ``min_target_plddt``) from ``StructureSimilarityConfig`` and tool selection
     (``structure_tool``, ``esmfold_config``, ``alphafold3_config``,
-    ``boltz2_config``, ``chai1_config``) from ``StructureBasedConstraintConfig``.
+    ``boltz2_config``, ``chai1_config``, ``alphafold2_multimer_config``) from
+    ``StructureBasedConstraintConfig``.
 
     Attributes:
         inflection_point_angstroms (float):
@@ -241,7 +243,8 @@ class StructureTMScoreConfig(StructureSimilarityConfig):
     Inherits target specification (``target_chains``, ``target_structure``,
     ``min_target_plddt``) from ``StructureSimilarityConfig`` and tool selection
     (``structure_tool``, ``esmfold_config``, ``alphafold3_config``,
-    ``boltz2_config``, ``chai1_config``) from ``StructureBasedConstraintConfig``.
+    ``boltz2_config``, ``chai1_config``, ``alphafold2_multimer_config``) from
+    ``StructureBasedConstraintConfig``.
 
     Attributes:
         plddt_threshold (float | None):
@@ -271,17 +274,6 @@ class StructureTMScoreConfig(StructureSimilarityConfig):
         description=("How to handle the two TM-scores returned by TMalign/USalign."),
     )
 
-    @model_validator(mode="after")
-    def validate_normalization(self) -> "StructureTMScoreConfig":
-        """Validate TMscore normalization field."""
-        valid = ["structure1", "structure2", "max", "min", "mean"]
-        if self.tm_score_normalization not in valid:
-            raise ValueError(
-                f"Invalid TMscore normalization mode {self.tm_score_normalization}, "
-                f"valid options are: {', '.join(valid)}"
-            )
-        return self
-
 
 # ============================================================================
 # Constraints
@@ -310,9 +302,14 @@ def _prepare_target_structure(config: StructureSimilarityConfig) -> str | None:
         output = predict_structures(complexes, config.structure_tool, config.tool_config)
 
         metrics = output.structures[0].metrics
-        target_plddt = metrics.get("avg_plddt") or metrics.get("complex_plddt")
+        target_plddt = metrics.get("avg_plddt")
+        if target_plddt is None:
+            target_plddt = metrics.get("complex_plddt")
+        if target_plddt is None:
+            logger.warning("Target fold lacks pLDDT metric; cannot apply min_target_plddt threshold.")
+            return None
         if target_plddt < config.min_target_plddt:
-            logger.warning(f"Target fold confidence ({target_plddt:.2f}) below threshold ({config.min_target_plddt}).")
+            logger.warning("Target fold confidence (%.2f) below threshold (%s).", target_plddt, config.min_target_plddt)
             return None
 
         return output.structures[0].structure_pdb  # type: ignore[no-any-return]
@@ -360,7 +357,7 @@ def structure_rmsd_constraint(
         ) from e
 
     results: list[ConstraintOutput] = []
-    for proposal_structure, proposal_tuple in zip(prediction.structures, input_sequences, strict=False):
+    for proposal_structure, proposal_tuple in zip(prediction.structures, input_sequences, strict=True):
         rmsd_data = _compute_ce_aligned_rmsd(target_pdb, proposal_structure.structure_pdb)
         rmsd_val = rmsd_data["rmsd"]
 
@@ -453,7 +450,7 @@ def structure_tmscore_constraint(
         ) from e
 
     results: list[ConstraintOutput] = []
-    for proposal_structure, proposal_tuple in zip(prediction.structures, input_sequences, strict=False):
+    for proposal_structure, proposal_tuple in zip(prediction.structures, input_sequences, strict=True):
         n_cand_chains = len(proposal_tuple)
 
         # Apply pLDDT filtering at the constraint level before alignment.

@@ -28,41 +28,49 @@ import re
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import yaml
 from Bio.PDB import PDBIO, PDBParser, PPBuilder
 from Bio.PDB.Model import Model as BioModel
 from Bio.PDB.Structure import Structure as BioPDBStructure
 from proto_tools.entities.structures import Structure
-from proto_tools.utils import AminoAcid
 from proto_tools.utils.device_manager import DeviceManager
 from proto_tools.utils.tool_pool import ToolPool
 
-from proto_language.language.constraint.differentiable.ablang_naturalness_constraint import (
-    AbLangConstraintConfig,
-    ablang_naturalness_forward,
-    ablang_naturalness_gradient_backward,
+from proto_language.language.constraint import ConstraintRegistry
+from proto_language.language.constraint.protein_structure.structure_confidence_constraint import (
+    structure_ipae_constraint,
+    structure_iplddt_constraint,
+    structure_iptm_constraint,
+    structure_pae_constraint,
+    structure_plddt_constraint,
 )
-from proto_language.language.constraint.differentiable.af2_binder_constraint import (
-    AF2BinderConstraintConfig,
-    af2_binder_backward,
-    af2_binder_forward,
+from proto_language.language.constraint.protein_structure.structure_constraint_config import (
+    AlphaFold2MultimerStructureConfig,
+    StructureBasedConstraintConfig,
 )
+from proto_language.language.constraint.protein_structure.structure_geometry_constraint import (
+    structure_beta_strand_constraint,
+    structure_contact_constraint,
+    structure_distogram_cce_constraint,
+    structure_helix_constraint,
+    structure_interface_contact_constraint,
+    structure_radius_gyration_constraint,
+    structure_termini_distance_constraint,
+)
+from proto_language.language.constraint.sequence_scoring.ablang_perplexity_constraint import AbLangPerplexityConfig
 from proto_language.language.core import (
-    PROTEIN_AMINO_ACIDS,
     Constraint,
     Construct,
-    GradientConstraintOutput,
     Program,
     Segment,
     Sequence,
 )
-from proto_language.utils import one_hot_protein_matrix
 from proto_language.language.generator import (
     PositionWeightGenerator,
     PositionWeightGeneratorConfig,
     SemigreedyMutationGenerator,
     SemigreedyMutationGeneratorConfig,
+    SequenceLogitBiasConfig,
 )
 from proto_language.language.optimizer import (
     GradientOptimizer,
@@ -70,6 +78,7 @@ from proto_language.language.optimizer import (
     MCMCOptimizer,
     MCMCOptimizerConfig,
 )
+from proto_language.utils import one_hot_protein_matrix
 
 logger = logging.getLogger(__name__)
 
@@ -84,16 +93,43 @@ _HOTSPOT_TOKEN_RE = re.compile(r"^(?P<chain>[A-Za-z]+)?(?P<residue>\d+[A-Za-z]?)
 
 YAML_LOSS_WEIGHT_MAP = {
     "weights_plddt": "plddt",
-    "weights_i_plddt": "i_plddt",
+    "weights_i_plddt": "iplddt",
     "weights_pae_intra": "pae",
-    "weights_pae_inter": "i_pae",
+    "weights_pae_inter": "ipae",
     "weights_con_intra": "con",
     "weights_con_inter": "i_con",
     "weights_rg": "rg",
-    "weights_iptm": "i_ptm",
+    "weights_iptm": "iptm",
     "weights_helix": "helix",
     "weights_beta": "beta_strand",
     "dgram_cce": "dgram_cce",
+}
+DEFAULT_AF2_LOSS_WEIGHTS = {
+    "plddt": 1.0,
+    "iplddt": 1.0,
+    "pae": 0.1,
+    "ipae": 0.5,
+    "con": 0.1,
+    "i_con": 0.2,
+    "rg": 0.1,
+    "iptm": 0.75,
+    "helix": 0.1,
+    "beta_strand": 0.2,
+    "dgram_cce": 0.01,
+}
+AF2_LOSS_FUNCTIONS = {
+    "plddt": structure_plddt_constraint,
+    "iplddt": structure_iplddt_constraint,
+    "pae": structure_pae_constraint,
+    "ipae": structure_ipae_constraint,
+    "con": structure_contact_constraint,
+    "i_con": structure_interface_contact_constraint,
+    "rg": structure_radius_gyration_constraint,
+    "iptm": structure_iptm_constraint,
+    "helix": structure_helix_constraint,
+    "beta_strand": structure_beta_strand_constraint,
+    "dgram_cce": structure_distogram_cce_constraint,
+    "NC": structure_termini_distance_constraint,
 }
 
 
@@ -132,7 +168,7 @@ def build_parser(
     parser.add_argument(
         "--target-hotspot",
         default=DEFAULT_PDL1_TARGET_HOTSPOT,
-        help="Comma-separated target hotspot residues for AF2 binder design, e.g. '37,39,41,96,98'.",
+        help="Comma-separated target hotspot residues for AF2 multimer design, e.g. '37,39,41,96,98'.",
     )
     parser.add_argument(
         "--binder-template-pdb",
@@ -193,11 +229,11 @@ def build_parser(
         default=2,
         help="Semigreedy MCMC proposals per trajectory.",
     )
-    parser.add_argument("--num-recycles", type=int, default=1, help="AF2 recycles for binder scoring.")
+    parser.add_argument("--num-recycles", type=int, default=1, help="AF2 recycles for multimer scoring.")
     parser.add_argument(
         "--sample-models",
         action="store_true",
-        help="Randomly sample AF2 model weights on each AF2 binder call.",
+        help="Randomly sample AF2 model weights on each AF2 multimer call.",
     )
     parser.add_argument(
         "--position-weighting",
@@ -373,7 +409,7 @@ def _apply_yaml_config(args: argparse.Namespace, parser: argparse.ArgumentParser
     if not config.get("use_rg_loss", True):
         loss_weights.pop("rg", None)
     if not config.get("use_i_ptm_loss", True):
-        loss_weights.pop("i_ptm", None)
+        loss_weights.pop("iptm", None)
     if not config.get("use_helix_loss", True):
         loss_weights.pop("helix", None)
     if not config.get("use_beta_loss", True):
@@ -619,19 +655,17 @@ def make_af2_config(
     *,
     template_pdb: Path,
     design_positions: list[int] | None,
-) -> AF2BinderConstraintConfig:
-    """Create the AF2 germinal binder config used across stages."""
-    config = AF2BinderConstraintConfig.germinal_vhh_preset(
+) -> AlphaFold2MultimerStructureConfig:
+    """Create the AF2 Germinal multimer config used across stages."""
+    config = AlphaFold2MultimerStructureConfig.germinal_vhh_preset(
         target_pdb=str(template_pdb.resolve()),
         binder_chain=args.binder_chain,
+        target_chains=args.target_chain,
     )
-    config.target_chains = args.target_chain
     config.target_hotspot = args.target_hotspot
     config.num_recycles = args.num_recycles
     config.sample_models = args.sample_models
     config.design_positions = design_positions
-    if args.loss_weights_override is not None:
-        config.loss_weights = dict(args.loss_weights_override)
     if args.bias_redesign_override is not None:
         config.bias_redesign = args.bias_redesign_override
     if args.intra_contact_num_override is not None:
@@ -645,76 +679,77 @@ def make_af2_config(
     return config
 
 
-def build_germinal_semigreedy_bias(
-    binder_seed: str,
-    *,
-    design_positions: list[int] | None,
-    bias_redesign: float | None,
-    omit_aas: list[AminoAcid] | None,
-) -> list[list[float]] | None:
-    """Build Germinal's persistent bias matrix for decoding and semigreedy sampling."""
-    bias = np.zeros((len(binder_seed), len(PROTEIN_AMINO_ACIDS)), dtype=np.float64)
-    aa_index = {aa: i for i, aa in enumerate(PROTEIN_AMINO_ACIDS)}
-    design_idx = np.asarray(design_positions, dtype=int) if design_positions else np.array([], dtype=int)
-
-    if bias_redesign is not None:
-        for pos, aa in enumerate(binder_seed):
-            bias[pos, aa_index[aa]] += bias_redesign
-        if design_idx.size > 0:
-            bias[design_idx] = 0.0
-
-    if omit_aas:
-        omit_indices = [aa_index[aa] for aa in omit_aas]
-        target_positions = design_idx if design_idx.size > 0 else np.arange(len(binder_seed))
-        bias[np.ix_(target_positions, omit_indices)] -= 1e6
-
-    return bias.tolist() if np.any(bias) else None
-
-
-def make_cdr_masked_ablang_backward(cdr_positions: list[int]) -> Any:
-    """Return an AbLang backward wrapper that zeroes framework gradients.
-
-    Germinal's scaffold preservation in the VHH YAML is soft on the AF2 side
-    (``bias_redesign`` + framework-contact loss). When AbLang runs externally,
-    its full-chain gradient can overpower that and drag the framework. This
-    wrapper limits its gradient support to the CDR positions passed to the AF2
-    binder objective.
-    """
-    cdr_index = np.asarray(sorted(set(cdr_positions)), dtype=int)
-
-    def backward(input_sequences: list[tuple[Sequence, ...]], *, config: AbLangConstraintConfig, **kwargs: Any) -> Any:
-        batch_results = ablang_naturalness_gradient_backward(input_sequences, config=config, **kwargs)
-        masked_results: list[GradientConstraintOutput] = []
-        for result in batch_results:
-            gradient = np.array(result.gradient[0], dtype=np.float64, copy=True)
-            mask = np.zeros(gradient.shape[0], dtype=bool)
-            mask[cdr_index] = True
-            gradient[~mask] = 0.0
-            masked_results.append(
-                GradientConstraintOutput(
-                    gradient=(gradient,),
-                    loss=result.loss,
-                    metrics=result.metrics,
-                    structures=result.structures,
-                )
-            )
-        return masked_results
-
-    backward.__name__ = "ablang_naturalness_cdr_gradient_backward"
-    backward._constraint_supported_sequence_types = ["protein"]  # type: ignore[attr-defined]
-    backward._constraint_num_input_sequences_per_tuple = 1  # type: ignore[attr-defined]
-    return backward
-
-
-def build_ablang_constraint(
-    args: argparse.Namespace,
+def build_af2_constraints(
     binder: Segment,
+    target: Segment,
+    af2_config: AlphaFold2MultimerStructureConfig,
+    args: argparse.Namespace,
+) -> list[Constraint]:
+    """Create first-class AF2-backed structure confidence constraints."""
+    loss_weights = (
+        dict(args.loss_weights_override) if args.loss_weights_override is not None else dict(DEFAULT_AF2_LOSS_WEIGHTS)
+    )
+    structure_config = StructureBasedConstraintConfig(
+        structure_tool="alphafold2_multimer",
+        alphafold2_multimer_config=af2_config,
+    )
+    constraints: list[Constraint] = []
+    for loss_key, weight in loss_weights.items():
+        function = AF2_LOSS_FUNCTIONS.get(loss_key)
+        if function is None or weight == 0.0:
+            continue
+        constraints.append(
+            Constraint(
+                inputs=[binder, target],
+                function=function,
+                function_config=structure_config,
+                label=f"af2_{loss_key}",
+                weight=weight,
+            )
+        )
+    return constraints
+
+
+def build_program(
+    args: argparse.Namespace,
     *,
-    cdr_positions: list[int],
-    weight: float,
-    include_backward: bool,
-) -> Constraint:
-    """Create the external AbLang constraint; scFv runs set ``heavy_slice``/``light_slice``."""
+    compute: ToolPool | None = None,
+) -> tuple[Program, Segment, Segment, str, Path]:
+    """Build the full three-stage PD-L1 redesign program."""
+    # Resolve Germinal/domain inputs into normal language-layer segments.
+    template_pdb_path, binder_seed, cdr_positions = resolve_template_inputs(args)
+    binder = Segment(sequence=binder_seed, sequence_type="protein", label="binder")
+    target = build_target_segment(args.target_pdb.resolve(), args.target_chain)
+    construct = Construct([binder, target])
+
+    # Stage-level optimizer configs: logit initialization, then softmax refinement.
+    logit_config = GradientOptimizerConfig.germinal_logit_preset()
+    logit_config.num_steps = args.logit_steps
+    logit_config.zero_norm_eps = 1e-4
+    logit_config.initial_logits = one_hot_protein_matrix(binder_seed)
+    logit_config.softmax_init_positions = cdr_positions
+    logit_config.verbose = args.verbose
+    softmax_config = GradientOptimizerConfig.germinal_softmax_preset()
+    softmax_config.num_steps = args.softmax_steps
+    softmax_config.zero_norm_eps = 1e-4
+    softmax_config.verbose = args.verbose
+
+    af2_config = make_af2_config(
+        args,
+        template_pdb=template_pdb_path,
+        design_positions=cdr_positions,
+    )
+    # Germinal's scaffold-preserving bias is now declarative generator config.
+    sequence_bias = None
+    if af2_config.bias_redesign is not None or af2_config.omit_aas:
+        sequence_bias = SequenceLogitBiasConfig(
+            reference_sequence=binder_seed if af2_config.bias_redesign is not None else None,
+            reference_bias=af2_config.bias_redesign,
+            unbiased_positions=cdr_positions,
+            excluded_symbols=af2_config.omit_aas,
+        )
+
+    # AbLang uses the same registered constraint in gradient and scoring stages.
     heavy_slice: tuple[int, int] | None = None
     light_slice: tuple[int, int] | None = None
     if args.binder_type == "scfv":
@@ -724,129 +759,78 @@ def build_ablang_constraint(
             heavy_slice, light_slice = (0, vh_len), (vh_len + linker_len, binder_length)
         else:
             heavy_slice, light_slice = (vl_len + linker_len, binder_length), (0, vl_len)
-    ablang_config = AbLangConstraintConfig(
+    ablang_config = AbLangPerplexityConfig(
         temperature=args.ablang_temperature,
         device=args.ablang_device,
         heavy_slice=heavy_slice,
         light_slice=light_slice,
     )
+    ablang_config_dict = ablang_config.model_dump()
 
-    backward_fn = make_cdr_masked_ablang_backward(cdr_positions) if include_backward else None
-    return Constraint(
-        inputs=[binder],
-        function=ablang_naturalness_forward,
-        function_config=ablang_config,
-        backward=backward_fn,
-        backward_config=copy.deepcopy(ablang_config) if include_backward else None,
-        label="ablang",
-        weight=weight,
-    )
-
-
-def make_gradient_stage(
-    construct: Construct,
-    binder: Segment,
-    target: Segment,
-    optimizer_config: GradientOptimizerConfig,
-    args: argparse.Namespace,
-    *,
-    template_pdb: Path,
-    binder_seed: str,
-    cdr_positions: list[int],
-    ablang_weight: float = 1.0,
-) -> GradientOptimizer:
-    """Build one gradient-optimization stage."""
-    af2_config = make_af2_config(
-        args,
-        template_pdb=template_pdb,
-        design_positions=cdr_positions,
-    )
-    generator = PositionWeightGenerator(
-        PositionWeightGeneratorConfig(
-            logit_bias=build_germinal_semigreedy_bias(
-                binder_seed,
-                design_positions=cdr_positions,
-                bias_redesign=af2_config.bias_redesign,
-                omit_aas=af2_config.omit_aas,
-            ),
-        ),
-    )
-    generator.assign(binder)
-    constraints = [
-        Constraint(
-            inputs=[binder, target],
-            function=af2_binder_forward,
-            function_config=af2_config,
-            backward=af2_binder_backward,
-            backward_config=copy.deepcopy(af2_config),
-            label="af2",
-        ),
-        build_ablang_constraint(
-            args,
-            binder,
-            cdr_positions=cdr_positions,
-            weight=ablang_weight,
-            include_backward=True,
-        ),
-    ]
-    optimizer_config.verbose = args.verbose
-    return GradientOptimizer(
-        target_segment=binder,
-        constructs=[construct],
-        generators=[generator],
-        constraints=constraints,
-        config=optimizer_config,
-    )
-
-
-def make_semigreedy_stage(
-    construct: Construct,
-    binder: Segment,
-    target: Segment,
-    args: argparse.Namespace,
-    *,
-    template_pdb: Path,
-    binder_seed: str,
-    cdr_positions: list[int],
-) -> MCMCOptimizer:
-    """Build the discrete semigreedy sampling stage."""
-    af2_config = make_af2_config(
-        args,
-        template_pdb=template_pdb,
-        design_positions=cdr_positions,
-    )
-    generator = SemigreedyMutationGenerator(
+    # Generators are assigned explicitly so length/vocabulary-dependent config validates early.
+    stage1_generator = PositionWeightGenerator(PositionWeightGeneratorConfig(sequence_bias=sequence_bias))
+    stage1_generator.assign(binder)
+    stage2_generator = PositionWeightGenerator(PositionWeightGeneratorConfig(sequence_bias=sequence_bias))
+    stage2_generator.assign(binder)
+    stage3_generator = SemigreedyMutationGenerator(
         SemigreedyMutationGeneratorConfig(
             position_weighting=args.position_weighting,
             temperature=args.semigreedy_temperature,
-            logit_bias=build_germinal_semigreedy_bias(
-                binder_seed,
-                design_positions=cdr_positions,
-                bias_redesign=af2_config.bias_redesign,
-                omit_aas=af2_config.omit_aas,
-            ),
+            sequence_bias=sequence_bias,
         )
     )
-    generator.assign(binder)
-    constraints = [
-        Constraint(
-            inputs=[binder, target],
-            function=af2_binder_forward,
-            function_config=af2_config,
-            label="af2",
-        ),
-        build_ablang_constraint(
-            args,
-            binder,
-            cdr_positions=cdr_positions,
-            weight=args.ablang_weight,
-            include_backward=False,
-        ),
-    ]
-    return MCMCOptimizer(
+    stage3_generator.assign(binder)
+
+    # Stage 1: optimize logits with AF2 multimer objectives and CDR-limited AbLang gradients.
+    stage1 = GradientOptimizer(
+        target_segment=binder,
         constructs=[construct],
-        generators=[generator],
-        constraints=constraints,
+        generators=[stage1_generator],
+        constraints=[
+            *build_af2_constraints(binder, target, copy.deepcopy(af2_config), args),
+            ConstraintRegistry.create(
+                key="ablang-perplexity",
+                segments=[binder],
+                config_dict=ablang_config_dict,
+                label="ablang",
+                weight=1.0,
+                gradient_positions=cdr_positions,
+            ),
+        ],
+        config=logit_config,
+    )
+    # Stage 2: continue from logits through Germinal's softmax refinement schedule.
+    stage2 = GradientOptimizer(
+        target_segment=binder,
+        constructs=[construct],
+        generators=[stage2_generator],
+        constraints=[
+            *build_af2_constraints(binder, target, copy.deepcopy(af2_config), args),
+            ConstraintRegistry.create(
+                key="ablang-perplexity",
+                segments=[binder],
+                config_dict=ablang_config_dict,
+                label="ablang",
+                weight=0.4,
+                gradient_positions=cdr_positions,
+            ),
+        ],
+        config=softmax_config,
+    )
+    # Stage 3: discrete pLDDT-weighted semigreedy MCMC with forward-only scoring.
+    stage3 = MCMCOptimizer(
+        constructs=[construct],
+        generators=[stage3_generator],
+        constraints=[
+            *build_af2_constraints(binder, target, copy.deepcopy(af2_config), args),
+            ConstraintRegistry.create(
+                key="ablang-perplexity",
+                segments=[binder],
+                config_dict=ablang_config_dict,
+                label="ablang",
+                weight=args.ablang_weight,
+            ),
+        ],
         config=MCMCOptimizerConfig(
             num_steps=args.mcmc_steps,
             proposals_per_result=args.proposals_per_result,
@@ -854,58 +838,6 @@ def make_semigreedy_stage(
             min_temperature=args.mcmc_min_temperature,
             verbose=args.verbose,
         ),
-    )
-
-
-def build_program(
-    args: argparse.Namespace,
-    *,
-    compute: ToolPool | None = None,
-) -> tuple[Program, Segment, Segment, str, Path]:
-    """Build the full three-stage PD-L1 redesign program."""
-    template_pdb_path, binder_seed, cdr_positions = resolve_template_inputs(args)
-    binder = Segment(sequence=binder_seed, sequence_type="protein", label="binder")
-    target = build_target_segment(args.target_pdb.resolve(), args.target_chain)
-    construct = Construct([binder, target])
-
-    logit_config = GradientOptimizerConfig.germinal_logit_preset()
-    logit_config.num_steps = args.logit_steps
-    logit_config.zero_norm_eps = 1e-4
-    logit_config.initial_logits = one_hot_protein_matrix(binder_seed)
-    logit_config.softmax_init_positions = cdr_positions
-    softmax_config = GradientOptimizerConfig.germinal_softmax_preset()
-    softmax_config.num_steps = args.softmax_steps
-    softmax_config.zero_norm_eps = 1e-4
-
-    stage1 = make_gradient_stage(
-        construct,
-        binder,
-        target,
-        logit_config,
-        args,
-        template_pdb=template_pdb_path,
-        binder_seed=binder_seed,
-        cdr_positions=cdr_positions,
-    )
-    stage2 = make_gradient_stage(
-        construct,
-        binder,
-        target,
-        softmax_config,
-        args,
-        template_pdb=template_pdb_path,
-        binder_seed=binder_seed,
-        cdr_positions=cdr_positions,
-        ablang_weight=0.4,
-    )
-    stage3 = make_semigreedy_stage(
-        construct,
-        binder,
-        target,
-        args,
-        template_pdb=template_pdb_path,
-        binder_seed=binder_seed,
-        cdr_positions=cdr_positions,
     )
 
     program = Program(
@@ -936,7 +868,11 @@ def summarize_candidates(binder: Segment, energies: list[float]) -> list[dict[st
     for rank, idx in enumerate(ranked_indices, start=1):
         result = binder.result_sequences[idx]
         constraints = result.metadata.get("constraints", {})
-        af2_data = constraints.get("af2", {}).get("data", {})
+        af2_meta = constraints.get("af2_plddt") or next(
+            (meta for label, meta in constraints.items() if label.startswith("af2_")),
+            {},
+        )
+        af2_data = af2_meta.get("data", {})
         ablang_data = constraints.get("ablang", {}).get("data", {})
         rows.append(
             {
@@ -966,7 +902,11 @@ def export_results(output_dir: Path, binder: Segment, summary: list[dict[str, An
         idx = int(row["result_index"])
         result = binder.result_sequences[idx]
         constraints = result.metadata.get("constraints", {})
-        af2_data = constraints.get("af2", {}).get("data", {})
+        af2_meta = constraints.get("af2_plddt") or next(
+            (meta for label, meta in constraints.items() if label.startswith("af2_")),
+            {},
+        )
+        af2_data = af2_meta.get("data", {})
         fasta_lines.append(f">candidate_{row['rank']:02d}_energy_{row['energy']:.4f}")
         fasta_lines.append(result.sequence)
         complex_pdb = af2_data.get("complex_pdb")

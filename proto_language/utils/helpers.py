@@ -58,6 +58,11 @@ def filter_inf_nan_scores(score: float) -> float | None:
     return score
 
 
+def is_plain_int(value: object) -> bool:
+    """Return True for ints while excluding bool, which subclasses int."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def validate_range(value: float, min_val: float, max_val: float, name: str) -> None:
     """Validate that a value falls within the specified range.
 

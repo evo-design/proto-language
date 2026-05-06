@@ -22,7 +22,7 @@ Pipeline (same for both modes):
 1. Stage 0 — ``GradientOptimizer`` (logit hallucination, mode-specific steps, gumbel init)
 2. Gate — ``plddt > threshold`` AND ``iptm > threshold``
 3. Stage 1 — ``GradientOptimizer`` (softmax refinement, 35 steps, temp 1 → 0.01)
-4. Gate — adds ``i_pae < threshold``
+4. Gate — adds ``ipae < threshold``
 5. Stage 2 — ``MCMCOptimizer`` + ``SemigreedyMutationGenerator`` (10 iters, greedy)
 6. Gate — stage-2 confidence + hallucinated-structure checks
 7. Gate — external cofold + FastRelax + initial Germinal filters (4/5 implemented)
@@ -68,13 +68,12 @@ import yaml
 from Bio.PDB import PDBIO, PDBParser, Superimposer
 from Bio.PDB.Model import Model as BioModel
 from Bio.PDB.Structure import Structure as BioStructure
-from proto_tools.utils.device_manager import DeviceManager
 from proto_tools import (
     AlphaFold3Config,
     Chai1Config,
+    InverseFoldingStructureInput,
     IPSAEScoringConfig,
     IPSAEScoringInput,
-    InverseFoldingStructureInput,
     Structure,
     run_ipsae_scoring,
 )
@@ -90,31 +89,40 @@ from proto_tools.tools.structure_scoring.pyrosetta.pyrosetta_relax import (
     run_pyrosetta_relax,
 )
 from proto_tools.tools.structure_scoring.pyrosetta.shared_data_models import ScoringStructureInput
+from proto_tools.utils.device_manager import DeviceManager
 from scipy.spatial import cKDTree
 
+from proto_language.language.constraint.protein_structure.structure_confidence_constraint import (
+    PAE_MAXIMUM,
+    structure_composite_constraint,
+    structure_ipae_constraint,
+    structure_iplddt_constraint,
+    structure_iptm_constraint,
+    structure_pae_constraint,
+    structure_plddt_constraint,
+)
+from proto_language.language.constraint.protein_structure.structure_constraint_config import (
+    AlphaFold2MultimerStructureConfig,
+    StructureBasedConstraintConfig,
+)
+from proto_language.language.constraint.protein_structure.structure_geometry_constraint import (
+    structure_beta_strand_constraint,
+    structure_contact_constraint,
+    structure_distogram_cce_constraint,
+    structure_helix_constraint,
+    structure_interface_contact_constraint,
+    structure_radius_gyration_constraint,
+)
+from proto_language.language.constraint.sequence_scoring.ablang_perplexity_constraint import (
+    AbLangPerplexityConfig,
+    ablang_perplexity_constraint,
+    ablang_perplexity_gradient_backward,
+)
 from proto_language.language.constraint.sequence_scoring.mpnn_perplexity_constraint import (
     MpnnPerplexityConfig,
     mpnn_perplexity_constraint,
 )
-from proto_language.language.constraint.differentiable.ablang_naturalness_constraint import (
-    AbLangConstraintConfig,
-    ablang_naturalness_forward,
-    ablang_naturalness_gradient_backward,
-)
-from proto_language.language.constraint.differentiable.af2_binder_constraint import (
-    AF2BinderConstraintConfig,
-    af2_binder_backward,
-    af2_binder_forward,
-)
-from proto_language.language.constraint.protein_structure.structure_confidence_constraint import (
-    PAE_MAXIMUM,
-    structure_composite_constraint,
-)
-from proto_language.language.constraint.protein_structure.structure_constraint_config import (
-    StructureBasedConstraintConfig,
-)
 from proto_language.language.core import PROTEIN_AMINO_ACIDS, Constraint, Construct, Program, Segment, Sequence
-from proto_language.utils import one_hot_protein_matrix
 from proto_language.language.generator import (
     PositionWeightGenerator,
     PositionWeightGeneratorConfig,
@@ -132,6 +140,7 @@ from proto_language.language.optimizer import (
     RejectionSamplingOptimizerConfig,
 )
 from proto_language.language.optimizer.gradient_optimizer import ConstraintWeightSchedule
+from proto_language.utils import one_hot_protein_matrix
 
 # =============================================================================
 # Preset configuration (loaded from a consolidated script-owned YAML)
@@ -281,7 +290,12 @@ def _extract_stage_metrics(binder: "Segment") -> StageMetrics:
     Falls back to NaN when metadata is absent (e.g. MCMC rejected all proposals).
     """
     result = binder.result_sequences[0]
-    af2_meta = result._constraints_metadata.get("af2")
+    af2_meta = result._constraints_metadata.get("af2_plddt")
+    if af2_meta is None:
+        af2_meta = next(
+            (meta for label, meta in result._constraints_metadata.items() if label.startswith("af2_")),
+            None,
+        )
     ablang_meta = result._constraints_metadata.get("ablang")
     if af2_meta is None or result.structure is None:
         return StageMetrics(plddt=float("nan"), iptm=float("nan"), ipae=float("nan"), ablang_loss=float("nan"))
@@ -289,7 +303,7 @@ def _extract_stage_metrics(binder: "Segment") -> StageMetrics:
     return StageMetrics(
         plddt=float(np.mean(result.structure.per_residue_plddt)),
         iptm=float(af2_data["iptm"]),
-        ipae=float(af2_data["i_pae"]),
+        ipae=float(af2_data["ipae"]),
         ablang_loss=float(ablang_meta["score"]) if ablang_meta else float("nan"),
     )
 
@@ -654,42 +668,64 @@ def run_trajectory(
 
     # --- Segments + construct ---
     binder = Segment(length=geom.binder_length, sequence_type="protein", label="binder")
-    target = Segment(sequence=target_seq, sequence_type="protein", label="target")
-    construct = Construct([binder, target])
+    target_segments = [
+        Segment(
+            sequence=target_structure.get_chain_sequence(chain_id, remove_non_standard=True),
+            sequence_type="protein",
+            label=f"target_{chain_id}",
+        )
+        for chain_id in target_chains
+    ]
+    construct = Construct([binder, *target_segments])
 
     # ── AF2 configuration ──
-    af2_cfg = AF2BinderConstraintConfig.germinal_vhh_preset(
-        target_pdb=target_structure.structure_pdb, binder_chain=binder_chain
+    af2_cfg = AlphaFold2MultimerStructureConfig.germinal_vhh_preset(
+        target_pdb=target_structure.structure_pdb,
+        binder_chain=binder_chain,
+        target_chains=target_chains,
     )
     af2_cfg.seed = trajectory_seed
-    af2_cfg.target_chains = target_chains
     af2_cfg.design_positions = cdr_positions
     af2_cfg.framework_contact_offset = geom.framework_contact_offset
     if target_hotspots:
         af2_cfg.target_hotspot = target_hotspots
-    af2_cfg.loss_weights = {
-        **af2_cfg.loss_weights,
-        "plddt": geom.plddt_loss_weight,
-        "i_ptm": geom.iptm_loss_weight,
-        "beta_strand": geom.beta_strand_loss_weight,
-    }
     if not geom.ban_cysteine:
         af2_cfg.omit_aas = None
+    structure_cfg = StructureBasedConstraintConfig(
+        structure_tool="alphafold2_multimer",
+        alphafold2_multimer_config=af2_cfg,
+    )
 
-    def af2() -> Constraint:
-        return Constraint(
-            inputs=[binder, target],
-            label="af2",
-            function=af2_binder_forward,
-            backward=af2_binder_backward,
-            function_config=af2_cfg,
-            backward_config=af2_cfg,
-        )
+    def af2_constraints() -> list[Constraint]:
+        terms = [
+            ("af2_plddt", structure_plddt_constraint, geom.plddt_loss_weight),
+            ("af2_iplddt", structure_iplddt_constraint, 1.0),
+            ("af2_pae", structure_pae_constraint, 0.1),
+            ("af2_ipae", structure_ipae_constraint, 0.5),
+            ("af2_con", structure_contact_constraint, 0.1),
+            ("af2_i_con", structure_interface_contact_constraint, 0.2),
+            ("af2_rg", structure_radius_gyration_constraint, 0.1),
+            ("af2_iptm", structure_iptm_constraint, geom.iptm_loss_weight),
+            ("af2_helix", structure_helix_constraint, 0.1),
+            ("af2_beta_strand", structure_beta_strand_constraint, geom.beta_strand_loss_weight),
+            ("af2_dgram_cce", structure_distogram_cce_constraint, 0.01),
+        ]
+        return [
+            Constraint(
+                inputs=[binder, *target_segments],
+                label=label,
+                weight=weight,
+                function=function,
+                function_config=structure_cfg,
+            )
+            for label, function, weight in terms
+            if weight != 0.0
+        ]
 
     handoff_bias = _germinal_handoff_bias(binder_template, cdr_set, ban_cysteine=geom.ban_cysteine)
 
     def ablang(weight: float | None = None) -> Constraint:
-        cfg = AbLangConstraintConfig(
+        cfg = AbLangPerplexityConfig(
             temperature=GERMINAL_ABLANG_TEMPERATURE,
             heavy_slice=geom.heavy_slice,
             light_slice=geom.light_slice,
@@ -700,8 +736,8 @@ def run_trajectory(
             inputs=[binder],
             label="ablang",
             weight=weight,
-            function=ablang_naturalness_forward,
-            backward=ablang_naturalness_gradient_backward,
+            function=ablang_perplexity_constraint,
+            backward=ablang_perplexity_gradient_backward,
             function_config=cfg,
             backward_config=cfg,
         )
@@ -732,7 +768,7 @@ def run_trajectory(
         target_segment=binder,
         constructs=[construct],
         generators=[pwg_stage0],
-        constraints=[af2(), ablang()],
+        constraints=[*af2_constraints(), ablang()],
         config=logit_cfg,
     )
 
@@ -753,7 +789,7 @@ def run_trajectory(
         target_segment=binder,
         constructs=[construct],
         generators=[pwg_stage1],
-        constraints=[af2(), ablang(weight=0.4)],
+        constraints=[*af2_constraints(), ablang(weight=0.4)],
         config=softmax_cfg,
     )
 
@@ -772,7 +808,7 @@ def run_trajectory(
     stage2 = MCMCOptimizer(
         constructs=[construct],
         generators=[semigreedy],
-        constraints=[af2(), ablang(weight=1.0)],
+        constraints=[*af2_constraints(), ablang(weight=1.0)],
         config=MCMCOptimizerConfig(
             num_steps=geom.search_steps,
             proposals_per_result=max(1, math.ceil(geom.binder_length * geom.search_mutation_rate)),
@@ -822,12 +858,12 @@ def run_trajectory(
 
     # ── POST-STAGE-2: structural gates ──
     binder_struct = binder.result_sequences[0].structure
-    target_struct = target.result_sequences[0].structure
-    if binder_struct is None or target_struct is None:
+    target_structs = [segment.result_sequences[0].structure for segment in target_segments]
+    if binder_struct is None or any(structure is None for structure in target_structs):
         # Cannot proceed without a predicted structure, even in --no-filter mode.
         _check_gate("structural_gate", False, "no structure (MCMC rejected all proposals)")
         return 0
-    complex_struct = Structure.concat([binder_struct, target_struct])
+    complex_struct = Structure.concat([binder_struct, *target_structs])
 
     print(f"[Traj {traj_idx}] Post-stage-2 structural checks...")
     clashes = complex_struct.ca_clash_score(threshold=CLASH_THRESHOLD)
@@ -861,7 +897,7 @@ def run_trajectory(
     print(f"[Traj {traj_idx}] Pre-redesign: external cofold ({geom.cofold_tool}) + FastRelax + filters...")
     pre_redesign_metrics = run_pre_redesign_external_filters(
         binder_sequence=binder.result_sequences[0].sequence,
-        target_sequence=target.result_sequences[0].sequence,
+        target_sequence=target_seq,
         cofold_tool=geom.cofold_tool,
         cofold_hotspots=cofold_hotspots,
         cdr_positions_1idx=cdr_positions_1idx,
@@ -909,7 +945,7 @@ def run_trajectory(
                 threshold=0.0,
             ),
             Constraint(
-                inputs=[binder, target],
+                inputs=[binder, *target_segments],
                 function=structure_composite_constraint,
                 function_config=_cofold_config(geom.cofold_tool, trajectory_seed),
                 label="cofold",
@@ -1191,14 +1227,19 @@ def main() -> None:
 def passes_gate(binder: Segment, *, geom: BinderGeometry, include_ipae: bool) -> bool:
     """Confidence gate: binder-only pLDDT + iPTM, optionally iPAE."""
     result = binder.result_sequences[0]
-    af2_meta = result._constraints_metadata.get("af2")
+    af2_meta = result._constraints_metadata.get("af2_plddt")
+    if af2_meta is None:
+        af2_meta = next(
+            (meta for label, meta in result._constraints_metadata.items() if label.startswith("af2_")),
+            None,
+        )
     if af2_meta is None or result.structure is None:
         print("  gate: no AF2 metadata (MCMC rejected all proposals)")
         return False
     data = af2_meta["data"]
     plddt = float(np.mean(result.structure.per_residue_plddt))
     iptm = float(data["iptm"])
-    ipae = float(data["i_pae"])
+    ipae = float(data["ipae"])
     if plddt <= geom.plddt_threshold or iptm <= geom.iptm_threshold:
         print(f"  gate: plddt={plddt:.3f} (need>{geom.plddt_threshold}) iptm={iptm:.3f} (need>{geom.iptm_threshold}) ipae={ipae:.2f}")
         return False
