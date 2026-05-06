@@ -168,6 +168,37 @@ def _af2_multimer_confidence_problem() -> tuple[Segment, Segment, Construct, lis
     return binder, target, construct, constraints
 
 
+def _esmfold_confidence_problem() -> tuple[Segment, Construct, list[Constraint]]:
+    from proto_language.language.constraint.protein_structure.structure_confidence_constraint import (
+        structure_plddt_constraint,
+        structure_ptm_constraint,
+    )
+    from proto_language.language.constraint.protein_structure.structure_constraint_config import (
+        StructureBasedConstraintConfig,
+    )
+
+    binder = Segment(sequence="EVQLV", sequence_type="protein", label="binder")
+    construct = Construct([binder])
+    config = StructureBasedConstraintConfig(structure_tool="esmfold")
+    constraints = [
+        Constraint(
+            inputs=[binder],
+            function=structure_plddt_constraint,
+            function_config=config,
+            label="esmfold_plddt",
+            weight=2.0,
+        ),
+        Constraint(
+            inputs=[binder],
+            function=structure_ptm_constraint,
+            function_config=config,
+            label="esmfold_ptm",
+            weight=0.5,
+        ),
+    ]
+    return binder, construct, constraints
+
+
 class TestConfig:
     def test_germinal_logit_preset_exact_values(self) -> None:
         """Lock Germinal Stage 0 hyperparameters; a future refactor that breaks parity must fail here."""
@@ -562,6 +593,75 @@ class TestWeightSchedules:
 
 
 class TestCompiledConstraints:
+    def test_groups_esmfold_confidence_terms_into_one_tool_call(self) -> None:
+        from tests.helpers.mock_structure import PDL1_PDB
+
+        binder, construct, constraints = _esmfold_confidence_problem()
+        output = SimpleNamespace(
+            gradient=[[0.1] * 20 for _ in range(5)],
+            loss=3.0,
+            metrics={
+                "avg_plddt": 0.8,
+                "ptm": 0.4,
+                "avg_pae": 6.0,
+                "loss_plddt": 0.2,
+                "loss_ptm": 0.6,
+            },
+            structure=Structure(structure=PDL1_PDB.read_text(), structure_format="pdb"),
+        )
+
+        with patch(
+            "proto_language.language.optimizer.constraint_compiler.esmfold_provider.run_esmfold_gradient"
+        ) as mock_esm:
+            mock_esm.return_value = output
+            generator = PositionWeightGenerator(PositionWeightGeneratorConfig())
+            generator.assign(binder)
+            opt = GradientOptimizer(
+                target_segment=binder,
+                constructs=[construct],
+                generators=[generator],
+                constraints=constraints,
+                config=GradientOptimizerConfig(
+                    num_results=1,
+                    num_steps=1,
+                    lr=0.1,
+                    normalize_gradients=False,
+                ),
+            )
+            assert len(opt._gradient_providers) == 1
+            opt.run()
+            metadata = binder.result_sequences[0]._constraints_metadata
+
+        assert opt.energy_scores == [pytest.approx(3.0)]
+        assert mock_esm.call_count == 1
+        assert mock_esm.call_args.args[0].target_chain_indices == [0]
+        assert mock_esm.call_args.args[1].loss_weights == {"plddt": 2.0, "ptm": 0.5}
+        assert {"esmfold_plddt", "esmfold_ptm"}.issubset(metadata)
+
+    def test_rejects_esmfold_interface_metric_gradient(self) -> None:
+        from proto_language.language.constraint.protein_structure.structure_confidence_constraint import (
+            structure_iptm_constraint,
+        )
+        from proto_language.language.constraint.protein_structure.structure_constraint_config import (
+            StructureBasedConstraintConfig,
+        )
+
+        binder = Segment(sequence="EVQLV", sequence_type="protein", label="binder")
+        constraint = Constraint(
+            inputs=[binder],
+            function=structure_iptm_constraint,
+            function_config=StructureBasedConstraintConfig(structure_tool="esmfold"),
+            label="esmfold_iptm",
+        )
+        with pytest.raises(ValueError, match="supported ESMFold confidence gradients"):
+            GradientOptimizer(
+                target_segment=binder,
+                constructs=[Construct([binder])],
+                generators=[PositionWeightGenerator(PositionWeightGeneratorConfig())],
+                constraints=[constraint],
+                config=GradientOptimizerConfig(num_steps=1),
+            )
+
     @pytest.mark.parametrize(("mode", "tool_loss"), [("gradient", 3.0), ("scoring", 4.0)])
     def test_groups_af2_structure_terms_into_one_tool_call(self, mode: str, tool_loss: float) -> None:
         from proto_language.language.optimizer.constraint_compiler import evaluate_scoring_constraints
@@ -917,6 +1017,27 @@ def _af2_constraint(
     )
 
 
+def _esmfold_constraint(binder: Segment, label: str = "esmfold", function: Callable | None = None) -> Constraint:
+    from proto_tools import ESMFoldConfig
+
+    from proto_language.language.constraint.protein_structure.structure_confidence_constraint import (
+        structure_plddt_constraint,
+    )
+    from proto_language.language.constraint.protein_structure.structure_constraint_config import (
+        StructureBasedConstraintConfig,
+    )
+
+    return Constraint(
+        inputs=[binder],
+        function=function or structure_plddt_constraint,
+        function_config=StructureBasedConstraintConfig(
+            structure_tool="esmfold",
+            esmfold_config=ESMFoldConfig(num_recycles=1),
+        ),
+        label=label,
+    )
+
+
 def _target_segment() -> Segment:
     """Target Segment for AF2 multimer design — slot is pure output, no pre-population needed."""
     return Segment(sequence="A" * 10, sequence_type="protein", label="target")
@@ -994,6 +1115,37 @@ class TestGradientOptimizerGPU:
         assert result.logits is not None and np.isfinite(result.logits).all()
         assert np.isfinite(opt.energy_scores[0])
         assert {"af2_plddt", "af2_ipae"}.issubset(result._constraints_metadata)
+
+    def test_esmfold_grouped_confidence_terms_end_to_end(self) -> None:
+        """Real ESMFold run with grouped pLDDT+pTM compiler objectives."""
+        from proto_language.language.constraint.protein_structure.structure_confidence_constraint import (
+            structure_ptm_constraint,
+        )
+
+        binder = Segment(length=6, sequence_type="protein", label="binder")
+        construct = Construct([binder])
+        gen = PositionWeightGenerator(PositionWeightGeneratorConfig())
+        gen.assign(binder)
+        constraints = [
+            _esmfold_constraint(binder, "esmfold_plddt"),
+            _esmfold_constraint(binder, "esmfold_ptm", function=structure_ptm_constraint),
+        ]
+
+        opt = GradientOptimizer(
+            target_segment=binder,
+            constructs=[construct],
+            generators=[gen],
+            constraints=constraints,
+            config=GradientOptimizerConfig(num_results=1, num_steps=1, lr=0.1, seed=7),
+        )
+        assert len(opt._gradient_providers) == 1
+
+        opt.run()
+
+        result = binder.result_sequences[0]
+        assert result.logits is not None and np.isfinite(result.logits).all()
+        assert np.isfinite(opt.energy_scores[0])
+        assert {"esmfold_plddt", "esmfold_ptm"}.issubset(result._constraints_metadata)
 
     def test_af2_plus_ablang_pcgrad(self) -> None:
         """AF2 + AbLang merged via PCGrad — both real gradients, finite logits, both losses recorded."""

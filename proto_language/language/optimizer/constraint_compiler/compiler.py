@@ -25,6 +25,7 @@ from typing import Any
 
 from proto_language.language.core import Constraint, Segment
 from proto_language.language.optimizer.constraint_compiler import alphafold2_multimer_provider as af2m
+from proto_language.language.optimizer.constraint_compiler import esmfold_provider as esmfold
 from proto_language.language.optimizer.constraint_compiler.base import (
     CompiledConstraint,
     EffectiveWeight,
@@ -116,11 +117,40 @@ def compile_gradient_providers(constraints: list[Constraint], target_segment: Se
     """
     providers: list[GradientProvider] = []
     af2_provider_by_key: dict[tuple[Any, ...], af2m.AF2MultimerGradientProvider] = {}
+    esmfold_provider_by_key: dict[tuple[Any, ...], esmfold.ESMFoldGradientProvider] = {}
 
     for constraint in constraints:
         if constraint.supports_gradient:
             providers.append(DirectGradientProvider(constraint, constraint.inputs.index(target_segment)))
             continue
+
+        esmfold_objective_key = esmfold.objective_key_for_constraint(constraint)
+        if esmfold_objective_key is not None:
+            esmfold_config = esmfold.config_for_constraint(constraint, strict=True)
+            if esmfold_config is None:
+                raise ValueError(esmfold.missing_config_message(constraint))
+            if esmfold_config.structure_tool == "esmfold":
+                esmfold.validate_gradient_constraint(constraint, target_segment, esmfold_config)
+                group_key = esmfold.group_key(constraint, target_segment, esmfold_config)
+                esmfold_provider = esmfold_provider_by_key.get(group_key)
+                if esmfold_provider is None:
+                    esmfold_provider = esmfold.ESMFoldGradientProvider(
+                        constraints=[],
+                        config=esmfold_config.esmfold_config,
+                        inputs=constraint.inputs,
+                        target_segment=target_segment,
+                    )
+                    esmfold_provider_by_key[group_key] = esmfold_provider
+                    providers.append(esmfold_provider)
+                esmfold.add_gradient_constraint(
+                    esmfold_provider,
+                    CompiledConstraint(constraint=constraint, objective_key=esmfold_objective_key),
+                )
+                continue
+
+        esmfold_reason = esmfold.unsupported_gradient_reason(constraint)
+        if esmfold_reason is not None:
+            raise ValueError(esmfold_reason)
 
         objective_key = af2m.objective_key_for_constraint(constraint)
         if objective_key is None:
@@ -132,17 +162,17 @@ def compile_gradient_providers(constraints: list[Constraint], target_segment: Se
             raise ValueError(af2m.missing_config_message(constraint))
         af2m.validate_gradient_constraint(constraint, target_segment, config)
         group_key = af2m.group_key(constraint, config)
-        provider = af2_provider_by_key.get(group_key)
-        if provider is None:
-            provider = af2m.AF2MultimerGradientProvider(
+        af2_provider = af2_provider_by_key.get(group_key)
+        if af2_provider is None:
+            af2_provider = af2m.AF2MultimerGradientProvider(
                 constraints=[],
                 config=config.alphafold2_multimer_config,
                 inputs=constraint.inputs,
             )
-            af2_provider_by_key[group_key] = provider
-            providers.append(provider)
+            af2_provider_by_key[group_key] = af2_provider
+            providers.append(af2_provider)
         af2m.add_gradient_constraint(
-            provider,
+            af2_provider,
             CompiledConstraint(constraint=constraint, objective_key=objective_key),
         )
 
@@ -242,6 +272,24 @@ def constraint_supports_compiled_gradient(
                 "GradientOptimizer can only differentiate constraints whose inputs contain the target."
             )
         return True, None
+
+    esmfold_objective_key = esmfold.objective_key_for_constraint(constraint)
+    if esmfold_objective_key is not None:
+        config = esmfold.config_for_constraint(constraint)
+        if config is None:
+            return False, esmfold.missing_config_message(constraint)
+        if config.structure_tool == "esmfold":
+            if target_segment is None:
+                return True, None
+            try:
+                esmfold.validate_gradient_constraint(constraint, target_segment, config)
+            except (TypeError, ValueError) as exc:
+                return False, str(exc)
+            return True, None
+
+    esmfold_reason = esmfold.unsupported_gradient_reason(constraint)
+    if esmfold_reason is not None:
+        return False, esmfold_reason
 
     objective_key = af2m.objective_key_for_constraint(constraint)
     if objective_key is None:
