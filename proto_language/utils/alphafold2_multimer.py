@@ -123,11 +123,6 @@ def validate_af2_multimer_inputs(
             )
 
 
-def af2_multimer_tool_loss_key(loss_key: str) -> str:
-    """Return the current tool-layer loss key for a proto-language loss key."""
-    return AF2_MULTIMER_TOOL_LOSS_ALIASES.get(loss_key, loss_key)
-
-
 def af2_multimer_confidence_loss_weights(target_metric: str) -> dict[str, float]:
     """Return the AF2 objective weights needed to expose one confidence metric."""
     if target_metric not in AF2_MULTIMER_CONFIDENCE_LOSS_BY_METRIC:
@@ -285,7 +280,9 @@ def evaluate_af2_multimer_predictions(
                 rm_target_seq=af2_config.rm_target_seq,
                 rm_target_sc=af2_config.rm_target_sc,
                 rm_template_ic=af2_config.rm_template_ic,
-                loss_weights={af2_multimer_tool_loss_key(key): weight for key, weight in loss_weights.items()},
+                loss_weights={
+                    AF2_MULTIMER_TOOL_LOSS_ALIASES.get(key, key): weight for key, weight in loss_weights.items()
+                },
                 intra_contact_num=af2_config.intra_contact_num,
                 intra_contact_cutoff=af2_config.intra_contact_cutoff,
                 inter_contact_num=af2_config.inter_contact_num,

@@ -29,8 +29,8 @@ from proto_language.storage import get_file_content, is_file_reference
 from proto_language.utils.alphafold2_multimer import (
     AF2_MULTIMER_CONFIDENCE_LOSS_BY_METRIC,
     AF2_MULTIMER_PAE_MAXIMUM,
+    AF2_MULTIMER_TOOL_LOSS_ALIASES,
     af2_multimer_confidence_loss_weights,
-    af2_multimer_tool_loss_key,
 )
 from tests.helpers.mock_structure import PDL1_PDB, MockStructure
 
@@ -288,9 +288,9 @@ class TestToolDispatching:
                 "plddt",
                 {"avg_plddt": 0.75, "plddt": 0.25, "iptm": 0.8},
             ),
-            (structure_iplddt_constraint, "iplddt", af2_multimer_tool_loss_key("iplddt"), None),
-            (structure_ipae_constraint, "ipae", af2_multimer_tool_loss_key("ipae"), None),
-            (structure_iptm_constraint, "iptm", af2_multimer_tool_loss_key("iptm"), None),
+            (structure_iplddt_constraint, "iplddt", AF2_MULTIMER_TOOL_LOSS_ALIASES["iplddt"], None),
+            (structure_ipae_constraint, "ipae", AF2_MULTIMER_TOOL_LOSS_ALIASES["ipae"], None),
+            (structure_iptm_constraint, "iptm", AF2_MULTIMER_TOOL_LOSS_ALIASES["iptm"], None),
             (structure_contact_constraint, "con", "con", None),
         ],
     )

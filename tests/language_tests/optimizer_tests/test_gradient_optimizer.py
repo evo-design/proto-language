@@ -565,9 +565,7 @@ class TestCompiledConstraints:
     @pytest.mark.parametrize(("mode", "tool_loss"), [("gradient", 3.0), ("scoring", 4.0)])
     def test_groups_af2_structure_terms_into_one_tool_call(self, mode: str, tool_loss: float) -> None:
         from proto_language.language.optimizer.constraint_compiler import evaluate_scoring_constraints
-        from proto_language.utils.alphafold2_multimer import (
-            af2_multimer_tool_loss_key,
-        )
+        from proto_language.utils.alphafold2_multimer import AF2_MULTIMER_TOOL_LOSS_ALIASES
         from tests.helpers.mock_structure import PDL1_PDB
 
         binder, target, construct, constraints = _af2_multimer_confidence_problem()
@@ -609,7 +607,10 @@ class TestCompiledConstraints:
                 metadata = binder.proposal_sequences[0]._constraints_metadata
 
         assert mock_af2.call_count == 1
-        assert mock_af2.call_args[0][1].loss_weights == {"plddt": 2.0, af2_multimer_tool_loss_key("ipae"): 0.5}
+        assert mock_af2.call_args[0][1].loss_weights == {
+            "plddt": 2.0,
+            AF2_MULTIMER_TOOL_LOSS_ALIASES.get("ipae", "ipae"): 0.5,
+        }
         assert "af2_plddt" in metadata and "af2_ipae" in metadata
 
     def test_scoring_compiler_evaluates_non_af2_dict_config_directly(self) -> None:

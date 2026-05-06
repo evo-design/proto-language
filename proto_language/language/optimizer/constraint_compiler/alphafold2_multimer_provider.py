@@ -56,9 +56,9 @@ from proto_language.language.optimizer.constraint_compiler.base import (
 )
 from proto_language.utils import one_hot_protein_matrix
 from proto_language.utils.alphafold2_multimer import (
+    AF2_MULTIMER_TOOL_LOSS_ALIASES,
     af2_multimer_constraint_output_metadata,
     af2_multimer_structures,
-    af2_multimer_tool_loss_key,
     next_af2_multimer_seed,
     validate_af2_multimer_inputs,
 )
@@ -191,7 +191,9 @@ class AF2MultimerGradientProvider(GradientProvider):
                     rm_target_seq=self.config.rm_target_seq,
                     rm_target_sc=self.config.rm_target_sc,
                     rm_template_ic=self.config.rm_template_ic,
-                    loss_weights={af2_multimer_tool_loss_key(key): weight for key, weight in loss_weights.items()},
+                    loss_weights={
+                        AF2_MULTIMER_TOOL_LOSS_ALIASES.get(key, key): weight for key, weight in loss_weights.items()
+                    },
                     intra_contact_num=self.config.intra_contact_num,
                     intra_contact_cutoff=self.config.intra_contact_cutoff,
                     inter_contact_num=self.config.inter_contact_num,
@@ -504,7 +506,9 @@ def evaluate_scoring_group(compiled_constraints: list[CompiledConstraint], mask:
                 rm_target_seq=config.rm_target_seq,
                 rm_target_sc=config.rm_target_sc,
                 rm_template_ic=config.rm_template_ic,
-                loss_weights={af2_multimer_tool_loss_key(key): weight for key, weight in loss_weights.items()},
+                loss_weights={
+                    AF2_MULTIMER_TOOL_LOSS_ALIASES.get(key, key): weight for key, weight in loss_weights.items()
+                },
                 intra_contact_num=config.intra_contact_num,
                 intra_contact_cutoff=config.intra_contact_cutoff,
                 inter_contact_num=config.inter_contact_num,
@@ -567,7 +571,7 @@ def _term_score(metrics: dict[str, Any], objective_key: str, fallback: float) ->
     Returns:
         float: Per-term scalar score/loss.
     """
-    tool_loss_key = af2_multimer_tool_loss_key(objective_key)
+    tool_loss_key = AF2_MULTIMER_TOOL_LOSS_ALIASES.get(objective_key, objective_key)
     candidate_keys = [f"loss_{objective_key}", f"loss_{tool_loss_key}", tool_loss_key, objective_key]
     if tool_loss_key == objective_key:
         candidate_keys = [objective_key, f"loss_{objective_key}"]
