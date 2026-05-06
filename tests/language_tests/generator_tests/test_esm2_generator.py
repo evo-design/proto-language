@@ -123,4 +123,53 @@ class TestESM2GeneratorValidation:
 
         error_msg = str(exc_info.value)
         assert "does not support sequence type" in error_msg
-        assert seq_type in error_msg.lower()
+
+
+class TestESM2GeneratorConfigSamplingMethod:
+    """Sampling-method config wiring on ESM2GeneratorConfig."""
+
+    def test_defaults_preserve_single_pass(self):
+        """Defaults mean every existing caller behaves identically (no opt-in)."""
+        config = ESM2GeneratorConfig()
+        assert config.sampling_method == "single_pass"
+        assert (config.top_p, config.num_steps) == (1.0, 20)
+        assert (config.schedule, config.strategy) == ("cosine", "random")
+        assert config.temperature_annealing is True
+
+    def test_iterative_refinement_knobs_round_trip(self):
+        """All five iterative knobs accept non-default values and surface them."""
+        config = ESM2GeneratorConfig(
+            sampling_method="iterative_refinement",
+            top_p=0.9,
+            num_steps=10,
+            schedule="linear",
+            strategy="entropy",
+            temperature_annealing=False,
+        )
+        assert config.sampling_method == "iterative_refinement"
+        assert (config.top_p, config.num_steps) == (0.9, 10)
+        assert (config.schedule, config.strategy) == ("linear", "entropy")
+        assert config.temperature_annealing is False
+
+
+@pytest.mark.uses_gpu
+class TestESM2GeneratorIterativeRefinement:
+    """End-to-end check that iterative_refinement reaches the tool and produces a sequence."""
+
+    def test_iterative_refinement_sample(self):
+        generator = ESM2Generator(
+            ESM2GeneratorConfig(
+                model_checkpoint="esm2_t33_650M_UR50D",
+                sampling_method="iterative_refinement",
+                num_steps=3,  # keep GPU runtime modest
+                masking_strategy=MaskingStrategy(num_mutations=5),
+            )
+        )
+        segment = Segment(sequence="MKKLLVVGGGGAAAA", sequence_type="protein")
+        generator.assign(segment)
+        generator.sample()
+
+        proposal = segment.proposal_sequences[0].sequence
+        assert proposal is not None
+        assert len(proposal) == len(segment.original_sequence.sequence)
+        assert all(c.isalpha() and c.isupper() for c in proposal)

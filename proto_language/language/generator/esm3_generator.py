@@ -1,6 +1,6 @@
 """ESM3 generator for protein sequence mutation and refinement."""
 
-from typing import final
+from typing import Literal, final
 
 from proto_tools import ESM3SampleConfig, ESM3SampleInput, run_esm3_sample
 from proto_tools.tools.masked_models.esm3.esm3_sample import (
@@ -30,6 +30,20 @@ class ESM3GeneratorConfig(BaseConfig):
             Future versions may include additional model variants.
             Default: ``"esm3_sm_open_v1"``.
 
+        masking_strategy (MaskingStrategy): Controls which positions to mask and
+            how many. Supports exact count (``num_mutations``), fractional
+            (``mask_fraction``), or default random 30%. Model-based strategies
+            like ``MaskingStrategy(method="entropy")`` and
+            ``MaskingStrategy(method="max-logit")`` use model logits to select
+            high-uncertainty positions.
+
+        sampling_method (Literal["single_pass", "iterative_refinement"]):
+            ``"single_pass"`` fills every mask in one forward pass.
+            ``"iterative_refinement"`` dispatches to ESM3's
+            ``model.batch_generate`` and uses the five iterative knobs below —
+            slower (~``num_steps``x compute) but produces more coherent
+            outputs when many positions are masked. Default: ``"single_pass"``.
+
         temperature (float): Scales randomness of amino acid sampling by adjusting
             probability distribution sharpness:
 
@@ -37,14 +51,26 @@ class ESM3GeneratorConfig(BaseConfig):
             - ``1.0``: Standard sampling from model distribution (default)
             - ``> 1.0``: More diverse, explores lower-probability amino acids
 
+            Applied in both ``single_pass`` and ``iterative_refinement`` modes.
             Must be greater than 0. Default: 1.0.
 
-        masking_strategy (MaskingStrategy): Controls which positions to mask and
-            how many. Supports exact count (``num_mutations``), fractional
-            (``mask_fraction``), or default random 30%. Model-based strategies
-            like ``MaskingStrategy(method="entropy")`` and
-            ``MaskingStrategy(method="max-logit")`` use model logits to select
-            high-uncertainty positions.
+        top_p (float): Nucleus sampling threshold for ``iterative_refinement``;
+            ``1.0`` disables. Default: 1.0.
+
+        num_steps (int): Number of refinement steps for
+            ``iterative_refinement``. Diminishing returns above 20.
+            Default: 20.
+
+        schedule (Literal["cosine", "linear"]): Unmask schedule across rounds
+            for ``iterative_refinement``. ``"cosine"`` fronts more commits
+            late; ``"linear"`` is uniform. Default: ``"cosine"``.
+
+        strategy (Literal["random", "entropy"]): Per-round commit selection for
+            ``iterative_refinement``. ``"entropy"`` commits the most-confident
+            positions first. Default: ``"random"``.
+
+        temperature_annealing (bool): For ``iterative_refinement``, anneal
+            ``temperature`` toward 0 across rounds. Default: ``True``.
 
         device (str): GPU device to run ESM3 on, e.g. ``"cuda"`` or
             ``"cuda:0"``. Default: ``"cuda"``.
@@ -69,6 +95,13 @@ class ESM3GeneratorConfig(BaseConfig):
         description="Controls which positions to mask for sampling. Default: random 30%.",
     )
 
+    sampling_method: Literal["single_pass", "iterative_refinement"] = ConfigField(
+        default="single_pass",
+        title="Sampling Method",
+        description=("'single_pass' samples every mask in one forward; 'iterative_refinement' uses batch_generate"),
+        advanced=True,
+    )
+
     # Advanced parameters
     temperature: float = ConfigField(
         default=1.0,
@@ -76,6 +109,44 @@ class ESM3GeneratorConfig(BaseConfig):
         title="Temperature",
         description="Scales the randomness of sampling by adjusting probability distribution sharpness.",
         advanced=True,
+    )
+    top_p: float = ConfigField(
+        default=1.0,
+        gt=0.0,
+        le=1.0,
+        title="Top P",
+        description="Nucleus sampling threshold; 1.0 disables",
+        advanced=True,
+        depends_on={"field": "sampling_method", "value": "iterative_refinement"},
+    )
+    num_steps: int = ConfigField(
+        default=20,
+        ge=1,
+        title="Num Steps",
+        description="Iterative-refinement decoding steps; diminishing returns above 20",
+        advanced=True,
+        depends_on={"field": "sampling_method", "value": "iterative_refinement"},
+    )
+    schedule: Literal["cosine", "linear"] = ConfigField(
+        default="cosine",
+        title="Unmask Schedule",
+        description="Unmask schedule across rounds; 'cosine' fronts more commits late",
+        advanced=True,
+        depends_on={"field": "sampling_method", "value": "iterative_refinement"},
+    )
+    strategy: Literal["random", "entropy"] = ConfigField(
+        default="random",
+        title="Unmask Strategy",
+        description="Position-selection per round; 'entropy' commits the most-confident first",
+        advanced=True,
+        depends_on={"field": "sampling_method", "value": "iterative_refinement"},
+    )
+    temperature_annealing: bool = ConfigField(
+        default=True,
+        title="Temperature Annealing",
+        description="Anneal temperature toward 0 across rounds",
+        advanced=True,
+        depends_on={"field": "sampling_method", "value": "iterative_refinement"},
     )
     device: str = ConfigField(
         default="cuda",
@@ -116,8 +187,15 @@ class ESM3Generator(Generator):
 
     Attributes:
         model_checkpoint (str): ESM3 model checkpoint name.
-        temperature (float): Sampling temperature for diversity control.
         masking_strategy (MaskingStrategy): Strategy for selecting positions to mutate.
+        sampling_method (str): ``"single_pass"`` (default) or
+            ``"iterative_refinement"`` (delegates to ``model.batch_generate``).
+        temperature (float): Sampling temperature for diversity control.
+        top_p (float): Nucleus threshold; iterative-refinement only.
+        num_steps (int): Refinement steps; iterative-refinement only.
+        schedule (str): Unmask schedule; iterative-refinement only.
+        strategy (str): Per-round commit selection; iterative-refinement only.
+        temperature_annealing (bool): Anneal toward 0 across rounds; iterative only.
         batch_size (int): Number of sequences to process simultaneously on GPU.
 
     Example:
@@ -142,8 +220,14 @@ class ESM3Generator(Generator):
         super().__init__()
         self.config = config
         self.model_checkpoint = config.model_checkpoint
-        self.temperature = config.temperature
         self.masking_strategy = config.masking_strategy
+        self.sampling_method = config.sampling_method
+        self.temperature = config.temperature
+        self.top_p = config.top_p
+        self.num_steps = config.num_steps
+        self.schedule = config.schedule
+        self.strategy = config.strategy
+        self.temperature_annealing = config.temperature_annealing
         self.device = config.device
         self.batch_size = config.batch_size
 
@@ -164,6 +248,12 @@ class ESM3Generator(Generator):
             model_checkpoint=self.model_checkpoint,
             temperature=self.temperature,
             masking_strategy=self.masking_strategy,
+            sampling_method=self.sampling_method,
+            top_p=self.top_p,
+            num_steps=self.num_steps,
+            schedule=self.schedule,
+            strategy=self.strategy,
+            temperature_annealing=self.temperature_annealing,
             device=self.device,
             batch_size=self.batch_size,
             verbose=False,
