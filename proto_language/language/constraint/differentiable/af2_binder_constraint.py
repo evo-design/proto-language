@@ -8,6 +8,7 @@ from proto_tools.tools.structure_prediction.alphafold2 import (
     AlphaFold2BinderInput,
     run_alphafold2_binder,
 )
+from proto_tools.utils import AminoAcid
 from pydantic import field_validator, model_validator
 
 from proto_language.base_config import BaseConfig, ConfigField
@@ -32,7 +33,7 @@ class AF2BinderConstraintConfig(BaseConfig):
         target_hotspot (str | None): Comma-separated target residue indices for interface contacts.
         design_positions (list[int] | None): Zero-based binder residue indices for loss focus.
         loss_weights (dict[str, float]): Binder-objective weights passed to ColabDesign.
-        omit_aas (str | None): Amino acids to ban during optimization.
+        omit_aas (list[AminoAcid] | None): Amino acids to ban during optimization.
         num_recycles (int): Number of recycling iterations.
         model_num (int): AF2 model parameter set (1-5).
         intra_contact_num (int): Intra-molecular contacts per residue for contact loss.
@@ -85,10 +86,10 @@ class AF2BinderConstraintConfig(BaseConfig):
         default_factory=lambda: {"plddt": 1.0, "i_pae": 1.0, "i_con": 1.0, "con": 0.5},
         description="Binder-objective weights (e.g. plddt, i_pae, i_con, con).",
     )
-    omit_aas: str | None = ConfigField(
+    omit_aas: list[AminoAcid] | None = ConfigField(
         title="Omit Amino Acids",
         default=None,
-        description="Comma-separated amino acids to ban during optimization, e.g. 'C,W'.",
+        description="Amino acids to ban during optimization (e.g. ['C', 'W']).",
         advanced=True,
     )
     num_recycles: int = ConfigField(
@@ -252,7 +253,7 @@ class AF2BinderConstraintConfig(BaseConfig):
                 "beta_strand": 0.2,
                 "dgram_cce": 0.01,
             },
-            omit_aas="C",
+            omit_aas=["C"],
             bias_redesign=10.0,
             inter_contact_num=10,
             inter_contact_cutoff=20.0,

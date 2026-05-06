@@ -267,7 +267,6 @@ def sample_evo2(uniprot_data: dict[str, Any], n_samples: int = 10) -> list[dict[
                     device="cuda",
                     num_tokens=n_tokens,
                     force_prompt_threshold=1,
-                    print_generation=False,
                 )
 
                 for j, nt_seq in enumerate(output["sequences"]):

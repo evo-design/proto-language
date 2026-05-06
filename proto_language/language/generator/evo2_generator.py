@@ -320,7 +320,6 @@ class Evo2Generator(Generator):
             cached_generation=self.cached_generation,
             force_prompt_threshold=self.force_prompt_threshold,
             max_seqlen=self.max_seqlen,
-            print_generation=False,
             verbose=self.verbose,
             stop_at_eos=self.stop_at_eos,
             old_kv_cache=old_kv_cache,

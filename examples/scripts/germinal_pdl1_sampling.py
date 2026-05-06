@@ -34,6 +34,7 @@ from Bio.PDB import PDBIO, PDBParser, PPBuilder
 from Bio.PDB.Model import Model as BioModel
 from Bio.PDB.Structure import Structure as BioPDBStructure
 from proto_tools.entities.structures import Structure
+from proto_tools.utils import AminoAcid
 from proto_tools.utils.device_manager import DeviceManager
 from proto_tools.utils.tool_pool import ToolPool
 
@@ -649,7 +650,7 @@ def build_germinal_semigreedy_bias(
     *,
     design_positions: list[int] | None,
     bias_redesign: float | None,
-    omit_aas: str | None,
+    omit_aas: list[AminoAcid] | None,
 ) -> list[list[float]] | None:
     """Build Germinal's persistent bias matrix for decoding and semigreedy sampling."""
     bias = np.zeros((len(binder_seed), len(PROTEIN_AMINO_ACIDS)), dtype=np.float64)
@@ -663,10 +664,9 @@ def build_germinal_semigreedy_bias(
             bias[design_idx] = 0.0
 
     if omit_aas:
-        omit_indices = [aa_index[token.strip()] for token in omit_aas.split(",") if token.strip()]
-        if omit_indices:
-            target_positions = design_idx if design_idx.size > 0 else np.arange(len(binder_seed))
-            bias[np.ix_(target_positions, omit_indices)] -= 1e6
+        omit_indices = [aa_index[aa] for aa in omit_aas]
+        target_positions = design_idx if design_idx.size > 0 else np.arange(len(binder_seed))
+        bias[np.ix_(target_positions, omit_indices)] -= 1e6
 
     return bias.tolist() if np.any(bias) else None
 

@@ -78,7 +78,7 @@ class TestConfig:
         assert config.backend == "germinal"
         assert config.bias_redesign == 10.0
         assert config.loss_weights["i_plddt"] == 1.0
-        assert config.omit_aas == "C"
+        assert config.omit_aas == ["C"]
 
     @pytest.mark.parametrize(
         "kwargs",
