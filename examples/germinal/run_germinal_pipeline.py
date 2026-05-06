@@ -926,7 +926,7 @@ def run_trajectory(
             structure_inputs=[
                 InverseFoldingStructureInput(
                     structure=complex_struct,
-                    chain_ids=[binder_chain],
+                    chains_to_redesign=[binder_chain],
                     fixed_positions={binder_chain: fixed_positions},
                 )
             ],

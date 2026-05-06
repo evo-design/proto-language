@@ -34,7 +34,7 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
             weights (same architecture, different training data).
         structure_inputs (list[InverseFoldingStructureInput] | None): Structure(s) with per-structure
             design constraints. Each ``InverseFoldingStructureInput`` bundles a structure with optional
-            ``chain_ids`` and ``fixed_positions`` specific to that structure.
+            ``chains_to_redesign`` and ``fixed_positions`` specific to that structure.
 
             This field is optional (defaults to ``None``) primarily to support ``CyclingOptimizer``
             workflows, where the structure is provided dynamically from a previous step (e.g.,
@@ -43,17 +43,17 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
             **InverseFoldingStructureInput fields:**
 
             - ``structure``: File path, PDB content string, or ``Structure`` object
-            - ``chain_ids``: Optional list of chain IDs to design (e.g., ``["A", "B"]``).
-              If None, all chains in the structure are designed.
-            - ``fixed_positions``: Optional dict mapping chain IDs to residue positions
-              to keep fixed (e.g., ``{"A": [1, 2, 3]}``)
+            - ``chains_to_redesign``: Optional chains to redesign (e.g., ``["A", "B"]``).
+              If None, all chains in the structure are redesigned.
+            - ``fixed_positions``: Optional per-chain residue positions to keep fixed
+              (e.g., ``{"A": [1, 2, 3]}``, 1-indexed)
 
             **Accepts flexible input formats:**
 
             - A single string (file path or PDB content) - auto-converted to ``InverseFoldingStructureInput``
             - A single ``InverseFoldingStructureInput`` object
             - A list of strings or ``InverseFoldingStructureInput`` objects
-            - A list of dicts with ``structure``, ``chain_ids``, ``fixed_positions`` keys
+            - A list of dicts with ``structure``, ``chains_to_redesign``, ``fixed_positions`` keys
         output_chain_id (str | None): For multi-chain sampling, write only this
             chain's generated sequence to the assigned segment. If unset, preserve
             ProteinMPNN's full output sequence.
@@ -103,7 +103,7 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
         >>> config = ProteinMPNNGeneratorConfig(
         ...     structure_inputs=InverseFoldingStructureInput(
         ...         structure="/path/to/backbone.pdb",
-        ...         chain_ids=["A"],  # Only design chain A
+        ...         chains_to_redesign=["A"],  # Only design chain A
         ...         fixed_positions={"A": [1, 2, 3]},  # Keep positions 1-3 fixed
         ...     ),
         ...     temperature=0.1,
@@ -115,12 +115,12 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
         ...     structure_inputs=[
         ...         InverseFoldingStructureInput(
         ...             structure="/path/to/struct1.pdb",
-        ...             chain_ids=["A"],
+        ...             chains_to_redesign=["A"],
         ...             fixed_positions={"A": [1, 2, 3]},
         ...         ),
         ...         InverseFoldingStructureInput(
         ...             structure="/path/to/struct2.pdb",
-        ...             chain_ids=["A", "B"],
+        ...             chains_to_redesign=["A", "B"],
         ...         ),
         ...     ],
         ...     temperature=0.1,
@@ -133,11 +133,11 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
         description="Model weights: 'proteinmpnn' (general), 'abmpnn' (antibody), or 'soluble' (soluble proteins).",
     )
 
-    # Structure parameters - bundles structure, chain_ids, and fixed_positions per structure.
+    # Structure parameters - bundles structure, chains_to_redesign, and fixed_positions per structure.
     structure_inputs: list[InverseFoldingStructureInput] | None = ConfigField(
         default=None,
         title="Structure Inputs",
-        description="Structure(s) with optional chain_ids and fixed_positions constraints.",
+        description="Structure(s) with optional chains_to_redesign and fixed_positions constraints.",
     )
     output_chain_id: str | None = ConfigField(
         default=None,
@@ -364,13 +364,15 @@ class ProteinMPNNGenerator(Generator):
         """Return the configured output chain from a ProteinMPNN sequence."""
         if self.output_chain_id is None:
             return sequence
-        chain_ids = struct_input.chain_ids or []
-        if self.output_chain_id not in chain_ids:
-            raise ValueError(f"output_chain_id {self.output_chain_id!r} not found in chain_ids {chain_ids}")
-        parts = sequence.split("/")
-        if len(parts) != len(chain_ids):
+        chain_ids_to_redesign: list[str] = struct_input.chain_ids_to_redesign
+        if self.output_chain_id not in chain_ids_to_redesign:
             raise ValueError(
-                f"Expected {len(chain_ids)} slash-separated chains in ProteinMPNN output "
-                f"(for chain_ids {chain_ids}), got {len(parts)}: {sequence!r}"
+                f"output_chain_id {self.output_chain_id!r} not found in chain_ids_to_redesign {chain_ids_to_redesign}"
             )
-        return parts[chain_ids.index(self.output_chain_id)]
+        parts = sequence.split("/")
+        if len(parts) != len(chain_ids_to_redesign):
+            raise ValueError(
+                f"Expected {len(chain_ids_to_redesign)} slash-separated chains in ProteinMPNN output "
+                f"(for chain_ids_to_redesign {chain_ids_to_redesign}), got {len(parts)}: {sequence!r}"
+            )
+        return parts[chain_ids_to_redesign.index(self.output_chain_id)]

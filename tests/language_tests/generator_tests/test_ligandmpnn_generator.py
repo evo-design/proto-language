@@ -134,28 +134,26 @@ class TestLigandMPNNGeneratorValidation:
         assert len(generator.structure_inputs) == 1
         assert generator.structure_inputs[0].structure is not None
 
-    def test_structure_without_chain_ids_defaults_to_all(self, temp_pdb_file):
-        """When chain_ids is not specified, should default to all chains."""
+    def test_structure_without_chains_to_redesign_defaults_to_all(self, temp_pdb_file):
+        """When chains_to_redesign is not specified, chain_ids_to_redesign should resolve to all chains."""
         generator = LigandMPNNGenerator(LigandMPNNGeneratorConfig(structure_inputs=temp_pdb_file))
 
-        # chain_ids should be populated with all available chains
         assert len(generator.structure_inputs) == 1
-        assert generator.structure_inputs[0].chain_ids is not None
-        assert generator.structure_inputs[0].chain_ids == ["A"]  # Only chain A in sample PDB
+        assert generator.structure_inputs[0].chain_ids_to_redesign == ["A"]  # Only chain A in sample PDB
 
-    def test_structure_input_with_chain_ids(self, temp_pdb_file):
-        """Should accept InverseFoldingStructureInput with chain_ids."""
+    def test_structure_input_with_chains_to_redesign(self, temp_pdb_file):
+        """Should accept InverseFoldingStructureInput with chains_to_redesign."""
         generator = LigandMPNNGenerator(
             LigandMPNNGeneratorConfig(
                 structure_inputs=InverseFoldingStructureInput(
                     structure=temp_pdb_file,
-                    chain_ids=["A"],
+                    chains_to_redesign=["A"],
                 )
             )
         )
 
         assert len(generator.structure_inputs) == 1
-        assert generator.structure_inputs[0].chain_ids == ["A"]
+        assert generator.structure_inputs[0].chain_ids_to_redesign == ["A"]
 
     def test_multiple_structure_inputs(self, sample_pdb_content):
         """Should accept multiple InverseFoldingStructureInput objects."""
@@ -164,17 +162,17 @@ class TestLigandMPNNGeneratorValidation:
                 structure_inputs=[
                     InverseFoldingStructureInput(
                         structure=sample_pdb_content,
-                        chain_ids=["A"],
+                        chains_to_redesign=["A"],
                         fixed_positions={"A": [1, 2]},
                     ),
                     InverseFoldingStructureInput(
                         structure=sample_pdb_content,
-                        chain_ids=["A"],
+                        chains_to_redesign=["A"],
                     ),
                 ]
             )
         )
 
         assert len(generator.structure_inputs) == 2
-        assert generator.structure_inputs[0].fixed_positions == {"A": [1, 2]}
+        assert generator.structure_inputs[0].fixed_positions.chains == {"A": [1, 2]}
         assert generator.structure_inputs[1].fixed_positions is None

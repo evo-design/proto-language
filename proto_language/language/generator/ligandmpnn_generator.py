@@ -7,9 +7,9 @@ and binding site optimization.
 from typing import Any, final
 
 from proto_tools import (
-    InverseFoldingConfig,
     InverseFoldingInput,
     InverseFoldingStructureInput,
+    LigandMPNNSampleConfig,
     Structure,
     run_ligandmpnn_sample,
 )
@@ -37,7 +37,7 @@ class LigandMPNNGeneratorConfig(BaseConfig):
     Attributes:
         structure_inputs (list[InverseFoldingStructureInput] | None): Structure(s) with per-structure
             design constraints. Each ``InverseFoldingStructureInput`` bundles a structure with optional
-            ``chain_ids`` and ``fixed_positions`` specific to that structure.
+            ``chains_to_redesign`` and ``fixed_positions`` specific to that structure.
 
             This field is optional (defaults to ``None``) primarily to support ``CyclingOptimizer``
             workflows, where the structure is provided dynamically from a previous step (e.g.,
@@ -46,17 +46,17 @@ class LigandMPNNGeneratorConfig(BaseConfig):
             **InverseFoldingStructureInput fields:**
 
             - ``structure``: File path, PDB content string, or ``Structure`` object
-            - ``chain_ids``: Optional list of chain IDs to design (e.g., ``["A", "B"]``).
-              If None, all chains in the structure are designed.
-            - ``fixed_positions``: Optional dict mapping chain IDs to residue positions
-              to keep fixed (e.g., ``{"A": [1, 2, 3]}``)
+            - ``chains_to_redesign``: Optional chains to redesign (e.g., ``["A", "B"]``).
+              If None, all chains in the structure are redesigned.
+            - ``fixed_positions``: Optional per-chain residue positions to keep fixed
+              (e.g., ``{"A": [1, 2, 3]}``, 1-indexed)
 
             **Accepts flexible input formats:**
 
             - A single string (file path or PDB content) - auto-converted to ``InverseFoldingStructureInput``
             - A single ``InverseFoldingStructureInput`` object
             - A list of strings or ``InverseFoldingStructureInput`` objects
-            - A list of dicts with ``structure``, ``chain_ids``, ``fixed_positions`` keys
+            - A list of dicts with ``structure``, ``chains_to_redesign``, ``fixed_positions`` keys
 
         temperature (float): Controls randomness in amino acid sampling from the
             model's predicted probability distribution:
@@ -103,7 +103,7 @@ class LigandMPNNGeneratorConfig(BaseConfig):
         >>> config = LigandMPNNGeneratorConfig(
         ...     structure_inputs=InverseFoldingStructureInput(
         ...         structure="/path/to/enzyme.pdb",
-        ...         chain_ids=["A"],
+        ...         chains_to_redesign=["A"],
         ...         fixed_positions={"A": [45, 67, 89]},  # Catalytic triad
         ...     ),
         ...     temperature=0.1,
@@ -115,23 +115,23 @@ class LigandMPNNGeneratorConfig(BaseConfig):
         ...     structure_inputs=[
         ...         InverseFoldingStructureInput(
         ...             structure="/path/to/struct1.pdb",
-        ...             chain_ids=["A"],
+        ...             chains_to_redesign=["A"],
         ...             fixed_positions={"A": [1, 2, 3]},
         ...         ),
         ...         InverseFoldingStructureInput(
         ...             structure="/path/to/struct2.pdb",
-        ...             chain_ids=["A", "B"],
+        ...             chains_to_redesign=["A", "B"],
         ...         ),
         ...     ],
         ...     temperature=0.1,
         ... )
     """
 
-    # Structure parameters - bundles structure, chain_ids, and fixed_positions per structure.
+    # Structure parameters - bundles structure, chains_to_redesign, and fixed_positions per structure.
     structure_inputs: list[InverseFoldingStructureInput] | None = ConfigField(
         default=None,
         title="Structure Inputs",
-        description="Structure(s) with optional chain_ids and fixed_positions constraints.",
+        description="Structure(s) with optional chains_to_redesign and fixed_positions constraints.",
     )
 
     # Optional parameters.
@@ -298,7 +298,7 @@ class LigandMPNNGenerator(Generator):
             num_seqs = 1
             bs = 1
 
-        tool_config = InverseFoldingConfig(
+        tool_config = LigandMPNNSampleConfig(
             num_sequences_per_structure=num_seqs,
             batch_size=bs,
             temperature=self.temperature,

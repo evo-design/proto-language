@@ -38,7 +38,7 @@ if __name__ == "__main__":
         proteinmpnn_config = ProteinMPNNGeneratorConfig(
             structure_inputs=InverseFoldingStructureInput(
                 structure=pdb_file,
-                chain_ids=[chain],
+                chains_to_redesign=[chain],
             ),
             temperature=0.1,
         )

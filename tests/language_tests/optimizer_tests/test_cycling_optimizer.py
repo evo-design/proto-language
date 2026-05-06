@@ -768,7 +768,7 @@ class TestCyclingOptimizerGPU:
 
         generator = ProteinMPNNGenerator(
             ProteinMPNNGeneratorConfig(
-                structure_inputs=InverseFoldingStructureInput(structure=pdb_structure, chain_ids=["A"]),
+                structure_inputs=InverseFoldingStructureInput(structure=pdb_structure, chains_to_redesign=["A"]),
                 temperature=0.1,
             )
         )
@@ -814,7 +814,7 @@ class TestCyclingOptimizerGPU:
 
         generator = ProteinMPNNGenerator(
             ProteinMPNNGeneratorConfig(
-                structure_inputs=InverseFoldingStructureInput(structure=pdb_structure, chain_ids=["A"]),
+                structure_inputs=InverseFoldingStructureInput(structure=pdb_structure, chains_to_redesign=["A"]),
                 temperature=0.1,
             )
         )
