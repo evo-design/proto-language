@@ -283,7 +283,7 @@ class LigandMPNNGenerator(Generator):
 
         generated_sequences: list[str] = []
         all_recovery: list[float] = []
-        all_interface_recovery: list[float] = []
+        all_interface_recovery: list[float | None] = []
 
         if len(sampling_structure_inputs) == 1:
             # Single structure: generate num_proposals sequences in chunks of batch_size
@@ -315,7 +315,10 @@ class LigandMPNNGenerator(Generator):
         for design in result.designed_sequences:
             generated_sequences.extend(design.sequences)
             all_recovery.extend(design.sequence_recovery)
-            all_interface_recovery.extend(design.ligand_interface_sequence_recovery)
+            # ligand_interface_sequence_recovery is None when the input structure has no ligand;
+            # pad with None so the per-proposal alignment via zip() below holds.
+            interface = design.ligand_interface_sequence_recovery
+            all_interface_recovery.extend([None] * len(design.sequences) if interface is None else interface)
 
         key = self._spec.key
         for proposal, sequence, recovery, interface_recovery in zip(
