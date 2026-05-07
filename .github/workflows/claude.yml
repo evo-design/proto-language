@@ -33,7 +33,7 @@ jobs:
           token: ${{ secrets.CI_SUBMODULE_ACCESS }}
           fetch-depth: 0
           submodules: recursive
-      - uses: anthropics/claude-code-action@08d635357c8fff73d997923c055449a03e92e0b6 # v1.0.112
+      - uses: anthropics/claude-code-action@v1
         id: claude
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
