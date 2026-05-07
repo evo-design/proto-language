@@ -231,7 +231,7 @@ def structure_plddt_constraint(
     Note that for Boltz2, this is based on the ``"complex_plddt"`` score
     returned natively by the package.
 
-    **Supported tools**: ESMFold, AlphaFold3, Boltz2, Chai1, AlphaFold2 multimer
+    **Supported tools**: ESMFold, AlphaFold3, Boltz2, Chai1, Protenix, AlphaFold2 multimer
 
     Args:
         input_sequences (list[tuple[Sequence, ...]]): Per-proposal tuples of input sequences.
@@ -301,7 +301,7 @@ def structure_ptm_constraint(
     This constraint returns ``1.0 - ptm``, so lower scores indicate
     better predicted structure quality.
 
-    **Supported tools**: ESMFold, AlphaFold3, Boltz2, Chai1, AlphaFold2 multimer
+    **Supported tools**: ESMFold, AlphaFold3, Boltz2, Chai1, Protenix, AlphaFold2 multimer
 
     Args:
         input_sequences (list[tuple[Sequence, ...]]): Per-proposal tuples of input sequences.
@@ -369,7 +369,7 @@ def structure_iptm_constraint(
     This constraint returns ``1.0 - iptm``, so lower scores indicate
     better predicted interface quality.
 
-    **Supported tools**: AlphaFold3, Boltz2, Chai1, AlphaFold2 multimer (NOT ESMFold)
+    **Supported tools**: AlphaFold3, Boltz2, Chai1, Protenix, AlphaFold2 multimer (NOT ESMFold)
 
     Args:
         input_sequences (list[tuple[Sequence, ...]]): Per-proposal tuples of input sequences.
@@ -459,7 +459,7 @@ def structure_pae_constraint(
            by all major structure predictors).
         3. Returns that value without flipping the sign, as lower is better.
 
-    **Supported tools**: ESMFold, AlphaFold3, Boltz2, Chai1, AlphaFold2 multimer
+    **Supported tools**: ESMFold, AlphaFold3, Boltz2, Chai1, Protenix, AlphaFold2 multimer
 
     Args:
         input_sequences (list[tuple[Sequence, ...]]): Per-proposal tuples of input sequences.
@@ -637,7 +637,7 @@ def structure_composite_constraint(
     (one ``predict_structures`` call instead of four) and exposes all metrics
     for post-hoc threshold labeling.
 
-    **Supported tools**: AlphaFold3, Boltz2, Chai1 (NOT ESMFold — ESMFold does
+    **Supported tools**: AlphaFold3, Boltz2, Chai1, Protenix (NOT ESMFold — ESMFold does
     not produce ``iptm`` and cannot handle multi-chain complexes; NOT AF2
     multimer because its interface TM value is exposed as a differentiable
     objective rather than the same forward confidence metric used here).
