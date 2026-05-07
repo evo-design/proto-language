@@ -1,0 +1,135 @@
+{
+  "name": "evocas9_rejection_sampling",
+  "description": "JSON version of examples/scripts/evocas9_rejection_sampling.py without the local AF3 structure_filter. This encodes the temp=0.5/top_k=4 run, samples 2000 Evo1 proposals in batches of 100, and applies the registered filters in script order: longest ORF, Cas9 profile HMM, CRISPR array, maximum training-set identity, nearest-neighbor gap Gini, required Cas9 domains, and tracrRNA support. The MMseqs reference path matches the script's combined training FASTA cache.",
+  "version": "1.0",
+  "num_results": 2000,
+  "constructs": [
+    {
+      "id": "cas9_construct",
+      "type": "dna",
+      "label": "cas9_construct",
+      "segments": [
+        {
+          "id": "crispr_locus",
+          "label": "crispr_locus",
+          "length": 8000
+        }
+      ]
+    }
+  ],
+  "optimization_stages": [
+    {
+      "generators": [
+        {
+          "key": "evo1",
+          "targets": ["crispr_locus"],
+          "config": {
+            "prompts": ["`A"],
+            "model_checkpoint": "evo-1-8k-crispr",
+            "temperature": 0.5,
+            "top_k": 4,
+            "prepend_prompt": false,
+            "batch_size": 100,
+            "verbose": false
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "longest-orf-length",
+          "label": "orf_filter",
+          "targets": ["crispr_locus"],
+          "threshold": 0.5,
+          "config": {
+            "min_nucleotide_length": 3000
+          }
+        },
+        {
+          "key": "protein-profile-hmm",
+          "label": "cas9_phmm_filter",
+          "targets": ["crispr_locus"],
+          "threshold": 0.5,
+          "config": {
+            "hmm_path": "examples/data/cas_hmms/cas9.hmm",
+            "hmmsearch_config": {
+              "evalue_threshold": 0.001,
+              "domain_evalue_threshold": 0.001
+            }
+          }
+        },
+        {
+          "key": "crispr-array",
+          "label": "crispr_array_filter",
+          "targets": ["crispr_locus"],
+          "threshold": 0.5,
+          "config": {
+            "minced_config": {
+              "min_num_repeats": 3,
+              "min_repeat_length": 23
+            }
+          }
+        },
+        {
+          "key": "protein-max-identity",
+          "label": "identity_filter",
+          "targets": ["crispr_locus"],
+          "threshold": 0.5,
+          "config": {
+            "mmseqs_db": "data/cas_training_combined.fasta",
+            "reference_fasta": "data/cas_training_combined.fasta",
+            "max_identity": 90.0,
+            "pass_no_hits": true
+          }
+        },
+        {
+          "key": "protein-nearest-neighbor-gap-gini",
+          "label": "gap_gini_filter",
+          "targets": ["crispr_locus"],
+          "threshold": 0.5,
+          "config": {
+            "mmseqs_db": "data/cas_training_combined.fasta",
+            "reference_fasta": "data/cas_training_combined.fasta",
+            "max_gap_gini": 0.1,
+            "pass_no_hits": true
+          }
+        },
+        {
+          "key": "protein-profile-hmm",
+          "label": "domain_filter",
+          "targets": ["crispr_locus"],
+          "threshold": 0.5,
+          "config": {
+            "hmm_path": "examples/data/cas_hmms/cas9_domains.hmm",
+            "required_profiles": ["HNH", "RuvC_1", "RuvC_2", "RuvC_3"],
+            "profile_match_field": "query_name",
+            "hmmsearch_config": {
+              "evalue_threshold": 1e-10,
+              "domain_evalue_threshold": 1e-10
+            }
+          }
+        },
+        {
+          "key": "crispr-tracr-rna",
+          "label": "tracr_filter",
+          "targets": ["crispr_locus"],
+          "threshold": 0.5,
+          "config": {
+            "require_intarna_interaction": true,
+            "tracr_config": {
+              "model_type": "II"
+            }
+          }
+        }
+      ],
+      "optimizer": {
+        "method": "rejection-sampling",
+        "config": {
+          "num_samples": 2000,
+          "num_results": 2000,
+          "samples_per_round": 100,
+          "verbose": false
+        }
+      }
+    }
+  ]
+}

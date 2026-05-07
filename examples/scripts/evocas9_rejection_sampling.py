@@ -18,8 +18,8 @@ Architecture:
         8. structure_filter    - AF3 + structure metrics
 
 Usage:
-    python evocas9_rejection_sampling.py --n-samples 10
-    python evocas9_rejection_sampling.py --n-samples 150 --batch-size 150
+    python evocas9_rejection_sampling.py
+    python evocas9_rejection_sampling.py --n-samples 2000 --batch-size 100
     python evocas9_rejection_sampling.py --n-samples 150 --filter-log-output cas9_filter_diagnostics.tsv
 """
 
@@ -814,14 +814,14 @@ def main() -> list[dict[str, Any]]:
     parser.add_argument(
         "--n-samples",
         type=int,
-        default=10,
-        help="Samples per sweep combination (default: 10)",
+        default=2000,
+        help="Samples per sweep combination (default: 2000)",
     )
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=None,
-        help="Batch size for generation (default: same as n-samples)",
+        default=100,
+        help="Batch size for generation (default: 100)",
     )
     parser.add_argument(
         "--output",
