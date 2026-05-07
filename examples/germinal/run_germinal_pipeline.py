@@ -983,9 +983,6 @@ def run_trajectory(
         pae_angstroms = pae_norm * PAE_MAXIMUM
         assert variant.structure is not None  # noqa: S101 -- structure_composite_constraint always populates it
         cofold_struct = variant.structure
-        # Normalize PAE key: Chai-1 uses 'pae', IPSAE/AF3 use 'pae_matrix'.
-        if "pae_matrix" not in cofold_struct.metrics and "pae" in cofold_struct.metrics:
-            cofold_struct.metrics["pae_matrix"] = cofold_struct.metrics["pae"]
 
         ipsae_result = run_ipsae_scoring(
             IPSAEScoringInput(
