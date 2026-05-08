@@ -1,6 +1,5 @@
 """tracrRNA prediction constraint for CRISPR loci."""
 
-import json
 import logging
 from typing import Any
 
@@ -9,7 +8,6 @@ from proto_tools import CrisprTracrRNAConfig, CrisprTracrRNAInput, run_crispr_tr
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.language.core import ConstraintOutput, Sequence
-from proto_language.storage import FileType, store_file
 from proto_language.utils import MAX_ENERGY, MIN_ENERGY
 
 logger = logging.getLogger(__name__)
@@ -89,7 +87,7 @@ def crispr_tracr_rna_constraint(
             "tracr_sequence": tracr_sequence,
             "interaction_energy": interaction_energy,
             "intarna_anti_repeat_interaction": intarna_interaction,
-            "tracr_candidates": store_file(json.dumps(candidate_dicts), FileType.JSON) if candidate_dicts else None,
+            "tracr_candidates": candidate_dicts or None,
         }
         results.append(ConstraintOutput(score=MIN_ENERGY if passes else MAX_ENERGY, metadata=metadata))
 

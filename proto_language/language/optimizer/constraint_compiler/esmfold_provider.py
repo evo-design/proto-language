@@ -36,7 +36,6 @@ from proto_language.language.optimizer.constraint_compiler.base import (
     GradientProvider,
     GradientProviderOutput,
 )
-from proto_language.storage import FileType, store_file
 
 logger = logging.getLogger(__name__)
 
@@ -268,7 +267,7 @@ def _constraint_metadata(
             "loss_key": objective_key,
             "output_loss": output_loss,
             "group_loss": group_loss,
-            "pdb_output": store_file(output_structure.structure_pdb, FileType.PDB),
+            "pdb_output": output_structure.structure_pdb,
             "structure_tool": "esmfold",
         }
     )

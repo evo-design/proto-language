@@ -16,7 +16,6 @@ from proto_tools import (
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.language.core import ConstraintOutput, Sequence
-from proto_language.storage import FileType, store_file
 from proto_language.utils import MAX_ENERGY
 from proto_language.utils.orf_selection import resolve_protein_complex_chains
 
@@ -177,7 +176,7 @@ def protein_globularity_constraint(
                 {
                     "avg_plddt": structure.metrics["avg_plddt"],
                     "ptm": structure.metrics["ptm"],
-                    "pdb_output": store_file(structure.structure_pdb, FileType.PDB),
+                    "pdb_output": structure.structure_pdb,
                     "raw_globularity": raw_globularity,
                     "normalized_globularity": normalized_globularity,
                 }

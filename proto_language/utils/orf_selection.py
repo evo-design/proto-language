@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import TYPE_CHECKING, Any
 
 from proto_tools import ORF, OrfipyConfig, OrfipyInput, run_orfipy_prediction
-
-from proto_language.storage import FileType, store_file
 
 if TYPE_CHECKING:
     from proto_language.language.core import Sequence
@@ -48,7 +45,7 @@ def predict_longest_canonical_cds(dna_sequences: list[Sequence]) -> list[tuple[O
     for sequence_idx, (dna_sequence, orfs) in enumerate(zip(dna_sequences, orfipy_result.predicted_orfs, strict=True)):
         orf_dicts = [orf.model_dump() for orf in orfs]
         metadata: dict[str, Any] = {
-            "orfipy_orfs": store_file(json.dumps(orf_dicts), FileType.JSON) if orf_dicts else None,
+            "orfipy_orfs": orf_dicts or None,
             "orfipy_orf_count": len(orfs),
             "orf_selection": {
                 "caller": "orfipy",

@@ -24,7 +24,6 @@ from proto_language.language.constraint.protein_structure.structure_constraint_c
     StructureBasedConstraintConfig,
 )
 from proto_language.language.core import ConstraintOutput, Sequence
-from proto_language.storage import FileType, store_file
 from proto_language.utils.helpers import one_hot_protein_matrix
 
 AF2_MULTIMER_LOSS_TERMS: frozenset[str] = frozenset(
@@ -200,8 +199,7 @@ def af2_multimer_constraint_output_metadata(
         **metrics,
         "af2_loss_key": loss_key,
         "loss": output_loss,
-        "complex_pdb": output_structure.structure_pdb,
-        "pdb_output": store_file(output_structure.structure_pdb, FileType.PDB),
+        "pdb_output": output_structure.structure_pdb,
         "structure_tool": "alphafold2_multimer",
     }
     if group_loss is not None:
@@ -230,8 +228,7 @@ def af2_multimer_confidence_output_metadata(
     return {
         **metrics,
         "loss": output_loss,
-        "complex_pdb": output_structure.structure_pdb,
-        "pdb_output": store_file(output_structure.structure_pdb, FileType.PDB),
+        "pdb_output": output_structure.structure_pdb,
         "structure_tool": "alphafold2_multimer",
     }
 

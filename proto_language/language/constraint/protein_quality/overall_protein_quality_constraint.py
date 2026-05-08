@@ -1,6 +1,5 @@
 """Overall protein quality constraint function."""
 
-import json
 from typing import Any
 
 import numpy as np
@@ -30,7 +29,6 @@ from proto_language.language.constraint.sequence_composition.sequence_length_con
     sequence_length_constraint,
 )
 from proto_language.language.core import ConstraintOutput, Sequence
-from proto_language.storage import FileType, store_file
 
 
 class ProteinQualitySubConfig(BaseConfig):
@@ -505,7 +503,7 @@ def overall_protein_quality_constraint(
         ):
             orf_dicts = [orf.model_dump() for orf in proteins_list]
             metadata: dict[str, Any] = {
-                "prodigal_proteins": store_file(json.dumps(orf_dicts), FileType.JSON) if orf_dicts else None,
+                "prodigal_proteins": orf_dicts or None,
                 "prodigal_protein_count": num_genes,
             }
 

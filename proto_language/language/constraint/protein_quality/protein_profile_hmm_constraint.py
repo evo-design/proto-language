@@ -1,6 +1,5 @@
 """Profile-HMM matching constraint for protein sequences and translated DNA."""
 
-import json
 import logging
 from pathlib import Path
 from typing import Any, Literal
@@ -11,7 +10,6 @@ from pydantic import field_validator
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.language.core import ConstraintOutput, Sequence
-from proto_language.storage import FileType, resolve_paths, store_file
 from proto_language.utils import MAX_ENERGY, MIN_ENERGY
 from proto_language.utils.orf_selection import resolve_protein_complex_chains
 
@@ -101,9 +99,8 @@ def protein_profile_hmm_constraint(
         ValueError: If the HMM path does not exist.
         RuntimeError: If PyHMMER reports failure.
     """
-    resolved_hmm = resolve_paths(config.hmm_path)
-    if not Path(resolved_hmm).exists():
-        raise ValueError(f"HMM file not found: {resolved_hmm}")
+    if not Path(config.hmm_path).exists():
+        raise ValueError(f"HMM file not found: {config.hmm_path}")
 
     resolved_sequences = resolve_protein_complex_chains(input_sequences)
     proteins: list[str] = []
@@ -124,7 +121,9 @@ def protein_profile_hmm_constraint(
     if not proteins:
         return [ConstraintOutput(score=MAX_ENERGY, metadata=metadata) for metadata in metadata_by_idx]
 
-    hmm_result = run_pyhmmer_hmmsearch(PyHmmsearchInput(sequences=proteins, hmm=resolved_hmm), config.hmmsearch_config)
+    hmm_result = run_pyhmmer_hmmsearch(
+        PyHmmsearchInput(sequences=proteins, hmm=config.hmm_path), config.hmmsearch_config
+    )
     if hmm_result.success is False:
         raise RuntimeError(f"PyHMMER hmmsearch failed: {hmm_result.errors}")
 
@@ -151,8 +150,8 @@ def protein_profile_hmm_constraint(
 
         metadata = {
             **metadata_by_idx[original_idx],
-            "profile_hmm_sequence_hits": _store_hits(sequence_hits),
-            "profile_hmm_domain_hits": _store_hits(domain_hits),
+            "profile_hmm_sequence_hits": _hit_dicts(sequence_hits),
+            "profile_hmm_domain_hits": _hit_dicts(domain_hits),
             "required_profiles": config.required_profiles,
             "profiles_found": profiles_found,
             "has_profile_hmm_hit": bool(sequence_hits),
@@ -175,10 +174,9 @@ def _parse_sequence_index(target_name: str) -> int | None:
         return None
 
 
-def _store_hits(hits: list[Any]) -> Any:
-    """Store HMM hits as JSON and return a file reference."""
-    hit_dicts = [hit.model_dump() for hit in hits]
-    return store_file(json.dumps(hit_dicts), FileType.JSON) if hit_dicts else None
+def _hit_dicts(hits: list[Any]) -> list[dict[str, Any]] | None:
+    """Return per-hit ``model_dump()`` dicts, or ``None`` if there are no hits."""
+    return [hit.model_dump() for hit in hits] or None
 
 
 def _matched_required_profiles(domain_hits: list[Any], config: ProteinProfileHMMConfig) -> list[str]:

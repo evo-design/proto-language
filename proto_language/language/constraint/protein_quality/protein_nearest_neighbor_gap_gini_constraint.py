@@ -16,7 +16,6 @@ from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.language.constraint.sequence_alignment.gap_gini_constraint import gap_gini_single, trim_alignment
 from proto_language.language.core import ConstraintOutput, Sequence
-from proto_language.storage import resolve_paths
 from proto_language.utils import MAX_ENERGY, MIN_ENERGY, load_reference_sequences
 from proto_language.utils.orf_selection import resolve_protein_complex_chains
 
@@ -133,7 +132,7 @@ def protein_nearest_neighbor_gap_gini_constraint(
         return outputs
 
     mmseqs_result = run_mmseqs2_search_proteins(
-        Mmseqs2SearchProteinsInput(query_sequences=proteins, mmseqs_db=resolve_paths(config.mmseqs_db)),
+        Mmseqs2SearchProteinsInput(query_sequences=proteins, mmseqs_db=config.mmseqs_db),
         config.mmseqs_config,
     )
     if mmseqs_result.success is False:

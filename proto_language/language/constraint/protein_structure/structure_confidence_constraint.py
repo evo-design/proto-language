@@ -26,7 +26,6 @@ from proto_language.language.constraint.protein_structure.structure_constraint_c
     StructureBasedConstraintConfig,
 )
 from proto_language.language.core import ConstraintOutput, Sequence
-from proto_language.storage import FileType, store_file
 from proto_language.utils import MAX_ENERGY
 from proto_language.utils.alphafold2_multimer import (
     af2_multimer_confidence_output_metadata,
@@ -190,7 +189,7 @@ def _assemble_result(
     else:
         metadata = {
             target_metric: metric,
-            "pdb_output": store_file(record.complex_structure.structure_pdb, FileType.PDB),
+            "pdb_output": record.complex_structure.structure_pdb,
             "structure_tool": structure_tool,
         }
     structures = record.per_input_structures or ((record.complex_structure,) + (None,) * (n_segments - 1))
@@ -730,7 +729,7 @@ def structure_composite_constraint(
                     "composite_iptm": iptm,
                     "composite_ptm": ptm,
                     "composite_avg_pae": pae_norm,
-                    "pdb_output": store_file(record.complex_structure.structure_pdb, FileType.PDB),
+                    "pdb_output": record.complex_structure.structure_pdb,
                     "structure_tool": config.structure_tool,
                 },
                 structures=record.per_input_structures or ((record.complex_structure,) + (None,) * (n - 1)),

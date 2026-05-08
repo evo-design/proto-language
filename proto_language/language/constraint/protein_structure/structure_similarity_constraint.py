@@ -27,7 +27,6 @@ from proto_language.language.constraint.protein_structure.structure_constraint_c
     StructureBasedConstraintConfig,
 )
 from proto_language.language.core import ConstraintOutput, Sequence
-from proto_language.storage import FileType, store_file
 from proto_language.utils import MAX_ENERGY, sigmoid_score
 
 logger = getLogger(__name__)
@@ -377,7 +376,7 @@ def structure_rmsd_constraint(
                 metadata={
                     "rmsd_val": rmsd_val,
                     "rmsd_score": score,
-                    "pdb_output": store_file(proposal_structure.structure_pdb, FileType.PDB),
+                    "pdb_output": proposal_structure.structure_pdb,
                 },
                 structures=(proposal_structure,) + (None,) * (n - 1),
             )
@@ -535,7 +534,7 @@ def structure_tmscore_constraint(
                 metadata={
                     "tm_score_raw": tm_val,
                     "tm_score_inverted": score,
-                    "pdb_output": store_file(proposal_structure.structure_pdb, FileType.PDB),
+                    "pdb_output": proposal_structure.structure_pdb,
                 },
                 structures=(proposal_structure,) + (None,) * (n - 1),
             )

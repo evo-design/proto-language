@@ -25,7 +25,6 @@ from proto_language.language.constraint.protein_structure.structure_geometry_con
     structure_contact_constraint,
 )
 from proto_language.language.core import Sequence
-from proto_language.storage import get_file_content, is_file_reference
 from proto_language.utils.alphafold2_multimer import (
     AF2_MULTIMER_CONFIDENCE_LOSS_BY_METRIC,
     AF2_MULTIMER_PAE_MAXIMUM,
@@ -768,9 +767,7 @@ class TestMetadataStorage:
 
             metadata = structure_plddt_constraint(proposals, config)[0].metadata
             assert metadata["avg_plddt"] == 0.92
-            # pdb_output is now a file reference
-            assert is_file_reference(metadata["pdb_output"])
-            assert get_file_content(metadata["pdb_output"]) == mock_struct.structure_pdb
+            assert metadata["pdb_output"] == mock_struct.structure_pdb
             assert metadata["structure_tool"] == "esmfold"
 
     def test_ptm_metadata_storage(self, protein_sequence):
@@ -1144,8 +1141,7 @@ class TestStructureComposite:
             assert meta["composite_ptm"] == pytest.approx(0.7)
             assert meta["composite_avg_pae"] == pytest.approx(0.1)
             assert meta["structure_tool"] == "alphafold3"
-            assert is_file_reference(meta["pdb_output"])
-            assert "ATOM" in get_file_content(meta["pdb_output"])
+            assert "ATOM" in meta["pdb_output"]
 
     def test_composite_rejects_single_chain_tools(self, protein_sequence):
         """ESMFold is missing ``iptm`` - reject at config time via TOOL_AVAILABLE_METRICS rather than silently degrade."""

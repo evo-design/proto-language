@@ -1,6 +1,5 @@
 """Supports DNA (with ORF prediction) and Protein sequences (direct search)."""
 
-import json
 from typing import Any, Literal
 
 import numpy as np
@@ -20,7 +19,6 @@ from pydantic import model_validator
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.language.core import DNA_NUCLEOTIDES, ConstraintOutput, Sequence
-from proto_language.storage import FileType, resolve_paths, store_file
 from proto_language.utils import (
     MAX_ENERGY,
     MIN_ENERGY,
@@ -266,9 +264,7 @@ def mmseqs_similarity_constraint(
 
             for seq_idx, orfs_list in enumerate(result.predicted_orfs):
                 orf_dicts = [orf.model_dump() for orf in orfs_list]
-                metadata_by_seq[seq_idx]["prodigal_orfs"] = (
-                    store_file(json.dumps(orf_dicts), FileType.JSON) if orf_dicts else None
-                )
+                metadata_by_seq[seq_idx]["prodigal_orfs"] = orf_dicts or None
                 protein_data.extend((seq_idx, orf.amino_acid_sequence) for orf in orfs_list)
 
         else:  # orfipy
@@ -278,9 +274,7 @@ def mmseqs_similarity_constraint(
 
             for seq_idx, orfs_list in enumerate(result.predicted_orfs):
                 orf_dicts = [orf.model_dump() for orf in orfs_list]
-                metadata_by_seq[seq_idx]["orfipy_orfs"] = (
-                    store_file(json.dumps(orf_dicts), FileType.JSON) if orf_dicts else None
-                )
+                metadata_by_seq[seq_idx]["orfipy_orfs"] = orf_dicts or None
                 protein_data.extend((seq_idx, orf.amino_acid_sequence) for orf in orfs_list)
 
     else:  # PROTEIN sequences - use directly
@@ -311,12 +305,11 @@ def mmseqs_similarity_constraint(
     protein_to_seq_idx = [seq_idx for seq_idx, _ in protein_data]
 
     # Run MMseqs search
-    resolved_db = resolve_paths(config.mmseqs_db)
     mmseqs_config = config.mmseqs_config
 
     mmseqs_input = Mmseqs2SearchProteinsInput(
         query_sequences=protein_sequences,
-        mmseqs_db=resolved_db,
+        mmseqs_db=config.mmseqs_db,
     )
     mmseqs_result = run_mmseqs2_search_proteins(mmseqs_input, mmseqs_config)
 
@@ -359,7 +352,7 @@ def mmseqs_similarity_constraint(
 
         meta.update(
             {
-                "mmseqs_results": store_file(json.dumps(hits), FileType.JSON) if hits else None,
+                "mmseqs_results": hits or None,
                 "unique_orfs_with_hits": num_hits,
             }
         )

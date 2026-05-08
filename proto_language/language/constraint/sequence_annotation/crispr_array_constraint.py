@@ -1,6 +1,5 @@
 """CRISPR array detection constraint using MinCED."""
 
-import json
 import logging
 from typing import Any
 
@@ -9,7 +8,6 @@ from proto_tools import MincedConfig, MincedInput, run_minced
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.language.core import ConstraintOutput, Sequence
-from proto_language.storage import FileType, store_file
 from proto_language.utils import MAX_ENERGY, MIN_ENERGY
 
 logger = logging.getLogger(__name__)
@@ -79,7 +77,7 @@ def crispr_array_constraint(
             "has_crispr_array": has_crispr,
             "crispr_array_count": len(arrays),
             "crispr_repeat": first_repeat,
-            "minced_arrays": store_file(json.dumps(array_dicts), FileType.JSON) if array_dicts else None,
+            "minced_arrays": array_dicts or None,
         }
         results.append(ConstraintOutput(score=MIN_ENERGY if has_crispr else MAX_ENERGY, metadata=metadata))
 

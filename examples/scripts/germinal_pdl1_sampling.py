@@ -909,7 +909,7 @@ def export_results(output_dir: Path, binder: Segment, summary: list[dict[str, An
         af2_data = af2_meta.get("data", {})
         fasta_lines.append(f">candidate_{row['rank']:02d}_energy_{row['energy']:.4f}")
         fasta_lines.append(result.sequence)
-        complex_pdb = af2_data.get("complex_pdb")
+        complex_pdb = af2_data.get("pdb_output")
         if complex_pdb is not None:
             (output_dir / f"candidate_{row['rank']:02d}.pdb").write_text(complex_pdb)
         elif result.structure is not None:

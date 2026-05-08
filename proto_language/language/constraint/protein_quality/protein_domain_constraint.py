@@ -1,6 +1,5 @@
 """Protein domain constraint function."""
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +15,6 @@ from proto_tools import (
 from proto_language.base_config import BaseConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import constraint
 from proto_language.language.core import ConstraintOutput, Sequence
-from proto_language.storage import FileType, store_file
 from proto_language.utils import MAX_ENERGY, MIN_ENERGY
 
 
@@ -245,7 +243,7 @@ def _process_dna_sequences(
     for proteins_list, gene_count in zip(all_proteins_per_seq, gene_counts, strict=False):
         orf_dicts = [orf.model_dump() for orf in proteins_list]
         metadata: dict[str, Any] = {
-            "prodigal_proteins": store_file(json.dumps(orf_dicts), FileType.JSON) if orf_dicts else None,
+            "prodigal_proteins": orf_dicts or None,
             "prodigal_protein_count": gene_count,
         }
 
@@ -284,7 +282,7 @@ def _process_dna_sequences(
                 matching_proteins.append(orf.id)
                 all_keywords_found.update(batch_result["keywords_found"])
 
-        metadata["domain_search_results"] = store_file(json.dumps(serializable_results), FileType.JSON)
+        metadata["domain_search_results"] = serializable_results
         metadata["domain_keywords_found"] = list(all_keywords_found)
         metadata["domain_matching_proteins"] = matching_proteins
 
@@ -335,14 +333,10 @@ def _process_protein_sequences(
         }
 
         metadata: dict[str, Any] = {
-            "domain_search_results": store_file(json.dumps([serializable_result]), FileType.JSON),
+            "domain_search_results": [serializable_result],
             "domain_keywords_found": batch_result["keywords_found"],
-            "domain_matching_hits": store_file(json.dumps([hit.model_dump() for hit in matching_hits]), FileType.JSON)
-            if len(matching_hits) > 0
-            else None,
-            "hmmscan_all_hits": store_file(json.dumps([hit.model_dump() for hit in all_hits]), FileType.JSON)
-            if len(all_hits) > 0
-            else None,
+            "domain_matching_hits": [hit.model_dump() for hit in matching_hits] or None,
+            "hmmscan_all_hits": [hit.model_dump() for hit in all_hits] or None,
         }
 
         keywords_found = set(batch_result["keywords_found"])
