@@ -722,8 +722,8 @@ def _predict_validation_complex(
         ],
         toolkit=config.validation_tool,
     )
-    if not cofold_result.success or not cofold_result.structures:
-        raise RuntimeError(f"{config.validation_tool} cofold prediction failed")
+    if not cofold_result.structures:
+        raise RuntimeError(f"{config.validation_tool} cofold prediction returned no structures")
     cofold_struct = cofold_result.structures[0]
     return cofold_struct, cofold_struct.metrics, BINDER_CHAIN_COFOLD, [TARGET_CHAIN_COFOLD]
 
@@ -738,8 +738,8 @@ def _predict_validation_monomer(config: BindCraftConfig, binder_seq: str, model_
         toolkit=config.validation_tool,
         tool_config=tool_config,
     )
-    if not monomer_result.success or not monomer_result.structures:
-        raise RuntimeError(f"{config.validation_tool} monomer prediction failed (model {model_idx})")
+    if not monomer_result.structures:
+        raise RuntimeError(f"{config.validation_tool} monomer prediction returned no structures (model {model_idx})")
     return monomer_result.structures[0]
 
 

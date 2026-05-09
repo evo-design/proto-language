@@ -64,21 +64,14 @@ class TestProteinComplexityConstraint:
             )
 
     def test_segmasker_error_handling(self):
-        """Test error handling when segmasker fails."""
+        """Test that segmasker failures propagate from the wrapped tool."""
         segment = Segment(sequence="MKTAYIAKQRQISFVK", sequence_type="protein")
         config = ProteinComplexityConfig(max_low_complexity=0.3)
 
         with patch(
             "proto_language.language.constraint.protein_quality.protein_complexity_constraint.run_segmasker"
         ) as mock_seg:
-            mock_output = SegmaskerOutput(
-                tool_id="segmasker",
-                execution_time=0.0,
-                success=False,
-                results=[],
-                errors=["Segmasker execution failed"],
-            )
-            mock_seg.return_value = mock_output
+            mock_seg.side_effect = RuntimeError("Segmasker execution failed")
 
             constraint = Constraint(
                 inputs=[segment],
@@ -86,8 +79,7 @@ class TestProteinComplexityConstraint:
                 function_config=config,
             )
 
-            # The constraint should raise ValueError
-            with pytest.raises(ValueError, match="Segmasker analysis failed"):
+            with pytest.raises(RuntimeError, match="Segmasker execution failed"):
                 constraint.evaluate()
 
     def test_wrong_sequence_type(self):

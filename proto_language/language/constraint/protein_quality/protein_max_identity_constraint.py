@@ -114,8 +114,6 @@ def protein_max_identity_constraint(
         Mmseqs2SearchProteinsInput(query_sequences=proteins, mmseqs_db=config.mmseqs_db),
         config.mmseqs_config,
     )
-    if mmseqs_result.success is False:
-        raise RuntimeError(f"MMseqs2 protein search failed: {mmseqs_result.errors}")
 
     reference_sequences = load_reference_sequences(config.reference_fasta) if config.reference_fasta else {}
 

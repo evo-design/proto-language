@@ -313,21 +313,6 @@ def mmseqs_similarity_constraint(
     )
     mmseqs_result = run_mmseqs2_search_proteins(mmseqs_input, mmseqs_config)
 
-    if not mmseqs_result.success:
-        for meta in metadata_by_seq:
-            meta.update(
-                {
-                    "mmseqs_error": True,
-                    "mmseqs_error_messages": mmseqs_result.errors,
-                    "mmseqs_results": None,
-                    "unique_orfs_with_hits": 0,
-                    "orfs_with_acceptable_similarity": 0,
-                    "total_orfs_with_hits": 0,
-                    "similarity_compliance_rate": 0.0,
-                }
-            )
-        return [ConstraintOutput(score=MAX_ENERGY, metadata=meta) for meta in metadata_by_seq]
-
     # Aggregate hits by input sequence
     # seq_hits[seq_idx] = list of all hits for that input sequence
     seq_hits: dict[int, list[dict[str, Any]]] = {i: [] for i in range(len(sequences))}

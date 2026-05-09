@@ -105,10 +105,6 @@ def protein_complexity_constraint(
 
     result = run_segmasker(inputs=segmasker_inputs, config=segmasker_config)
 
-    if not result.success:
-        error_msg = result.errors[0] if result.errors else "Unknown segmasker error"
-        raise ValueError(f"Segmasker analysis failed: {error_msg}")
-
     results = []
     for (seq,), metrics in zip(input_sequences, result.results, strict=False):
         low_complexity_fraction = metrics.low_complexity_fraction

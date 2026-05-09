@@ -476,37 +476,39 @@ def structure_tmscore_constraint(
                 continue
 
         if n_target_chains == 1 and n_cand_chains == 1:
-            _tmalign_out = run_tmalign(
-                TMalignInput(
-                    pdb_text_1=proposal_pdb,
-                    pdb_text_2=target_pdb,
-                ),
-                TMalignConfig(),
-            )
-            if _tmalign_out.success is False:
-                logger.warning("structure-tmscore: TMalign failed: %s", _tmalign_out.errors)
+            try:
+                _tmalign_out = run_tmalign(
+                    TMalignInput(
+                        pdb_text_1=proposal_pdb,
+                        pdb_text_2=target_pdb,
+                    ),
+                    TMalignConfig(),
+                )
+            except Exception as e:
+                logger.warning("structure-tmscore: TMalign failed: %s", e)
                 results.append(
                     ConstraintOutput(
                         score=MAX_ENERGY,
-                        metadata={"structure_tmscore_error": f"tmalign failed: {_tmalign_out.errors}"},
+                        metadata={"structure_tmscore_error": f"tmalign failed: {e}"},
                     )
                 )
                 continue
             s1, s2 = _tmalign_out.tm_score_chain_1, _tmalign_out.tm_score_chain_2
         else:
-            _usalign_out = run_usalign(
-                USalignInput(
-                    pdb_text_1=proposal_pdb,
-                    pdb_text_2=target_pdb,
-                ),
-                USalignConfig(),
-            )
-            if _usalign_out.success is False:
-                logger.warning("structure-tmscore: USalign failed: %s", _usalign_out.errors)
+            try:
+                _usalign_out = run_usalign(
+                    USalignInput(
+                        pdb_text_1=proposal_pdb,
+                        pdb_text_2=target_pdb,
+                    ),
+                    USalignConfig(),
+                )
+            except Exception as e:
+                logger.warning("structure-tmscore: USalign failed: %s", e)
                 results.append(
                     ConstraintOutput(
                         score=MAX_ENERGY,
-                        metadata={"structure_tmscore_error": f"usalign failed: {_usalign_out.errors}"},
+                        metadata={"structure_tmscore_error": f"usalign failed: {e}"},
                     )
                 )
                 continue

@@ -135,8 +135,6 @@ def protein_nearest_neighbor_gap_gini_constraint(
         Mmseqs2SearchProteinsInput(query_sequences=proteins, mmseqs_db=config.mmseqs_db),
         config.mmseqs_config,
     )
-    if mmseqs_result.success is False:
-        raise RuntimeError(f"MMseqs2 protein search failed: {mmseqs_result.errors}")
 
     reference_sequences = load_reference_sequences(config.reference_fasta)
     for protein_idx, original_idx in enumerate(valid_indices):
@@ -211,15 +209,6 @@ def _compute_pairwise_gap_gini(
             len(reference),
             e,
             exc_info=True,
-        )
-        return 1.0
-
-    if align_result.success is False:
-        logger.warning(
-            "Pairwise MAFFT alignment failed for nearest-neighbor gap Gini (query_len=%d, reference_len=%d): %s",
-            len(query),
-            len(reference),
-            align_result.errors,
         )
         return 1.0
 

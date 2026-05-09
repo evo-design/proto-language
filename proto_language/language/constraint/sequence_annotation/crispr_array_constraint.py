@@ -60,8 +60,6 @@ def crispr_array_constraint(
     """
     sequences = [seq.sequence for (seq,) in input_sequences]
     minced_result = run_minced(MincedInput(sequences=sequences), config.minced_config)
-    if minced_result.success is False:
-        raise RuntimeError(f"MinCED CRISPR detection failed: {minced_result.errors}")
 
     results: list[ConstraintOutput] = []
     for seq_idx in range(len(sequences)):

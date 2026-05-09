@@ -65,8 +65,6 @@ def crispr_tracr_rna_constraint(
     """
     sequences = [seq.sequence for (seq,) in input_sequences]
     tracr_result = run_crispr_tracr_rna(CrisprTracrRNAInput(sequences=sequences), config.tracr_config)
-    if tracr_result.success is False:
-        raise RuntimeError(f"tracrRNA prediction failed: {tracr_result.errors}")
 
     results: list[ConstraintOutput] = []
     for seq_idx in range(len(sequences)):

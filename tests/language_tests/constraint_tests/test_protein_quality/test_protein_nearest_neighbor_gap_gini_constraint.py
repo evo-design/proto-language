@@ -92,8 +92,6 @@ def test_alignment_failure_returns_worst_score(tmp_path, caplog):
             )
         ],
     )
-    mafft_output = MafftOutput(success=False, metadata={}, errors=["alignment failed"], msa=["MKTAYIAK", "MKTAYIAK"])
-
     with (
         patch(
             "proto_language.language.constraint.protein_quality.protein_nearest_neighbor_gap_gini_constraint.resolve_protein_complex_chains"
@@ -108,7 +106,7 @@ def test_alignment_failure_returns_worst_score(tmp_path, caplog):
     ):
         mock_resolve.return_value = [(["MKTAYIAK"], {"orfipy_orf_count": 1})]
         mock_mmseqs.return_value = mmseqs_output
-        mock_mafft.return_value = mafft_output
+        mock_mafft.side_effect = RuntimeError("alignment failed")
         result = protein_nearest_neighbor_gap_gini_constraint([(sequence,)], config)[0]
 
     assert result.score == 1.0

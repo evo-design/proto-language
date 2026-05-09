@@ -381,9 +381,6 @@ def _check_protein_domains_batch(
     # Run PyHMMER hmmscan
     result = run_pyhmmer_hmmscan(inputs=hmmscan_input, config=final_config)
 
-    if not result.success:
-        raise RuntimeError(f"PyHMMER execution failed: {result.errors}")
-
     batch_results: list[dict[str, Any]] = []
 
     # Pre-group domain hits by query index for O(H + S) lookup

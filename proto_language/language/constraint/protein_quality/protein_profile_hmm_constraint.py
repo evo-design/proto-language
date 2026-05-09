@@ -124,8 +124,6 @@ def protein_profile_hmm_constraint(
     hmm_result = run_pyhmmer_hmmsearch(
         PyHmmsearchInput(sequences=proteins, hmm=config.hmm_path), config.hmmsearch_config
     )
-    if hmm_result.success is False:
-        raise RuntimeError(f"PyHMMER hmmsearch failed: {hmm_result.errors}")
 
     sequence_hits_by_query: dict[int, list[Any]] = {idx: [] for idx in range(len(proteins))}
     for hit in hmm_result.sequence_hits:
