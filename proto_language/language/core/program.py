@@ -111,9 +111,9 @@ class Program:
                 always takes priority.
             verbose (bool): If True, print detailed energy score calculations for each constraint
                      for all optimizers.
-            compute (ToolPool | None): Context manager for GPU tool execution. If None,
-                auto-detects: uses ToolPool for multi-GPU parallelism when GPUs are
-                available, otherwise runs tools inline.
+            compute (ToolPool | None): Context manager for tool execution. If None,
+                auto-detects: nullcontext when external dispatch is configured, otherwise
+                ToolPool() (symmetric across GPU and CPU-only hosts).
             seed (int | None): Random seed for fully reproducible optimization. When set,
                 derives unique seeds for each optimizer via SeedSequence, overriding
                 any optimizer-level seeds. Same seed + same input = same output.
@@ -128,30 +128,19 @@ class Program:
             )
 
         if compute is None:
+            from contextlib import nullcontext
+
             from proto_tools.tools.tool_registry import ToolRegistry
-            from proto_tools.utils.device import number_of_available_gpus
             from proto_tools.utils.tool_pool import ToolPool
 
             has_backend = getattr(ToolRegistry, "_dispatch_configured", False)
-            has_gpus = number_of_available_gpus() > 0
 
-            if has_backend and has_gpus:
-                compute = ToolPool()
-            elif has_backend:
-                from contextlib import nullcontext
-
-                logger.debug("No local GPUs; external dispatch configured. GPU tools will route via _try_dispatch.")
+            if has_backend:
+                logger.debug("External dispatch configured; GPU tools will route via _try_dispatch.")
                 compute = nullcontext()
-            elif has_gpus:
-                compute = ToolPool()
             else:
-                from contextlib import nullcontext
-
-                logger.warning(
-                    "No GPUs detected and no external dispatch configured. "
-                    "Tools will execute inline without parallelism."
-                )
-                compute = nullcontext()
+                # Symmetric across GPU and CPU-only hosts.
+                compute = ToolPool()
 
         self.compute = compute
 
