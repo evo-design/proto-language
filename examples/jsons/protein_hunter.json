@@ -25,7 +25,6 @@
         "config": {
           "num_steps": 5,
           "num_results": 2,
-          "conditioning_param_name": "structure_inputs",
           "pipeline": "protein-hunter",
           "protein_hunter": { "structure_tool": "boltz2" }
         }

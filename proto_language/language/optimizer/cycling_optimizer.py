@@ -7,10 +7,10 @@ accept pattern for passing proposals.
 import copy
 import inspect
 import logging
-import math
 from collections.abc import Callable
 from typing import Any, Literal, final
 
+from proto_tools.utils.tool_io import MissingAssetError
 from pydantic import model_validator
 
 from proto_language.base_config import BaseConfig, BaseOptimizerConfig, ConfigField
@@ -73,7 +73,7 @@ def _create_protein_hunter_conditioning_fn(config: "CyclingOptimizerConfig") -> 
     return conditioning_fn
 
 
-# Registry mapping pipeline names to factory functions and required generator categories
+# Pipeline registry: factory + required generator category.
 CYCLING_PIPELINES: dict[str, dict[str, Any]] = {
     "protein-hunter": {
         "factory": _create_protein_hunter_conditioning_fn,
@@ -87,63 +87,28 @@ CYCLING_PIPELINES: dict[str, dict[str, Any]] = {
 # =============================================================================
 
 
-def _resolve_conditioning_fn(
-    config: "CyclingOptimizerConfig",
-    generator: Generator,
-    conditioning_fn: Callable[..., Any] | None = None,
-) -> Callable[..., Any]:
-    """Resolve the conditioning function from either direct parameter or pipeline config.
+def _build_pipeline_conditioning_fn(config: "CyclingOptimizerConfig", generator: Generator) -> Callable[..., Any]:
+    """Build a conditioning_fn from a registered pipeline; validate the generator's category."""
+    assert config.pipeline is not None  # noqa: S101 -- mypy type narrowing; caller checks
+    spec = CYCLING_PIPELINES[config.pipeline]
+    required_category = spec["required_generator_category"]
+    from proto_language.language.generator import GeneratorRegistry
 
-    Args:
-        config (CyclingOptimizerConfig): Optimizer config containing optional pipeline specification
-        generator (Generator): The generator to validate against pipeline requirements
-        conditioning_fn (Callable[..., Any] | None): Optional directly-provided conditioning function
-
-    Returns:
-        Callable[..., Any]: The resolved conditioning function
-
-    Raises:
-        ValueError: If both or neither of conditioning_fn/pipeline are provided,
-            or if generator doesn't match pipeline requirements
-    """
-    # Mutual exclusivity check
-    if config.pipeline is not None and conditioning_fn is not None:
+    actual_category = GeneratorRegistry.get(GeneratorRegistry.get_key(generator)).category
+    if actual_category != required_category:
         raise ValueError(
-            "Cannot specify both 'conditioning_fn' and 'pipeline'. "
-            "Use 'pipeline' for API/JSON or 'conditioning_fn' for programmatic use."
+            f"Pipeline '{config.pipeline}' requires a {required_category} generator, got {actual_category}."
         )
+    return spec["factory"](config)  # type: ignore[no-any-return]
 
-    # Must have one or the other
-    if config.pipeline is None and conditioning_fn is None:
-        raise ValueError(
-            f"Must specify either 'conditioning_fn' or 'pipeline'. "
-            f"Available pipelines: {list(CYCLING_PIPELINES.keys())}"
-        )
 
-    # If conditioning_fn provided directly, use it
-    if conditioning_fn is not None:
-        return conditioning_fn
-
-    # Validate pipeline exists
-    if config.pipeline not in CYCLING_PIPELINES:
-        raise ValueError(f"Unknown pipeline '{config.pipeline}'. Available: {list(CYCLING_PIPELINES.keys())}")
-
-    # Validate generator category matches pipeline requirements
-    pipeline_spec = CYCLING_PIPELINES[config.pipeline]
-    required_category = pipeline_spec.get("required_generator_category")
-    if required_category:
-        from proto_language.language.generator import GeneratorRegistry
-
-        generator_key = GeneratorRegistry.get_key(generator)
-        actual_category = GeneratorRegistry.get(generator_key).category
-        if actual_category != required_category:
-            raise ValueError(
-                f"Pipeline '{config.pipeline}' requires {required_category} generator, "
-                f"but '{generator_key}' is {actual_category}. "
-                f"Use 'proteinmpnn' or 'ligandmpnn'."
-            )
-
-    return pipeline_spec["factory"](config)  # type: ignore[no-any-return]
+def _infer_conditioning_param_name(generator: Generator) -> str:
+    """Return the first non-self kwarg of `generator._sample()` — the conditioning input."""
+    sig = inspect.signature(generator._sample)
+    params = [name for name in sig.parameters if name != "self"]
+    if not params:
+        raise ValueError(f"{type(generator).__name__}._sample() has no conditioning kwarg.")
+    return params[0]
 
 
 # =============================================================================
@@ -172,11 +137,6 @@ class CyclingOptimizerConfig(BaseOptimizerConfig):
             conditioning function and generator. Overrides program-level ``num_results``
             if set.
 
-        conditioning_param_name (str): The keyword argument name to pass conditioning
-            data to in the generator's ``sample()`` method. For example:
-            - ``"structure_inputs"`` for inverse folding generators (ProteinMPNN, LigandMPNN)
-            - ``"prompts"`` for autoregressive generators (Evo2)
-
         pipeline (Literal['protein-hunter'] | None): Predefined conditioning pipeline.
             - ``"protein-hunter"``: Structure prediction -> inverse folding cycle.
               Requires an inverse_folding generator (ProteinMPNN or LigandMPNN).
@@ -198,7 +158,6 @@ class CyclingOptimizerConfig(BaseOptimizerConfig):
         >>> config = CyclingOptimizerConfig(
         ...     num_steps=5,
         ...     num_results=4,
-        ...     conditioning_param_name="structure_inputs",
         ...     pipeline="protein-hunter",
         ...     protein_hunter=ProteinHunterPipelineConfig(structure_tool="boltz2"),
         ... )
@@ -217,10 +176,6 @@ class CyclingOptimizerConfig(BaseOptimizerConfig):
         description="Candidate design trajectories for this optimizer. Overrides program-level count.",
         advanced=True,
     )
-    conditioning_param_name: str = ConfigField(
-        title="Conditioning Param Name",
-        description="Generator sample() parameter name to pass conditioning data into.",
-    )
     pipeline: Literal["protein-hunter"] | None = ConfigField(
         default=None,
         title="Pipeline",
@@ -235,9 +190,8 @@ class CyclingOptimizerConfig(BaseOptimizerConfig):
 
     @model_validator(mode="after")
     def validate_pipeline_config(self) -> "CyclingOptimizerConfig":
-        """Validate that pipeline-specific config is provided when pipeline is set."""
+        """Auto-create pipeline-specific sub-config when omitted."""
         if self.pipeline == "protein-hunter" and self.protein_hunter is None:
-            # Auto-create default config if not provided
             self.protein_hunter = ProteinHunterPipelineConfig()
         return self
 
@@ -269,24 +223,20 @@ class CyclingOptimizer(Optimizer):
         target_segment: The segment being optimized.
         generator: The generator to use for sequence generation.
         conditioning_fn: User-defined function that produces conditioning data.
-        conditioning_param_name: Generator sample() parameter name for conditioning data.
+        conditioning_param_name: Generator ``_sample()`` kwarg the conditioning data is passed to;
+            inferred as the first non-self parameter.
         num_steps: Number of cycles to run.
         num_results: Number of independent proposal trajectories.
 
     Example:
         >>> def my_conditioning_fn(sequences):
-        ...     # Process sequences and return conditioning data
         ...     return [process(seq) for seq in sequences]
         >>> optimizer = CyclingOptimizer(
         ...     target_segment=segment,
         ...     constructs=[construct],
         ...     generators=[generator],
         ...     constraints=[],
-        ...     config=CyclingOptimizerConfig(
-        ...         num_steps=5,
-        ...         num_results=4,
-        ...         conditioning_param_name="structure_inputs",
-        ...     ),
+        ...     config=CyclingOptimizerConfig(num_steps=5, num_results=4),
         ...     conditioning_fn=my_conditioning_fn,
         ... )
         >>> optimizer.run()
@@ -322,9 +272,8 @@ class CyclingOptimizer(Optimizer):
                 If provided, all constraints must have ``threshold`` set (filter mode).
             config (CyclingOptimizerConfig): Configuration object with algorithm parameters.
             conditioning_fn (Callable[[list[Sequence]], list[Any]] | None): User-defined function that produces conditioning data.
-                Signature: ``(sequences: List[Sequence]) -> List[Any]``
-                Returns one conditioning item per proposal.
-                Mutually exclusive with ``config.pipeline`` - use one or the other.
+                Signature: ``(sequences: List[Sequence]) -> List[Any]``. Returns one conditioning item per proposal.
+                Mutually exclusive with ``config.pipeline`` — use one or the other.
             custom_logging (Callable[[int, tuple[Segment, ...]], None] | None): Optional callback called at tracked steps (governed by ``tracking_interval``)
                 with signature ``(step: int, segments: tuple[Segment, ...]) -> None``.
             clear_tool_cache (int | bool | list[str]): Cache management setting. (int) byte threshold,
@@ -340,16 +289,22 @@ class CyclingOptimizer(Optimizer):
             raise ValueError(f"CyclingOptimizer requires exactly one generator, got {len(generators)}.")
         generator = generators[0]
 
-        # Resolve conditioning_fn from pipeline or direct parameter
-        conditioning_fn = _resolve_conditioning_fn(config, generator, conditioning_fn)
-
         self.config = config
+
+        # Mutex: exactly one of pipeline / conditioning_fn must be set.
+        if (config.pipeline is None) == (conditioning_fn is None):
+            raise ValueError(
+                f"Specify exactly one of 'conditioning_fn' or 'pipeline'. "
+                f"Available pipelines: {list(CYCLING_PIPELINES.keys())}"
+            )
+        if conditioning_fn is None:
+            conditioning_fn = _build_pipeline_conditioning_fn(config, generator)
 
         # Store for validation before super().__init__
         self.target_segment: Segment = target_segment
         self.generator: Generator = generator
         self.conditioning_fn = conditioning_fn
-        self.conditioning_param_name: str = config.conditioning_param_name
+        self.conditioning_param_name: str = _infer_conditioning_param_name(generator)
         self.pipeline: str | None = config.pipeline
         self.protein_hunter: ProteinHunterPipelineConfig | None = config.protein_hunter
 
@@ -375,35 +330,37 @@ class CyclingOptimizer(Optimizer):
         if self.verbose:
             logger.info(f"CyclingOptimizer: {self.num_steps} steps, {self.num_proposals} proposals")
 
-        # Track initial state only if we have meaningful scores (not all inf/nan)
-        if any(math.isfinite(score) for score in self.energy_scores):
-            self._save_progress_snapshot(
-                time_step=0,
-                optimizer_metadata={
-                    "type": "cycling",
-                    "num_steps": self.num_steps,
-                    "num_results": self.num_results,
-                    "num_proposals": self.num_proposals,
-                    "conditioning_param_name": self.conditioning_param_name,
-                    "pipeline": self.pipeline,
-                    "proposal_count": len(self._proposal_outcomes),
-                    "accepted_proposal_count": self._proposal_outcomes.count("accepted"),
-                },
-            )
+        self._save_progress_snapshot(
+            time_step=0,
+            optimizer_metadata={
+                "type": "cycling",
+                "num_steps": self.num_steps,
+                "num_results": self.num_results,
+                "num_proposals": self.num_proposals,
+                "conditioning_param_name": self.conditioning_param_name,
+                "pipeline": self.pipeline,
+                "proposal_count": len(self._proposal_outcomes),
+                "accepted_proposal_count": self._proposal_outcomes.count("accepted"),
+            },
+        )
 
         for step in range(1, self.num_steps + 1):
             # 1. Condition from current best (result_sequences)
             current_sequences = list(self.target_segment.result_sequences)
             conditioning_data = self.conditioning_fn(current_sequences)
 
-            # Validate conditioning_fn returned the correct number of items
             if len(conditioning_data) != self.num_proposals:
                 raise ValueError(
-                    f"conditioning_fn returned {len(conditioning_data)} items, expected {self.num_proposals}. The conditioning function must return one conditioning item per proposal."
+                    f"conditioning_fn returned {len(conditioning_data)} items, expected {self.num_proposals}."
                 )
 
-            # 2. Generate proposals into proposal_sequences
-            self.generator.sample(**{self.conditioning_param_name: conditioning_data})
+            # 2. Generate proposals; MissingAssetError carve-out preserves the proto-tools skip hook.
+            try:
+                self.generator.sample(**{self.conditioning_param_name: conditioning_data})
+            except MissingAssetError:
+                raise
+            except Exception as exc:
+                raise RuntimeError(f"CyclingOptimizer step {step}/{self.num_steps} failed") from exc
 
             # 3. Evaluate and accept/reject
             if self.constraints:
@@ -442,29 +399,13 @@ class CyclingOptimizer(Optimizer):
                 self._log_step_progress(step)
 
     def _validate_optimizer(self) -> None:
-        """Validate cycling optimizer configuration.
-
-        Extends base validation with cycling-specific checks:
-        target_segment membership, callable conditioning_fn, valid
-        conditioning_param_name, and filter-only constraints.
-        """
+        """Validate target segment membership, callable conditioning_fn, and filter-only constraints."""
         super()._validate_optimizer()
         self._validate_target_segment(self.target_segment)
 
-        # Conditioning function checks
         if not callable(self.conditioning_fn):
             raise TypeError(f"conditioning_fn must be callable, got {type(self.conditioning_fn)}")
 
-        # Inspect `_sample`: typed kwargs live there, not on the `*args, **kwargs` orchestrator.
-        sample_sig = inspect.signature(self.generator._sample)
-        valid_params = set(sample_sig.parameters.keys()) - {"self"}
-        if self.conditioning_param_name not in valid_params:
-            raise ValueError(
-                f"Generator {self.generator.__class__.__name__}._sample() does not accept parameter '{self.conditioning_param_name}'. "
-                f"Valid parameters: {sorted(valid_params)}"
-            )
-
-        # All constraints must be filters
         for i, constraint in enumerate(self.constraints):
             if constraint.threshold is None:
                 raise ValueError(

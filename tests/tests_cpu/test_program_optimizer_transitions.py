@@ -202,11 +202,7 @@ def create_cycling_optimizer(construct, segment, num_results=3, num_steps=5):
         constructs=[construct],
         generators=[generator],
         constraints=[constraint],
-        config=CyclingOptimizerConfig(
-            num_steps=num_steps,
-            num_results=num_results,
-            conditioning_param_name="structure_inputs",
-        ),
+        config=CyclingOptimizerConfig(num_steps=num_steps, num_results=num_results),
         conditioning_fn=mock_conditioning_fn,
     )
 

@@ -174,7 +174,6 @@ def run_protein_hunter(
         optimizer_config = CyclingOptimizerConfig(
             num_steps=num_cycles,
             num_results=num_proposals,
-            conditioning_param_name="structure_inputs",
             verbose=True,
         )
 

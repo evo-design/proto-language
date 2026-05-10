@@ -84,7 +84,6 @@ def _setup_cycling_components(
     config = CyclingOptimizerConfig(
         num_steps=num_steps,
         num_results=num_results,
-        conditioning_param_name="structure_inputs",
     )
 
     conditioning_fn, _ = make_mock_conditioning_fn(num_results)
@@ -109,27 +108,17 @@ class TestCyclingOptimizerConfig:
 
     def test_valid_config(self):
         """Test valid configuration and defaults."""
-        config = CyclingOptimizerConfig(
-            num_steps=5,
-            num_results=4,
-            conditioning_param_name="structure_inputs",
-        )
+        config = CyclingOptimizerConfig(num_steps=5, num_results=4)
         assert config.num_steps == 5
         assert config.num_results == 4
-        assert config.conditioning_param_name == "structure_inputs"
         assert config.verbose is False
 
     def test_invalid_config_values(self):
         """Test that invalid config values are rejected."""
         with pytest.raises(ValidationError):
-            CyclingOptimizerConfig(num_steps=0, num_results=1, conditioning_param_name="structure_inputs")
+            CyclingOptimizerConfig(num_steps=0, num_results=1)
         with pytest.raises(ValidationError):
-            CyclingOptimizerConfig(num_steps=1, num_results=0, conditioning_param_name="structure_inputs")
-
-    def test_conditioning_field_required(self):
-        """Test that conditioning_field is required."""
-        with pytest.raises(ValidationError):
-            CyclingOptimizerConfig(num_steps=1, num_results=1)
+            CyclingOptimizerConfig(num_steps=1, num_results=0)
 
 
 # =============================================================================
@@ -291,7 +280,8 @@ class TestCyclingOptimizerRun:
         optimizer.run()
 
         assert call_count[0] == num_steps
-        assert len(optimizer.history) == num_steps
+        # +1 for the always-saved initial (time_step=0) snapshot.
+        assert len(optimizer.history) == num_steps + 1
         for entry in optimizer.history:
             assert "time_step" in entry and "results" in entry
 
@@ -363,7 +353,6 @@ class TestCyclingOptimizerRun:
         config = CyclingOptimizerConfig(
             num_steps=1,
             num_results=3,
-            conditioning_param_name="structure_inputs",
         )
 
         optimizer = CyclingOptimizer(
@@ -490,7 +479,6 @@ class TestAcceptPatternBehavior:
         config = CyclingOptimizerConfig(
             num_steps=1,
             num_results=2,
-            conditioning_param_name="structure_inputs",
         )
 
         optimizer = CyclingOptimizer(
@@ -551,7 +539,6 @@ class TestAcceptPatternBehavior:
         config = CyclingOptimizerConfig(
             num_steps=1,
             num_results=2,
-            conditioning_param_name="structure_inputs",
         )
 
         optimizer = CyclingOptimizer(
@@ -600,7 +587,6 @@ class TestAcceptPatternBehavior:
         config = CyclingOptimizerConfig(
             num_steps=2,
             num_results=2,
-            conditioning_param_name="structure_inputs",
         )
 
         optimizer = CyclingOptimizer(
@@ -666,7 +652,6 @@ class TestAcceptPatternBehavior:
         config = CyclingOptimizerConfig(
             num_steps=2,
             num_results=2,
-            conditioning_param_name="structure_inputs",
         )
 
         optimizer = CyclingOptimizer(
@@ -716,7 +701,6 @@ class TestStructureOnSequence:
         config = CyclingOptimizerConfig(
             num_steps=1,
             num_results=2,
-            conditioning_param_name="structure_inputs",
         )
 
         optimizer = CyclingOptimizer(
@@ -781,7 +765,6 @@ class TestCyclingOptimizerGPU:
         config = CyclingOptimizerConfig(
             num_steps=2,
             num_results=2,
-            conditioning_param_name="structure_inputs",
             verbose=True,
         )
 
@@ -840,7 +823,6 @@ class TestCyclingOptimizerGPU:
         config = CyclingOptimizerConfig(
             num_steps=2,
             num_results=2,
-            conditioning_param_name="structure_inputs",
             verbose=True,
         )
 
@@ -907,8 +889,8 @@ class TestCyclingOptimizerRestart:
         original_seq = "ACDEFGHIKLMNPQRSTVWY"
         assert all(seq != original_seq for seq in first_run_seqs)
         assert all(seq != original_seq for seq in second_run_seqs)
-        # History should be from second run only (cleared on restart)
-        assert len(optimizer.history) == 2  # step 1, 2 (no step 0 without meaningful scores)
+        # History from second run only (cleared on restart): step 0 (initial) + steps 1, 2.
+        assert len(optimizer.history) == 3
 
     def test_initial_state_captured_correctly(self):
         """Test that initial state captures segment state with actual sequence content."""
@@ -961,7 +943,7 @@ class TestCyclingOptimizerRestart:
 
 
 class TestCyclingOptimizerPipelineResolution:
-    """Tests for _resolve_conditioning_fn helper and pipeline validation."""
+    """Tests for pipeline ↔ conditioning_fn mutex and generator-category validation."""
 
     def test_cannot_specify_both_pipeline_and_conditioning_fn(self):
         """Test that specifying both pipeline and conditioning_fn raises error."""
@@ -972,11 +954,10 @@ class TestCyclingOptimizerPipelineResolution:
         config = CyclingOptimizerConfig(
             num_steps=2,
             num_results=2,
-            conditioning_param_name="structure_inputs",
             pipeline="protein-hunter",
         )
 
-        with pytest.raises(ValueError, match="Cannot specify both"):
+        with pytest.raises(ValueError, match="Specify exactly one"):
             CyclingOptimizer(
                 target_segment=target_segment,
                 constructs=[construct],
@@ -995,11 +976,10 @@ class TestCyclingOptimizerPipelineResolution:
         config = CyclingOptimizerConfig(
             num_steps=2,
             num_results=2,
-            conditioning_param_name="structure_inputs",
             # No pipeline specified
         )
 
-        with pytest.raises(ValueError, match="Must specify either"):
+        with pytest.raises(ValueError, match="Specify exactly one"):
             CyclingOptimizer(
                 target_segment=target_segment,
                 constructs=[construct],
@@ -1007,29 +987,6 @@ class TestCyclingOptimizerPipelineResolution:
                 constraints=[],
                 config=config,
                 # No conditioning_fn either
-            )
-
-    def test_unknown_pipeline_raises_error(self):
-        """Test that unknown pipeline name raises error."""
-        target_segment = Segment(sequence="A" * 100, sequence_type="protein")
-        construct = Construct([target_segment])
-        generator = ProteinMPNNGenerator(ProteinMPNNGeneratorConfig(temperature=0.1))
-
-        # Manually set invalid pipeline (bypassing Literal validation)
-        config = CyclingOptimizerConfig(
-            num_steps=2,
-            num_results=2,
-            conditioning_param_name="structure_inputs",
-        )
-        object.__setattr__(config, "pipeline", "nonexistent-pipeline")
-
-        with pytest.raises(ValueError, match="Unknown pipeline"):
-            CyclingOptimizer(
-                target_segment=target_segment,
-                constructs=[construct],
-                generators=[generator],
-                constraints=[],
-                config=config,
             )
 
     def test_protein_hunter_requires_inverse_folding_generator(self):
@@ -1043,14 +1000,9 @@ class TestCyclingOptimizerPipelineResolution:
         construct = Construct([target_segment])
         generator = ESM2Generator(ESM2GeneratorConfig())
 
-        config = CyclingOptimizerConfig(
-            num_steps=2,
-            num_results=2,
-            conditioning_param_name="prompts",
-            pipeline="protein-hunter",
-        )
+        config = CyclingOptimizerConfig(num_steps=2, num_results=2, pipeline="protein-hunter")
 
-        with pytest.raises(ValueError, match="requires inverse_folding generator"):
+        with pytest.raises(ValueError, match="requires a inverse_folding generator"):
             CyclingOptimizer(
                 target_segment=target_segment,
                 constructs=[construct],
@@ -1069,7 +1021,6 @@ class TestCyclingOptimizerPipelineResolution:
         config = CyclingOptimizerConfig(
             num_steps=2,
             num_results=2,
-            conditioning_param_name="structure_inputs",
             pipeline="protein-hunter",
         )
 
@@ -1093,7 +1044,6 @@ class TestCyclingOptimizerPipelineResolution:
         config = CyclingOptimizerConfig(
             num_steps=2,
             num_results=2,
-            conditioning_param_name="structure_inputs",
             pipeline="protein-hunter",
         )
 
@@ -1165,7 +1115,6 @@ class TestCyclingTrackingInterval:
         config = CyclingOptimizerConfig(
             num_steps=10,
             num_results=2,
-            conditioning_param_name="structure_inputs",
             tracking_interval=3,
         )
 
@@ -1181,4 +1130,5 @@ class TestCyclingTrackingInterval:
         optimizer.run()
 
         saved_steps = {entry["time_step"] for entry in optimizer.history}
-        assert saved_steps == {3, 6, 9, 10}
+        # 0 = initial state (always saved), then every tracking_interval=3 + final.
+        assert saved_steps == {0, 3, 6, 9, 10}
