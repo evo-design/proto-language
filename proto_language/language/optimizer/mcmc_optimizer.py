@@ -172,6 +172,7 @@ class MCMCOptimizer(Optimizer):
 
     # Class attribute required by OptimizerRegistry
     config_class = MCMCOptimizerConfig
+    config: MCMCOptimizerConfig
 
     def __init__(
         self,

@@ -20,6 +20,7 @@ class Optimizer(ABC):
         num_proposals: int | None = None,
         clear_tool_cache: int | bool | list[str] = 100 * 1024 * 1024,
         custom_logging: Callable | None = None,
+        seed: int | None = None,
     ) -> None:
         # Stores all parameters as instance attributes
         # Calls _validate_optimizer()
@@ -206,6 +207,7 @@ class MyOptimizer(Optimizer):
             verbose=config.verbose,
             tracking_interval=config.tracking_interval,
             track_proposals=config.track_proposals,
+            seed=config.seed,
         )
 
         self.num_steps: int = config.num_steps

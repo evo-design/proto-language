@@ -16,6 +16,7 @@ import pandas as pd
 from numpy.random import SeedSequence
 from proto_tools.utils.tool_cache import ToolCache, _program_tool_cache
 
+from proto_language.base_config import BaseOptimizerConfig
 from proto_language.language.core.constraint import Constraint
 from proto_language.language.core.construct import Construct
 from proto_language.language.core.generator import Generator
@@ -33,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 
 def derive_seeds(parent_seed: int, count: int) -> list[int]:
-    """Derive N deterministic child seeds from a parent seed via SeedSequence."""
+    """Derive deterministic child seeds from a parent seed."""
     return [int(child.generate_state(1)[0]) for child in SeedSequence(parent_seed).spawn(count)]
 
 
@@ -66,6 +67,7 @@ class Optimizer(ABC):
     """
 
     _require_non_empty_constraints: bool = True
+    config: BaseOptimizerConfig
 
     @abstractmethod
     def __init__(
@@ -105,8 +107,9 @@ class Optimizer(ABC):
             custom_logging (Callable[..., Any] | None): Optional callback with signature ``(step: int, segments: tuple) -> None``.
                 Called at tracked steps only (governed by ``tracking_interval``).
             seed (int | None): Random seed for reproducible optimization. When set,
-                the optimizer's internal RNG and all generator seeds are derived
-                deterministically. A program-level seed overrides this.
+                the optimizer's internal RNG, generator seeds, and constraint
+                config seeds are derived deterministically. A program-level seed
+                overrides this by writing ``config.seed``.
         """
         self.constructs = constructs
         self.generators = generators
@@ -156,6 +159,18 @@ class Optimizer(ABC):
     def constraint_weights(self) -> list[float]:
         """Get all constraint weights."""
         return [constraint.weight for constraint in self.constraints]
+
+    @property
+    def seed(self) -> int | None:
+        """Effective optimizer seed."""
+        return self.config.seed
+
+    @seed.setter
+    def seed(self, value: int | None) -> None:
+        """Set the effective optimizer seed."""
+        if value is not None and value < 0:
+            raise ValueError(f"seed must be non-negative, got {value}")
+        self.config.seed = value
 
     @abstractmethod
     def run(self) -> None:
@@ -594,8 +609,8 @@ class Optimizer(ABC):
         if num_results < 1:
             raise ValueError(f"num_results must be >= 1 (number of result sequences to keep), got {num_results}")
         self.num_results = num_results
-        if hasattr(self, "config"):
-            self.config.num_results = num_results
+        config: Any = self.config
+        config.num_results = num_results
         if self.num_proposals is None:
             self.num_proposals = num_results * self._proposals_per_result
         if self.num_proposals < 1:
@@ -605,13 +620,22 @@ class Optimizer(ABC):
         self.energy_scores = [float("inf")] * self.num_proposals
         self._initialize_sequence_pools()
 
-    def _reset_rng(self) -> None:
-        """Reset optimizer and generator RNGs to initial seeded state."""
-        assert self.seed is not None  # noqa: S101 -- mypy type narrowing
-        self._rng = random.Random(self.seed)  # noqa: S311 -- non-cryptographic
-        child_seeds = derive_seeds(self.seed, len(self.generators))
-        for generator, derived in zip(self.generators, child_seeds, strict=True):
-            generator._set_program_seed(derived)
+    def _reset_seed_state(self) -> None:
+        """Reset optimizer, generator, and constraint RNG streams."""
+        seed = self.seed
+        self._rng = random.Random(seed)  # noqa: S311 -- non-cryptographic
+        if seed is None:
+            for generator in self.generators:
+                generator._set_program_seed(None)
+            for constraint in self.constraints:
+                constraint._set_program_seed(None)
+            return
+
+        child_seeds = iter(derive_seeds(seed, len(self.generators) + len(self.constraints)))
+        for generator in self.generators:
+            generator._set_program_seed(next(child_seeds))
+        for constraint in self.constraints:
+            constraint._set_program_seed(next(child_seeds))
 
     def _prepare_run(self) -> None:
         """Call at start of run(). Validates state, captures on first run, restores on subsequent."""
@@ -619,8 +643,7 @@ class Optimizer(ABC):
             raise RuntimeError(
                 "num_results must be set. Set it via the optimizer config or use Program(num_results=...)."
             )
-        if self.seed is not None:
-            self._reset_rng()
+        self._reset_seed_state()
         if self._initial_state is None:
             self._capture_initial_state()
         else:

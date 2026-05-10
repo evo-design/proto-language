@@ -39,8 +39,7 @@ class Generator(ABC):
         """Initialize the generator with configuration parameters."""
         self._assigned_segments: tuple[Segment, ...] | None = None
         self.__spec: "GeneratorSpec | None" = None  # type: ignore[name-defined]  # noqa: F821, UP037 -- circular import; lazy-loaded via property
-        self._program_seed: int | None = None
-        self._rng: random.Random = random.Random()  # noqa: S311 -- non-cryptographic
+        self._rng: random.Random | None = None
 
     # Required lazy loading for mock generators to function in tests.
     @property
@@ -169,14 +168,13 @@ class Generator(ABC):
         """
         raise NotImplementedError(f"Subclass {self.__class__.__name__} must implement the _sample() method.")
 
-    def _set_program_seed(self, seed: int) -> None:
-        """Inject a program-derived seed, resetting the internal RNG."""
-        self._program_seed = seed
-        self._rng = random.Random(seed)  # noqa: S311 -- non-cryptographic
+    def _set_program_seed(self, seed: int | None) -> None:
+        """Set or clear the program-derived seed stream."""
+        self._rng = None if seed is None else random.Random(seed)  # noqa: S311 -- non-cryptographic
 
     def _next_seed(self) -> int | None:
         """Return an advancing per-call seed, or None if unseeded."""
-        if self._program_seed is None:
+        if self._rng is None:
             return None
         return self._rng.randint(0, 2**31 - 1)
 
@@ -209,8 +207,9 @@ class Generator(ABC):
             )
             assert segment.valid_chars is not None  # noqa: S101 -- mypy type narrowing
             valid_chars = list(segment.valid_chars - set(" "))
+            rng = self._rng or random.Random()  # noqa: S311 -- non-cryptographic
             for sequence in segment.proposal_sequences:
-                random_sequence = "".join(self._rng.choice(valid_chars) for _ in range(segment.sequence_length))
+                random_sequence = "".join(rng.choice(valid_chars) for _ in range(segment.sequence_length))
                 sequence.sequence = random_sequence
 
         # Lazy-init unknown (X) sequences for inverse folding generators if no input sequence was provided.

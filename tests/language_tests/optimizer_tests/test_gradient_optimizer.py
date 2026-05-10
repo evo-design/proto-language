@@ -842,6 +842,22 @@ class TestGumbelLogitInit:
         opt_b.run()
         assert np.allclose(seg_a.result_sequences[0].logits, seg_b.result_sequences[0].logits)
 
+    def test_program_seed_overrides_gumbel_config_seed(self) -> None:
+        def run(config_seed: int, program_seed: int) -> tuple[np.ndarray, int | None]:
+            opt, seg = _make(num_steps=1, seed=config_seed, gumbel_logit_init=True)
+            Program(optimizers=[opt], num_results=1, seed=program_seed).run()
+            assert seg.result_sequences[0].logits is not None
+            return seg.result_sequences[0].logits.copy(), opt.config.seed
+
+        logits_a, effective_a = run(config_seed=100, program_seed=42)
+        logits_b, effective_b = run(config_seed=200, program_seed=42)
+        logits_c, _ = run(config_seed=100, program_seed=99)
+
+        assert effective_a == effective_b
+        assert effective_a not in (100, 200)
+        assert np.allclose(logits_a, logits_b)
+        assert not np.allclose(logits_a, logits_c)
+
 
 class TestMultiStage:
     """End-to-end multi-stage Program pipelines."""

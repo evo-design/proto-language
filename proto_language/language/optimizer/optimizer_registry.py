@@ -69,11 +69,13 @@ class OptimizerRegistry(BaseRegistry[OptimizerSpec]):
         ... )
         ... class MCMCOptimizer(Optimizer):
         ...     def __init__(self, constructs, generators, constraints, config: MCMCOptimizerConfig):
+        ...         self.config = config
         ...         super().__init__(
         ...             constructs=constructs,
         ...             generators=generators,
         ...             constraints=constraints,
         ...             num_results=config.num_results,
+        ...             seed=config.seed,
         ...         )
         ...         # Implementation
 

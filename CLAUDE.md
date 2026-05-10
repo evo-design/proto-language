@@ -60,6 +60,7 @@ Team-shared development docs. Read at the start of relevant tasks.
 
 - `dev.md`: Setup, submodule sync, CI checks, docs generation
 - `batching.md`: Batching architecture across generator → tool → GPU boundary
+- `seeding.md`: Program/optimizer/generator/constraint seed hierarchy
 
 Update notes/ when you discover something **every developer needs to know** (CI changes, new setup steps, architecture decisions).
 
@@ -85,6 +86,7 @@ When a code change alters behavior documented in this file or any `SKILL.md`, up
 | `proto_language/language/constraint/` | CLAUDE.md Architecture, `implement-constraint` SKILL.md |
 | `proto_language/language/generator/` | CLAUDE.md Architecture, `implement-generator` SKILL.md |
 | `proto_language/language/optimizer/` | CLAUDE.md Architecture, `implement-optimizer` SKILL.md |
+| Seed propagation (`Program`, `Optimizer`, `Generator`, `Constraint`) | `notes/seeding.md` |
 | `proto_language/language/core/` | `general-dev` SKILL.md (Data Model, Result Export) |
 | `proto_language/base_config.py` | `general-dev` SKILL.md (Config Pattern) |
 | `tests/conftest.py`, pytest markers | CLAUDE.md Test Conventions, `testing` SKILL.md |
@@ -100,6 +102,7 @@ The `proto-tools/` submodule has its own CLAUDE.md with its own mappings.
 - Mypy strict mode with Pydantic plugin — all code must pass `mypy proto_language/` with zero errors. Every `# type: ignore` must include the error code (e.g. `# type: ignore[arg-type]`). Use only for genuinely unfixable external-lib issues. Prefer `assert` guards for type narrowing over `# type: ignore`. Do NOT use `cast()`, arbitrary `Protocol` definitions, or `TYPE_CHECKING` blocks to work around type issues.
 - Pydantic v2 for all configs: inherit `BaseConfig`, use `ConfigField` (not `Field`). Use `depends_on` for conditional field visibility (show/hide fields based on another field's value).
 - Registry keys: kebab-case. Config classes: `{Name}Config`. Files: `{name}_constraint.py` / `{name}_generator.py`
+- Seed policy: `Program(seed)` owns run-level determinism. It derives optimizer seeds; each optimizer derives generator and constraint runtime seeds. `Optimizer.seed` is backed by `optimizer.config.seed`, so do not add separate optimizer seed state.
 - **When modifying existing code**: Thoroughly find and update ALL callsites, imports, docstrings, comments, tests, and documentation that reference the changed code. Use sub-agents to search the entire codebase in parallel. Leave no dangling references.
 
 ## Error Handling Policy

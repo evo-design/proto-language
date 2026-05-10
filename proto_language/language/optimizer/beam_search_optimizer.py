@@ -199,6 +199,7 @@ class BeamSearchOptimizer(Optimizer):
 
     # Class attribute required by OptimizerRegistry
     config_class = BeamSearchOptimizerConfig
+    config: BeamSearchOptimizerConfig
 
     def __init__(
         self,

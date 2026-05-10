@@ -247,6 +247,7 @@ class CyclingOptimizer(Optimizer):
     """
 
     config_class = CyclingOptimizerConfig
+    config: CyclingOptimizerConfig
     _require_non_empty_constraints = False
 
     def __init__(

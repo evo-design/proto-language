@@ -34,10 +34,10 @@ allowed-tools:
 
 The `Optimizer` ABC requires two abstract methods: `__init__` and `run`.
 
-- **`__init__`**: Takes `constructs`, `generators`, `constraints`, plus config. Calls `super().__init__()` which runs `_validate_optimizer()`.
+- **`__init__`**: Takes `constructs`, `generators`, `constraints`, plus config. Stores `self.config = config` before calling `super().__init__()`, which runs `_validate_optimizer()`.
 - **`run`**: Executes the optimization loop. Modifies segments' `result_sequences` and `proposal_sequences`.
 
-**Note**: Subclass `__init__` signatures take `config` as a single parameter and unpack it into the ABC's individual parameters via `super().__init__()`.
+**Note**: Subclass `__init__` signatures take `config` as a single parameter and unpack it into the ABC's individual parameters via `super().__init__()`. Pass `seed=config.seed`; `Optimizer.seed` is an alias for `config.seed`.
 
 ## Dual-Pool Architecture
 
@@ -148,7 +148,7 @@ Copy this and check off as you go:
 - [ ] Config class inherits `BaseOptimizerConfig` with `ConfigField` (use `depends_on` for conditionally visible fields)
 - [ ] `@optimizer` decorator with unique kebab-case key
 - [ ] `@final` decorator on class
-- [ ] `__init__` calls `super().__init__()` with unpacked config
+- [ ] `__init__` stores `self.config = config`, then calls `super().__init__()` with unpacked config and `seed=config.seed`
 - [ ] `run()` calls `_prepare_run()`, `_initialize_sequence_pools()`, `score_energy()`, `_save_progress_snapshot()`
 - [ ] `_update_results()` implements correct selection logic
 - [ ] Export chain updated: `optimizer/__init__.py`

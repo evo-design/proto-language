@@ -97,12 +97,17 @@ class BaseConfig(BaseModel):
 
 
 class BaseOptimizerConfig(BaseConfig):
-    """Shared base config for all optimizers."""
+    """Shared base config for all optimizers.
+
+    Optimizer instances single-source their effective ``seed`` from this config.
+    Program-level seeds overwrite this field with optimizer-specific child
+    seeds during program initialization.
+    """
 
     seed: int | None = ConfigField(
         default=None,
         title="Random Seed",
-        description="Random seed for reproducible optimization runs.",
+        description="Random seed for reproducible optimization, generator, and constraint tool streams.",
         advanced=True,
         ge=0,
     )

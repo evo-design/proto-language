@@ -149,6 +149,7 @@ class RejectionSamplingOptimizer(Optimizer):
 
     # Class attribute required by OptimizerRegistry
     config_class = RejectionSamplingOptimizerConfig
+    config: RejectionSamplingOptimizerConfig
 
     def __init__(
         self,

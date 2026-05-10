@@ -115,8 +115,8 @@ class Program:
                 auto-detects: nullcontext when external dispatch is configured, otherwise
                 ToolPool() (symmetric across GPU and CPU-only hosts).
             seed (int | None): Random seed for fully reproducible optimization. When set,
-                derives unique seeds for each optimizer via SeedSequence, overriding
-                any optimizer-level seeds. Same seed + same input = same output.
+                derives unique optimizer config seeds, overriding optimizer-level
+                seeds. Same seed + same input = same output.
 
         Raises:
             ValueError: If optimizers list is empty or if optimizers don't share

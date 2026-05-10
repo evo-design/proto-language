@@ -339,6 +339,37 @@ class Constraint:
         """Whether this constraint supports gradient computation via ``compute_gradient()``."""
         return self._backward_fn is not None
 
+    def _set_program_seed(self, seed: int | None) -> None:
+        """Set runtime seeds and reset private seed cursors."""
+
+        def apply(value: Any) -> None:
+            if isinstance(value, BaseModel):
+                if hasattr(value, "_evaluation_seed_offset"):
+                    value._evaluation_seed_offset = 0
+                fields = value.__class__.model_fields
+                config: Any = value
+                if seed is not None:
+                    if "seed" in fields:
+                        config.seed = seed
+                    if "seeds" in fields:
+                        config.seeds = [seed]
+                for field_name in fields:
+                    apply(getattr(value, field_name))
+            elif isinstance(value, dict):
+                if seed is not None:
+                    if "seed" in value:
+                        value["seed"] = seed
+                    if "seeds" in value:
+                        value["seeds"] = [seed]
+                for child in value.values():
+                    apply(child)
+            elif isinstance(value, (list, tuple)):
+                for child in value:
+                    apply(child)
+
+        for config in (self._function_config, self._backward_config):
+            apply(config)
+
     def evaluate(self, mask: list[bool] | None = None, verbose: bool = False) -> list[float] | list[bool]:
         """Evaluate the constraint on proposals using discrete scoring.
 

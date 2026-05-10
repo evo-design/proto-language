@@ -413,6 +413,7 @@ class GradientOptimizer(Optimizer):
 
     # Class attribute required by OptimizerRegistry
     config_class = GradientOptimizerConfig
+    config: GradientOptimizerConfig
 
     def __init__(
         self,

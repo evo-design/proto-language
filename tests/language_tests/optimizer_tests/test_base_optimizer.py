@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from proto_language.base_config import BaseOptimizerConfig, ConfigField
 from proto_language.language.constraint.constraint_registry import ConstraintRegistry
 from proto_language.language.core import (
     BaseConfig,
@@ -34,6 +35,12 @@ from proto_language.language.optimizer import (
 from proto_language.language.optimizer.optimizer_registry import OptimizerRegistry
 
 
+class ConcreteOptimizerConfig(BaseOptimizerConfig):
+    """Config for the test optimizer."""
+
+    num_results: int | None = ConfigField(default=None)
+
+
 # Concrete implementation for testing the abstract base class
 class ConcreteOptimizer(Optimizer):
     """Concrete implementation of Optimizer for testing purposes."""
@@ -49,7 +56,15 @@ class ConcreteOptimizer(Optimizer):
         verbose: bool = False,
         tracking_interval: int = 1,
         track_proposals: bool = False,
+        seed: int | None = None,
     ) -> None:
+        self.config = ConcreteOptimizerConfig(
+            seed=seed,
+            num_results=num_results,
+            tracking_interval=tracking_interval,
+            track_proposals=track_proposals,
+            verbose=verbose,
+        )
         super().__init__(
             constructs=constructs,
             generators=generators,
@@ -60,6 +75,7 @@ class ConcreteOptimizer(Optimizer):
             verbose=verbose,
             tracking_interval=tracking_interval,
             track_proposals=track_proposals,
+            seed=seed,
         )
 
     def run(self) -> None:
