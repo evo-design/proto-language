@@ -1414,8 +1414,10 @@ def test_build_results_includes_generator_metadata():
 
 
 def test_build_results_filters_inf_nan_in_metadata():
-    """Non-finite floats in any of the three metadata dicts are converted to None."""
+    """Non-finite floats (Python and numpy) in any of the three metadata dicts are converted to None."""
     from unittest.mock import MagicMock
+
+    import numpy as np
 
     from proto_language.language.core import Construct, Segment, Sequence
     from proto_language.utils.export import build_results
@@ -1423,7 +1425,7 @@ def test_build_results_filters_inf_nan_in_metadata():
     seq = Sequence("ACGT", sequence_type="dna")
     seq._constraints_metadata = {"alphagenome-track": {"data": {"minimize_clipped_signal": math.nan}}}
     seq._generator_metadata = {"evo1": {"score": math.inf}}
-    seq._metadata = {"user_note": -math.inf}
+    seq._metadata = {"user_note": -math.inf, "np32": np.float32("nan")}
 
     segment = MagicMock(spec=Segment)
     segment.label = "s"
@@ -1437,6 +1439,7 @@ def test_build_results_filters_inf_nan_in_metadata():
     assert seg["constraints"]["alphagenome-track"]["data"]["minimize_clipped_signal"] is None
     assert seg["generators"]["evo1"]["score"] is None
     assert seg["metadata"]["user_note"] is None
+    assert seg["metadata"]["np32"] is None
 
 
 # =============================================================================

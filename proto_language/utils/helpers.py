@@ -53,8 +53,8 @@ MAX_GC_CONTENT = 100.0
 
 
 def filter_inf_nan(obj: Any) -> Any:
-    """Recursively replace non-finite floats (NaN/Inf) with None for JSON compatibility."""
-    if isinstance(obj, float) and not math.isfinite(obj):
+    """Recursively replace non-finite Python or numpy floats (NaN/Inf) with None."""
+    if isinstance(obj, (float, np.floating)) and not math.isfinite(obj):
         return None
     if isinstance(obj, dict):
         return {k: filter_inf_nan(v) for k, v in obj.items()}
