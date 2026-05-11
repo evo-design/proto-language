@@ -1,6 +1,6 @@
 {
   "name": "chromatin_accessibility_beam_search",
-  "description": "Beam-search design of a synthetic DNA target whose predicted chromatin-accessibility signal spells a Morse pattern. Mirrors examples/scripts/epigenomics_morse_proto.py using the full CREB left and right flanks from examples/data, the last 8192 bp of the left flank as the Evo2 prompt, a 21120 bp generated target, and mouse Borzoi/Enformer MORSE scoring. KV caching is disabled, each retained beam gets 8 proposals, and Evo2/scorer batches are capped at 8 so the API/local single-H100 execution path avoids OOM while preserving the biological program setup.",
+  "description": "Beam-search design of a synthetic DNA target whose predicted chromatin-accessibility signal spells a Morse pattern. Mirrors examples/scripts/epigenomics_morse_proto.py using the full CREB left and right flanks from examples/data, the last 8192 bp of the left flank as the Evo2 prompt, a 21120 bp generated target, and mouse Borzoi/Enformer MORSE scoring. Each retained beam gets 8 proposals, Evo2/scorer batches are capped at 8, and Evo2 KV caching is enabled so sequential generation skips recomputing the prompt cache on every step.",
   "version": "1.0",
   "num_results": 2,
   "verbose": true,
@@ -40,7 +40,7 @@
           "proposals_per_result": 8,
           "score_by": "last",
           "prepend_prompt": false,
-          "use_kv_caching": false,
+          "use_kv_caching": true,
           "tracking_interval": 1,
           "track_proposals": true,
           "verbose": true
