@@ -6,6 +6,7 @@ calculations used across the proto-language framework.
 import math
 import random
 import subprocess
+from typing import Any
 
 import numpy as np
 import pydantic
@@ -51,11 +52,17 @@ MIN_GC_CONTENT = 0.0
 MAX_GC_CONTENT = 100.0
 
 
-def filter_inf_nan_scores(score: float) -> float | None:
-    """Convert inf/nan to None for JSON compatibility."""
-    if math.isinf(score) or math.isnan(score):
+def filter_inf_nan(obj: Any) -> Any:
+    """Recursively replace non-finite floats (NaN/Inf) with None for JSON compatibility."""
+    if isinstance(obj, float) and not math.isfinite(obj):
         return None
-    return score
+    if isinstance(obj, dict):
+        return {k: filter_inf_nan(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [filter_inf_nan(v) for v in obj]
+    if isinstance(obj, tuple):
+        return tuple(filter_inf_nan(v) for v in obj)
+    return obj
 
 
 def is_plain_int(value: object) -> bool:

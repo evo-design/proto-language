@@ -1,6 +1,7 @@
 """Tests for proto_language.utils.export module."""
 
 import json
+import math
 import tempfile
 from pathlib import Path
 
@@ -1410,6 +1411,32 @@ def test_build_results_includes_generator_metadata():
     rows = flatten_sequences(results)
     assert rows[0]["generator.proteinmpnn.perplexity"] == 1.8
     assert rows[0]["generator.evo1.score"] == -2.5
+
+
+def test_build_results_filters_inf_nan_in_metadata():
+    """Non-finite floats in any of the three metadata dicts are converted to None."""
+    from unittest.mock import MagicMock
+
+    from proto_language.language.core import Construct, Segment, Sequence
+    from proto_language.utils.export import build_results
+
+    seq = Sequence("ACGT", sequence_type="dna")
+    seq._constraints_metadata = {"alphagenome-track": {"data": {"minimize_clipped_signal": math.nan}}}
+    seq._generator_metadata = {"evo1": {"score": math.inf}}
+    seq._metadata = {"user_note": -math.inf}
+
+    segment = MagicMock(spec=Segment)
+    segment.label = "s"
+    segment.result_sequences = [seq]
+    construct = MagicMock(spec=Construct)
+    construct.label = "c"
+    construct.sequence_type = "dna"
+    construct.segments = [segment]
+
+    seg = build_results([construct], [0.42])["results"][0]["constructs"][0]["segments"][0]
+    assert seg["constraints"]["alphagenome-track"]["data"]["minimize_clipped_signal"] is None
+    assert seg["generators"]["evo1"]["score"] is None
+    assert seg["metadata"]["user_note"] is None
 
 
 # =============================================================================

@@ -160,13 +160,16 @@ class Sequence:
 
         Identity fields (sequence, sequence_length, constraints, generators)
         always take precedence over user-provided metadata with the same keys.
+        Non-finite floats (NaN/Inf) are converted to None for JSON compatibility.
         """
+        from proto_language.utils.helpers import filter_inf_nan
+
         result = dict(self._metadata)
         result["sequence"] = self._sequence
         result["sequence_length"] = len(self._sequence)
         result["constraints"] = self._constraints_metadata
         result["generators"] = self._generator_metadata
-        return result
+        return filter_inf_nan(result)  # type: ignore[no-any-return]
 
     @property
     def sequence(self) -> str:

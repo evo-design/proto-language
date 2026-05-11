@@ -29,7 +29,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from proto_language.language.core.segment import Segment
 from proto_language.language.core.sequence import Sequence
-from proto_language.utils.helpers import filter_inf_nan_scores, is_plain_int
+from proto_language.utils.helpers import filter_inf_nan, is_plain_int
 
 logger = logging.getLogger(__name__)
 
@@ -524,9 +524,9 @@ class Constraint:
         for original_id, original in originals_by_id.items():
             seg_idx = position_by_original[original_id]
             constraint_data: dict[str, Any] = {
-                "score": filter_inf_nan_scores(score),
+                "score": filter_inf_nan(score),
                 "weight": self._weight,
-                "weighted_score": filter_inf_nan_scores(score * self._weight),
+                "weighted_score": filter_inf_nan(score * self._weight),
                 "data": metadata_by_original[original_id],
             }
             if len(self._inputs) > 1:
