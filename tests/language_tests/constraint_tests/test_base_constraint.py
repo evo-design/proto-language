@@ -173,7 +173,7 @@ class TestConstraintEvaluation:
         assert data_b == {}
 
     def test_structure_and_logits_propagate_to_original(self):
-        """Regression for #1180: structures/logits on the returned result reach the original proposal."""
+        """Regression: structures/logits on the returned result reach the original proposal."""
         attached_structure = MockStructure.with_plddt([0.1, 0.95, 0.95])
         attached_logits = np.ones((3, 20))
 

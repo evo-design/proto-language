@@ -62,7 +62,7 @@ class TestMyConstraint:
         constraint.evaluate()
 
         # Check metadata on proposal sequences. Constraint outputs land under
-        # _constraints_metadata[<label>]["data"] (PR #1273).
+        # _constraints_metadata[<label>]["data"].
         constraints_meta = segment.proposal_sequences[0]._constraints_metadata
         assert "my_constraint" in constraints_meta
         assert "data" in constraints_meta["my_constraint"]
