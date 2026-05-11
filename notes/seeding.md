@@ -48,6 +48,7 @@ Language code should pass explicit seeds into tool configs when reproducibility
 is intended.
 
 On the tools side, `seed=None` remains cacheable by default. Only cacheable
-tools marked `generative=True` skip cache and iterable dedup while unseeded so
-repeated sampler calls can diversify; do not use `generative` for prediction,
-scoring, relax, or analysis tools merely because they accept a seed.
+tools marked `seed_sensitive=True` skip cache and iterable dedup while unseeded
+(so repeated sampler calls can diversify), and multi-item dispatches on those
+tools auto-unroll with per-item-derived seeds. Do not set `seed_sensitive=True`
+for tools that accept but ignore the seed.
