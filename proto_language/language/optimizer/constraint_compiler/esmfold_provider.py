@@ -20,6 +20,7 @@ from proto_tools.tools.structure_prediction.esmfold import (
 )
 from pydantic import ValidationError
 
+from proto_language.language.constraint.constraint_registry import ConstraintSpec
 from proto_language.language.constraint.protein_structure.structure_confidence_constraint import (
     structure_pae_constraint,
     structure_plddt_constraint,
@@ -35,6 +36,13 @@ from proto_language.language.optimizer.constraint_compiler.base import (
     EffectiveWeight,
     GradientProvider,
     GradientProviderOutput,
+)
+from proto_language.language.optimizer.constraint_compiler.capabilities import (
+    GradientSupportRule,
+    all_inputs_requirement,
+    any_input_target,
+    compiled_gradient_support_rule,
+    config_equals_condition,
 )
 
 logger = logging.getLogger(__name__)
@@ -140,6 +148,18 @@ def objective_key_for_constraint(constraint: Constraint) -> str | None:
     if constraint.function is None:
         return None
     return ESMFOLD_STRUCTURE_LOSS_BY_FUNCTION.get(constraint.function)
+
+
+def gradient_support_rule_for_constraint_spec(spec: ConstraintSpec) -> GradientSupportRule | None:
+    """Return the ESMFold compiler support rule for a registered constraint."""
+    if spec.function is None or spec.function not in ESMFOLD_STRUCTURE_LOSS_BY_FUNCTION:
+        return None
+    return compiled_gradient_support_rule(
+        label="ESMFold gradient",
+        when=[config_equals_condition("structure_tool", "esmfold")],
+        target_segment=any_input_target(),
+        required_segments=[all_inputs_requirement(("protein",))],
+    )
 
 
 def unsupported_gradient_reason(constraint: Constraint) -> str | None:

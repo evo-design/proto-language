@@ -26,6 +26,7 @@ from proto_tools.tools.structure_prediction.alphafold2 import (
 )
 from pydantic import ValidationError
 
+from proto_language.language.constraint.constraint_registry import ConstraintSpec
 from proto_language.language.constraint.protein_structure.structure_confidence_constraint import (
     structure_ipae_constraint,
     structure_iplddt_constraint,
@@ -53,6 +54,14 @@ from proto_language.language.optimizer.constraint_compiler.base import (
     EffectiveWeight,
     GradientProvider,
     GradientProviderOutput,
+)
+from proto_language.language.optimizer.constraint_compiler.capabilities import (
+    GradientSupportRule,
+    compiled_gradient_support_rule,
+    config_equals_condition,
+    input_index_requirement_from_config,
+    input_index_target_from_config,
+    input_indices_requirement_from_config,
 )
 from proto_language.utils import one_hot_protein_matrix
 from proto_language.utils.alphafold2_multimer import (
@@ -255,6 +264,27 @@ def objective_key_for_constraint(constraint: Constraint) -> str | None:
     if constraint.function is None:
         return None
     return AF2_MULTIMER_STRUCTURE_LOSS_BY_FUNCTION.get(constraint.function)
+
+
+def gradient_support_rule_for_constraint_spec(spec: ConstraintSpec) -> GradientSupportRule | None:
+    """Return the AF2 multimer compiler support rule for a registered constraint."""
+    if spec.function is None or spec.function not in AF2_MULTIMER_STRUCTURE_LOSS_BY_FUNCTION:
+        return None
+    return compiled_gradient_support_rule(
+        label="AF2 multimer gradient",
+        when=[config_equals_condition("structure_tool", "alphafold2_multimer")],
+        target_segment=input_index_target_from_config("alphafold2_multimer_config.binder_input_index"),
+        required_segments=[
+            input_index_requirement_from_config(
+                "alphafold2_multimer_config.binder_input_index",
+                ("protein",),
+            ),
+            input_indices_requirement_from_config(
+                "alphafold2_multimer_config.target_input_indices",
+                ("protein",),
+            ),
+        ],
+    )
 
 
 def unsupported_gradient_reason(constraint: Constraint) -> str | None:
