@@ -121,6 +121,13 @@ class TestCyclingOptimizerConfig:
         with pytest.raises(ValidationError):
             CyclingOptimizerConfig(num_steps=1, num_results=0)
 
+    def test_protein_hunter_rejects_alphafold2(self):
+        """AF2 is deterministic in our codepath; keep it out of cycling pipelines."""
+        from proto_language.language.optimizer.cycling_optimizer import ProteinHunterPipelineConfig
+
+        with pytest.raises(ValidationError):
+            ProteinHunterPipelineConfig(structure_tool="alphafold2")
+
 
 # =============================================================================
 # Validation Tests

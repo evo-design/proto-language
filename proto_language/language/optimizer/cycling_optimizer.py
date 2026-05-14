@@ -31,6 +31,11 @@ logger = logging.getLogger(__name__)
 # Predefined Pipelines
 # =============================================================================
 
+# AlphaFold2 is intentionally excluded — deterministic in our codepath
+# (use_msa=False, dropout=False) would break cycling diversity. See
+# proto-tools/notes/seeding.md.
+CyclingStructureTool = Literal["boltz2", "chai1", "alphafold3"]
+
 
 class ProteinHunterPipelineConfig(BaseConfig):
     """Configuration for the protein-hunter pipeline.
@@ -39,10 +44,10 @@ class ProteinHunterPipelineConfig(BaseConfig):
     cycles for de novo protein design (hallucination).
 
     Attributes:
-        structure_tool (Literal['boltz2', 'chai1', 'alphafold3']): Structure prediction tool to use. Options: "boltz2", "chai1", "alphafold3".
+        structure_tool (CyclingStructureTool): Structure prediction tool to use. One of "boltz2", "chai1", "alphafold3".
     """
 
-    structure_tool: Literal["boltz2", "chai1", "alphafold3"] = ConfigField(
+    structure_tool: CyclingStructureTool = ConfigField(
         default="boltz2",
         title="Structure Tool",
         description="Structure prediction tool: 'boltz2', 'chai1', or 'alphafold3'.",
