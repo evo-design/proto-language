@@ -12,12 +12,25 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
 from proto_language.language.core import Constraint
 
 EffectiveWeight = Callable[[Constraint, int], float]
+
+
+def raise_for_failed_tool_output(output: Any, label: str) -> None:
+    """Raise the captured tool error before provider-specific output validation."""
+    if getattr(output, "success", None) is not False:
+        return
+
+    errors = getattr(output, "errors", None) or []
+    detail = "\n".join(str(error).strip() for error in errors if str(error).strip())
+    if not detail:
+        detail = "remote tool returned success=False without error details."
+    raise RuntimeError(f"{label} failed: {detail}")
 
 
 @dataclass(frozen=True)

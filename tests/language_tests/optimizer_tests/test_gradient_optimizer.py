@@ -631,6 +631,30 @@ class TestCompiledConstraints:
         assert mock_esm.call_args.args[1].loss_weights == {"plddt": 2.0, "ptm": 0.5}
         assert {"esmfold_plddt", "esmfold_ptm"}.issubset(metadata)
 
+    def test_esmfold_tool_failure_surfaces_captured_error(self) -> None:
+        binder, construct, constraints = _esmfold_confidence_problem()
+        failed_output = SimpleNamespace(
+            success=False,
+            errors=["RuntimeError: esmfold failed inside the remote worker"],
+            gradient=None,
+        )
+
+        with patch(
+            "proto_language.language.optimizer.constraint_compiler.esmfold_provider.run_esmfold_gradient",
+            return_value=failed_output,
+        ):
+            generator = PositionWeightGenerator(PositionWeightGeneratorConfig())
+            generator.assign(binder)
+            opt = GradientOptimizer(
+                target_segment=binder,
+                constructs=[construct],
+                generators=[generator],
+                constraints=constraints,
+                config=GradientOptimizerConfig(num_results=1, num_steps=1, lr=0.1),
+            )
+            with pytest.raises(RuntimeError, match="ESMFold gradient failed: RuntimeError: esmfold failed"):
+                opt.run()
+
     def test_rejects_esmfold_interface_metric_gradient(self) -> None:
         from proto_language.language.constraint.protein_structure.structure_confidence_constraint import (
             structure_iptm_constraint,
@@ -705,6 +729,30 @@ class TestCompiledConstraints:
             AF2_MULTIMER_TOOL_LOSS_ALIASES.get("ipae", "ipae"): 0.5,
         }
         assert "af2_plddt" in metadata and "af2_ipae" in metadata
+
+    def test_af2_multimer_tool_failure_surfaces_captured_error(self) -> None:
+        binder, _target, construct, constraints = _af2_multimer_confidence_problem()
+        failed_output = SimpleNamespace(
+            success=False,
+            errors=["RuntimeError: alphafold2 failed inside the remote worker"],
+            gradient=None,
+        )
+
+        with patch(
+            "proto_language.language.optimizer.constraint_compiler.alphafold2_multimer_provider.run_alphafold2_binder",
+            return_value=failed_output,
+        ):
+            generator = PositionWeightGenerator(PositionWeightGeneratorConfig())
+            generator.assign(binder)
+            opt = GradientOptimizer(
+                target_segment=binder,
+                constructs=[construct],
+                generators=[generator],
+                constraints=constraints,
+                config=GradientOptimizerConfig(num_results=1, num_steps=1, lr=0.1),
+            )
+            with pytest.raises(RuntimeError, match="AF2 multimer gradient failed: RuntimeError: alphafold2 failed"):
+                opt.run()
 
     def test_scoring_compiler_evaluates_non_af2_dict_config_directly(self) -> None:
         """Non-AF2 constraints with dict configs should not be parsed as structure configs."""

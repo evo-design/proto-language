@@ -53,6 +53,7 @@ from proto_language.language.optimizer.constraint_compiler.base import (
     EffectiveWeight,
     GradientProvider,
     GradientProviderOutput,
+    raise_for_failed_tool_output,
 )
 from proto_language.utils import one_hot_protein_matrix
 from proto_language.utils.alphafold2_multimer import (
@@ -207,6 +208,7 @@ class AF2MultimerGradientProvider(GradientProvider):
                     compute_gradient=True,
                 ),
             )
+            raise_for_failed_tool_output(output, "AF2 multimer gradient")
             if output.gradient is None:
                 raise RuntimeError("AF2 multimer compute_gradient=True must populate output.gradient.")
 

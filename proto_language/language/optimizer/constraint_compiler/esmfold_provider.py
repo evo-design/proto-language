@@ -35,6 +35,7 @@ from proto_language.language.optimizer.constraint_compiler.base import (
     EffectiveWeight,
     GradientProvider,
     GradientProviderOutput,
+    raise_for_failed_tool_output,
 )
 
 logger = logging.getLogger(__name__)
@@ -113,6 +114,7 @@ class ESMFoldGradientProvider(GradientProvider):
                     compute_gradient=True,
                 ),
             )
+            raise_for_failed_tool_output(output, "ESMFold gradient")
             if output.gradient is None:
                 raise RuntimeError("ESMFold compute_gradient=True must populate output.gradient.")
 
