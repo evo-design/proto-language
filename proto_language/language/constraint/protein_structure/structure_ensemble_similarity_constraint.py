@@ -4,21 +4,22 @@ for conformational ensemble sampling and PyMOL-based RMSD alignment.
 
 This constraint generates a conformational ensemble for a protein sequence and
 computes the similarity between ensemble members and an experimental target
-structure using PyMOL's align command.
+structure using PyMOL alignment.
 """
 
-import os
-import tempfile
 from logging import getLogger
-from typing import Any, Literal
+from typing import Literal
 
 import numpy as np
 from proto_tools import (
     BioEmuConfig,
     BioEmuInput,
+    PyMOLRMSDConfig,
+    PyMOLRMSDInput,
     Structure,
     StructurePredictionComplex,
     run_bioemu,
+    run_pymol_rmsd_alignment,
 )
 from pydantic import field_validator
 
@@ -36,75 +37,37 @@ logger = getLogger(__name__)
 
 
 def _compute_pymol_aligned_rmsd(
-    target_pdb_text: str,
-    mobile_pdb_text: str,
+    target_structure: Structure,
+    mobile_structure: Structure,
     target_selection: str = "name CA",
     mobile_selection: str = "name CA",
-) -> dict[str, Any]:
-    """Compute aligned RMSD using PyMOL's align command.
-
-    PyMOL's align performs sequence alignment followed by structural superposition,
-    making it robust to differences in residue numbering or sequence length.
+    method: Literal["cealign", "align"] = "align",
+) -> dict[str, float | int]:
+    """Compute aligned RMSD using the hosted PyMOL alignment tool.
 
     Args:
-        target_pdb_text (str): PDB content of the target (reference) structure.
-        mobile_pdb_text (str): PDB content of the mobile structure to align.
+        target_structure (Structure): Target/reference structure.
+        mobile_structure (Structure): Mobile structure to align.
         target_selection (str): PyMOL selection string for target atoms (default: "name CA").
         mobile_selection (str): PyMOL selection string for mobile atoms (default: "name CA").
+        method (Literal['cealign', 'align']): PyMOL alignment routine to use.
 
     Returns:
-        dict[str, Any]: Dictionary containing:
-            - rmsd: The RMSD after alignment (Angstroms).
-            - aligned_atoms: Number of atoms used in the alignment.
-            - alignment_cycles: Number of refinement cycles performed.
+        dict[str, float | int]: Dictionary containing RMSD and method-specific
+            alignment metrics.
     """
-    try:
-        import pymol
-        from pymol import cmd
-    except ImportError as e:
-        raise ImportError(
-            "PyMOL is required for ensemble RMSD constraints but was not found. "
-            "Please install the open-source version via Conda:\n\n"
-            "  conda install -c conda-forge pymol-open-source\n"
-        ) from e
-
-    # Initialize PyMOL in quiet mode without GUI.
-    pymol.finish_launching(["pymol", "-qc"])
-    cmd.reinitialize()
-
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".pdb", delete=False) as f1:
-        f1.write(target_pdb_text)
-        tmp_target = f1.name
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".pdb", delete=False) as f2:
-        f2.write(mobile_pdb_text)
-        tmp_mobile = f2.name
-
-    try:
-        cmd.load(tmp_target, "target")
-        cmd.load(tmp_mobile, "mobile")
-
-        # align performs sequence alignment + structural superposition.
-        # Returns: (RMSD, n_atoms_aligned, n_cycles, RMSD_pre, n_atoms_pre, score, n_res)  # noqa: ERA001
-        result = cmd.align(
-            f"mobile and {mobile_selection}",
-            f"target and {target_selection}",
-        )
-
-        return {
-            "rmsd": result[0],
-            "aligned_atoms": result[1],
-            "alignment_cycles": result[2],
-        }
-    except Exception as e:
-        logger.warning(f"PyMOL alignment failed: {e}, returning very bad RMSD value")
-        return {"rmsd": 999.0, "aligned_atoms": 0, "alignment_cycles": 0}
-    finally:
-        if os.path.exists(tmp_target):
-            os.unlink(tmp_target)
-        if os.path.exists(tmp_mobile):
-            os.unlink(tmp_mobile)
-        cmd.delete("all")
-        cmd.reinitialize()
+    output = run_pymol_rmsd_alignment(
+        PyMOLRMSDInput(
+            target_structure=target_structure,
+            mobile_structure=mobile_structure,
+        ),
+        PyMOLRMSDConfig(
+            method=method,
+            target_selection=f"target and {target_selection}",
+            mobile_selection=f"mobile and {mobile_selection}",
+        ),
+    )
+    return dict(output.metrics.items())
 
 
 def _compute_ensemble_rmsds(
@@ -112,6 +75,7 @@ def _compute_ensemble_rmsds(
     ensemble_pdb_frames: list[str],
     target_selection: str = "name CA",
     mobile_selection: str = "name CA",
+    method: Literal["cealign", "align"] = "align",
     verbose: bool = False,
 ) -> list[float]:
     """Compute RMSD between a target structure and all frames in an ensemble.
@@ -121,6 +85,7 @@ def _compute_ensemble_rmsds(
         ensemble_pdb_frames (list[str]): List of PDB content strings, one per ensemble frame.
         target_selection (str): PyMOL selection for target atoms.
         mobile_selection (str): PyMOL selection for ensemble atoms.
+        method (Literal['cealign', 'align']): PyMOL alignment routine to use.
         verbose (bool): Whether to log progress.
 
     Returns:
@@ -128,16 +93,18 @@ def _compute_ensemble_rmsds(
     """
     rmsds = []
     n_frames = len(ensemble_pdb_frames)
+    target_structure = Structure(structure=target_pdb_text)
 
     for i, frame_pdb in enumerate(ensemble_pdb_frames):
         if verbose and (i + 1) % 100 == 0:
             logger.info(f"Computing RMSD for frame {i + 1}/{n_frames}")
 
         result = _compute_pymol_aligned_rmsd(
-            target_pdb_text=target_pdb_text,
-            mobile_pdb_text=frame_pdb,
+            target_structure=target_structure,
+            mobile_structure=Structure(structure=frame_pdb),
             target_selection=target_selection,
             mobile_selection=mobile_selection,
+            method=method,
         )
         rmsds.append(result["rmsd"])
 
@@ -291,7 +258,7 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
 
     This constraint generates a conformational ensemble for a proposal protein
     sequence and computes the RMSD between ensemble members and an experimental
-    target structure using PyMOL's align command.
+    target structure using PyMOL alignment.
 
     Attributes:
         target_structure (Structure | str):
@@ -328,6 +295,10 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
             - "p10": Use 10th percentile RMSD.
             - "mean": Use mean RMSD.
             - "median": Use median RMSD.
+
+        pymol_alignment_method (Literal["cealign", "align"]):
+            PyMOL alignment routine to use for ensemble RMSD calculation.
+            Default: "align".
 
         inflection_point_angstroms (float):
             The RMSD value (in Angstroms) at which the sigmoid scoring function
@@ -383,6 +354,11 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
         default="min",
         description="How to summarize RMSD values across the ensemble.",
     )
+    pymol_alignment_method: Literal["cealign", "align"] = ConfigField(
+        title="PyMOL Alignment Method",
+        default="align",
+        description="PyMOL alignment routine for ensemble RMSD calculation.",
+    )
 
     # Scoring configuration
     inflection_point_angstroms: float = ConfigField(
@@ -435,7 +411,7 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
         "an experimental target structure using PyMOL alignment."
     ),
     uses_gpu=True,
-    tools_called=["bioemu-sample", "pymol"],
+    tools_called=["bioemu-sample", "pymol-rmsd-alignment"],
     category="protein_structure",
     supported_sequence_types=["protein"],
 )
@@ -528,6 +504,7 @@ def structure_ensemble_rmsd_constraint(
             rmsds = _compute_ensemble_rmsds(
                 target_pdb_text=target_pdb,
                 ensemble_pdb_frames=ensemble_pdb_frames,
+                method=config.pymol_alignment_method,
                 verbose=config.verbose,
             )
 
@@ -551,6 +528,7 @@ def structure_ensemble_rmsd_constraint(
                     metadata={
                         "ensemble_rmsd_summary": rmsd_summary,
                         "ensemble_rmsd_aggregation": config.rmsd_aggregation,
+                        "ensemble_rmsd_alignment_method": config.pymol_alignment_method,
                         "ensemble_rmsd_all": rmsds,
                         "ensemble_rmsd_min": float(np.min(rmsd_arr)),
                         "ensemble_rmsd_mean": float(np.mean(rmsd_arr)),

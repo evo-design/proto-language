@@ -1,5 +1,6 @@
 """Tests for structure prediction similarity constraints."""
 
+from types import SimpleNamespace
 from typing import NamedTuple
 from unittest.mock import patch
 
@@ -137,6 +138,47 @@ class TestESMFoldRMSDConstraint:
             config,
         )[0].score
         assert rmsd < EPSILON
+
+
+class TestStructureRMSDToolRouting:
+    """Tests for RMSD alignment tool routing that do not run structure predictors."""
+
+    def test_pymol_alignment_method_schema_is_dropdown_enum(self):
+        schema = StructureRMSDConfig.model_json_schema()
+        assert schema["properties"]["pymol_alignment_method"]["enum"] == ["cealign", "align"]
+
+    def test_pymol_alignment_method_passed_to_tool(self):
+        with (
+            patch(
+                "proto_language.language.constraint.protein_structure."
+                "structure_similarity_constraint._prepare_target_structure"
+            ) as mock_target,
+            patch(
+                "proto_language.language.constraint.protein_structure.structure_similarity_constraint.predict_structures"
+            ) as mock_predict,
+            patch(
+                "proto_language.language.constraint.protein_structure."
+                "structure_similarity_constraint.run_pymol_rmsd_alignment"
+            ) as mock_pymol,
+        ):
+            mock_target.return_value = MockStructure().structure_pdb
+            mock_predict.return_value = MockResult(structures=[MockStructure()])
+            mock_pymol.return_value = SimpleNamespace(rmsd=1.25)
+
+            config = StructureRMSDConfig(
+                target_structure="ignored by mocked target prep",
+                structure_tool="esmfold",
+                pymol_alignment_method="align",
+            )
+
+            result = structure_rmsd_constraint([(Sequence("AAA", "protein"),)], config)[0]
+
+        assert result.metadata["rmsd_alignment_method"] == "align"
+        assert result.metadata["rmsd_val"] == 1.25
+        pymol_input, pymol_config = mock_pymol.call_args.args
+        assert pymol_input.target_structure.structure_pdb == MockStructure().structure_pdb
+        assert pymol_input.mobile_structure.structure_pdb == MockStructure().structure_pdb
+        assert pymol_config.method == "align"
 
 
 class TestESMFoldTMscoreConstraint:

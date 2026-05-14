@@ -66,7 +66,12 @@ class TestConfig:
         """Check key defaults."""
         config = StructureEnsembleSimilarityConfig(target_structure=MOCK_PDB)
         assert config.rmsd_aggregation == "min"
+        assert config.pymol_alignment_method == "align"
         assert config.inflection_point_angstroms == 3.0
+
+    def test_pymol_alignment_method_schema_is_dropdown_enum(self):
+        schema = StructureEnsembleSimilarityConfig.model_json_schema()
+        assert schema["properties"]["pymol_alignment_method"]["enum"] == ["cealign", "align"]
 
 
 class TestConstraintWithMocks:
@@ -197,6 +202,28 @@ class TestConstraintWithMocks:
 
             # min should give best (lowest) score, mean should be worse
             assert agg_scores["min"] < agg_scores["mean"]
+
+    def test_pymol_alignment_method_passed_to_rmsd_helper(self, mock_bioemu):
+        """Configured PyMOL method is used for every ensemble-frame alignment."""
+        with patch(
+            "proto_language.language.constraint.protein_structure."
+            "structure_ensemble_similarity_constraint._compute_pymol_aligned_rmsd"
+        ) as mock_rmsd:
+            mock_rmsd.side_effect = [
+                {"rmsd": 1.0, "aligned_length": 10},
+                {"rmsd": 2.0, "aligned_length": 10},
+                {"rmsd": 3.0, "aligned_length": 10},
+            ]
+            config = StructureEnsembleSimilarityConfig(
+                target_structure=MOCK_PDB,
+                bioemu_config=BioEmuConfig(num_samples=3),
+                pymol_alignment_method="cealign",
+            )
+
+            results = structure_ensemble_rmsd_constraint([(Sequence(TEST_SEQ, "protein"),)], config)
+
+        assert results[0].metadata["ensemble_rmsd_alignment_method"] == "cealign"
+        assert [call.kwargs["method"] for call in mock_rmsd.call_args_list] == ["cealign"] * 3
 
 
 @pytest.mark.uses_gpu

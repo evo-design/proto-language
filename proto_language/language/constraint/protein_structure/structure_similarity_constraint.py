@@ -3,12 +3,12 @@
 supporting multiple structure prediction tools (ESMFold, AlphaFold3, Boltz, Chai1).
 """
 
-import os
-import tempfile
 from logging import getLogger
-from typing import Any, Literal
+from typing import Literal
 
 from proto_tools import (
+    PyMOLRMSDConfig,
+    PyMOLRMSDInput,
     Structure,
     StructurePredictionComplex,
     TMalignConfig,
@@ -16,6 +16,7 @@ from proto_tools import (
     USalignConfig,
     USalignInput,
     predict_structures,
+    run_pymol_rmsd_alignment,
     run_tmalign,
     run_usalign,
 )
@@ -30,64 +31,6 @@ from proto_language.language.core import ConstraintOutput, Sequence
 from proto_language.utils import MAX_ENERGY, sigmoid_score
 
 logger = getLogger(__name__)
-
-
-# ============================================================================
-# Metrics and scoring utils
-# ============================================================================
-
-
-def _compute_ce_aligned_rmsd(pdb_text1: str, pdb_text2: str) -> dict[str, Any]:
-    """Compute CE-aligned RMSD using PyMOL's cealign.
-
-    Text strings are the full PDB file contents.
-    """
-    try:
-        import pymol
-        from pymol import cmd
-    except ImportError as e:
-        raise ImportError(
-            "PyMOL is required for RMSD constraints but was not found. "
-            "Please install the open-source version via Conda:\n\n"
-            "  conda install -c conda-forge pymol-open-source\n"
-        ) from e
-
-    # Initialize PyMOL in quiet mode without GUI.
-    pymol.finish_launching(["pymol", "-qc"])
-    cmd.reinitialize()
-
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".pdb", delete=False) as f1:
-        f1.write(pdb_text1)
-        tmp1 = f1.name
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".pdb", delete=False) as f2:
-        f2.write(pdb_text2)
-        tmp2 = f2.name
-
-    try:
-        cmd.load(tmp1, "ref")
-        cmd.load(tmp2, "mobile")
-
-        # cealign aligns 'mobile' to 'ref'.
-        # For multimers, this aligns the whole complex if chain identifiers match
-        # or performs a global alignment.
-        result = cmd.cealign("ref", "mobile")
-
-        return {
-            "rmsd": result["RMSD"],
-            "aligned_length": result["alignment_length"],
-            "alignment_score": result.get("raw_score", None),
-        }
-    except Exception as e:
-        logger.warning("PyMOL alignment failed: %s, returning very bad RMSD value", e)
-        # Return bad values on failure.
-        return {"rmsd": 999.0, "aligned_length": 0}
-    finally:
-        if os.path.exists(tmp1):
-            os.unlink(tmp1)
-        if os.path.exists(tmp2):
-            os.unlink(tmp2)
-        cmd.delete("all")
-        cmd.reinitialize()
 
 
 def _filter_pdb_by_plddt(pdb_text: str, threshold: float) -> str:
@@ -213,6 +156,10 @@ class StructureRMSDConfig(StructureSimilarityConfig):
             The steepness of the sigmoid penalty curve. A higher slope results in a
             sharper transition from good to bad scores around the inflection point.
             Default is 3.0.
+
+        pymol_alignment_method (Literal["cealign", "align"]):
+            PyMOL alignment routine to use for RMSD calculation. Default is
+            "cealign".
     """
 
     inflection_point_angstroms: float = ConfigField(
@@ -224,6 +171,11 @@ class StructureRMSDConfig(StructureSimilarityConfig):
         title="Sigmoid Slope",
         default=3.0,
         description="Steepness of the penalty curve.",
+    )
+    pymol_alignment_method: Literal["cealign", "align"] = ConfigField(
+        title="PyMOL Alignment Method",
+        default="cealign",
+        description="PyMOL alignment routine for RMSD calculation.",
     )
 
 
@@ -328,7 +280,7 @@ def _prepare_target_structure(config: StructureSimilarityConfig) -> str | None:
         "boltz2-prediction",
         "chai1-prediction",
         "protenix-prediction",
-        "pymol",
+        "pymol-rmsd-alignment",
     ],
     category="protein_structure",
     supported_sequence_types=["protein", "rna", "dna", "ligand"],
@@ -364,8 +316,14 @@ def structure_rmsd_constraint(
 
     results: list[ConstraintOutput] = []
     for proposal_structure, proposal_tuple in zip(prediction.structures, input_sequences, strict=True):
-        rmsd_data = _compute_ce_aligned_rmsd(target_pdb, proposal_structure.structure_pdb)
-        rmsd_val = rmsd_data["rmsd"]
+        rmsd_output = run_pymol_rmsd_alignment(
+            PyMOLRMSDInput(
+                target_structure=Structure(structure=target_pdb),
+                mobile_structure=Structure(structure=proposal_structure.structure_pdb),
+            ),
+            PyMOLRMSDConfig(method=config.pymol_alignment_method),
+        )
+        rmsd_val = rmsd_output.rmsd
 
         score = sigmoid_score(rmsd_val, config.inflection_point_angstroms, config.sigmoid_slope)
 
@@ -376,6 +334,7 @@ def structure_rmsd_constraint(
                 metadata={
                     "rmsd_val": rmsd_val,
                     "rmsd_score": score,
+                    "rmsd_alignment_method": config.pymol_alignment_method,
                     "pdb_output": proposal_structure.structure_pdb,
                 },
                 structures=(proposal_structure,) + (None,) * (n - 1),
