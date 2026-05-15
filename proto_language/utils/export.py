@@ -17,7 +17,7 @@ from io import StringIO
 from pathlib import Path
 from typing import IO, Any, Literal
 
-from proto_language.utils.helpers import filter_inf_nan
+from proto_language.utils.helpers import make_json_safe
 
 # Type aliases
 Format = Literal["csv", "tsv", "json", "xlsx"]
@@ -92,9 +92,9 @@ def build_results(
                 seg_dict: dict[str, Any] = {
                     "label": segment.label or f"segment_{seg_idx}",
                     "sequence": seq.sequence,
-                    "constraints": filter_inf_nan(copy.deepcopy(seq._constraints_metadata)),
-                    "generators": filter_inf_nan(copy.deepcopy(seq._generator_metadata)),
-                    "metadata": filter_inf_nan(copy.deepcopy(seq._metadata)),
+                    "constraints": make_json_safe(copy.deepcopy(seq._constraints_metadata)),
+                    "generators": make_json_safe(copy.deepcopy(seq._generator_metadata)),
+                    "metadata": make_json_safe(copy.deepcopy(seq._metadata)),
                 }
                 structured_segments.append(seg_dict)
             structured_constructs.append(
@@ -107,7 +107,7 @@ def build_results(
         results.append(
             {
                 "result_idx": result_idx,
-                "energy_score": filter_inf_nan(energy_scores[result_idx]),
+                "energy_score": make_json_safe(energy_scores[result_idx]),
                 "constructs": structured_constructs,
             }
         )
@@ -178,9 +178,9 @@ def build_proposal_results(
                 seg_dict: dict[str, Any] = {
                     "label": segment.label or f"segment_{seg_idx}",
                     "sequence": seq.sequence,
-                    "constraints": filter_inf_nan(copy.deepcopy(seq._constraints_metadata)),
-                    "generators": filter_inf_nan(copy.deepcopy(seq._generator_metadata)),
-                    "metadata": filter_inf_nan(copy.deepcopy(seq._metadata)),
+                    "constraints": make_json_safe(copy.deepcopy(seq._constraints_metadata)),
+                    "generators": make_json_safe(copy.deepcopy(seq._generator_metadata)),
+                    "metadata": make_json_safe(copy.deepcopy(seq._metadata)),
                 }
                 structured_segments.append(seg_dict)
             structured_constructs.append(
@@ -199,7 +199,7 @@ def build_proposal_results(
                 f"energy_scores has {len(energy_scores)} entries but there are {num_proposals} proposals; lengths must match"
             )
         outcome = outcomes[prop_idx]
-        energy = filter_inf_nan(energy_scores[prop_idx]) if energy_scores is not None else None
+        energy = make_json_safe(energy_scores[prop_idx]) if energy_scores is not None else None
         proposal_results.append(
             {
                 "proposal_idx": prop_idx,

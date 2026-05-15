@@ -1442,6 +1442,72 @@ def test_build_results_filters_inf_nan_in_metadata():
     assert seg["metadata"]["np32"] is None
 
 
+def test_build_results_makes_pydantic_generator_metrics_json_safe():
+    """Generator metadata may contain proto-tools Metrics objects and must remain JSON serializable."""
+    import json
+    from types import SimpleNamespace
+
+    from pydantic import BaseModel, ConfigDict
+
+    from proto_language.utils.export import build_proposal_results, build_results
+
+    class Metric(BaseModel):
+        model_config = ConfigDict(extra="allow")
+        logits: list[list[float]] | None = None
+        vocab: list[str] | None = None
+
+    score = Metric(log_likelihood=-100.0, avg_log_likelihood=-1.0, perplexity=2.72)
+    seq = SimpleNamespace(
+        sequence="ACGT",
+        _constraints_metadata={},
+        _generator_metadata={"evo1": {"score": score}},
+        _metadata={},
+    )
+    segment = SimpleNamespace(label="s", result_sequences=[seq], proposal_sequences=[seq])
+    construct = SimpleNamespace(label="c", sequence_type="dna", segments=[segment])
+
+    results = build_results([construct], [0.42])
+    proposals = build_proposal_results([construct], ["accepted"], [0.42])
+
+    score_payload = results["results"][0]["constructs"][0]["segments"][0]["generators"]["evo1"]["score"]
+    assert score_payload == {
+        "logits": None,
+        "vocab": None,
+        "log_likelihood": -100.0,
+        "avg_log_likelihood": -1.0,
+        "perplexity": 2.72,
+    }
+    json.dumps({"stage_result": results, "proposal_results": proposals})
+
+
+def test_build_results_makes_metadata_dict_keys_json_safe():
+    """Non-string metadata keys should not leave exported results unable to encode as JSON."""
+    import json
+    from types import SimpleNamespace
+
+    import numpy as np
+
+    from proto_language.utils.export import build_results
+
+    seq = SimpleNamespace(
+        sequence="ACGT",
+        _constraints_metadata={np.int64(7): {("tuple", np.int64(2)): "constraint"}},
+        _generator_metadata={"evo1": {("score", np.int64(1)): 0.5}},
+        _metadata={np.int64(3): "three", ("window", np.int64(4)): {"value": np.float32(1.5)}},
+    )
+    segment = SimpleNamespace(label="s", result_sequences=[seq])
+    construct = SimpleNamespace(label="c", sequence_type="dna", segments=[segment])
+
+    results = build_results([construct], [0.42])
+
+    segment_payload = results["results"][0]["constructs"][0]["segments"][0]
+    assert segment_payload["constraints"]["7"]['["tuple",2]'] == "constraint"
+    assert segment_payload["generators"]["evo1"]['["score",1]'] == 0.5
+    assert segment_payload["metadata"]["3"] == "three"
+    assert segment_payload["metadata"]['["window",4]']["value"] == 1.5
+    json.dumps(results)
+
+
 # =============================================================================
 # Test build_proposal_results
 # =============================================================================

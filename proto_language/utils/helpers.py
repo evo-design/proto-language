@@ -3,6 +3,7 @@
 calculations used across the proto-language framework.
 """
 
+import json
 import math
 import random
 import subprocess
@@ -10,8 +11,6 @@ from typing import Any
 
 import numpy as np
 import pydantic
-
-from proto_language.language.core.sequence import PROTEIN_AMINO_ACIDS
 
 
 def format_pydantic_error(e: pydantic.ValidationError, prefix: str) -> str:
@@ -36,7 +35,45 @@ def format_pydantic_error(e: pydantic.ValidationError, prefix: str) -> str:
     return f"{prefix} — {'; '.join(parts)}"
 
 
-_PROTEIN_AA_INDEX = {aa: i for i, aa in enumerate(PROTEIN_AMINO_ACIDS)}
+def make_json_safe(obj: Any) -> Any:
+    """Recursively convert metadata to JSON-safe values, replacing NaN/Inf with None."""
+    if isinstance(obj, (float, np.floating)):
+        value = float(obj)
+        return value if math.isfinite(value) else None
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.bool_):
+        return bool(obj)
+    if isinstance(obj, np.ndarray):
+        return make_json_safe(obj.tolist())
+    if isinstance(obj, pydantic.BaseModel):
+        return make_json_safe(obj.model_dump(mode="json"))
+    if isinstance(obj, dict):
+        return {_make_json_safe_dict_key(k): make_json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [make_json_safe(v) for v in obj]
+    if isinstance(obj, tuple):
+        return [make_json_safe(v) for v in obj]
+    if isinstance(obj, (set, frozenset)):
+        return [make_json_safe(v) for v in obj]
+    return obj
+
+
+def _make_json_safe_dict_key(key: Any) -> str:
+    """Convert metadata dict keys to strings that can be encoded as JSON object keys."""
+    if isinstance(key, str):
+        return key
+    safe_key = make_json_safe(key)
+    try:
+        return json.dumps(safe_key, sort_keys=True, separators=(",", ":"))
+    except TypeError:
+        return str(safe_key)
+
+
+def is_plain_int(value: object) -> bool:
+    """Return True for ints while excluding bool, which subclasses int."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
 
 # =============================================================================
 # CONSTRAINT SCORING UTILITIES
@@ -50,24 +87,6 @@ LOG_BASE = 2
 # GC content constants (0-100%)
 MIN_GC_CONTENT = 0.0
 MAX_GC_CONTENT = 100.0
-
-
-def filter_inf_nan(obj: Any) -> Any:
-    """Recursively replace non-finite Python or numpy floats (NaN/Inf) with None."""
-    if isinstance(obj, (float, np.floating)) and not math.isfinite(obj):
-        return None
-    if isinstance(obj, dict):
-        return {k: filter_inf_nan(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [filter_inf_nan(v) for v in obj]
-    if isinstance(obj, tuple):
-        return tuple(filter_inf_nan(v) for v in obj)
-    return obj
-
-
-def is_plain_int(value: object) -> bool:
-    """Return True for ints while excluding bool, which subclasses int."""
-    return isinstance(value, int) and not isinstance(value, bool)
 
 
 def validate_range(value: float, min_val: float, max_val: float, name: str) -> None:
@@ -170,11 +189,14 @@ def one_hot_protein_matrix(sequence: str) -> list[list[float]]:
     Returns:
         list[list[float]]: One-hot matrix with shape ``(len(sequence), 20)``.
     """
+    from proto_language.language.core.sequence import PROTEIN_AMINO_ACIDS
+
+    aa_index = {aa: i for i, aa in enumerate(PROTEIN_AMINO_ACIDS)}
     n = len(PROTEIN_AMINO_ACIDS)
     rows: list[list[float]] = []
     for aa in sequence:
         row = [0.0] * n
-        row[_PROTEIN_AA_INDEX[aa]] = 1.0
+        row[aa_index[aa]] = 1.0
         rows.append(row)
     return rows
 
