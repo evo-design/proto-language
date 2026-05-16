@@ -108,6 +108,7 @@ class RandomNucleotideGenerator(Generator):
     """
 
     input_type = GeneratorInputType.STARTING_SEQUENCE
+    allows_empty_starting_sequence = True
 
     def __init__(self, config: RandomNucleotideGeneratorConfig) -> None:
         """Initialize the random nucleotide generator.

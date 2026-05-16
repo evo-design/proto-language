@@ -311,7 +311,8 @@ class Program:
         """Walk optimizer stages in order; raise if any generator's declared input is unavailable at runtime.
 
         Per-``input_type`` checks:
-            - ``STARTING_SEQUENCE``: target segment must already be populated (initial input or prior-stage output).
+            - ``STARTING_SEQUENCE``: target segment must already be populated (initial input or prior-stage output),
+              unless the generator declares it can initialize a length-only target.
             - ``PROMPT``: ``generator.config.prompts`` must be non-empty, unless the stage supplies prompts at
               runtime (``CyclingOptimizer`` via pipeline/conditioning_fn; ``BeamSearchOptimizer`` via ``config.prompt``).
             - ``STRUCTURE``: ``generator.config.structure_inputs`` must be non-empty, or the stage must be a
@@ -372,7 +373,11 @@ class Program:
                 primary_label = primary.label or "unlabeled"
 
                 # (3) STARTING_SEQUENCE: mutation generators need a sequence to mutate on the primary segment.
-                if kind == GeneratorInputType.STARTING_SEQUENCE and id(primary) not in populated_segments:
+                if (
+                    kind == GeneratorInputType.STARTING_SEQUENCE
+                    and id(primary) not in populated_segments
+                    and not generator.allows_empty_starting_sequence
+                ):
                     raise ValueError(
                         f"Stage {stage_idx} mutation generator {generator.__class__.__name__} "
                         f"targets segment {primary_label!r} but no starting sequence is available. "

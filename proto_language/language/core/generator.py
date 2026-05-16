@@ -41,11 +41,13 @@ class Generator(ABC):
     Attributes:
         batch_size (int): Number of sequences to generate per batch.
         input_type (GeneratorInputType): Required classvar; the kind of starting input the generator consumes.
+        allows_empty_starting_sequence (bool): Whether the generator can initialize a length-only target segment.
     """
 
     batch_size: int = 1  # GPU generators override
 
     input_type: ClassVar[GeneratorInputType]
+    allows_empty_starting_sequence: ClassVar[bool] = False
 
     @abstractmethod
     def __init__(self) -> None:

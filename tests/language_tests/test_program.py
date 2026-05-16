@@ -27,6 +27,8 @@ from proto_language.language.generator import (
     ProteinMPNNGeneratorConfig,
     RandomNucleotideGenerator,
     RandomNucleotideGeneratorConfig,
+    RandomProteinGenerator,
+    RandomProteinGeneratorConfig,
     SemigreedyMutationGenerator,
     SemigreedyMutationGeneratorConfig,
 )
@@ -785,14 +787,44 @@ class TestProgramGeneratorInputs:
 
     # STARTING_SEQUENCE (mutation) -------------------------------------------
 
-    def test_starting_sequence_length_only_raises(self):
+    def test_random_nucleotide_starting_sequence_length_only_runs(self):
         seg = Segment(length=8, sequence_type="dna")
         gen = RandomNucleotideGenerator(
             RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
         )
         gen.assign(seg)
+        program = Program(
+            optimizers=[_rejection(Construct([seg]), [gen], [_gc(seg)])],
+            num_results=2,
+            compute=nullcontext(),
+            seed=1,
+        )
+        program.run()
+
+        assert all(seq.sequence for seq in seg.result_sequences)
+        assert all(len(seq.sequence) == 8 for seq in seg.result_sequences)
+
+    def test_random_protein_starting_sequence_length_only_runs(self):
+        seg = Segment(length=8, sequence_type="protein")
+        gen = RandomProteinGenerator(RandomProteinGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1)))
+        gen.assign(seg)
+        program = Program(
+            optimizers=[_rejection(Construct([seg]), [gen], [_protein_constraint(seg)])],
+            num_results=2,
+            compute=nullcontext(),
+            seed=1,
+        )
+        program.run()
+
+        assert all(seq.sequence for seq in seg.result_sequences)
+        assert all(len(seq.sequence) == 8 for seq in seg.result_sequences)
+
+    def test_non_random_starting_sequence_length_only_raises(self):
+        seg = Segment(length=8, sequence_type="protein")
+        gen = SemigreedyMutationGenerator(SemigreedyMutationGeneratorConfig(clear_logits=True))
+        gen.assign(seg)
         with pytest.raises(ValueError, match="no starting sequence is available"):
-            Program(optimizers=[_rejection(Construct([seg]), [gen], [_gc(seg)])], num_results=2)
+            Program(optimizers=[_rejection(Construct([seg]), [gen], [_protein_constraint(seg)])], num_results=2)
 
     def test_starting_sequence_tied_secondary_length_only_ok(self):
         """Tied segments are mirrored from the primary; secondary tied segments need no starting sequence."""

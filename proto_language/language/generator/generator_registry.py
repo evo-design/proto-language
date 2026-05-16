@@ -38,6 +38,8 @@ class GeneratorSpec(BaseSpec):
         input_type (GeneratorInputType): Typed declaration of what kind of starting input
             this generator consumes (``prompt`` / ``starting_sequence`` / ``structure`` /
             ``logits``).
+        allows_empty_starting_sequence (bool): Whether a starting-sequence generator
+            can initialize a length-only target segment itself.
         tools_called (list[str]): List of external tool keys this generator invokes.
         supported_sequence_types (list[str]): Sequence types this generator can produce (e.g. 'protein', 'dna').
         generator_class (type[Generator]): Generator subclass implementing the generation logic.
@@ -54,6 +56,10 @@ class GeneratorSpec(BaseSpec):
             "Typed declaration of what kind of starting input this generator consumes: 'prompt', "
             "'starting_sequence', 'structure', or 'logits'."
         )
+    )
+    allows_empty_starting_sequence: bool = Field(
+        default=False,
+        description="Whether this generator can initialize a length-only target segment with no starting sequence.",
     )
     tools_called: list[str] = Field(
         description="List of tool keys this generator calls. Helps agent find relevant tool documentation."
@@ -188,6 +194,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
                 generator_class=generator_class,
                 category=INPUT_TYPE_TO_CATEGORY[input_type],
                 input_type=input_type,
+                allows_empty_starting_sequence=generator_class.allows_empty_starting_sequence,
                 uses_gpu=uses_gpu,
                 tools_called=tools_called,
                 supported_sequence_types=supported_sequence_types,

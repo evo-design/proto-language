@@ -350,8 +350,23 @@ class TestGeneratorRegistry:
 
         for spec in all_specs:
             assert isinstance(spec, GeneratorSpec)
-            for attr in ("key", "label", "description", "category", "uses_gpu", "supported_sequence_types"):
+            for attr in (
+                "key",
+                "label",
+                "description",
+                "category",
+                "input_type",
+                "allows_empty_starting_sequence",
+                "uses_gpu",
+                "supported_sequence_types",
+            ):
                 assert hasattr(spec, attr)
+
+    def test_random_generator_specs_allow_empty_starting_sequence(self):
+        """Only random generators advertise length-only starting-sequence initialization."""
+        assert GeneratorRegistry.get("random-nucleotide").allows_empty_starting_sequence
+        assert GeneratorRegistry.get("random-protein").allows_empty_starting_sequence
+        assert not GeneratorRegistry.get("semigreedy-mutation").allows_empty_starting_sequence
 
     def test_register_rejects_missing_input_type(self):
         """Decorator must reject classes that omit ``input_type``."""

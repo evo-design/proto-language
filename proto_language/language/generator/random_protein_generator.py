@@ -114,6 +114,7 @@ class RandomProteinGenerator(Generator):
     """
 
     input_type = GeneratorInputType.STARTING_SEQUENCE
+    allows_empty_starting_sequence = True
 
     def __init__(self, config: RandomProteinGeneratorConfig) -> None:
         """Initialize the random protein generator.
