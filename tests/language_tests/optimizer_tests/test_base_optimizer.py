@@ -723,7 +723,7 @@ class TestFilterConstraints:
             verbose=True,
         )
 
-        with caplog.at_level(logging.INFO, logger="proto_language.language.core.optimizer"):
+        with caplog.at_level(logging.DEBUG, logger="proto_language.language.core.optimizer"):
             optimizer.score_energy()
 
         # Proposal 0 passed both filters

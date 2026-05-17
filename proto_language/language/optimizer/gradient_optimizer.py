@@ -582,6 +582,17 @@ class GradientOptimizer(Optimizer):
         self._ml_optimizer.reset()
         assert self.num_results is not None  # noqa: S101 -- mypy type narrowing
         assert self.num_proposals is not None  # noqa: S101 -- mypy type narrowing
+
+        n_filter = sum(1 for c in self.constraints if c.threshold is not None)
+        n_score = len(self.constraints) - n_filter
+        logger.info(
+            f"GradientOptimizer: {self.num_results} trajectories, {self.config.num_steps} steps, "
+            f"soft {self.config.soft_start}->{self.config.soft_end}, "
+            f"hard {self.config.hard_start}->{self.config.hard_end}, "
+            f"temp {self.config.temperature_start}->{self.config.temperature_end}, "
+            f"{len(self.constraints)} constraints ({n_filter} filter, {n_score} scoring)"
+        )
+
         target = self.target_segment
 
         vocab = target.ordered_vocab()
@@ -628,14 +639,6 @@ class GradientOptimizer(Optimizer):
         if self.config.save_best:
             best_energies = list(self.energy_scores)
             best_proposals = [copy.deepcopy(self.target_segment.proposal_sequences[k]) for k in range(self.num_results)]
-
-        if self.verbose:
-            logger.info(
-                f"GradientOptimizer: {self.num_results} trajectories, {self.config.num_steps} steps, "
-                f"soft {self.config.soft_start}→{self.config.soft_end}, "
-                f"hard {self.config.hard_start}→{self.config.hard_end}, "
-                f"temp {self.config.temperature_start}→{self.config.temperature_end}"
-            )
 
         for step in range(1, self.config.num_steps + 1):
             # 1. Compute soft and temperature from linear/scheduled interpolation
@@ -711,14 +714,15 @@ class GradientOptimizer(Optimizer):
     # =============================================================================
 
     def _log_progress(self, step: int, temperature: float, lr: float) -> None:
-        """Log optimization progress at tracked steps."""
-        if self.verbose:
-            best = min(self.energy_scores)
-            mean = float(np.mean(self.energy_scores))
-            logger.info(
-                f"Step {step:4d}/{self.config.num_steps} | "
-                f"T={temperature:.4f} | lr={lr:.6f} | best={best:.6f} | mean={mean:.6f}"
-            )
+        """Log optimization progress as a multi-line INFO block."""
+        logger.info(f"Step {step}/{self.config.num_steps}")
+        filter_summary = self._format_filter_summary()
+        if filter_summary is not None:
+            logger.info(f"  filters: {filter_summary}")
+        for line in self._format_scoring_lines():
+            logger.info(f"  {line}")
+        logger.info(f"  energy:  {self._format_energy_summary()}")
+        logger.info(f"  T={temperature:.4f} lr={lr:.6f}")
 
         if self.custom_logging:
             self.custom_logging(step, self.segments)

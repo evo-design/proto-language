@@ -238,6 +238,17 @@ class MCMCOptimizer(Optimizer):
         assert self.num_results is not None  # noqa: S101 -- mypy type narrowing
         assert self.num_proposals is not None  # noqa: S101 -- mypy type narrowing
 
+        n_filter = sum(1 for c in self.constraints if c.threshold is not None)
+        n_score = len(self.constraints) - n_filter
+        t0 = self._temperature_schedule(0, self.num_steps)
+        tN = self._temperature_schedule(self.num_steps, self.num_steps)
+        logger.info(
+            f"MCMCOptimizer: {self.num_steps} steps, "
+            f"{self.num_results} trajectories x {self._proposals_per_result} proposals "
+            f"= {self.num_proposals}/step, temp {t0:.2f}->{tN:.2f}, "
+            f"{len(self.constraints)} constraints ({n_filter} filter, {n_score} scoring)"
+        )
+
         # all(): score only when every design segment is ready. any() let scoring
         # run on empty design segments paired with a fixed target.
         if all(seq.sequence for segment in self.segments for seq in segment.proposal_sequences):
@@ -247,11 +258,7 @@ class MCMCOptimizer(Optimizer):
 
         # Truncate to num_results for initial snapshot (score_energy sets to num_proposals)
         self.energy_scores = self.energy_scores[: self.num_results]
-
-        if self.verbose:
-            logger.info("MCMC initialization:")
-            logger.info(f"  num_results={self.num_results}, proposals_per_result={self._proposals_per_result}")
-            logger.info(f"  Initial energy: {self.energy_scores[0]:.4f}")
+        logger.debug(f"MCMCOptimizer initial energy: {self.energy_scores[0]:.4f}")
 
         # Track initial state
         self._save_progress_snapshot(
@@ -446,26 +453,17 @@ class MCMCOptimizer(Optimizer):
         return float(min(1.0, np.exp(log_acceptance_ratio)))
 
     def _log_mcmc_progress(self, step: int) -> None:
-        """Log optimization progress."""
-        if self.verbose:
-            best_energy = min(self.energy_scores)
-            mean_energy = np.mean(self.energy_scores)
-            worst_energy = max(self.energy_scores)
-            std_energy = np.std(self.energy_scores) if len(self.energy_scores) > 1 else 0.0
-            current_temp = self._temperature_schedule(step, self.num_steps)
-
-            # Format output based on num_results
-            if self.num_results == 1:
-                logger.info(f"Iteration {step:4d} | energy: {best_energy:.6f}, T: {current_temp:.4f}")
-            else:
-                logger.info(
-                    f"Iteration {step:4d} | "
-                    f"best: {best_energy:.6f}, "
-                    f"mean: {mean_energy:.6f}, "
-                    f"worst: {worst_energy:.6f}, "
-                    f"std: {std_energy:.6f}, "
-                    f"T: {current_temp:.4f}"
-                )
+        """Log optimization progress as a multi-line INFO block."""
+        logger.info(f"Iteration {step}/{self.num_steps}")
+        filter_summary = self._format_filter_summary()
+        if filter_summary is not None:
+            logger.info(f"  filters: {filter_summary}")
+        for line in self._format_scoring_lines():
+            logger.info(f"  {line}")
+        logger.info(f"  energy:  {self._format_energy_summary()}")
+        accepted = self._proposal_outcomes.count("accepted")
+        current_temp = self._temperature_schedule(step, self.num_steps)
+        logger.info(f"  accepted {accepted}/{self.num_proposals} proposals, T={current_temp:.4f}")
 
         if self.custom_logging:
             self.custom_logging(step, self.segments)

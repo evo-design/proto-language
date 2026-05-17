@@ -352,8 +352,18 @@ class BeamSearchOptimizer(Optimizer):
         # BeamSearch starts from empty prompt; no meaningful initial snapshot
         self.energy_scores = [float("inf")] * self.num_results
 
-        if self.verbose:
-            self._log_run_start()
+        n_filter = sum(1 for c in self.constraints if c.threshold is not None)
+        n_score = len(self.constraints) - n_filter
+        logger.info(
+            f"BeamSearchOptimizer: {self.num_beams} beams x {self.beam_length} tokens, "
+            f"width={self.num_results}, target_length={self.target_segment.sequence_length}, "
+            f"score_by={self.score_by!r}, "
+            f"{len(self.constraints)} constraints ({n_filter} filter, {n_score} scoring)"
+        )
+        logger.debug(
+            f"BeamSearchOptimizer kv_caching={'enabled' if self.use_kv_caching else 'disabled'}, "
+            f"proposals_per_beam={self._proposals_per_result}"
+        )
 
         tokens_generated = 0
         for beam_num in range(1, self.num_beams + 1):
@@ -391,7 +401,7 @@ class BeamSearchOptimizer(Optimizer):
                         "accepted_max_energy": max(accepted_energies) if accepted_energies else None,
                     },
                 )
-                self._log_beamsearch_progress(beam_num, beam_tokens)
+                self._log_beamsearch_progress(beam_num, beam_tokens, tokens_generated + beam_tokens)
 
             tokens_generated += beam_tokens
 
@@ -687,19 +697,25 @@ class BeamSearchOptimizer(Optimizer):
     # LOGGING #
     ###########
 
-    def _log_beamsearch_progress(self, beam_num: int, beam_tokens: int) -> None:
-        """Log progress information for a beam during beam search."""
-        if self.verbose:
-            logger.info(f"Beam {beam_num}/{self.num_beams} ({beam_tokens} tokens)")
-            logger.debug(f"Completed beam {beam_num}/{self.num_beams}")
-            logger.debug(f"Top {self.num_results} beams by {self.score_by} score:")
+    def _log_beamsearch_progress(self, beam_num: int, beam_tokens: int, tokens_generated: int) -> None:
+        """Log beam progress as a multi-line INFO block."""
+        logger.info(f"Beam {beam_num}/{self.num_beams} ({beam_tokens} tokens)")
+        filter_summary = self._format_filter_summary()
+        if filter_summary is not None:
+            logger.info(f"  filters: {filter_summary}")
+        for line in self._format_scoring_lines():
+            logger.info(f"  {line}")
+        logger.info(f"  energy:  {self._format_energy_summary()}")
+        logger.info(f"  tokens_done={tokens_generated}/{self.target_segment.sequence_length}")
 
-            for i, beam in enumerate(self.beams):
-                agg_score = self._get_aggregated_score(beam)
-                last_score = beam.beam_scores[-1] if beam.beam_scores else float("inf")
-                logger.debug(
-                    f"  [{i}] agg={agg_score:.4f}, last={last_score:.4f}, len={len(beam.running_sequence)}: '{beam.running_sequence}'"
-                )
+        logger.debug(f"Top {self.num_results} beams by {self.score_by} score:")
+        for i, beam in enumerate(self.beams):
+            agg_score = self._get_aggregated_score(beam)
+            last_score = beam.beam_scores[-1] if beam.beam_scores else float("inf")
+            logger.debug(
+                f"  [{i}] agg={agg_score:.4f}, last={last_score:.4f}, "
+                f"len={len(beam.running_sequence)}: '{beam.running_sequence}'"
+            )
 
         if self.custom_logging:
             self.custom_logging(beam_num, self.segments)
@@ -716,11 +732,3 @@ class BeamSearchOptimizer(Optimizer):
             logger.debug("  Cache: present")
         else:
             logger.debug("  Cache: None (first beam, will build cache)")
-
-    def _log_run_start(self) -> None:
-        """Log beam search configuration at the start of run()."""
-        logger.debug(f"Processing segment with {self.num_beams} beams (beam_length={self.beam_length})")
-        logger.debug(f"Total tokens to generate: {self.target_segment.sequence_length}")
-        logger.debug(f"Beam width: {self.num_results}, Proposals per beam: {self._proposals_per_result}")
-        logger.debug(f"Score by: {self.score_by}")
-        logger.debug(f"KV caching: {'enabled' if self.use_kv_caching else 'disabled'}")

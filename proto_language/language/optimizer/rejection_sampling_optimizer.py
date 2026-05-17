@@ -400,6 +400,15 @@ class RejectionSamplingOptimizer(Optimizer):
                 "Cannot keep more sequences than generated."
             )
 
+        n_filter = sum(1 for c in self.constraints if c.threshold is not None)
+        n_score = len(self.constraints) - n_filter
+        mode_str = f"threshold={self.energy_threshold:.4f}" if self.energy_threshold is not None else "standard mode"
+        logger.info(
+            f"RejectionSamplingOptimizer: up to {self.num_samples} samples, "
+            f"batch={self.proposal_batch_size}, {mode_str}, "
+            f"{len(self.constraints)} constraints ({n_filter} filter, {n_score} scoring)"
+        )
+
         # Starts empty (builds results dynamically); no initial snapshot
 
         proposals_generated = 0
@@ -426,10 +435,10 @@ class RejectionSamplingOptimizer(Optimizer):
                 and self._result_energies[-1] < self.energy_threshold
             ):
                 threshold_met = True
-                if self.verbose:
-                    logger.info(
-                        f"Threshold met! Worst in top-{self.num_results}: {self._result_energies[-1]:.6f} < {self.energy_threshold:.6f}"
-                    )
+                logger.info(
+                    f"Threshold met! Worst in top-{self.num_results}: "
+                    f"{self._result_energies[-1]:.6f} < {self.energy_threshold:.6f}"
+                )
                 if self._last_saved_proposal_number != proposals_generated:
                     self._save_proposal_snapshot(proposals_generated, batch_num, batch_size - 1)
                 break
@@ -501,24 +510,27 @@ class RejectionSamplingOptimizer(Optimizer):
         self._log_proposal_progress(proposal_number)
 
     def _log_proposal_progress(self, proposal_number: int) -> None:
-        """Log proposal progress."""
-        if self.verbose:
-            num_results = len(self._result_energies)
-            if num_results > 0:
-                best_energy = self._result_energies[0]
-                worst_energy = self._result_energies[-1]
-                progress_pct = (proposal_number / self.num_samples) * 100
-                logger.info(
-                    f"Proposal {proposal_number}/{self.num_samples} ({progress_pct:.0f}%): {num_results}/{self.num_results} in results, best={best_energy:.4f}, worst={worst_energy:.4f}"
-                )
+        """Log proposal progress as a multi-line INFO block."""
+        progress_pct = (proposal_number / self.num_samples) * 100
+        logger.info(f"Proposal {proposal_number}/{self.num_samples} ({progress_pct:.0f}%)")
+        filter_summary = self._format_filter_summary()
+        if filter_summary is not None:
+            logger.info(f"  filters: {filter_summary}")
+        for line in self._format_scoring_lines():
+            logger.info(f"  {line}")
+        if self._result_energies:
+            best = self._result_energies[0]
+            worst = self._result_energies[-1]
+            logger.info(f"  energy:  best={best:.4f} worst={worst:.4f}")
+        else:
+            logger.info("  energy:  n/a (no accepted proposals)")
+        logger.info(f"  results {len(self._result_energies)}/{self.num_results}")
 
         if self.custom_logging:
             self.custom_logging(proposal_number, self.segments)
 
     def _log_optimization_summary(self, threshold_mode: bool, threshold_met: bool, proposals_generated: int) -> None:
-        """Log optimization statistics and results."""
-        if not self.verbose:
-            return
+        """Log optimization statistics and results at DEBUG."""
         mode_str = "threshold" if threshold_mode else "standard"
         logger.debug(f"Optimization complete ({mode_str} mode):")
         logger.debug(f"  Total samples generated: {proposals_generated}")

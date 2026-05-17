@@ -12,6 +12,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal
 
+import numpy as np
 import pandas as pd
 from numpy.random import SeedSequence
 from proto_tools.utils.tool_cache import ToolCache, _program_tool_cache
@@ -131,6 +132,10 @@ class Optimizer(ABC):
         self._proposal_outcomes: list[str] = []
         self._proposal_energy_scores: list[float] = []
 
+        # Per-constraint snapshots from the most recent score_energy() call, used by progress logs
+        self._last_filter_pass_counts: dict[str, tuple[int, int]] = {}
+        self._last_constraint_scores: dict[str, list[float]] = {}
+
         # Default value for progress tracking (can be overridden by subclasses)
         self.num_steps: int = 1
 
@@ -215,19 +220,21 @@ class Optimizer(ABC):
         filters = [c for c in self.constraints if c.threshold is not None]
         scorers = [c for c in self.constraints if c.threshold is None]
 
-        if self.verbose:
-            op = "Σ" if operation == "add" else "Π"
-            logger.info(
-                f"Energy Scoring: {len(filters)} filters, {len(scorers)} scoring | "
-                f"Formula: energy = {op}(weight_i x constraint_score_i)"
-            )
+        op = "Σ" if operation == "add" else "Π"
+        logger.debug(
+            f"Energy Scoring: {len(filters)} filters, {len(scorers)} scoring | "
+            f"Formula: energy = {op}(weight_i x constraint_score_i)"
+        )
 
         # Pass 1: Evaluate filter constraints first to skip expensive scoring on rejected proposals.
         self._proposal_outcomes = ["accepted"] * num_sequences
+        self._last_filter_pass_counts = {}
         for idx, constraint in enumerate(filters):
-            if self.verbose:
-                logger.info(f"Filter {idx + 1}: {constraint.label}")
+            logger.debug(f"Filter {idx + 1}: {constraint.label}")
+            n_evaluated = sum(passed)
             results = constraint.evaluate(mask=passed, verbose=self.verbose)
+            n_passed = sum(1 for p, r in zip(passed, results, strict=True) if p and r)
+            self._last_filter_pass_counts[constraint.label] = (n_passed, n_evaluated)
             for i, (p, r) in enumerate(zip(passed, results, strict=True)):
                 if p and not r:
                     self._proposal_outcomes[i] = constraint.label
@@ -239,21 +246,27 @@ class Optimizer(ABC):
             # AF2 multimer terms over the same proposal become one weighted model call.
             from proto_language.language.optimizer.constraint_compiler import evaluate_scoring_constraints
 
-            if self.verbose:
-                for idx, constraint in enumerate(scorers):
-                    logger.info(f"Constraint {idx + 1}: {constraint.label}")
+            for idx, constraint in enumerate(scorers):
+                logger.debug(f"Constraint {idx + 1}: {constraint.label}")
             all_scores = evaluate_scoring_constraints(scorers, mask=passed, verbose=self.verbose)
         else:
             all_scores = []
             for idx, constraint in enumerate(scorers):
-                if self.verbose:
-                    logger.info(f"Constraint {idx + 1}: {constraint.label}")
+                logger.debug(f"Constraint {idx + 1}: {constraint.label}")
                 scores: list[float] = []
                 for score in constraint.evaluate(mask=passed, verbose=self.verbose):
                     if isinstance(score, bool):
                         raise TypeError(f"Scoring constraint '{constraint.label}' returned boolean score {score!r}.")
                     scores.append(float(score))
                 all_scores.append(scores)
+
+        # Compiler may group scorers into fewer scoring units (e.g. AF2 multimer terms),
+        # so per-constraint mapping only works in the 1:1 case.
+        self._last_constraint_scores = (
+            {scorer.label: scores for scorer, scores in zip(scorers, all_scores, strict=True)}
+            if len(all_scores) == len(scorers)
+            else {}
+        )
 
         # Warn if no scoring constraints exist (all are filters)
         if not all_scores:
@@ -287,19 +300,60 @@ class Optimizer(ABC):
             for i, score in enumerate(self.energy_scores)
         ]
 
-        if self.verbose:
-            logger.info("Final Energy Scores:")
-            for i, score in enumerate(self.energy_scores):
-                outcome = self._proposal_outcomes[i]
-                if outcome == "accepted":
-                    logger.info(f"  Proposal {i}: {score:.4f} [ACCEPTED]")
-                else:
-                    logger.info(f"  Proposal {i}: {score:.4f} [REJECTED by {outcome}]")
+        logger.debug("Final Energy Scores:")
+        for i, score in enumerate(self.energy_scores):
+            outcome = self._proposal_outcomes[i]
+            if outcome == "accepted":
+                logger.debug(f"  Proposal {i}: {score:.4f} [ACCEPTED]")
+            else:
+                logger.debug(f"  Proposal {i}: {score:.4f} [REJECTED by {outcome}]")
 
         # Snapshot proposal energies before optimizers truncate/swap energy_scores
         self._proposal_energy_scores = list(self.energy_scores)
 
         self._clear_tool_cache()
+
+    def _format_filter_summary(self) -> str | None:
+        """Format filter pass/fail summary from the last score_energy call."""
+        if not self._last_filter_pass_counts:
+            return None
+        total_passed = sum(p for p, _ in self._last_filter_pass_counts.values())
+        total_evaluated = self.num_proposals or 0
+        rejections = [
+            f"{label} x{evaluated - passed}"
+            for label, (passed, evaluated) in self._last_filter_pass_counts.items()
+            if evaluated > passed
+        ]
+        rej_str = f" (rejected: {', '.join(rejections)})" if rejections else ""
+        return f"{total_passed}/{total_evaluated}{rej_str}"
+
+    def _format_scoring_lines(self) -> list[str]:
+        """Per-constraint mean weighted contribution to energy + % share, one line each."""
+        if not self._last_constraint_scores:
+            return []
+        weights = {c.label: c.weight for c in self.constraints if c.threshold is None}
+        contribs: list[tuple[str, float]] = []
+        for label, scores in self._last_constraint_scores.items():
+            finite = [s for s in scores if math.isfinite(s)]
+            if finite:
+                contribs.append((label, weights.get(label, 1.0) * float(np.mean(finite))))
+        if not contribs:
+            return []
+        total = sum(abs(c) for _, c in contribs)
+        width = max(len(label) for label, _ in contribs)
+        lines = ["scoring (mean weighted contribution):"]
+        for label, contrib in sorted(contribs, key=lambda x: -abs(x[1])):
+            pct = (abs(contrib) / total * 100) if total > 0 else 0.0
+            lines.append(f"  {label:<{width}}  {contrib:>8.4f}  {pct:>4.1f}%")
+        return lines
+
+    def _format_energy_summary(self) -> str:
+        """Format aggregate energy stats from the current energy_scores."""
+        finite = [s for s in self.energy_scores if math.isfinite(s)]
+        if not finite:
+            return "n/a (no accepted proposals)"
+        std = float(np.std(finite)) if len(finite) > 1 else 0.0
+        return f"best={min(finite):.4f} mean={float(np.mean(finite)):.4f} worst={max(finite):.4f} std={std:.4f}"
 
     def _clear_tool_cache(self) -> None:
         """Clear tool cache based on configuration.

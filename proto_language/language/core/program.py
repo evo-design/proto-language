@@ -1,6 +1,8 @@
 """proto_language/language/core/program.py."""
 
 import logging
+import math
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -417,9 +419,9 @@ class Program:
             for opt in self.optimizers[1:]:
                 opt._initial_state = None
 
-        # Run all stages sequentially
-        logger.debug(f"Program.run: starting {len(self.optimizers)} optimization stages")
-        with self._enter_compute():
+        seed_str = f", seed={self.seed}" if self.seed is not None else ""
+        logger.info(f"Running program: {len(self.optimizers)} stage(s), num_results={self.num_results}{seed_str}")
+        with self._enter_compute(), self._log_duration("Program"):
             for optimizer_stage_idx in range(len(self.optimizers)):
                 self.run_stage(optimizer_stage_idx)
 
@@ -463,18 +465,25 @@ class Program:
                     opt._initial_state = None
 
             optimizer = self.optimizers[stage_index]
-            logger.debug(f"Program.run_stage: stage={stage_index}, optimizer={optimizer.__class__.__name__}")
+            stage_label = f"Stage {stage_index + 1}/{len(self.optimizers)}"
+            logger.info(f"{stage_label}: {optimizer.__class__.__name__}")
             optimizer._initialize_sequence_pools()
 
             # Clear stale constraint metadata from previous stages
             self._clear_sequence_metadata()
 
+            stage_start = time.perf_counter()
             optimizer.run()
+            stage_elapsed = time.perf_counter() - stage_start
 
             stage_result = self.extract_results(optimizer.energy_scores)
 
             if self.verbose:
                 self._log_stage_results(stage_index, stage_result["results"])
+
+            finite = [s for s in optimizer.energy_scores if math.isfinite(s)]
+            best_str = f"best_energy={min(finite):.4f}" if finite else "no proposals accepted"
+            logger.info(f"{stage_label} complete in {stage_elapsed:.1f}s, {best_str}")
 
             self._stage_results.append(stage_result)
             self.current_stage = stage_index + 1
@@ -493,6 +502,13 @@ class Program:
         else:
             with self.compute:
                 yield
+
+    @contextmanager
+    def _log_duration(self, label: str) -> Iterator[None]:
+        """Log elapsed wall time as INFO on context exit."""
+        start = time.perf_counter()
+        yield
+        logger.info(f"{label} complete in {time.perf_counter() - start:.1f}s")
 
     def get_stage_results(self, stage_index: int) -> dict[str, Any]:
         """Get results from a specific optimization stage."""

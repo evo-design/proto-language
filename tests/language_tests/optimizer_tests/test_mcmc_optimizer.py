@@ -556,68 +556,6 @@ class TestMCMCOptimizer:
         actual_steps = [call["step"] for call in log_calls]
         assert actual_steps == expected_steps
 
-    def test_verbose_output_formats(self, caplog):
-        """Test logging output for num_trajectories=1 vs >1."""
-        import logging
-
-        seq_length = 15
-
-        # Test num_trajectories=1 (should show "energy:")
-        proposal_gen1 = RandomNucleotideGenerator(
-            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
-        )
-        segment1 = Segment(sequence="A" * seq_length, sequence_type="dna")
-        proposal_gen1.assign(segment1)
-        construct1 = Construct([segment1])
-        constraint1 = Constraint(
-            inputs=[segment1],
-            function=gc_content_constraint,
-            function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
-        )
-
-        optimizer1 = MCMCOptimizer(
-            constructs=[construct1],
-            generators=[proposal_gen1],
-            constraints=[constraint1],
-            config=MCMCOptimizerConfig(num_results=1, num_steps=3, verbose=True),
-        )
-
-        with caplog.at_level(logging.DEBUG):
-            optimizer1.run()
-
-        output1 = caplog.text
-        assert "energy:" in output1
-        assert "best:" not in output1
-
-        caplog.clear()
-
-        # Test num_trajectories>1 (should show "best:", "mean:", etc.)
-        proposal_gen2 = RandomNucleotideGenerator(
-            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
-        )
-        segment2 = Segment(sequence="A" * seq_length, sequence_type="dna")
-        proposal_gen2.assign(segment2)
-        construct2 = Construct([segment2])
-        constraint2 = Constraint(
-            inputs=[segment2],
-            function=gc_content_constraint,
-            function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
-        )
-
-        optimizer2 = MCMCOptimizer(
-            constructs=[construct2],
-            generators=[proposal_gen2],
-            constraints=[constraint2],
-            config=MCMCOptimizerConfig(num_results=3, num_steps=3, verbose=True),
-        )
-
-        with caplog.at_level(logging.DEBUG):
-            optimizer2.run()
-
-        output2 = caplog.text
-        assert "best:" in output2
-        assert "mean:" in output2
-
     def test_deepcopy_independence(self):
         """Tests that deepcopy ensures independent Sequence objects."""
         num_trajectories = 2

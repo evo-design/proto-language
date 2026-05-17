@@ -343,8 +343,11 @@ class CyclingOptimizer(Optimizer):
         """Execute the cycling optimization loop."""
         self._prepare_run()
 
-        if self.verbose:
-            logger.info(f"CyclingOptimizer: {self.num_steps} steps, {self.num_proposals} proposals")
+        logger.info(
+            f"CyclingOptimizer: {self.num_steps} steps, {self.num_proposals} proposals, "
+            f"pipeline={self.pipeline!r}, "
+            f"{len(self.constraints)} constraints (filter only)"
+        )
 
         self._save_progress_snapshot(
             time_step=0,
@@ -429,12 +432,16 @@ class CyclingOptimizer(Optimizer):
                 )
 
     def _log_step_progress(self, step: int) -> None:
-        """Log step progress."""
-        if self.verbose:
-            num_accepted = self._proposal_outcomes.count("accepted")
-            first_seq = self.target_segment.result_sequences[0].sequence
-            logger.info(f"Step {step}/{self.num_steps}")
-            logger.info(f"  Accepted: {num_accepted}/{self.num_proposals}")
-            logger.info(f"  First seq: {first_seq}")
+        """Log step progress as a multi-line INFO block."""
+        logger.info(f"Step {step}/{self.num_steps}")
+        filter_summary = self._format_filter_summary()
+        if filter_summary is not None:
+            logger.info(f"  filters: {filter_summary}")
+        for line in self._format_scoring_lines():
+            logger.info(f"  {line}")
+        logger.info(f"  energy:  {self._format_energy_summary()}")
+        num_accepted = self._proposal_outcomes.count("accepted")
+        logger.info(f"  accepted {num_accepted}/{self.num_proposals} proposals")
+        logger.debug(f"  original_seq[0]: {self.target_segment.result_sequences[0].sequence}")
         if self.custom_logging:
             self.custom_logging(step, self.segments)

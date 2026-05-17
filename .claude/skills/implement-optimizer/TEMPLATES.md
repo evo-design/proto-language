@@ -216,6 +216,16 @@ class MyOptimizer(Optimizer):
         """Execute the optimization loop."""
         self._prepare_run()
 
+        # Always-on INFO startup line summarizing optimizer config.
+        # Customize content per optimizer (steps, key knobs, constraint counts).
+        n_filter = sum(1 for c in self.constraints if c.threshold is not None)
+        n_score = len(self.constraints) - n_filter
+        logger.info(
+            f"{self.__class__.__name__}: {self.num_steps} steps, "
+            f"{self.num_proposals} proposals/step, "
+            f"{len(self.constraints)} constraints ({n_filter} filter, {n_score} scoring)"
+        )
+
         # Initialize sequence pools
         self._initialize_sequence_pools()
 
@@ -242,9 +252,25 @@ class MyOptimizer(Optimizer):
             # 5. Track progress (gated by tracking_interval)
             if step % self.tracking_interval == 0 or step == self.num_steps:
                 self._save_progress_snapshot(step)
-                if self.verbose:
-                    best_score = min(self.energy_scores)
-                    logger.info(f"Step {step}/{self.num_steps}: best={best_score:.4f}")
+                self._log_step_progress(step)
+
+    def _log_step_progress(self, step: int) -> None:
+        """Emit a multi-line INFO block using base format utilities.
+
+        Pattern is consistent across optimizers: header, filters, scoring, energy,
+        then an optimizer-specific final line. The format utilities pull from
+        caches that score_energy() populates on each call.
+        """
+        logger.info(f"Step {step}/{self.num_steps}")
+        filter_summary = self._format_filter_summary()
+        if filter_summary is not None:
+            logger.info(f"  filters: {filter_summary}")
+        for line in self._format_scoring_lines():
+            logger.info(f"  {line}")
+        logger.info(f"  energy:  {self._format_energy_summary()}")
+        # Optimizer-specific suffix line, e.g. f"  T={temp:.2f} lr={lr:.4f}"
+        if self.custom_logging:
+            self.custom_logging(step, self.segments)
 
     def _update_results(self, step: int) -> None:
         """Update result_sequences with top proposals.
