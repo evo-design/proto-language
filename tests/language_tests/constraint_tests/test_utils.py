@@ -1,5 +1,7 @@
 """Tests for range validation, deviation calculation, and normalization utilities."""
 
+import math
+
 import pytest
 from pydantic import BaseModel, ValidationError, model_validator
 
@@ -9,6 +11,7 @@ from proto_language.utils import (
     calculate_normalized_deviation,
     calculate_percentage_range_deviation,
     calculate_range_deviation,
+    sigmoid_score,
     validate_range,
 )
 from proto_language.utils.helpers import format_pydantic_error
@@ -47,6 +50,23 @@ class TestValidateRange:
 
         # Negative ranges
         validate_range(-50.0, -100.0, 0.0, "negative_range")
+
+
+class TestSigmoidScore:
+    """Tests for the shared sigmoid score transform."""
+
+    def test_inflection_maps_to_half(self):
+        """Test that the inflection point maps to 0.5."""
+        assert sigmoid_score(4.0, 4.0, 1.0) == pytest.approx(0.5)
+
+    def test_allows_negative_metrics(self):
+        """Test that negative metrics are allowed for model scores."""
+        assert sigmoid_score(-2.0, 0.0, 1.0) == pytest.approx(1.0 / (1.0 + math.exp(2.0)))
+
+    def test_extreme_values_are_stable(self):
+        """Test that very large logits do not overflow."""
+        assert sigmoid_score(1000.0, 0.0, 1.0) == pytest.approx(1.0)
+        assert sigmoid_score(-1000.0, 0.0, 1.0) == pytest.approx(0.0)
 
 
 class TestCalculateRangeDeviation:

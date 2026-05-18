@@ -7,16 +7,17 @@ from proto_language.language.optimizer.constraint_compiler import gradient_suppo
 
 
 @pytest.mark.parametrize(
-    ("constraint_key", "structure_tools"),
+    ("constraint_key", "backend_ids"),
     [
         ("structure-plddt", ["esmfold", "alphafold2_multimer"]),
         ("structure-distogram-cce", ["alphafold2_multimer"]),
+        ("malinois-activity", ["malinois"]),
     ],
 )
-def test_compiled_rules_match_supporting_backends(constraint_key: str, structure_tools: list[str]) -> None:
+def test_compiled_rules_match_supporting_backends(constraint_key: str, backend_ids: list[str]) -> None:
     support = gradient_support_for_constraint_spec(ConstraintRegistry.get(constraint_key))
     assert support is not None
-    assert [r.structure_tool for r in support.rules] == structure_tools
+    assert [r.structure_tool for r in support.rules] == backend_ids
 
 
 def test_discrete_only_constraint_has_no_compiled_metadata() -> None:

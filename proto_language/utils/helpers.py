@@ -221,12 +221,10 @@ def sigmoid_score(
     inflection: float,
     slope: float = 3.0,
 ) -> float:
-    """Squeezes a non-negative metric (i.e., >= 0) into a 0-1 score using a sigmoid.
-
-    function.
+    """Squeezes a metric into a 0-1 score using a sigmoid function.
 
     Args:
-        metric (float): A non-negative metric value.
+        metric (float): A metric value.
         inflection (float): The value of the original metric where the transformed score
             would be 0.5.
         slope (float): The steepness of the curve. Default: 3.0.
@@ -234,15 +232,16 @@ def sigmoid_score(
     Returns:
         float: Score between 0.0 (good/low) and 1.0 (bad/high).
     """
-    if metric < 0:
-        raise ValueError(f"Input metric value cannot be negative, found {metric}")
-
     # 1 / (1 + e^(-k(x - x0)))  # noqa: ERA001
     # We want low metric -> 0 and high metric -> 1.
     # The standard sigmoid 1/(1+e^-x) goes 0->1 as x increases.
     # We use slope * (metric - inflection).
-
-    return float(1.0 / (1.0 + np.exp(-slope * (metric - inflection))))
+    scaled = slope * (metric - inflection)
+    if scaled >= 0.0:
+        z = math.exp(-scaled)
+        return 1.0 / (1.0 + z)
+    z = math.exp(scaled)
+    return z / (1.0 + z)
 
 
 def inverse_sigmoid_score(

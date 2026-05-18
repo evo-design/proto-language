@@ -1,0 +1,110 @@
+{
+  "name": "malinois_k562_specificity_gradient_design",
+  "description": "Fast SeqProp-style gradient design for 200 bp regulatory DNA inserts using Malinois. The program optimizes relaxed DNA logits with a position-weight generator and a gradient optimizer. The objective is lower-is-better: maximize K562 activity with direction = max, while minimizing HepG2 and SKNSH off-target activity with direction = min. The optimizer uses straight-through hard one-hot model inputs, Adam with learning rate 0.5, and cosine learning-rate scaling to 1e-6 over 300 steps, while preserving the proto-language sigmoid transform for each Malinois cell-type constraint.",
+  "version": "1.0",
+  "num_results": 20,
+  "seed": 0,
+  "constructs": [
+    {
+      "id": "malinois_k562_specific_design",
+      "type": "dna",
+      "label": "Malinois K562-specific regulatory DNA design",
+      "segments": [
+        {
+          "id": "enhancer_insert",
+          "label": "200 bp variable enhancer insert",
+          "sequence": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      ]
+    }
+  ],
+  "optimization_stages": [
+    {
+      "generators": [
+        {
+          "key": "position-weight",
+          "target": "enhancer_insert",
+          "targets": ["enhancer_insert"],
+          "config": {
+            "sampling_mode": "argmax"
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "malinois-activity",
+          "label": "malinois_k562_max",
+          "targets": ["enhancer_insert"],
+          "weight": 1.0,
+          "config": {
+            "cell_type": "K562",
+            "direction": "max",
+            "sigmoid_center": 4.0,
+            "sigmoid_scale": 1.0,
+            "seq_length": 200,
+            "batch_size": 1,
+            "device": "cuda"
+          }
+        },
+        {
+          "key": "malinois-activity",
+          "label": "malinois_hepg2_min",
+          "targets": ["enhancer_insert"],
+          "weight": 1.0,
+          "config": {
+            "cell_type": "HepG2",
+            "direction": "min",
+            "sigmoid_center": 4.0,
+            "sigmoid_scale": 1.0,
+            "seq_length": 200,
+            "batch_size": 1,
+            "device": "cuda"
+          }
+        },
+        {
+          "key": "malinois-activity",
+          "label": "malinois_sknsh_min",
+          "targets": ["enhancer_insert"],
+          "weight": 1.0,
+          "config": {
+            "cell_type": "SKNSH",
+            "direction": "min",
+            "sigmoid_center": 4.0,
+            "sigmoid_scale": 1.0,
+            "seq_length": 200,
+            "batch_size": 1,
+            "device": "cuda"
+          }
+        }
+      ],
+      "optimizer": {
+        "method": "gradient",
+        "target_segment": "enhancer_insert",
+        "config": {
+          "num_results": 20,
+          "num_steps": 300,
+          "lr": 0.5,
+          "soft_start": 1.0,
+          "soft_end": 1.0,
+          "hard_start": 1.0,
+          "hard_end": 1.0,
+          "temperature_start": 1.0,
+          "temperature_end": 0.000002,
+          "softmax_schedule": "constant",
+          "lr_schedule": "cosine",
+          "scale_lr_by_temperature": true,
+          "ml_optimizer": "adam",
+          "merger": "weighted_sum",
+          "norm_alignment": "none",
+          "normalize_gradients": false,
+          "gumbel_logit_init": true,
+          "gumbel_init_alpha": 1.0,
+          "tracking_interval": 10,
+          "track_proposals": false,
+          "save_best": true,
+          "verbose": false
+        }
+      }
+    }
+  ]
+}

@@ -12,6 +12,12 @@ from proto_language.language.constraint.sequence_annotation.enformer_chromatin_a
     EnformerChromatinAccessibilityMorseConfig,
     enformer_chromatin_accessibility_morse_constraint,
 )
+from proto_language.language.constraint.sequence_annotation.malinois_activity_constraint import (
+    MalinoisActivityCellType,
+    MalinoisActivityConfig,
+    MalinoisActivityDirection,
+    malinois_activity_constraint,
+)
 from proto_language.language.constraint.sequence_annotation.mmseqs_similarity_constraint import (
     mmseqs_similarity_constraint,
 )
@@ -33,6 +39,10 @@ __all__ = [
     "crispr_array_constraint",
     "crispr_tracr_rna_constraint",
     "longest_orf_length_constraint",
+    "MalinoisActivityCellType",
+    "MalinoisActivityConfig",
+    "MalinoisActivityDirection",
+    "malinois_activity_constraint",
     "mmseqs_similarity_constraint",
     "sigma70_promoter_constraint",
     "seq_motif_constraint",

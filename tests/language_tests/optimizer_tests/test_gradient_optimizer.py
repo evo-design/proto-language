@@ -204,6 +204,33 @@ def _esmfold_confidence_problem() -> tuple[Segment, Construct, list[Constraint]]
     return binder, construct, constraints
 
 
+def _malinois_activity_problem() -> tuple[Segment, Construct, list[Constraint]]:
+    from proto_language.language.constraint.sequence_annotation.malinois_activity_constraint import (
+        MalinoisActivityConfig,
+        malinois_activity_constraint,
+    )
+
+    enhancer = Segment(sequence="ACGT" * 50, sequence_type="dna", label="enhancer")
+    construct = Construct([enhancer])
+    constraints = [
+        Constraint(
+            inputs=[enhancer],
+            function=malinois_activity_constraint,
+            function_config=MalinoisActivityConfig(cell_type="K562", direction="max", device="cpu"),
+            label="malinois_k562_max",
+            weight=2.0,
+        ),
+        Constraint(
+            inputs=[enhancer],
+            function=malinois_activity_constraint,
+            function_config=MalinoisActivityConfig(cell_type="HepG2", direction="min", device="cpu"),
+            label="malinois_hepg2_min",
+            weight=0.5,
+        ),
+    ]
+    return enhancer, construct, constraints
+
+
 class TestConfig:
     def test_germinal_logit_preset_exact_values(self) -> None:
         """Lock Germinal Stage 0 hyperparameters; a future refactor that breaks parity must fail here."""
@@ -664,6 +691,103 @@ class TestCompiledConstraints:
         metadata = binder.proposal_sequences[0]._constraints_metadata
         assert {"esmfold_plddt", "esmfold_ptm"}.issubset(metadata)
         assert binder.proposal_sequences[0].structure is structure
+
+    @pytest.mark.parametrize(("mode", "tool_loss"), [("gradient", 1.25), ("scoring", 0.672354)])
+    def test_groups_malinois_cell_type_terms_into_one_tool_call(self, mode: str, tool_loss: float) -> None:
+        from proto_language.language.optimizer.constraint_compiler import evaluate_scoring_constraints
+
+        enhancer, construct, constraints = _malinois_activity_problem()
+        if mode == "scoring":
+            from proto_tools import MalinoisScoreOutput, MalinoisScoreResult
+
+            score_output = MalinoisScoreOutput(
+                results=[
+                    MalinoisScoreResult(
+                        sequence=enhancer.original_sequence.sequence,
+                        sequence_length=200,
+                        scores={"K562": 5.0, "HepG2": 3.0},
+                    )
+                ],
+                cell_types=["K562", "HepG2"],
+                seq_length=200,
+            )
+            with patch(
+                "proto_language.language.optimizer.constraint_compiler.malinois_provider.run_malinois_score",
+                return_value=score_output,
+            ) as mock_malinois:
+                scores = evaluate_scoring_constraints(constraints, mask=[True])
+            assert scores == [[pytest.approx(tool_loss, rel=1e-5)]]
+            assert mock_malinois.call_count == 1
+            assert mock_malinois.call_args.args[1].cell_types == ["K562", "HepG2"]
+            metadata = enhancer.proposal_sequences[0]._constraints_metadata
+        else:
+            gradient_output = SimpleNamespace(
+                gradient=[[[0.1, 0.0, 0.0, -0.1]] * 200],
+                loss=tool_loss,
+                metrics={
+                    "losses": [tool_loss],
+                    "loss_terms": [
+                        [
+                            {
+                                "cell_type": "K562",
+                                "direction": "max",
+                                "weight": 2.0,
+                                "raw_score": 5.0,
+                                "scaled_score": 1.0,
+                                "sigmoid_value": 0.7310586,
+                                "score": 0.2689414,
+                                "weighted_score": 0.5378828,
+                                "sigmoid_center": 4.0,
+                                "sigmoid_scale": 1.0,
+                            },
+                            {
+                                "cell_type": "HepG2",
+                                "direction": "min",
+                                "weight": 0.5,
+                                "raw_score": 3.0,
+                                "scaled_score": -1.0,
+                                "sigmoid_value": 0.2689414,
+                                "score": 0.2689414,
+                                "weighted_score": 0.1344707,
+                                "sigmoid_center": 4.0,
+                                "sigmoid_scale": 1.0,
+                            },
+                        ],
+                    ],
+                },
+                vocab=["A", "C", "G", "T"],
+            )
+            with patch(
+                "proto_language.language.optimizer.constraint_compiler.malinois_provider.run_malinois_gradient",
+                return_value=gradient_output,
+            ) as mock_malinois:
+                generator = PositionWeightGenerator(PositionWeightGeneratorConfig())
+                generator.assign(enhancer)
+                opt = GradientOptimizer(
+                    target_segment=enhancer,
+                    constructs=[construct],
+                    generators=[generator],
+                    constraints=constraints,
+                    config=GradientOptimizerConfig(
+                        num_results=1,
+                        num_steps=1,
+                        lr=0.1,
+                        normalize_gradients=False,
+                    ),
+                )
+                opt.run()
+                assert opt.energy_scores == [pytest.approx(tool_loss)]
+                metadata = enhancer.result_sequences[0]._constraints_metadata
+            assert mock_malinois.call_count == 1
+            gradient_config = mock_malinois.call_args.args[1]
+            assert [(term.cell_type, term.direction, term.weight) for term in gradient_config.loss_terms] == [
+                ("K562", "max", 2.0),
+                ("HepG2", "min", 0.5),
+            ]
+
+        assert {"malinois_k562_max", "malinois_hepg2_min"}.issubset(metadata)
+        assert metadata["malinois_k562_max"]["data"]["malinois_direction"] == "max"
+        assert metadata["malinois_hepg2_min"]["data"]["malinois_direction"] == "min"
 
     def test_esmfold_tool_failure_surfaces_captured_error(self) -> None:
         binder, construct, constraints = _esmfold_confidence_problem()
