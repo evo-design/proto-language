@@ -864,23 +864,23 @@ _ASSETS_DIR_NAME = "assets"
 def write_results_folder(
     *,
     results: Results,
-    path: Path | str,
+    path: Path | str | None = None,
     history: list[dict[str, Any]] | None = None,
     format: Format = "csv",
     include_proposals: bool = False,
     segments: set[str] | None = None,
     result_indices: set[int] | None = None,
     constraints: set[str] | None = None,
+    project: str | None = None,
 ) -> Path:
     """Write 4 tables + FASTA + ``assets/`` to *path* and return the directory.
 
-    Materializes any in-memory ``_structure`` / ``_logits`` on segments into
-    ``assets/`` and stamps ``structure_path`` / ``logits_path`` columns in the
-    sequences table. xlsx writes a single ``results.xlsx`` workbook inside the
-    folder. Filter kwargs forward to :func:`flatten_table`. See
-    :meth:`proto_language.language.core.Program.export` for the folder layout.
+    When *path* is ``None``, names the folder per the unified convention
+    (``{project}__{YYYY-MM-DD_HHMMSS}``) under CWD. *project* only consulted then.
     """
-    out_dir = Path(path)
+    from proto_tools.utils.export_names import build_export_name
+
+    out_dir = Path.cwd() / str(build_export_name(project=project, ext=None)) if path is None else Path(path)
     out_dir.mkdir(parents=True, exist_ok=True)
     assets_dir = out_dir / _ASSETS_DIR_NAME
     assets_dir.mkdir(exist_ok=True)

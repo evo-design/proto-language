@@ -2094,3 +2094,26 @@ class TestExportProgramToFolder:
         assert len(lines) == 2  # header + 1 row
         assert "s1" in lines[1]
         assert "res0_con0_seg0_structure.pdb" not in lines[1]
+
+    def test_path_none_uses_unified_convention(self, tmp_path, monkeypatch):
+        """When path is None the folder name follows the unified export convention under CWD."""
+        from proto_language.utils.export import write_results_folder
+
+        results = self._results([self._segment("s0")])
+        monkeypatch.chdir(tmp_path)
+        out = write_results_folder(results=results, project="My Project")
+        assert out.parent == tmp_path
+        assert out.name.startswith("My Project__")
+        assert (out / "sequences.csv").exists()
+        assert (out / "sequences.fasta").exists()
+
+    def test_path_none_falls_back_to_export_when_no_project(self, tmp_path, monkeypatch):
+        """When path and project are both omitted the folder still gets a valid timestamped name."""
+        from proto_language.utils.export import write_results_folder
+
+        results = self._results([self._segment("s0")])
+        monkeypatch.chdir(tmp_path)
+        out = write_results_folder(results=results)
+        assert out.parent == tmp_path
+        assert out.name and not out.name.startswith("./")
+        assert (out / "sequences.csv").exists()

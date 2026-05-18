@@ -788,23 +788,28 @@ class Optimizer(ABC):
 
     def export(
         self,
-        path: Path | str = "./results",
+        path: Path | str | None = None,
         *,
         format: Literal["csv", "tsv", "json", "xlsx"] = "csv",
         segments: set[str] | None = None,
         result_indices: set[int] | None = None,
         constraints: set[str] | None = None,
         include_proposals: bool = False,
+        project: str | None = None,
     ) -> Path:
         """Export results to *path* as a folder: 4 tables + FASTA + ``assets/``.
 
+        When *path* is ``None``, names the folder per the unified convention
+        (``{project}__{YYYY-MM-DD_HHMMSS}``) under CWD.
+
         Args:
-            path (Path | str): Output directory.
+            path (Path | str | None): Output directory; ``None`` uses the convention.
             format (Literal['csv', 'tsv', 'json', 'xlsx']): Table format.
             segments (set[str] | None): Only include these segment labels.
             result_indices (set[int] | None): Only include these result indices.
             constraints (set[str] | None): Only include these constraint labels (constraints table only).
             include_proposals (bool): Include proposal rows (optimization table only).
+            project (str | None): Folder name source when *path* is ``None``.
         """
         return write_results_folder(
             results=build_results(self.constructs, self.energy_scores),
@@ -815,6 +820,7 @@ class Optimizer(ABC):
             segments=segments,
             result_indices=result_indices,
             constraints=constraints,
+            project=project,
         )
 
     def to_dataframe(
