@@ -92,7 +92,6 @@ class AlphaFold2MultimerStructureConfig(BaseConfig):
         default=None,
         title="Omit Amino Acids",
         description="Amino acids omitted during AF2 optimization.",
-        advanced=True,
     )
     num_recycles: int = ConfigField(
         default=3,
@@ -100,13 +99,11 @@ class AlphaFold2MultimerStructureConfig(BaseConfig):
         description="Number of AF2 recycle iterations.",
         ge=0,
         le=48,
-        advanced=True,
     )
     recycle_mode: Literal["last", "sample", "average", "first"] = ConfigField(
         default="last",
         title="Recycle Mode",
         description="Recycle output mode.",
-        advanced=True,
     )
     model_num: int = ConfigField(
         default=1,
@@ -114,104 +111,88 @@ class AlphaFold2MultimerStructureConfig(BaseConfig):
         description="AF2 model parameter set number.",
         ge=1,
         le=5,
-        advanced=True,
     )
     intra_contact_num: int = ConfigField(
         default=2,
         title="Intra Contacts",
         description="Intra-chain contacts per residue.",
         ge=1,
-        advanced=True,
     )
     intra_contact_cutoff: float = ConfigField(
         default=14.0,
         title="Intra Cutoff",
         description="Intra-chain contact cutoff in Angstroms.",
         gt=0.0,
-        advanced=True,
     )
     inter_contact_num: int = ConfigField(
         default=1,
         title="Inter Contacts",
         description="Inter-chain contacts per residue.",
         ge=1,
-        advanced=True,
     )
     inter_contact_cutoff: float = ConfigField(
         default=21.6875,
         title="Inter Cutoff",
         description="Inter-chain contact cutoff in Angstroms.",
         gt=0.0,
-        advanced=True,
     )
     framework_contact_offset: float = ConfigField(
         default=1.0,
         title="Framework Offset",
         description="Germinal framework contact penalty offset.",
         gt=0.0,
-        advanced=True,
     )
     bias_redesign: float | None = ConfigField(
         default=None,
         title="Bias Redesign",
         description="Bias strength toward template residues.",
         gt=0.0,
-        advanced=True,
     )
     sample_models: bool = ConfigField(
         default=False,
         title="Sample Models",
         description="Whether to sample AF2 model parameters.",
-        advanced=True,
     )
     use_multimer: bool = ConfigField(
         default=True,
         title="Use Multimer",
         description="Whether to use multimer model parameters.",
-        advanced=True,
     )
     rm_target_seq: bool = ConfigField(
         default=True,
         title="Mask Target Seq",
         description="Whether to mask the target template sequence.",
-        advanced=True,
     )
     rm_target_sc: bool = ConfigField(
         default=False,
         title="Mask Target SC",
         description="Whether to mask target template side chains.",
-        advanced=True,
     )
     rm_template_ic: bool = ConfigField(
         default=True,
         title="Mask Template IC",
         description="Whether to mask inter-chain template contacts.",
-        advanced=True,
     )
     include_pae_matrix: bool = ConfigField(
         default=False,
         title="Include PAE",
         description="Whether to return the full PAE matrix.",
-        advanced=True,
     )
     backend: Literal["base", "germinal"] = ConfigField(
         default="base",
         title="Backend",
         description="AF2 backend implementation.",
-        advanced=True,
     )
     device: str = ConfigField(
         default="cuda",
         title="Device",
         description="Device for AF2 execution.",
-        hidden=True,
     )
     seed: int | None = ConfigField(
         default=None,
         title="Seed",
         description="Base seed for deterministic AF2 evaluations.",
         ge=0,
-        advanced=True,
     )
     _evaluation_seed_offset: int = PrivateAttr(default=0)
 
@@ -304,8 +285,8 @@ class StructureBasedConstraintConfig(BaseConfig):
 
     This base class standardizes how structure prediction tools and their
     configurations are specified across all structure-based constraints.
-    Each tool has its own dedicated config field gated by ``depends_on``,
-    so only the selected tool's config is active at a time.
+    Each tool has its own dedicated config field. UI visibility for selecting
+    the active tool config lives in client overlays, not in this schema.
 
     Subclasses can optionally restrict which tools are supported by overriding
     the structure_tool field with a narrower Literal type.
@@ -321,19 +302,19 @@ class StructureBasedConstraintConfig(BaseConfig):
             Default is "esmfold".
 
         esmfold_config (ESMFoldConfig): Configuration for ESMFold structure prediction.
-            Only visible when ``structure_tool == "esmfold"``.
+            Used when ``structure_tool == "esmfold"``.
 
         alphafold3_config (AlphaFold3Config): Configuration for AlphaFold3 structure prediction.
-            Only visible when ``structure_tool == "alphafold3"``.
+            Used when ``structure_tool == "alphafold3"``.
 
         boltz2_config (Boltz2Config): Configuration for Boltz2 structure prediction.
-            Only visible when ``structure_tool == "boltz2"``.
+            Used when ``structure_tool == "boltz2"``.
 
         chai1_config (Chai1Config): Configuration for Chai1 structure prediction.
-            Only visible when ``structure_tool == "chai1"``.
+            Used when ``structure_tool == "chai1"``.
 
         protenix_config (ProtenixConfig): Configuration for Protenix structure prediction.
-            Only visible when ``structure_tool == "protenix"``.
+            Used when ``structure_tool == "protenix"``.
 
         alphafold2_multimer_config (AlphaFold2MultimerStructureConfig): Configuration
             for AF2 multimer-backed structure constraints.
@@ -356,43 +337,31 @@ class StructureBasedConstraintConfig(BaseConfig):
         default_factory=ESMFoldConfig,
         title="ESMFold Configuration",
         description="Configuration for ESMFold structure prediction.",
-        advanced=True,
-        depends_on={"field": "structure_tool", "value": "esmfold"},
     )
     alphafold3_config: AlphaFold3Config = ConfigField(
         default_factory=AlphaFold3Config,
         title="AlphaFold3 Configuration",
         description="Configuration for AlphaFold3 structure prediction.",
-        advanced=True,
-        depends_on={"field": "structure_tool", "value": "alphafold3"},
     )
     boltz2_config: Boltz2Config = ConfigField(
         default_factory=Boltz2Config,
         title="Boltz2 Configuration",
         description="Configuration for Boltz2 structure prediction.",
-        advanced=True,
-        depends_on={"field": "structure_tool", "value": "boltz2"},
     )
     chai1_config: Chai1Config = ConfigField(
         default_factory=Chai1Config,
         title="Chai1 Configuration",
         description="Configuration for Chai1 structure prediction.",
-        advanced=True,
-        depends_on={"field": "structure_tool", "value": "chai1"},
     )
     protenix_config: ProtenixConfig = ConfigField(
         default_factory=ProtenixConfig,
         title="Protenix Configuration",
         description="Configuration for Protenix structure prediction.",
-        advanced=True,
-        depends_on={"field": "structure_tool", "value": "protenix"},
     )
     alphafold2_multimer_config: AlphaFold2MultimerStructureConfig = ConfigField(
         default_factory=AlphaFold2MultimerStructureConfig,
         title="AF2 Multimer Config",
         description="Configuration for AF2 multimer constraints.",
-        advanced=True,
-        depends_on={"field": "structure_tool", "value": "alphafold2_multimer"},
     )
 
     @property

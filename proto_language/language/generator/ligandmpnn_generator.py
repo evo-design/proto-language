@@ -141,32 +141,27 @@ class LigandMPNNGeneratorConfig(BaseConfig):
         le=1.0,
         title="Temperature",
         description="Controls randomness in sampling. Lower values produce more deterministic sequences.",
-        advanced=True,
     )
     excluded_amino_acids: list[str] | None = ConfigField(
         default=None,
         title="Unallowed Amino Acids",
         description="List of amino acids (single-letter codes) to exclude from designed sequences.",
-        advanced=True,
     )
     batch_size: int = ConfigField(
         default=1,
         ge=1,
         title="Batch Size",
         description="Number of sequences to process simultaneously on GPU",
-        advanced=True,
     )
     device: str = ConfigField(
         default="cuda",
         title="Device",
         description="GPU device for inference (e.g. 'cuda' or 'cuda:0').",
-        hidden=True,
     )
     verbose: bool = ConfigField(
         default=False,
         title="Verbose",
         description="Whether to print status messages during execution.",
-        hidden=True,
     )
 
     @field_validator("structure_inputs", mode="before")

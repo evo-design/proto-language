@@ -72,13 +72,11 @@ class ProteinSymmetryRingConfig(BaseConfig):
         default=False,
         title="All-to-All Protomer Symmetry",
         description="True uses pairwise distances between all protomers. Else, use distances between adjacent protomers",
-        advanced=True,
     )
     esmfold_config: ESMFoldConfig = ConfigField(
         default_factory=ESMFoldConfig,
         title="ESMFold Config",
         description="ESMFold configuration for structure prediction.",
-        advanced=True,
     )
 
 
@@ -126,7 +124,7 @@ def protein_symmetry_ring_constraint(
         config (ProteinSymmetryRingConfig): Configuration object containing
             ``max_symmetry_std`` (normalization threshold in Å, default: 10.0),
             ``all_to_all_protomer_symmetry`` (distance calculation mode, default: False),
-            and optional ``esmfold_config`` for advanced ESMFold settings.
+            and optional ``esmfold_config`` for ESMFold settings.
 
     Returns:
         list[ConstraintOutput]: Per-proposal score in ``[0.0, 1.0]`` where 0.0 is

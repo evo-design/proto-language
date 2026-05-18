@@ -108,21 +108,18 @@ class RejectionSamplingOptimizerConfig(BaseOptimizerConfig):
         ge=1,
         title="Design Candidates",
         description="Top candidate designs to keep for this optimizer. Overrides program-level count.",
-        advanced=True,
     )
     proposal_batch_size: int | None = ConfigField(
         default=None,
         ge=1,
         title="Proposal Batch Size",
         description="Proposals scored per internal batch. Inferred from component batch sizes if omitted.",
-        advanced=True,
     )
     energy_threshold: float | None = ConfigField(
         default=None,
         ge=0.0,
         title="Energy Threshold",
         description="Early stop when all energy scores in results are below threshold.",
-        advanced=True,
     )
 
     @model_validator(mode="after")

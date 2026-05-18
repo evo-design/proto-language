@@ -62,31 +62,26 @@ class SemigreedyMutationGeneratorConfig(BaseConfig):
         gt=0.0,
         title="Temperature",
         description="Softmax temperature for converting logits to the PSSM.",
-        advanced=True,
     )
     exclude_current: bool = ConfigField(
         default=True,
         title="Exclude Current AA",
         description="Zero out the current amino acid before sampling to guarantee a mutation.",
-        advanced=True,
     )
     sequence_bias: SequenceLogitBiasConfig | None = ConfigField(
         default=None,
         title="Sequence Bias",
         description="Optional declarative sequence-symbol bias applied before AA sampling.",
-        advanced=True,
     )
     clear_logits: bool = ConfigField(
         default=False,
         title="Clear Logits",
         description="Sample replacement AAs from sequence_bias only (or uniform), ignoring proposal.logits.",
-        advanced=True,
     )
     frozen_positions: list[int] | None = ConfigField(
         default=None,
         title="Frozen Positions",
         description="Zero-indexed positions excluded from mutation.",
-        advanced=True,
     )
 
     @field_validator("frozen_positions")

@@ -8,6 +8,35 @@ from pydantic import BaseModel, Field, field_serializer
 
 SpecType = TypeVar("SpecType", bound="BaseSpec")
 
+_UI_PRESENTATION_SCHEMA_KEYS = frozenset({"advanced", "hidden", "depends_on", "x-depends-on"})
+
+
+def strip_ui_presentation_schema_keys(schema: dict[str, Any]) -> dict[str, Any]:
+    """Return a copy of ``schema`` without backend-deprecated UI metadata keys.
+
+    Nested ``proto-tools`` config models can still carry legacy UI presentation
+    metadata in their JSON Schema. Language registry outputs are the public
+    schema boundary for proto-language components, so they strip those keys
+    before exposing schemas to downstream consumers.
+    """
+
+    def strip(value: Any, *, in_properties: bool = False) -> Any:
+        if isinstance(value, dict):
+            stripped: dict[str, Any] = {}
+            for key, child in value.items():
+                if not in_properties and key in _UI_PRESENTATION_SCHEMA_KEYS:
+                    continue
+                stripped[key] = strip(child, in_properties=key == "properties")
+            return stripped
+        if isinstance(value, list):
+            return [strip(item) for item in value]
+        return value
+
+    stripped_schema = strip(schema)
+    if not isinstance(stripped_schema, dict):
+        raise TypeError("Expected JSON schema root to be a dictionary.")
+    return stripped_schema
+
 
 class BaseSpec(BaseModel):
     """Base specification for registered components.
@@ -61,7 +90,7 @@ class BaseSpec(BaseModel):
                     "type": "object"
                 }
         """
-        return config_model.model_json_schema()
+        return strip_ui_presentation_schema_keys(config_model.model_json_schema())
 
 
 class BaseRegistry(ABC, Generic[SpecType]):
@@ -151,7 +180,7 @@ class BaseRegistry(ABC, Generic[SpecType]):
             ...     print(f"{param_name}: {param_info['type']}")
         """
         spec = cls.get(key)
-        return spec.config_model.model_json_schema()
+        return strip_ui_presentation_schema_keys(spec.config_model.model_json_schema())
 
     @classmethod
     def count(cls) -> int:

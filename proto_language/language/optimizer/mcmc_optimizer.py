@@ -83,34 +83,29 @@ class MCMCOptimizerConfig(BaseOptimizerConfig):
         ge=1,
         title="Design Candidates",
         description="Candidate designs for this optimizer. Overrides program-level count.",
-        advanced=True,
     )
     proposals_per_result: int = ConfigField(
         default=1,
         ge=1,
         title="Proposals Per Result",
         description="Number of proposals to generate per result sequence per MCMC step.",
-        advanced=True,
     )
     max_temperature: float = ConfigField(
         default=1.0,
         gt=0.0,
         title="Max Temperature",
         description="Maximum temperature for annealing",
-        advanced=True,
     )
     min_temperature: float = ConfigField(
         default=0.001,
         gt=0.0,
         title="Min Temperature",
         description="Minimum temperature for annealing",
-        advanced=True,
     )
     temperature_schedule: Scheduler = ConfigField(
         default="exponential",
         title="Temperature Schedule",
         description="Annealing schedule from max to min temperature.",
-        advanced=True,
     )
 
     @model_validator(mode="after")

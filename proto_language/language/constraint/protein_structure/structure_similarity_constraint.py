@@ -117,7 +117,6 @@ class StructureSimilarityConfig(StructureBasedConstraintConfig):
         title="Min Target pLDDT",
         default=0.6,
         description="Minimum confidence for the target if it is folded from sequence.",
-        depends_on={"field": "target_chains", "not_null": True},
     )
 
     @model_validator(mode="after")

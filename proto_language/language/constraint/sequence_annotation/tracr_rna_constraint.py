@@ -32,7 +32,6 @@ class CrisprTracrRNAConstraintConfig(BaseConfig):
         default_factory=CrisprTracrRNAConfig,
         title="CRISPRtracrRNA Config",
         description="Advanced CRISPRtracrRNA tool configuration.",
-        advanced=True,
     )
 
 

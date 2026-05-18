@@ -152,18 +152,7 @@ class MyOptimizerConfig(BaseOptimizerConfig):
         ge=1,
         title="Num Results",
         description="Number of top sequences to maintain. Overrides program-level num_results if set.",
-        advanced=True,
     )
-
-    # Conditional field example — only visible when a related field has a specific value:
-    # cooling_rate: float = ConfigField(
-    #     default=0.95,
-    #     title="Cooling Rate",
-    #     description="Temperature decay per step (simulated annealing)",
-    #     gt=0.0,
-    #     lt=1.0,
-    #     depends_on={"field": "use_annealing"},
-    # )
 
     @model_validator(mode="after")
     def validate_config(self):

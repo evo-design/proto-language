@@ -20,6 +20,8 @@ MAX_FIELD_TITLE_LENGTH = 31
 # Defines the maximum length of a field description in characters
 MAX_FIELD_DESCRIPTION_LENGTH = 100
 
+UI_PRESENTATION_SCHEMA_KEYS = frozenset({"advanced", "hidden", "depends_on", "x-depends-on"})
+
 
 def list_of_all_config_models() -> list[type]:
     """List of all config models of registered components."""
@@ -44,10 +46,6 @@ def test_config_consistency(config_model: type):
     assert issubclass(config_model, (LanguageBaseConfig, ToolsBaseConfig)), (
         f"Config model {config_model} is not a subclass of BaseConfig"
     )
-
-    # Pull the model schema and ensure fields are defined consistently
-    schema = config_model.model_json_schema()
-    required_fields = set(schema.get("required", []))
 
     # Pull the docstring for the config model
     docstring = config_model.__doc__
@@ -85,41 +83,6 @@ def test_config_consistency(config_model: type):
                     f"{config_model.__name__}.{field_name} default value is None but annotation is not Optional[...]"
                 )
 
-        # ADVANCED FLAG: Must exist and be a boolean
-        json_schema_extra = field_info.json_schema_extra or {}
-        assert "advanced" in json_schema_extra, (
-            f"{config_model.__name__}.{field_name} missing 'advanced' flag. "
-            "Add: Field(..., json_schema_extra={{'advanced': False}})"
-        )
-        assert isinstance(json_schema_extra["advanced"], bool), (
-            f"{config_model.__name__}.{field_name} 'advanced' flag is not a boolean. "
-            "Add: Field(..., json_schema_extra={{'advanced': False}})"
-        )
-
-        assert "hidden" in json_schema_extra, (
-            f"{config_model.__name__}.{field_name} missing 'hidden' flag. "
-            "Add: Field(..., json_schema_extra={{'hidden': False}})"
-        )
-        assert isinstance(json_schema_extra["hidden"], bool), (
-            f"{config_model.__name__}.{field_name} 'hidden' flag is not a boolean. "
-            "Add: Field(..., json_schema_extra={{'hidden': False}})"
-        )
-
-        # Pull advanced and hidden flags
-        advanced = json_schema_extra.get("advanced", False)
-        hidden = json_schema_extra.get("hidden", False)
-
-        # Advanced and hidden flags must be false if the field is required
-        if field_name in required_fields:
-            assert not advanced, (
-                f"{config_model.__name__}.{field_name} 'advanced' flag cannot be True if the field is required. "
-                "Remove the 'advanced' flag."
-            )
-            assert not hidden, (
-                f"{config_model.__name__}.{field_name} 'hidden' flag cannot be True if the field is required. "
-                "Remove the 'hidden' flag."
-            )
-
     # DOCUMENTATION CHECK: Ensure that all fields are mentioned in the docstring
     # Exclude inherited BaseConfig fields (documented once in BaseConfig)
     # and don't need to be re-documented in every subclass.
@@ -130,6 +93,25 @@ def test_config_consistency(config_model: type):
         f"{config_model.__name__} is missing the following fields in the docstring: {missing_fields}. "
         "Add: Field(..., description='Brief explanation for tooltip')"
     )
+
+
+@pytest.mark.parametrize("removed_kwarg", sorted(UI_PRESENTATION_SCHEMA_KEYS - {"x-depends-on"}))
+def test_config_field_rejects_removed_ui_kwargs(removed_kwarg: str):
+    """ConfigField fails fast when removed UI-presentation kwargs are used."""
+    with pytest.raises(TypeError, match="ConfigField no longer accepts UI-presentation kwargs"):
+        ConfigField(default=1, title="Value", description="Test value.", **{removed_kwarg: True})
+
+
+@pytest.mark.parametrize(
+    "registry",
+    [ConstraintRegistry, GeneratorRegistry, OptimizerRegistry],
+)
+def test_language_registry_schemas_exclude_ui_presentation_metadata(registry: type):
+    """Language registry schemas do not expose deprecated UI-presentation keys."""
+    for spec in registry.list_all():
+        schema = registry.get_schema(spec.key)
+        ui_metadata_paths = _find_ui_presentation_metadata_paths(schema)
+        assert not ui_metadata_paths, f"{spec.key} schema exposes UI metadata: {ui_metadata_paths[:10]}"
 
 
 def list_tool_inputs_and_outputs() -> list[tuple[str, str]]:
@@ -206,119 +188,6 @@ def test_tool_input_and_output_consistency(tool_input: type, tool_output: type):
     )
 
 
-@pytest.mark.parametrize("config_model", list_of_all_config_models())
-def test_depends_on_references_valid_field(config_model: type):
-    """Every x-depends-on in a config schema must reference an existing sibling.
-
-    Validates that all x-depends-on references point to existing, non-hidden
-    sibling properties in the schema.
-    """
-    schema = config_model.model_json_schema()
-    properties = schema.get("properties", {})
-
-    for field_name, field_schema in properties.items():
-        x_dep = field_schema.get("x-depends-on")
-        if x_dep is None:
-            continue
-
-        ref_field = x_dep.get("field")
-        assert ref_field is not None, f"{config_model.__name__}.{field_name}: x-depends-on is missing the 'field' key."
-
-        assert ref_field in properties, (
-            f"{config_model.__name__}.{field_name}: "
-            f"x-depends-on references '{ref_field}' which does not exist "
-            f"in the schema properties. "
-            f"Available: {sorted(properties.keys())}"
-        )
-
-        ref_hidden = properties[ref_field].get("hidden", False)
-        assert not ref_hidden, (
-            f"{config_model.__name__}.{field_name}: "
-            f"x-depends-on references '{ref_field}' which is hidden. "
-            "A dependency on a hidden field is not visible to the user."
-        )
-
-
-# ---------------------------------------------------------------------------
-# ConfigField depends_on serialization
-# ---------------------------------------------------------------------------
-
-
-class _DependsOnModel(LanguageBaseConfig):
-    """Shared test model for depends_on parametrized tests."""
-
-    mode: str = ConfigField(default="basic", title="Mode", description="Operating mode.")
-    target: str | None = ConfigField(default=None, title="Target", description="Optional target.")
-    enabled: bool = ConfigField(default=False, title="Enabled", description="Toggle.")
-    with_value: str = ConfigField(
-        default="off",
-        title="With Value",
-        description="Single value.",
-        depends_on={"field": "mode", "value": "advanced"},
-    )
-    with_list: int = ConfigField(
-        default=1,
-        title="With List",
-        description="List value.",
-        depends_on={"field": "mode", "value": ["a", "b"]},
-    )
-    with_not_null: str = ConfigField(
-        default="x",
-        title="With Not Null",
-        description="Not null.",
-        depends_on={"field": "target", "not_null": True},
-    )
-    with_truthy: str = ConfigField(
-        default="",
-        title="With Truthy",
-        description="Truthy check.",
-        depends_on={"field": "enabled"},
-    )
-    plain: int = ConfigField(default=0, title="Plain", description="No depends_on.")
-
-
-@pytest.mark.parametrize(
-    "field_name, expected",
-    [
-        ("with_value", {"field": "mode", "value": "advanced"}),
-        ("with_list", {"field": "mode", "value": ["a", "b"]}),
-        ("with_not_null", {"field": "target", "not_null": True}),
-        ("with_truthy", {"field": "enabled"}),
-        ("plain", None),
-    ],
-)
-def test_depends_on_schema_output(field_name: str, expected):
-    """depends_on produces the correct x-depends-on in JSON schema."""
-    schema = _DependsOnModel.model_json_schema()
-    props = schema["properties"][field_name]
-    if expected is None:
-        assert "x-depends-on" not in props
-    else:
-        assert props["x-depends-on"] == expected
-
-
-@pytest.mark.parametrize(
-    "depends_on, match",
-    [
-        ({"value": "bar"}, "must include a 'field' key"),
-        ({"field": "x", "value": "y", "not_null": True}, "cannot specify both"),
-    ],
-)
-def test_depends_on_invalid_raises(depends_on, match):
-    """Invalid depends_on dicts raise ValueError at class definition."""
-    with pytest.raises(ValueError, match=match):
-
-        class _Bad(LanguageBaseConfig):
-            """Test model."""
-
-            bad: str = ConfigField(
-                default="",
-                title="Bad",
-                description="Should fail.",
-                depends_on=depends_on,
-            )
-
-
 def _field_description_is_valid(description: str) -> str:
     """Check if the description is under MAX_FIELD_DESCRIPTION_LENGTH characters."""
     if description is None:
@@ -330,6 +199,22 @@ def _field_description_is_valid(description: str) -> str:
     if "\n" in description:
         return "description contains newline characters. Please use single line descriptions."
     return ""
+
+
+def _find_ui_presentation_metadata_paths(schema: object, path: tuple[str, ...] = ()) -> list[str]:
+    """Find UI-presentation metadata keys without treating property names as metadata."""
+    paths: list[str] = []
+    if isinstance(schema, dict):
+        in_properties = path[-1:] == ("properties",)
+        for key, value in schema.items():
+            child_path = (*path, str(key))
+            if not in_properties and key in UI_PRESENTATION_SCHEMA_KEYS:
+                paths.append(".".join(child_path))
+            paths.extend(_find_ui_presentation_metadata_paths(value, child_path))
+    elif isinstance(schema, list):
+        for index, value in enumerate(schema):
+            paths.extend(_find_ui_presentation_metadata_paths(value, (*path, str(index))))
+    return paths
 
 
 def _find_missing_fields_in_docstring(docstring: str, field_names: list[str]) -> list[str]:

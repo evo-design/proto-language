@@ -124,24 +124,18 @@ class ProteinQualitySubConfig(BaseConfig):
         gt=0,
         title="Length Minimum",
         description="Minimum acceptable protein length (amino acids). Used with length_max_length.",
-        advanced=True,
-        depends_on={"field": "enable_length"},
     )
     length_max_length: int | None = ConfigField(
         default=None,
         gt=0,
         title="Length Maximum",
         description="Maximum acceptable protein length (amino acids). Used with length_min_length.",
-        advanced=True,
-        depends_on={"field": "enable_length"},
     )
     length_target_length: int | None = ConfigField(
         default=None,
         gt=0,
         title="Length Target",
         description="Exact target protein length (amino acids). Alternative to range mode.",
-        advanced=True,
-        depends_on={"field": "enable_length"},
     )
 
     enable_complexity: bool = ConfigField(
@@ -155,8 +149,6 @@ class ProteinQualitySubConfig(BaseConfig):
         le=1.0,
         title="Max Low-Complexity Fraction",
         description="Maximum acceptable fraction of low-complexity residues.",
-        advanced=True,
-        depends_on={"field": "enable_complexity"},
     )
     enable_repetitiveness: bool = ConfigField(
         default=False,
@@ -169,16 +161,12 @@ class ProteinQualitySubConfig(BaseConfig):
         le=1.0,
         title="Max Repetitiveness",
         description="Maximum allowed fraction of sequence covered by repeated k-mers.",
-        advanced=True,
-        depends_on={"field": "enable_repetitiveness"},
     )
     repetitiveness_min_repeat_length: int = ConfigField(
         default=1,
         ge=1,
         title="Minimum Repeat Length",
         description="Smallest k-mer size to treat as a repeat (analyzes up to +7 beyond this).",
-        advanced=True,
-        depends_on={"field": "enable_repetitiveness"},
     )
 
     enable_diversity: bool = ConfigField(
@@ -192,8 +180,6 @@ class ProteinQualitySubConfig(BaseConfig):
         le=1.0,
         title="Minimum Diversity",
         description="Minimum acceptable fraction of unique amino acid types (unique AAs / 20).",
-        advanced=True,
-        depends_on={"field": "enable_diversity"},
     )
 
     enable_balanced_aas: bool = ConfigField(
@@ -207,8 +193,6 @@ class ProteinQualitySubConfig(BaseConfig):
         le=1.0,
         title="Minimum AA Frequency",
         description="Minimum acceptable relative frequency for any amino acid type.",
-        advanced=True,
-        depends_on={"field": "enable_balanced_aas"},
     )
     balanced_max_underrepresented_count: int = ConfigField(
         default=3,
@@ -216,8 +200,6 @@ class ProteinQualitySubConfig(BaseConfig):
         le=20,
         title="Max Underrepresented Count",
         description="Maximum acceptable number of amino acid types falling below the frequency threshold.",
-        advanced=True,
-        depends_on={"field": "enable_balanced_aas"},
     )
 
     def get_length_config(self) -> SequenceLengthConfig | None:

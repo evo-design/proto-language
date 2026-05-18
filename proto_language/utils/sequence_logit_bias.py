@@ -65,20 +65,16 @@ class SequenceLogitBiasConfig(BaseConfig):
             "Zero-based positions where excluded_symbols are penalized. "
             "Defaults to unbiased_positions when set, else all positions."
         ),
-        advanced=True,
     )
     exclusion_penalty: float = ConfigField(
         default=-1e6,
         title="Exclusion Penalty",
         description="Additive logit penalty for excluded symbols.",
-        advanced=True,
-        hidden=True,
     )
     raw_matrix: list[list[float]] | None = ConfigField(
         default=None,
         title="Raw Bias Matrix",
         description="Pre-computed (L, |vocab|) additive bias; summed with the declarative primitives.",
-        hidden=True,
     )
 
     @field_validator("unbiased_positions", "excluded_positions")

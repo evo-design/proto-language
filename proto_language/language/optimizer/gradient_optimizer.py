@@ -98,7 +98,7 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
         lr_schedule (Scheduler): Learning rate decay schedule.
         merger (GradientMergerName): Gradient merging strategy.
         ml_optimizer (MLOptimizerType): Gradient update algorithm (SGD, Adam).
-        adam_config (AdamConfig): Adam hyperparameters. Only visible when ``ml_optimizer="adam"``.
+        adam_config (AdamConfig): Adam hyperparameters used when ``ml_optimizer="adam"``.
         norm_alignment (Literal["none", "unit", "match_first"]): Per-constraint
             gradient normalization before merging.
         zero_norm_eps (float): In match_first mode, zero out gradients with norm below this.
@@ -132,7 +132,6 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
         ge=1,
         title="Design Candidates",
         description="Candidate designs for this optimizer. Overrides program-level count.",
-        advanced=True,
     )
     num_steps: int = ConfigField(
         default=1,
@@ -150,7 +149,6 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
         default=None,
         title="Sequence Bias",
         description="Declarative sequence-symbol bias resolved against the target segment vocabulary.",
-        advanced=True,
     )
     soft_start: float = ConfigField(
         default=1.0,
@@ -158,7 +156,6 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
         le=1.0,
         title="Soft Start",
         description="Soft blending at step 1 (0=hard logits, 1=full softmax).",
-        advanced=True,
     )
     soft_end: float = ConfigField(
         default=1.0,
@@ -166,7 +163,6 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
         le=1.0,
         title="Soft End",
         description="Soft blending at final step.",
-        advanced=True,
     )
     hard_start: float = ConfigField(
         default=0.0,
@@ -174,7 +170,6 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
         le=1.0,
         title="Hard Start",
         description="Straight-through estimator blending at step 1 (0=relaxed, 1=argmax).",
-        advanced=True,
     )
     hard_end: float = ConfigField(
         default=0.0,
@@ -182,7 +177,6 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
         le=1.0,
         title="Hard End",
         description="Straight-through estimator blending at final step.",
-        advanced=True,
     )
     temperature_start: float = ConfigField(
         default=1.0,
@@ -220,91 +214,74 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
         default_factory=AdamConfig,
         title="Adam Config",
         description="Adam hyperparameters.",
-        depends_on={"field": "ml_optimizer", "value": "adam"},
     )
     norm_alignment: Literal["none", "unit", "match_first"] = ConfigField(
         default="none",
         title="Norm Alignment",
         description="Per-constraint gradient normalization before merging.",
-        advanced=True,
     )
     zero_norm_eps: float = ConfigField(
         default=0.0,
         ge=0.0,
         title="Zero Norm Epsilon",
         description="In match_first mode, zero out gradients with norm below this threshold.",
-        advanced=True,
-        depends_on={"field": "norm_alignment", "value": "match_first"},
     )
     normalize_gradients: bool = ConfigField(
         default=True,
         title="Normalize Gradients",
         description="Normalize the merged gradient before each update.",
-        advanced=True,
     )
     normalize_mode: Literal["unit", "sqrt_length"] = ConfigField(
         default="unit",
         title="Normalize Mode",
         description="'unit' = L2 to 1.0. 'sqrt_length' = g*sqrt(eff_L)/||g||.",
-        advanced=True,
     )
     fixed_positions: list[int] | None = ConfigField(
         default=None,
         title="Fixed Positions",
         description="Sequence positions to freeze. Pair with sequence_bias to anchor them at the desired AA.",
-        advanced=True,
     )
     scale_lr_by_temperature: bool = ConfigField(
         default=False,
         title="Scale LR by Temperature",
         description="Multiply LR by soft/temperature blending factor.",
-        advanced=True,
     )
     min_lr_scale: float = ConfigField(
         default=0.0,
         ge=0.0,
         title="Min LR Scale",
         description="Floor for effective LR scale when temperature scaling is enabled.",
-        advanced=True,
     )
     save_best: bool = ConfigField(
         default=True,
         title="Save Best",
         description="Return the lowest-loss result instead of the last iteration.",
-        advanced=True,
     )
     constraint_weight_schedules: list[ConstraintWeightSchedule] | None = ConfigField(
         default=None,
         title="Constraint Weight Schedules",
         description="Per-label weight schedules that override Constraint.weight each step.",
-        advanced=True,
     )
     gumbel_logit_init: bool = ConfigField(
         default=False,
         title="Gumbel Logit Init",
         description="Gumbel(0,1) noise at init; zeroed at fixed_positions; additive with sequence_bias.",
-        advanced=True,
     )
     gumbel_init_alpha: float = ConfigField(
         default=1.0,
         gt=0.0,
         title="Gumbel Init Alpha",
         description="Divisor for Gumbel init noise. 1.0 = unscaled.",
-        advanced=True,
     )
     initial_logits: list[list[float]] | None = ConfigField(
         default=None,
         title="Initial Logits",
         description="Base logit matrix (L x |vocab|) replacing default initialization.",
-        advanced=True,
-        hidden=True,
     )
     softmax_init_positions: list[int] | None = ConfigField(
         default=None,
         title="Softmax Init Positions",
         description="Positions receiving Gumbel noise + softmax over initial_logits.",
-        advanced=True,
-        hidden=True,
     )
 
     @property

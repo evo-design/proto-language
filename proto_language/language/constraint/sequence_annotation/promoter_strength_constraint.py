@@ -70,32 +70,27 @@ class PromoterStrengthConfig(BaseConfig):
         title="Add Context",
         default=False,
         description="If True, adds flanking nucleotides to short sequences to meet calculator length minimums",
-        advanced=True,
     )
     context_length: int = ConfigField(
         title="Added Context Length",
         default=10,
         description="Number of 'A' nucleotides to add on each end when add_context=True",
-        advanced=True,
     )
     threads: int = ConfigField(
         title="Number of Threads",
         default=8,
         ge=1,
         description="Number of threads for parallel processing of promoter calculations",
-        hidden=True,
     )
     circular: bool = ConfigField(
         title="Circular Sequences",
         default=False,
         description="If True, treat sequences as circular for promoter detection across ends",
-        advanced=True,
     )
     scoring_type: Literal["dG", "tx_rate"] = ConfigField(
         title="Scoring Type",
         default="dG",
         description="Score type to use: 'dG' (binding free energy) or 'tx_rate' (transcription rate). Defaults to 'dG'.",
-        advanced=True,
     )
 
 

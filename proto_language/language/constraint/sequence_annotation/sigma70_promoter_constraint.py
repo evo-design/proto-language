@@ -110,25 +110,21 @@ class Sigma70PromoterConfig(BaseConfig):
         title="Consensus -35 Box",
         default="TTGACA",
         description="-35 box consensus sequence (6 bp, typically TTGACA for E. coli sigma-70)",
-        advanced=True,
     )
     consensus_10: str = ConfigField(
         title="Consensus -10 Box",
         default="TATAAT",
         description="-10 box consensus sequence (6 bp Pribnow box, typically TATAAT for E. coli sigma-70)",
-        advanced=True,
     )
     probs_35: list[float] = ConfigField(
         title="Conservation Probs -35 Box",
         default=[0.69, 0.79, 0.61, 0.56, 0.54, 0.54],
         description="Position-specific conservation probabilities for -35 box (6 values). From RegulonDB.",
-        advanced=True,
     )
     probs_10: list[float] = ConfigField(
         title="Conservation Probs -10 Box",
         default=[0.77, 0.76, 0.60, 0.61, 0.56, 0.82],
         description="Position-specific conservation probabilities for -10 box (6 values). From RegulonDB.",
-        advanced=True,
     )
     optimal_spacer: int = ConfigField(
         title="Optimal Spacer",
@@ -139,49 +135,41 @@ class Sigma70PromoterConfig(BaseConfig):
         title="Spacer Standard Deviation",
         default=1.5,
         description="Standard deviation for spacer length penalty. Lower values = stricter spacing requirement.",
-        advanced=True,
     )
     spacer_weight: float = ConfigField(
         title="Spacer Weight",
         default=0.3,
         description="Weight (0-1) for spacer penalty in total score. Higher = spacing more important.",
-        advanced=True,
     )
     gamma: float = ConfigField(
         title="PWM Score Exponent",
         default=0.1,
         description="PWM score exponent for non-linearity. Lower values = more sensitive to mismatches.",
-        advanced=True,
     )
     k_opt: int = ConfigField(
         title="Optimal Number of Matches",
         default=8,
         description="Optimal number of matches to consensus (out of 12 total positions)",
-        advanced=True,
     )
     match_sigma: float = ConfigField(
         title="Match Count Standard Deviation",
         default=2.0,
         description="Standard deviation for match count penalty",
-        advanced=True,
     )
     match_weight: float = ConfigField(
         title="Match Count Weight",
         default=0.3,
         description="Weight (0-1) for match count penalty in total score",
-        advanced=True,
     )
     min_spacer: int = ConfigField(
         title="Min Acceptable Spacer Length",
         default=14,
         description="Minimum acceptable spacer length in bp",
-        advanced=True,
     )
     max_spacer: int = ConfigField(
         title="Max Acceptable Spacer Length",
         default=20,
         description="Maximum acceptable spacer length in bp",
-        advanced=True,
     )
 
 

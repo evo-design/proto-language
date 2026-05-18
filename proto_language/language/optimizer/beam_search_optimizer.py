@@ -104,7 +104,6 @@ class BeamSearchOptimizerConfig(BaseOptimizerConfig):
         ge=1,
         title="Design Candidates",
         description="Candidate designs (beam width) for this optimizer. Overrides program-level count.",
-        advanced=True,
     )
     proposals_per_result: int = ConfigField(
         ge=1,
@@ -140,7 +139,6 @@ class BeamSearchOptimizerConfig(BaseOptimizerConfig):
         ge=1,
         title="Max Resample Attempts",
         description="Maximum number of times to resample beams with invalid (inf/NaN) energies before giving up.",
-        advanced=True,
     )
 
     @model_validator(mode="after")

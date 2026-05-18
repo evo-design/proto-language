@@ -66,7 +66,6 @@ class RandomProteinGeneratorConfig(BaseConfig):
         default="UNIFORM",
         title="Codon Scheme",
         description="Codon scheme for amino acid sampling probabilities.",
-        advanced=True,
     )
 
 

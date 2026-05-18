@@ -76,26 +76,22 @@ class MpnnPerplexityConfig(BaseConfig):
         default=True,
         title="Straight-Through Estimator",
         description="Hard one-hot forward pass with soft-probability gradients.",
-        advanced=True,
     )
     device: str = ConfigField(
         default="cuda",
         title="Device",
         description="Device for ProteinMPNN execution, e.g. 'cuda' or 'cuda:0'.",
-        hidden=True,
     )
     seed: int | None = ConfigField(
         default=None,
         title="Random Seed",
         description="Seed for ProteinMPNN decoding-order sampling. None lets proto-tools choose a fresh seed.",
         ge=0,
-        advanced=True,
     )
     score_mode: Literal["nll", "ppl"] = ConfigField(
         default="ppl",
         title="Score Mode",
         description="Return ProteinMPNN perplexity by default, or raw mean NLL when set to 'nll'.",
-        advanced=True,
     )
     logit_scale: float = ConfigField(
         default=1.0,
@@ -107,7 +103,6 @@ class MpnnPerplexityConfig(BaseConfig):
         default=None,
         title="Sequence Bias",
         description="Declarative sequence-symbol bias (canonical 20-AA protein) added before ProteinMPNN.",
-        advanced=True,
     )
 
     @field_validator("structure_input", mode="before")

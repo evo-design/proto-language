@@ -323,13 +323,11 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
         title="Target Chain ID",
         default=None,
         description="Chain ID to extract from the target structure (e.g., 'A').",
-        advanced=True,
     )
     target_residue_range: tuple[int, int] | None = ConfigField(
         title="Target Residue Range",
         default=None,
         description="Residue range (start, end) to extract from target (1-indexed, inclusive).",
-        advanced=True,
     )
 
     # Proposal subsetting
@@ -337,7 +335,6 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
         title="Proposal Residue Range",
         default=None,
         description="Residue range (start, end) of the proposal sequence to use.",
-        advanced=True,
     )
 
     # BioEmu tool configuration
@@ -345,7 +342,6 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
         title="BioEmu Config",
         default_factory=BioEmuConfig,
         description="Dictionary of configuration parameters passed to the ensemble prediction tool.",
-        advanced=True,
     )
 
     # RMSD configuration
@@ -366,14 +362,12 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
         default=3.0,
         description="RMSD (Angstroms) where score is 0.5. < 3.0 is generally good.",
         gt=0.0,
-        advanced=True,
     )
     sigmoid_slope: float = ConfigField(
         title="Sigmoid Slope",
         default=3.0,
         description="Steepness of the penalty curve.",
         gt=0.0,
-        advanced=True,
     )
 
     # Runtime configuration
@@ -381,7 +375,6 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
         title="Verbose",
         default=False,
         description="Whether to print progress messages.",
-        hidden=True,
     )
 
     @field_validator("target_residue_range", "proposal_residue_range", mode="after")

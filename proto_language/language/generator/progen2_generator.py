@@ -115,20 +115,17 @@ class ProGen2GeneratorConfig(BaseConfig):
         default=None,
         title="Local Model Path",
         description="Path to local model weights",
-        hidden=True,
     )
     device: str = ConfigField(
         default="cuda",
         title="Device",
         description="GPU device to run ProGen2 on (e.g. 'cuda' or 'cuda:0').",
-        hidden=True,
     )
     temperature: float = ConfigField(
         default=0.2,
         gt=0.0,
         title="Temperature",
         description="Scales the randomness of sampling.",
-        advanced=True,
     )
     top_p: float = ConfigField(
         default=0.95,
@@ -136,45 +133,38 @@ class ProGen2GeneratorConfig(BaseConfig):
         le=1.0,
         title="Top-p",
         description="Nucleus sampling parameter.",
-        advanced=True,
     )
     top_k: int = ConfigField(
         default=0,
         ge=0,
         title="Top-k",
         description="Limits sampling to the top-k most probable tokens.",
-        advanced=True,
     )
     truncate_at_stop: bool = ConfigField(
         default=True,
         title="Truncate at Stop Token",
         description="Whether to truncate sequences at stop tokens",
-        advanced=True,
     )
     strip_special_tokens: bool = ConfigField(
         default=True,
         title="Strip Special Tokens",
         description="Whether to strip start and stop tokens from final output",
-        advanced=True,
     )
     prepend_prompt: bool = ConfigField(
         default=True,
         title="Prepend Prompt",
         description="Whether to prepend prompt to generation",
-        hidden=True,
     )
     batch_size: int = ConfigField(
         default=1,
         ge=1,
         title="Batch Size",
         description="Number of sequences to process simultaneously on GPU",
-        advanced=True,
     )
     verbose: bool = ConfigField(
         default=False,
         title="Verbose",
         description="Whether to print verbose output",
-        hidden=True,
     )
 
     @field_validator("prompts", mode="before")

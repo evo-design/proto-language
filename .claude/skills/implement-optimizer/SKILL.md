@@ -97,7 +97,7 @@ For complete config class and optimizer class templates, use the `Read` tool to 
 - **Templates**: `.claude/skills/implement-optimizer/TEMPLATES.md`
 
 Summary of the workflow:
-1. **Config class** — inherit `BaseOptimizerConfig`, use `ConfigField` (supports `advanced`, `hidden`, and `depends_on` for conditional visibility), declare `num_steps`/`num_results`
+1. **Config class** — inherit `BaseOptimizerConfig`, use presentation-agnostic `ConfigField`, declare `num_steps`/`num_results`
 2. **Optimizer class** — `@optimizer` decorator, `@final`, implement `__init__` and `run`
 3. **`_update_results`** — implement your selection logic (greedy, MCMC, etc.)
 
@@ -154,7 +154,7 @@ See the testing skill for complete test templates (including `_setup_components`
 
 Copy this and check off as you go:
 
-- [ ] Config class inherits `BaseOptimizerConfig` with `ConfigField` (use `depends_on` for conditionally visible fields)
+- [ ] Config class inherits `BaseOptimizerConfig` with presentation-agnostic `ConfigField`
 - [ ] `@optimizer` decorator with unique kebab-case key
 - [ ] `@final` decorator on class
 - [ ] `__init__` stores `self.config = config`, then calls `super().__init__()` with unpacked config and `seed=config.seed`

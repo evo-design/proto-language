@@ -60,25 +60,21 @@ class ProteinNearestNeighborGapGiniConfig(BaseConfig):
         default=True,
         title="Pass No Hits",
         description="If True, proposals with no MMseqs2 hit pass as novel sequences.",
-        advanced=True,
     )
     trim_alignment: bool = ConfigField(
         default=True,
         title="Trim Alignment",
         description="Center-crop the pairwise alignment and strip end gaps before computing gap Gini.",
-        advanced=True,
     )
     mmseqs_config: Mmseqs2SearchProteinsConfig = ConfigField(
         default_factory=Mmseqs2SearchProteinsConfig,
         title="MMseqs2 Config",
         description="Advanced MMseqs2 protein search configuration.",
-        advanced=True,
     )
     mafft_config: MafftConfig = ConfigField(
         default_factory=MafftConfig,
         title="MAFFT Config",
         description="Advanced MAFFT pairwise alignment configuration.",
-        advanced=True,
     )
 
 

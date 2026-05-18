@@ -184,7 +184,6 @@ class CyclingOptimizerConfig(BaseOptimizerConfig):
         ge=1,
         title="Design Candidates",
         description="Candidate design trajectories for this optimizer. Overrides program-level count.",
-        advanced=True,
     )
     pipeline: Literal["protein-hunter"] | None = ConfigField(
         default=None,
@@ -195,7 +194,6 @@ class CyclingOptimizerConfig(BaseOptimizerConfig):
         default=None,
         title="Protein Hunter Config",
         description="Configuration for protein-hunter pipeline. Only used when pipeline='protein-hunter'.",
-        depends_on={"field": "pipeline", "value": "protein-hunter"},
     )
 
     @model_validator(mode="after")

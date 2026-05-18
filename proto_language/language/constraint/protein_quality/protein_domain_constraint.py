@@ -82,26 +82,22 @@ class ProteinDomainConfig(BaseConfig):
         title="Max E-value Threshold",
         default=0.005,
         description="Max E-value threshold for significant hits. Lower values are more stringent. Typical: 0.0001-0.01",
-        advanced=True,
         examples=[0.0001, 0.01],
     )
     query_coverage: float | None = ConfigField(
         title="Min Query Coverage",
         default=None,
         description="Min query coverage percentage for significant hits (0-100).",
-        advanced=True,
     )
     match_all_keywords: bool = ConfigField(
         title="Match All Keywords",
         default=False,
         description="If True, require ALL keywords to be found. If False, require ANY keyword (default).",
-        advanced=True,
     )
     hmmscan_config: PyHmmerConfig = ConfigField(
         title="PyHMMER Config",
         default_factory=PyHmmerConfig,
         description="Configuration for PyHMMER hmmscan.",
-        advanced=True,
     )
 
 

@@ -52,13 +52,11 @@ class ProteinGlobularityConfig(BaseConfig):
         title="Max Globularity Deviation",
         default=20.0,
         description="Max std from backbone atoms to the structure's centroid to be considered highly extended/ unfolded.",
-        advanced=True,
     )
     esmfold_config: ESMFoldConfig = ConfigField(
         title="ESMFold Config",
         default_factory=ESMFoldConfig,
         description="ESMFold configuration for structure prediction.",
-        advanced=True,
     )
 
 

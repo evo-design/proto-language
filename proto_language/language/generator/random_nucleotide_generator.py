@@ -60,7 +60,6 @@ class RandomNucleotideGeneratorConfig(BaseConfig):
         default="N",
         title="Substitution Scheme",
         description="IUPAC code defining the nucleotide substitution pool.",
-        advanced=True,
     )
 
 

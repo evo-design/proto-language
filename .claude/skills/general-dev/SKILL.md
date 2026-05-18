@@ -92,34 +92,13 @@ class MyConfig(BaseConfig):
         default="value",
         title="Optional Param",
         description="...",
-        advanced=True,   # Shows in "Advanced" UI section
-        hidden=False,    # True = completely hidden from UI
-    )
-    conditional_param: float = ConfigField(
-        default=0.5,
-        title="Conditional Param",
-        description="Only shown when optional_param is 'value'",
-        depends_on={"field": "optional_param", "value": "value"},
     )
 ```
 
-**`depends_on`** — conditionally show/hide a field based on another field's value:
-
-```python
-from typing import TypedDict
-
-class DependsOn(TypedDict, total=False):
-    field: str                                     # Required: sibling field key to watch
-    value: str | int | float | bool | list      # Show when field == value (or field in value if list)
-    not_null: bool                                 # Show when field is not None
-```
-
-Evaluation rules (first matching rule wins):
-- `{"field": "mode", "value": "percentile"}` — show when `mode == "percentile"`
-- `{"field": "use_weights"}` — show when `use_weights` is truthy (omit `value` and `not_null`)
-- `{"field": "reference_seq", "not_null": True}` — show when `reference_seq` is not None
-
-Only one of `value` or `not_null` should be specified. Omitting both means "show when truthy."
+UI-presentation hints (`advanced`/`hidden`/`depends_on`) used to ride on
+`ConfigField` and emit into JSON Schema. They now live in client's overlay
+infra (`src/data/ui-overlays/`), so `ConfigField` is presentation-agnostic:
+just `title`, `description`, and any standard Pydantic validators.
 
 **BaseConfig behavior** (from `ConfigDict`):
 - `extra='forbid'` — unknown fields rejected with a validation error

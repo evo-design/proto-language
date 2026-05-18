@@ -45,19 +45,16 @@ class ProteinMaxIdentityConfig(BaseConfig):
         default=True,
         title="Pass No Hits",
         description="If True, proposals with no MMseqs2 hit pass as novel sequences.",
-        advanced=True,
     )
     reference_fasta: str | None = ConfigField(
         default=None,
         title="Reference FASTA",
         description="Optional FASTA file for recovering the top hit sequence by target ID.",
-        advanced=True,
     )
     mmseqs_config: Mmseqs2SearchProteinsConfig = ConfigField(
         default_factory=Mmseqs2SearchProteinsConfig,
         title="MMseqs2 Config",
         description="Advanced MMseqs2 protein search configuration.",
-        advanced=True,
     )
 
 

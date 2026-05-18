@@ -65,20 +65,17 @@ class ESM2PerplexityConfig(BaseConfig):
         default=True,
         title="Straight-Through Estimator",
         description="Hard one-hot forward pass with soft-probability gradients.",
-        advanced=True,
     )
     device: str = ConfigField(
         default="cuda",
         title="Device",
         description="Device for ESM2 execution, e.g. 'cuda' or 'cuda:0'.",
-        hidden=True,
     )
     batch_size: int | None = ConfigField(
         default=None,
         title="PLL Batch Size",
         description="AA positions per ESM2 forward pass. Lower if OOM, higher for throughput.",
         gt=0,
-        advanced=True,
     )
     score_mode: Literal["nll", "ppl"] = ConfigField(
         default="nll",
@@ -95,7 +92,6 @@ class ESM2PerplexityConfig(BaseConfig):
         default=None,
         title="Sequence Bias",
         description="Declarative sequence-symbol bias (canonical 20-AA protein) added before ESM2.",
-        advanced=True,
     )
 
 

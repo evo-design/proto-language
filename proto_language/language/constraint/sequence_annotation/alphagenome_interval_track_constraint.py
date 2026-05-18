@@ -77,26 +77,22 @@ class AlphaGenomeIntervalTrackConfig(BaseConfig):
         title="Model Version",
         default=DEFAULT_ALPHAGENOME_MODEL_VERSION,
         description="AlphaGenome model version.",
-        advanced=True,
     )
     organism: Literal["human", "mouse"] = ConfigField(
         title="Organism",
         default="human",
         description="Organism for AlphaGenome prediction.",
-        advanced=True,
     )
     device: str = ConfigField(
         title="Device",
         default="cuda",
         description="Device for AlphaGenome prediction.",
-        hidden=True,
     )
     prediction_timeout: int = ConfigField(
         title="Prediction Timeout",
         default=3600,
         ge=1,
         description="Timeout (seconds) for each AlphaGenome prediction call.",
-        advanced=True,
     )
 
     @field_validator("ontology_terms", mode="before")

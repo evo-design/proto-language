@@ -103,7 +103,6 @@ class ESM2GeneratorConfig(BaseConfig):
         description=(
             "'single_pass' samples every mask in one forward; 'iterative_refinement' runs the MaskGIT-style loop"
         ),
-        advanced=True,
     )
 
     # Advanced parameters
@@ -112,7 +111,6 @@ class ESM2GeneratorConfig(BaseConfig):
         gt=0.0,
         title="Temperature",
         description="Scales the randomness of sampling by adjusting probability distribution sharpness.",
-        advanced=True,
     )
     top_p: float = ConfigField(
         default=1.0,
@@ -120,50 +118,38 @@ class ESM2GeneratorConfig(BaseConfig):
         le=1.0,
         title="Top P",
         description="Nucleus sampling threshold; 1.0 disables",
-        advanced=True,
-        depends_on={"field": "sampling_method", "value": "iterative_refinement"},
     )
     num_steps: int = ConfigField(
         default=20,
         ge=1,
         title="Num Steps",
         description="Iterative-refinement decoding steps; diminishing returns above 20",
-        advanced=True,
-        depends_on={"field": "sampling_method", "value": "iterative_refinement"},
     )
     schedule: Literal["cosine", "linear"] = ConfigField(
         default="cosine",
         title="Unmask Schedule",
         description="Unmask schedule across rounds; 'cosine' fronts more commits late",
-        advanced=True,
-        depends_on={"field": "sampling_method", "value": "iterative_refinement"},
     )
     strategy: Literal["random", "entropy"] = ConfigField(
         default="random",
         title="Unmask Strategy",
         description="Position-selection per round; 'entropy' commits the most-confident first",
-        advanced=True,
-        depends_on={"field": "sampling_method", "value": "iterative_refinement"},
     )
     temperature_annealing: bool = ConfigField(
         default=True,
         title="Temperature Annealing",
         description="Anneal temperature toward 0 across rounds",
-        advanced=True,
-        depends_on={"field": "sampling_method", "value": "iterative_refinement"},
     )
     device: str = ConfigField(
         default="cuda",
         title="Device",
         description="GPU device to run ESM2 on (e.g. 'cuda' or 'cuda:0').",
-        hidden=True,
     )
     batch_size: int = ConfigField(
         default=1,
         ge=1,
         title="Batch Size",
         description="Number of sequences to process simultaneously on GPU",
-        advanced=True,
     )
 
 

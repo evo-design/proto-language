@@ -165,7 +165,6 @@ class GapGiniConfig(BaseConfig):
         default=True,
         title="Trim Alignment",
         description=("Center-crop to 80% and strip end gaps before computing the Gini coefficient."),
-        advanced=True,
     )
 
 

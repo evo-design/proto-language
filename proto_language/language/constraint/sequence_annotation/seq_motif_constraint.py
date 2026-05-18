@@ -122,19 +122,16 @@ class SeqMotifConfig(BaseConfig):
         title="Scale",
         default=1.0,
         description="Scaling factor to adjust penalty magnitude (>1 = stricter, <1 = more lenient). Example: 1.0",
-        advanced=True,
     )
     exclusive: bool = ConfigField(
         title="Exclusive",
         default=True,
         description="If True, automatically sets unwanted motifs as complement of wanted motifs",
-        advanced=True,
     )
     aggregation: Literal["smart", "average", "max", "percentile"] = ConfigField(
         title="Aggregation Method",
         default="smart",
         description="How to aggregate penalties: 'smart' (adaptive), 'average', 'max' (strictest), 'percentile'",
-        advanced=True,
     )
     percentile_value: float = ConfigField(
         title="Percentile Value",
@@ -142,14 +139,11 @@ class SeqMotifConfig(BaseConfig):
         ge=0.0,
         le=100.0,
         description="Which percentile to use when aggregation='percentile' (0-100)",
-        advanced=True,
-        depends_on={"field": "aggregation", "value": "percentile"},
     )
     unwanted_focus: bool = ConfigField(
         title="Unwanted Focus",
         default=True,
         description="When both wanted and unwanted motifs exist, weight unwanted motifs more heavily in final score",
-        advanced=True,
     )
 
 

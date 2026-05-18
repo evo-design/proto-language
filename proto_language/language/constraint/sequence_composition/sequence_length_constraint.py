@@ -54,14 +54,12 @@ class SequenceLengthConfig(BaseConfig):
         default=None,
         gt=0,
         description="Maximum acceptable length (use with min_length for range mode)",
-        advanced=True,
     )
     target_length: int | None = ConfigField(
         title="Target Length",
         default=None,
         gt=0,
         description="Target length for exact matching (alternative to min/max range)",
-        advanced=True,
     )
 
     @model_validator(mode="after")

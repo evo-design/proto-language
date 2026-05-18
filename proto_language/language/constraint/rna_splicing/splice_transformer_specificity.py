@@ -140,7 +140,6 @@ class SpliceTransformerSpecificityConfig(BaseConfig):
         title="SpliceTransformer Config",
         default_factory=SpliceTransformerConfig,
         description="Advanced parameter configuration for SpliceTransformer.",
-        advanced=True,
     )
 
     @field_validator("splice_pos", mode="before")

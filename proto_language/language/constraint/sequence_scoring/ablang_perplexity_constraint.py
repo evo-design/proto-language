@@ -46,8 +46,8 @@ class AbLangPerplexityConfig(BaseConfig):
             pass with gradients through soft probabilities. This matches the
             Germinal-style antibody LM path.
         device (str): Device for AbLang execution, for example ``"cuda"`` or
-            ``"cuda:0"``. Hidden from public JSON forms because most programs
-            should set it at the execution environment level.
+            ``"cuda:0"``. Most programs should set it at the execution
+            environment level.
         heavy_slice (tuple[int, int] | None): Optional half-open ``(start, end)``
             over the binder Segment for the VH region. Set together with
             ``light_slice`` to enable single-chain scFv mode; leave both
@@ -75,13 +75,11 @@ class AbLangPerplexityConfig(BaseConfig):
         default=True,
         title="Straight-Through Estimator",
         description="Hard one-hot forward pass with soft-probability gradients.",
-        advanced=True,
     )
     device: str = ConfigField(
         default="cuda",
         title="Device",
         description="Device for AbLang execution, e.g. 'cuda' or 'cuda:0'.",
-        hidden=True,
     )
     heavy_slice: tuple[int, int] | None = ConfigField(
         default=None,
@@ -108,7 +106,6 @@ class AbLangPerplexityConfig(BaseConfig):
         default=None,
         title="Sequence Bias",
         description="Declarative sequence-symbol bias (canonical 20-AA protein) added before AbLang.",
-        advanced=True,
     )
 
     @model_validator(mode="after")

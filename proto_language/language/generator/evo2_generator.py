@@ -112,20 +112,17 @@ class Evo2GeneratorConfig(BaseConfig):
         default=None,
         title="Local Checkpoint Path",
         description="Path to local checkpoint weights for custom or finetuned models",
-        hidden=True,
     )
     device: str = ConfigField(
         default="cuda",
         title="Device",
         description="GPU device to run Evo2 on (e.g. 'cuda' or 'cuda:0').",
-        hidden=True,
     )
     top_k: int = ConfigField(
         default=4,
         ge=1,
         title="Top-k",
         description="Limits sampling to the top-k most probable tokens at each generation step.",
-        advanced=True,
     )
     top_p: float = ConfigField(
         title="Top-p",
@@ -133,70 +130,58 @@ class Evo2GeneratorConfig(BaseConfig):
         gt=0.0,
         le=1.0,
         description="Chooses the smallest set of tokens whose cumulative probability mass ≥ top-p.",
-        advanced=True,
     )
     temperature: float = ConfigField(
         default=1.0,
         gt=0.0,
         title="Temperature",
         description="Scales the randomness of sampling by adjusting probability distribution sharpness.",
-        advanced=True,
     )
     force_prompt_threshold: int | None = ConfigField(
         default=None,
         title="Force Prompt Threshold",
         description="Optional number of tokens to prefill in parallel before switching to prompt forcing.",
-        advanced=True,
     )
     max_seqlen: int | None = ConfigField(
         default=None,
         title="Max Sequence Length",
         description="Optional maximum sequence length to generate. Determines the max size of the cache if larger.",
-        advanced=True,
     )
     stop_at_eos: bool = ConfigField(
         default=True,
         title="Stop at EOS",
         description="Whether to stop at end-of-sequence token",
-        advanced=True,
     )
     batched: bool = ConfigField(
         default=True,
         title="Batched",
         description="Whether to use batched generation, set to true if # of prompts > 1.",
-        hidden=True,
     )
     batch_size: int = ConfigField(
         title="Batch Size",
         default=1,
         ge=1,
         description="Number of sequences to process simultaneously on GPU",
-        advanced=True,
     )
     cached_generation: bool = ConfigField(
         default=True,
         title="Cached Generation",
         description="Whether to use cached generation",
-        advanced=True,
     )
     store_kv_cache: bool = ConfigField(
         default=False,
         title="Store KV Cache",
         description="Whether to store and reuse Key-Value cache",
-        advanced=True,
-        depends_on={"field": "cached_generation"},
     )
     prepend_prompt: bool = ConfigField(
         default=False,
         title="Prepend Prompt",
         description="Whether to prepend prompt to generation",
-        hidden=True,
     )
     verbose: bool = ConfigField(
         default=False,
         title="Verbose",
         description="Whether to print verbose output",
-        hidden=True,
     )
 
     @field_validator("prompts", mode="before")

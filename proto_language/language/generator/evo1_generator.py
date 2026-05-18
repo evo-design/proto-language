@@ -49,39 +49,33 @@ class Evo1GeneratorConfig(BaseConfig):
         ge=1,
         title="Top-k",
         description="Top-k sampling parameter",
-        advanced=True,
     )
     temperature: float = ConfigField(
         default=1.0,
         gt=0.0,
         title="Temperature",
         description="Sampling temperature",
-        advanced=True,
     )
     prepend_prompt: bool = ConfigField(
         default=False,
         title="Prepend Prompt",
         description="Whether to prepend prompt to generation",
-        hidden=True,
     )
     device: str = ConfigField(
         default="cuda",
         title="Device",
         description="GPU device to run Evo1 on (e.g. 'cuda' or 'cuda:0').",
-        hidden=True,
     )
     batch_size: int = ConfigField(
         title="Batch Size",
         default=1,
         ge=1,
         description="Number of sequences to process simultaneously on GPU",
-        advanced=True,
     )
     verbose: bool = ConfigField(
         default=False,
         title="Verbose",
         description="Whether to print verbose output",
-        hidden=True,
     )
 
     @field_validator("prompts", mode="before")

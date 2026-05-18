@@ -106,7 +106,6 @@ class SpliceTransformerIntronBoundaryConfig(BaseConfig):
         title="SpliceTransformer Config",
         default_factory=SpliceTransformerConfig,
         description="Advanced parameter configuration for SpliceTransformer.",
-        advanced=True,
     )
 
 

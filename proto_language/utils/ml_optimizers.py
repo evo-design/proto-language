@@ -21,7 +21,7 @@ class AdamConfig(BaseConfig):
 
     beta1: float = ConfigField(default=0.9, ge=0.0, lt=1.0, title="β₁", description="First moment decay rate.")
     beta2: float = ConfigField(default=0.999, ge=0.0, lt=1.0, title="β₂", description="Second moment decay rate.")
-    eps: float = ConfigField(default=1e-8, gt=0.0, title="ε", description="Numerical stability term.", hidden=True)
+    eps: float = ConfigField(default=1e-8, gt=0.0, title="ε", description="Numerical stability term.")
 
 
 class MLOptimizer(ABC):

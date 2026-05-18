@@ -195,7 +195,6 @@ class BoltzBindingStrengthConfig(BaseConfig):
         default_factory=Boltz2Config,
         title="Boltz2 Config",
         description="Boltz2 configuration for structure prediction.",
-        advanced=True,
     )
 
     def model_post_init(self, __context: Any) -> None:

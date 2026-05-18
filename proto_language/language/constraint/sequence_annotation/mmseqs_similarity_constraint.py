@@ -111,27 +111,21 @@ class MMseqsSimilarityConfig(BaseConfig):
         title="MMseqs Configuration",
         default_factory=Mmseqs2SearchProteinsConfig,
         description="MMseqs configuration (threads, sensitivity, etc.).",
-        advanced=True,
     )
     orf_predictor: Literal["orfipy", "prodigal"] = ConfigField(
         title="ORF Predictor",
         default="prodigal",
         description="ORF prediction tool (DNA only): 'orfipy' (viral) or 'prodigal' (prokaryotic).",  #  Ignored for protein sequences.
-        advanced=True,
     )
     orfipy_config: OrfipyConfig = ConfigField(
         title="ORFipy Configuration",
         default_factory=OrfipyConfig,
         description="ORFipy configuration (DNA only, used if orf_predictor='orfipy').",
-        advanced=True,
-        depends_on={"field": "orf_predictor", "value": "orfipy"},
     )
     prodigal_config: ProdigalConfig = ConfigField(
         title="Prodigal Configuration",
         default_factory=ProdigalConfig,
         description="Prodigal configuration (DNA only, used if orf_predictor='prodigal').",
-        advanced=True,
-        depends_on={"field": "orf_predictor", "value": "prodigal"},
     )
 
     @model_validator(mode="after")
@@ -178,7 +172,7 @@ def mmseqs_similarity_constraint(
         config (MMseqsSimilarityConfig): Configuration object containing ``min_similarity``
             (minimum percent identity, default: 0.0), ``max_similarity`` (maximum
             percent identity, default: 100.0), ``mmseqs_db`` (database path),
-            ``orf_predictor`` (default: "prodigal"), and optional advanced configs
+            ``orf_predictor`` (default: "prodigal"), and optional tool configs
             for MMseqs2, ORFipy, and Prodigal.
         input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
 

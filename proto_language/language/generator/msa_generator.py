@@ -49,13 +49,11 @@ class MSAGeneratorConfig(BaseConfig):
         ge=1,
         title="Number of Mutations",
         description="Number of positions to mutate per sample",
-        advanced=True,
     )
     include_gaps: bool = ConfigField(
         default=False,
         title="Include Gaps",
         description="Whether to include gaps when calculating position probabilities",
-        advanced=True,
     )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

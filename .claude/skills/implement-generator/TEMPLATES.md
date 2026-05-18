@@ -61,7 +61,6 @@ class MyGeneratorConfig(BaseConfig):
         description="Sampling temperature (higher = more random)",
         gt=0.0,
         le=2.0,
-        advanced=True,
     )
 
     batch_size: int = ConfigField(
@@ -69,7 +68,6 @@ class MyGeneratorConfig(BaseConfig):
         title="Batch Size",
         description="Number of sequences to process per batch on the GPU",
         ge=1,
-        advanced=True,
     )
 
     @field_validator("model_name", mode="before")

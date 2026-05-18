@@ -64,7 +64,6 @@ class BorzoiChromatinAccessibilityMorseConfig(BaseConfig):
         title="Organism",
         description="Borzoi species head to use: human or mouse.",
         default="human",
-        advanced=True,
     )
     pattern: str = ConfigField(
         title="Morse Pattern",
@@ -105,80 +104,68 @@ class BorzoiChromatinAccessibilityMorseConfig(BaseConfig):
         title="Pattern Normalization",
         description="Scale signal by full-output max, target-region max, or not at all.",
         default="global_max",
-        advanced=True,
     )
     contrast_margin: float = ConfigField(
         title="Contrast Margin",
         description="Minimum normalized high-minus-low signal margin to reward.",
         default=0.0,
         ge=0.0,
-        advanced=True,
     )
     contrast_weight: float = ConfigField(
         title="Contrast Weight",
         description="Penalty weight when the normalized contrast margin is too small.",
         default=0.0,
         ge=0.0,
-        advanced=True,
     )
     raw_amplitude_weight: float = ConfigField(
         title="Raw Amplitude Weight",
         description="Reward weight for larger raw target signal range.",
         default=0.0,
         ge=0.0,
-        advanced=True,
     )
     high_window_reward_weight: float = ConfigField(
         title="High Window Reward",
         description="Reward weight for larger raw signal in dot and dash windows.",
         default=0.0,
         ge=0.0,
-        advanced=True,
     )
     low_window_penalty_weight: float = ConfigField(
         title="Low Window Penalty",
         description="Penalty weight for larger raw signal in gap windows.",
         default=0.0,
         ge=0.0,
-        advanced=True,
     )
     window_stat_transform: WindowStatTransform = ConfigField(
         title="Window Stat Transform",
         description="Transform for raw amplitude and window-mean reward terms.",
         default="log1p",
-        advanced=True,
     )
     device: str = ConfigField(
         title="Device",
         description="CUDA device for Borzoi inference.",
         default="cuda",
-        hidden=True,
     )
     batch_size: int = ConfigField(
         title="Batch Size",
         description="Candidate sequences per Borzoi model batch.",
         default=1,
         ge=1,
-        advanced=True,
     )
     trim_prefix_bp: int = ConfigField(
         title="Trim Prefix (bp)",
         description="Leading target bases to ignore before accessibility scoring.",
         default=0,
         ge=0,
-        advanced=True,
     )
     borzoi_output_tracks: list[int] = ConfigField(
         title="Borzoi Output Tracks",
         description="Borzoi chromatin-accessibility tracks; defaults by organism.",
         default=[1901],
-        advanced=True,
     )
     borzoi_ensemble_reduce_method: ReduceMethod = ConfigField(
         title="Borzoi Ensemble Reduce",
         description="How to combine Borzoi replicate signals.",
         default="mean",
-        advanced=True,
     )
 
     @model_validator(mode="before")

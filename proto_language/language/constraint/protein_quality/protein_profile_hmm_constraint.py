@@ -47,19 +47,16 @@ class ProteinProfileHMMConfig(BaseConfig):
         default=True,
         title="Match All Required Profiles",
         description="Require all listed profiles instead of any listed profile.",
-        advanced=True,
     )
     profile_match_field: Literal["query_name", "query_accession", "query_description"] = ConfigField(
         default="query_name",
         title="Profile Match Field",
         description="HMM hit field used to match required profile strings.",
-        advanced=True,
     )
     hmmsearch_config: PyHmmsearchConfig = ConfigField(
         default_factory=lambda: PyHmmsearchConfig(evalue_threshold=1e-3, domain_evalue_threshold=1e-3),
         title="PyHMMER Config",
         description="PyHMMER hmmsearch configuration. Tune evalue_threshold / domain_evalue_threshold here.",
-        advanced=True,
     )
 
     @field_validator("required_profiles")
