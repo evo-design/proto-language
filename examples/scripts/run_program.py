@@ -60,10 +60,13 @@ def parse_program(json_data: dict[str, Any]) -> Program:
                 key=gen_json["key"],
                 config_dict=gen_json.get("config", {}),
             )
-            target_id = gen_json["target"]
-            if target_id not in segment_lookup:
-                raise ValueError(f"Generator target '{target_id}' not found (stage {idx})")
-            generator.assign(segment_lookup[target_id])
+            target_ids = gen_json["targets"]
+            target_segments = []
+            for tid in target_ids:
+                if tid not in segment_lookup:
+                    raise ValueError(f"Generator target '{tid}' not found (stage {idx})")
+                target_segments.append(segment_lookup[tid])
+            generator.assign(target_segments)
             stage_generators.append(generator)
 
         # Parse constraints

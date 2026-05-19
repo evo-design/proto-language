@@ -1,11 +1,13 @@
+"""Predict a single protein structure with ESMFold and write it as CIF."""
+
 import sys
 
-from proto_tools import ESMFoldConfig, run_esmfold
+from proto_tools import ESMFoldConfig, ESMFoldInput, run_esmfold
 
 if __name__ == "__main__":
-    config = ESMFoldConfig(sequences=sys.argv[1])
-    esmfold_output = run_esmfold(config)
+    inputs = ESMFoldInput(complexes=[sys.argv[1]])
+    config = ESMFoldConfig()
+    output = run_esmfold(inputs, config)
 
-    # Save structure in CIF format
     with open("design.cif", "w") as f:
-        f.write(esmfold_output.structure_cif)
+        f.write(output.structures[0].structure_cif)

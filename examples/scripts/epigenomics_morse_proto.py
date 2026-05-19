@@ -316,6 +316,7 @@ def build_program(cfg: RuntimeConfig) -> Program:
             device=cfg.evo_device,
         ),
     )
+    generator.assign(target)
 
     morse_config = {
         "organism": cfg.organism,
