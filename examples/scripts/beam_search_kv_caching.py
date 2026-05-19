@@ -82,9 +82,9 @@ def run_beam_search(
     Returns:
         Tuple of (elapsed_time, generated_sequences)
     """
-    # Create a single segment for the full sequence
-    segment_length = len(prompt) + total_token_count
-    segment = Segment(length=segment_length, sequence_type="dna", label="full_sequence")
+    # Segment length is the number of tokens beam search will generate;
+    # the prompt is prepended separately by the optimizer.
+    segment = Segment(length=total_token_count, sequence_type="dna", label="full_sequence")
     construct = Construct(segments=[segment])
 
     # Create generator
