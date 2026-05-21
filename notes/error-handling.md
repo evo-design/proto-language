@@ -27,7 +27,7 @@ This is the only place soft-fail belongs. Canonical: `gap_gini_constraint.py`. O
 
 With reformatted messages:
 
-- **Pydantic `ValidationError` at `Registry.create()`**: caught and reformatted via `format_pydantic_error()` (in `proto_language/utils/helpers.py`) → `ValueError("<type> '<key>' config invalid — <field>: <msg> [got=<value>]")`. Optimizer config validation lives in `Optimizer.__init__` and in the `test_constraint` / `test_generator` / `test_optimizer` helpers in `proto_language/utils/component_validation.py` — all using the same helper.
+- **Pydantic `ValidationError` at `Registry.create()`**: caught and reformatted via `format_pydantic_error()` (in `proto_language/utils/helpers.py`) → `ValueError("<type> '<key>' config invalid — <field>: <msg> [got=<value>]")`. Optimizer config validation lives in `Optimizer.__init__`, using the same helper.
 - **Function-entry hard config checks** (file existence, mutually-exclusive options, list-of-required-fields-empty): raise `ValueError`/`RuntimeError` naming the bad value.
 
 ## Programming-bug invariants raise
@@ -43,7 +43,6 @@ One line per error, name the operation / tool / failing value, and (when natural
 | File | Role |
 |---|---|
 | `proto_language/utils/helpers.py` | `format_pydantic_error()` — registry-create error formatter |
-| `proto_language/utils/component_validation.py` | `test_constraint` / `test_generator` / `test_optimizer` helpers; same formatter |
 | `proto_language/utils/__init__.py` | `MAX_ENERGY`, `MIN_ENERGY` constants used in soft-fail scores |
 
 For tool-side raise-vs-capture policy (`PROTO_CAPTURE_ERRORS`, `MissingAssetError` carve-out), see `proto-tools/notes/error-handling.md`.

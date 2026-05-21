@@ -1,14 +1,5 @@
 """Shared utilities for constraint scoring, validation, export, gradient math, and scheduling."""
 
-from proto_language.utils.component_validation import (
-    ComponentType,
-    LintResult,
-    TestResult,
-    lint_component_file,
-    test_constraint,
-    test_generator,
-    test_optimizer,
-)
 from proto_language.utils.export import (
     build_results,
     flatten_constraints,
@@ -137,12 +128,4 @@ __all__ = [
     "cosine_anneal",
     "exponential_decay",
     "quadratic_decay",
-    # Component validation + smoke-test helpers
-    "ComponentType",
-    "TestResult",
-    "LintResult",
-    "test_constraint",
-    "test_generator",
-    "test_optimizer",
-    "lint_component_file",
 ]
