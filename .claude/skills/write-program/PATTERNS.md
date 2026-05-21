@@ -193,71 +193,58 @@ for snapshot in program.optimizers[0].history:
 ## Running Programs
 
 ```bash
-# Run directly
+# Run a Python program directly
 python3 examples/scripts/toy.py
 
 # Run with arguments (if script supports them)
 python3 examples/scripts/program_symmetric_proteins.py \
     --monomer-length 100 --n-symmetric-units 3 --n-steps 10000
-
-# Run from JSON via parser
-python3 examples/scripts/run_program.py
 ```
 
 ## Gradient-Based Optimization
 
-Uses `GradientOptimizer` with differentiable constraints (`supports_gradient=True`) and `PositionWeightGenerator` for discretization.
+Use `GradientOptimizer` with `PositionWeightGenerator` and gradient-capable constraints (any constraint with `mode in {"gradient", "dual"}` — see `ConstraintRegistry.list_all()`). The optimizer drives relaxed logits with an ML optimizer (Adam, etc.) and discretizes via the generator's sampling mode.
+
+Full worked example: `examples/scripts/malinois_k562_specificity_gradient_design.py`. Sketch:
 
 ```python
-from pathlib import Path
-
-from proto_language import (
-    Constraint, Construct, GradientOptimizer, GradientOptimizerConfig,
-    Program, Segment,
-)
-from proto_language.constraint.differentiable import af2_binder_backward, ablang_naturalness_gradient_backward
-from proto_language.constraint.differentiable.af2_binder_constraint import AF2BinderConstraintConfig
-from proto_language.constraint.differentiable.ablang_naturalness_constraint import AbLangConstraintConfig
+from proto_language.constraint import MalinoisActivityConfig, malinois_activity_constraint
+from proto_language.core import Constraint, Construct, Program, Segment
 from proto_language.generator import PositionWeightGenerator, PositionWeightGeneratorConfig
+from proto_language.optimizer import GradientOptimizer, GradientOptimizerConfig
 
-# Target template lives on the AF2 config (not on the target Segment's .structure slot).
-# After each AF2 call, binder.structure and target.structure hold each segment's own
-# predicted chain — both sliced from the same AF2 output, sharing a coordinate frame
-# (rejoin via Structure.concat for downstream clash / interface checks).
-target_pdb = Path("target.pdb").read_text()
+segment = Segment(sequence="A" * 200, sequence_type="dna", label="enhancer_insert")
+construct = Construct([segment], label="malinois_k562_specific_design")
 
-# Segments
-binder = Segment(length=130, sequence_type="protein", label="binder")
-target = Segment(sequence="MKFL...", sequence_type="protein", label="target")
-construct = Construct([binder, target])
+generator = PositionWeightGenerator(PositionWeightGeneratorConfig(sampling_mode="argmax"))
+generator.assign(segment)
 
-# Germinal pipeline: two gradient stages (logit → softmax).
-# Each stage needs its own constraint instances; each config gets the target PDB.
-af2_stage1 = Constraint(inputs=[binder, target], backward=af2_binder_backward,
-    backward_config=AF2BinderConstraintConfig.germinal_vhh_preset(target_pdb=target_pdb), label="af2")
-ablang_stage1 = Constraint(inputs=[binder], backward=ablang_naturalness_gradient_backward,
-    backward_config=AbLangConstraintConfig(temperature=0.6), label="ablang", weight=0.2)
+constraints = [
+    Constraint(
+        inputs=[segment],
+        function=malinois_activity_constraint,
+        function_config=MalinoisActivityConfig(cell_type=ct, direction=direction, seq_length=200),
+        label=label,
+        weight=weight,
+    )
+    for ct, direction, label, weight in [
+        ("K562",  "max", "malinois_k562_max",   1.0),
+        ("HepG2", "min", "malinois_hepg2_min",  1.0),
+        ("SKNSH", "min", "malinois_sknsh_min",  1.0),
+    ]
+]
 
-af2_stage2 = Constraint(inputs=[binder, target], backward=af2_binder_backward,
-    backward_config=AF2BinderConstraintConfig.germinal_vhh_preset(target_pdb=target_pdb), label="af2")
-ablang_stage2 = Constraint(inputs=[binder], backward=ablang_naturalness_gradient_backward,
-    backward_config=AbLangConstraintConfig(temperature=0.6), label="ablang", weight=0.4)
-
-gen1 = PositionWeightGenerator(PositionWeightGeneratorConfig())
-gen2 = PositionWeightGenerator(PositionWeightGeneratorConfig())
-
-stage1 = GradientOptimizer(
-    target_segment=binder,
-    constructs=[construct], generators=[gen1],
-    constraints=[af2_stage1, ablang_stage1],
-    config=GradientOptimizerConfig.germinal_logit_preset(),
+optimizer = GradientOptimizer(
+    target_segment=segment,
+    constructs=[construct],
+    generators=[generator],
+    constraints=constraints,
+    config=GradientOptimizerConfig(
+        num_results=20, num_steps=300, lr=0.5, ml_optimizer="adam",
+        lr_schedule="cosine", gumbel_logit_init=True,
+    ),
 )
-stage2 = GradientOptimizer(
-    target_segment=binder,
-    constructs=[construct], generators=[gen2],
-    constraints=[af2_stage2, ablang_stage2],
-    config=GradientOptimizerConfig.germinal_softmax_preset(),
-)
-program = Program(optimizers=[stage1, stage2], num_results=1)
-program.run()
+Program([optimizer], num_results=20, seed=0).run()
 ```
+
+Dual-mode constraints (any registered with both forward and `backward=`) can be reused in a downstream MCMC stage without re-registration; the optimizer selects the gradient or discrete callable automatically.

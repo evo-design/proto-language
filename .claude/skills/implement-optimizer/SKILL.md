@@ -37,16 +37,7 @@ The `Optimizer` ABC requires two abstract methods: `__init__` and `run`.
 - **`__init__`**: Takes `constructs`, `generators`, `constraints`, plus config. Stores `self.config = config` before calling `super().__init__()`, which runs `_validate_optimizer()`.
 - **`run`**: Executes the optimization loop. Modifies segments' `result_sequences` and `proposal_sequences`.
 
-**Note**: Subclass `__init__` signatures take `config` as a single parameter and unpack it into the ABC's individual parameters via `super().__init__()`. Pass `seed=config.seed`; `Optimizer.seed` is an alias for `config.seed`.
-
-## Seeded Tool Calls
-
-Optimizers and pipeline-built conditioning functions that call `proto-tools`
-directly must bridge the language seed hierarchy into tool configs. When
-reproducibility is intended, derive or store a deterministic call-level `seed`
-from `config.seed` and pass it to the tool config. Do not pass `seed_per_item`;
-`proto-tools` automatically derives per-item seeds for `seed_sensitive=True`
-iterable tools.
+**Note**: Subclass `__init__` signatures take `config` as a single parameter and unpack it into the ABC's individual parameters via `super().__init__()`. Pass `seed=config.seed`. `Optimizer.seed` is a property backed by `config.seed`; `Program(seed=…)` derives child seeds that overwrite each optimizer's `config.seed` at init. Never pass `seed_per_item` to proto-tools; it derives per-item seeds itself for `seed_sensitive=True` iterable tools.
 
 ## Dual-Pool Architecture
 
@@ -109,13 +100,19 @@ Summary of the workflow:
 | `label` | `str` | Yes | Human-readable name |
 | `config` | `Type[BaseModel]` | Yes | Pydantic config class |
 | `description` | `str` | Yes | What this optimizer does |
+| `uses_gpu` | `bool` | No | Default `False`. Set `True` if the optimizer requires GPU resources |
+| `targets_single_segment` | `bool` | No | Default `False`. Set `True` for optimizers that operate on one segment (BeamSearch, Cycling, Gradient) |
+| `compatible_generators` | `list[str] \| None` | No | Default `None` (all unclaimed generators). Restrict to specific generator keys |
+| `required_constraint_mode` | `"discrete" \| "gradient" \| None` | No | Default `None`. `"gradient"` accepts `gradient`/`dual` constraints; `"discrete"` accepts `discrete`/`dual` |
 
 ## Single-Segment Optimizers
 
-If your optimizer only works with one segment (like BeamSearch or Cycling):
+If your optimizer operates on one segment (BeamSearch, Cycling, Gradient), both wirings are required and must match:
 
-1. Set `targets_single_segment=True` in the `@optimizer(...)` decorator
-2. Add `target_segment: Segment` as the first parameter in `__init__` (before constructs)
+1. Set `targets_single_segment=True` in the `@optimizer(...)` decorator — this is the discoverable hint the client / dispatcher reads.
+2. Add `target_segment: Segment` as the first `__init__` parameter, before `constructs`, then call `self._validate_target_segment(target_segment)` from `__init__` (see `proto_language/core/optimizer.py`).
+
+Mismatched wirings (decorator says single-segment but `__init__` doesn't take `target_segment`, or vice versa) surface at instantiation, not registry time.
 
 ## Export Chain
 

@@ -19,10 +19,7 @@ allowed-tools:
 
 ## Before You Start
 
-1. **Browse example programs** to match the user's design goal:
-   - Python scripts: `examples/scripts/` (DNA, RNA, protein, multi-chain designs)
-   - JSON programs: `examples/jsons/` (declarative format, run via `examples/scripts/run_program.py`)
-   - Read the example closest to the user's design goal before writing a new program.
+1. **Browse example programs** in `examples/scripts/` (DNA, RNA, protein, multi-chain designs) to match the user's design goal, and read the example closest to it before writing a new program.
 2. **Discover available components** using the registry API (see Component Discovery below) to find constraints, generators, and optimizers and inspect their config schemas.
 
 ## Program Structure (6 Steps)
@@ -138,30 +135,24 @@ Constraint(inputs=[seg], function=fn, function_config=cfg, threshold=0.1)
 
 ## Discovering Available Components
 
-Do NOT rely on hardcoded lists — always discover dynamically before writing a program.
+Do NOT rely on hardcoded lists — always discover dynamically via the registry APIs:
 
-### Find constraints, generators, and optimizers via `__init__.py` files:
+```python
+from proto_language.constraint import ConstraintRegistry
+from proto_language.generator import GeneratorRegistry
+from proto_language.optimizer import OptimizerRegistry
 
+ConstraintRegistry.list_all()      # every registered constraint spec
+GeneratorRegistry.list_all()       # every registered generator spec
+OptimizerRegistry.list_all()       # every registered optimizer spec
 ```
-proto_language/constraint/__init__.py   # All registered constraints
-proto_language/generator/__init__.py     # All registered generators
-proto_language/optimizer/__init__.py     # All registered optimizers
-```
 
-### Find config options for a specific component:
-
-Read the source file to see the config class and its `ConfigField` parameters:
+For a component's config schema, read its source file:
 - Constraints: `proto_language/constraint/{category}/{name}_constraint.py`
 - Generators: `proto_language/generator/{name}_generator.py`
 - Optimizers: `proto_language/optimizer/{name}_optimizer.py`
 
-### Component categories:
-
-Constraints: `sequence_composition/` (GC content, homopolymers, k-mers, length), `protein_structure/` (pLDDT, pTM, RMSD, TM-score, symmetry, globularity, binding), `protein_quality/` (complexity, repetitiveness, diversity, balanced amino acids), `rna_secondary_structure/` (property/motif/feature/basepair similarity), `rna_splicing/` (intron boundary, tissue specificity), `sequence_annotation/` (sequence similarity, promoter strength, motifs), `sequence_alignment/` (sequence alignment similarity scoring)
-
-Generators: **mutation** (RandomNucleotide, RandomProtein, ESM2, MSA, PositionWeight), **autoregressive** (Evo2, ProGen2), **inverse_folding** (ProteinMPNN, LigandMPNN)
-
-Constraints: **differentiable** (AF2 binder gradient, AbLang naturalness gradient) — these support `compute_gradient()` for gradient-based optimization
+Constraints are grouped by category as subdirectories under `proto_language/constraint/`. To find gradient-capable (dual-mode) constraints, filter the registry on `spec.mode == "dual"` or grep for `backward=` under `proto_language/constraint/`. See PATTERNS.md for the gradient-based optimization worked example.
 
 ## Common Patterns
 

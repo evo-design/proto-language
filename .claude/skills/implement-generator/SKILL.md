@@ -5,7 +5,7 @@ description: >
   Covers the full lifecycle: config class, Generator subclass with __init__/assign/sample,
   input_type-specific patterns (mutation, autoregressive, inverse folding, gradient),
   decorator registration, export chain, and tests. Use when working with
-  generators, sequence sampling, Evo2, ESM2, ESM3, ProteinMPNN, LigandMPNN,
+  generators, sequence sampling, masked LMs, causal LMs, inverse folding,
   or mutation strategies.
 allowed-tools:
   - Read
@@ -69,12 +69,14 @@ class Generator(ABC):
 
 Each generator declares its `input_type` via a classvar. The client reads this from `GeneratorRegistry` to render the right input UI. The Program-build validator (`Program._validate_generator_inputs` in `core/program.py`) walks stages in order and verifies the input is satisfiable; failures raise at `Program.__init__` time.
 
-| `input_type` | Category | Examples | Runtime input source |
-|---|---|---|---|
-| `STARTING_SEQUENCE` | `mutation` | ESM2, ESM3, MSA, RandomNucleotide, RandomProtein, SemigreedyMutation | `segment.proposal_sequences[].sequence` (from `segment.input_sequence` or prior stage); base validator raises if empty. RandomNucleotide / RandomProtein override `_sample()` to seed empty proposals with a fully random sequence on the first call. |
-| `PROMPT` | `autoregressive` | Evo1, Evo2, ProGen2 | `config.prompts` or `_sample(prompts=...)` (first positional kwarg) from CyclingOptimizer |
-| `STRUCTURE` | `inverse_folding` | ProteinMPNN, LigandMPNN | `config.structure_inputs` or `_sample(structure_inputs=...)` (first positional kwarg) from CyclingOptimizer; segment seeded with `'X' * length` if no prior sequence |
-| `LOGITS` | `gradient` | PositionWeight | `segment.proposal_sequences[].logits` from a prior `GradientOptimizer` stage |
+| `input_type` | Category | Runtime input source |
+|---|---|---|
+| `STARTING_SEQUENCE` | `mutation` | `segment.proposal_sequences[].sequence` (from `segment.input_sequence` or prior stage); base validator raises if empty |
+| `PROMPT` | `autoregressive` | `config.prompts` or `_sample(prompts=...)` from CyclingOptimizer |
+| `STRUCTURE` | `inverse_folding` | `config.structure_inputs` or `_sample(structure_inputs=...)` from CyclingOptimizer; segment seeded with `'X' * length` if no prior sequence |
+| `LOGITS` | `gradient` | `segment.proposal_sequences[].logits` from a prior `GradientOptimizer` stage |
+
+For concrete examples per category, use `GeneratorRegistry.list_all()` and filter on `spec.input_type`.
 
 ## Input Field Rules
 
@@ -141,31 +143,9 @@ __all__ = [
 ]
 ```
 
-## Tool Integration Pattern
+## Tool Integration
 
-For generators that call external tools (via proto-tools):
-
-```python
-from proto_tools import run_{tool}, {Tool}Input, {Tool}Config
-
-def sample(self) -> None:
-    self._validate_generator()
-    sequences = [seq.sequence for seq in self.segment.proposal_sequences]
-    tool_input = ToolInput(sequences=sequences)
-    tool_config = ToolConfig(
-        model=self.model_name,
-        temperature=self.temperature,
-        batch_size=self.batch_size,
-        seed=self._next_seed(),
-    )
-    result = run_tool(inputs=tool_input, config=tool_config)
-    for i, sequence in enumerate(result.sequences):
-        self.segment.proposal_sequences[i].sequence = sequence
-```
-
-Pass `seed=self._next_seed()` when the underlying tool output should participate
-in seeded program determinism. Do not pass `seed_per_item`; `proto-tools`
-automatically derives per-item seeds for `seed_sensitive=True` iterable tools.
+For generators that call proto-tools, see the full pattern in TEMPLATES.md. Pass `seed=self._next_seed()` when the underlying tool output should participate in seeded program determinism; never pass `seed_per_item` (proto-tools derives per-item seeds itself for `seed_sensitive=True` iterable tools).
 
 ## Batching Architecture
 

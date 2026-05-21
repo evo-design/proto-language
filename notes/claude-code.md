@@ -35,7 +35,7 @@ General coding conventions live in `CLAUDE.md`. Long-form testing reference (tem
 
 - **CLAUDE.md** — high-leverage conventions Claude reads at session start. Both repos have their own.
 - **`.claude/skills/`** — domain knowledge loaded on demand; templates, patterns, decision trees.
-- **`notes/`** — long-form team docs (this file, `dev.md`, `batching.md`, `seeding.md`, `error-handling.md`). Where CLAUDE.md links for detail.
+- **`notes/`** — long-form team docs (this file, `dev.md`, `batching.md`, `error-handling.md`). Where CLAUDE.md links for detail.
 - **Auto-memory** — per-developer, not committed; sits under `~/.claude/projects/.../memory/`. Where Claude remembers debugging patterns and project quirks across sessions.
 
 ## Tips

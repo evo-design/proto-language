@@ -50,7 +50,6 @@ Things that differ from Python/Pydantic defaults — Claude won't infer these fr
 - **Pydantic**: inherit `BaseConfig`, use `ConfigField` (not Pydantic's `Field`).
 - **Names**: registry keys are kebab-case (`"gc-content"`, `"mcmc"`); config classes `{Name}Config`; constraint function `{name}_constraint`; generator class `{Name}Generator`; optimizer class `{Name}Optimizer`; files `{name}_{component}.py`; tests `test_{name}.py`.
 - **Mypy strict**: every `# type: ignore` includes an error code. Prefer `assert` guards over `# type: ignore`. Do NOT use `cast()`, ad-hoc `Protocol`, or `TYPE_CHECKING` to dodge type errors.
-- **Seeding**: `Program(seed)` owns run-level determinism; it derives optimizer / generator / constraint seeds. `Optimizer.seed` is backed by `optimizer.config.seed`. Calls into `proto-tools` pass an explicit `seed`; never pass `seed_per_item` — proto-tools derives per-item seeds for `seed_sensitive=True` iterable tools. Full design: `notes/seeding.md`.
 
 ## Error Handling
 
@@ -81,7 +80,6 @@ Team-shared knowledge: this `CLAUDE.md` for conventions; `notes/` for setup, arc
 Index of `notes/`:
 - `dev.md` — setup, submodule sync, CI checks, docs generation.
 - `batching.md` — batching architecture across generator → tool → GPU boundary.
-- `seeding.md` — Program / Optimizer / Generator / Constraint seed hierarchy.
 - `error-handling.md` — raise vs soft-fail rules, `format_pydantic_error()`.
 - `filesystem.md` — where source, tests, examples, logs, and persistent caches live.
 - `testing.md` — markers, placement, templates per component type, conftest fixtures, mock scoring functions.
@@ -98,7 +96,6 @@ When code changes alter documented behavior, update the docs in the same commit:
 | `proto_language/optimizer/` | `implement-optimizer` SKILL.md |
 | `proto_language/core/`, `proto_language/utils/base.py` | docstrings (code is the canonical surface for these data models and config patterns) |
 | `tests/conftest.py`, pytest markers | this file + `notes/testing.md` |
-| Seed propagation | `notes/seeding.md` |
 | Error-handling rules | `notes/error-handling.md` |
 | Docstring conventions | this file + `tests/test_docstring_consistency.py` |
 

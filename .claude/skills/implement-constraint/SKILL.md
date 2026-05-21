@@ -224,10 +224,7 @@ setups), use the dual-mode pattern below instead.
 
 ### Dual-Mode Constraints (Canonical for Multi-Stage Pipelines)
 
-**This is the canonical pattern** for any constraint whose underlying computation can
-produce both a discrete score and a gradient — forward and backward of the same
-evaluator. Register ONE `@constraint` on the forward function and pair it with
-`backward=` for the gradient callable:
+If the underlying computation supports both a discrete score and a gradient, register one `@constraint` on the forward function and pair it with `backward=`. One registry key, one config, one metadata namespace; the optimizer picks the right path. Single-mode is only appropriate when the other mode genuinely doesn't exist.
 
 ```python
 from proto_language.core.constraint import GradientConstraintOutput
@@ -235,7 +232,6 @@ from proto_language.core.constraint import GradientConstraintOutput
 def my_backward(
     input_sequences: list[tuple[Sequence, ...]], *, config: MyConfig, temperature: float, **kwargs: Any,
 ) -> list[GradientConstraintOutput]:
-    """Gradient path — returns list[GradientConstraintOutput]."""
     ...
 
 
@@ -246,41 +242,16 @@ def my_backward(
     description="Scores discrete sequences (MCMC) or computes gradients (GradientOptimizer).",
     uses_gpu=True,
     supported_sequence_types=["protein"],
-    backward=my_backward,          # <-- pair the backward callable
-    backward_config=MyConfig,      # optional: separate config class for the backward
+    backward=my_backward,
+    backward_config=MyConfig,      # optional; defaults to `config`
 )
 def my_forward(
     input_sequences: list[tuple[Sequence, ...]], *, config: MyConfig,
 ) -> list[ConstraintOutput]:
-    """Forward path — returns one ConstraintOutput per proposal."""
     ...
 ```
 
-**Why dual-mode over two separate registry entries.** The underlying computation is one
-thing; forward vs backward are two *queries* against the same evaluator, not two
-evaluators. Splitting by caller-side concern (GradientOptimizer vs MCMC) makes constraint
-identity depend on how it's used — backwards. Dual-mode:
-
-- **One registry key, one UI entry, one factory.** Multi-stage pipelines (e.g. Germinal:
-  GradientOptimizer → MCMCOptimizer) use one `Constraint(function=..., backward=..., ...)`
-  across all stages. The optimizer picks the right path.
-- **Single `_constraints_metadata[label]` namespace** uniform across stages, so
-  confidence gates that read metadata between stages work transparently.
-- **No duplicated decorator metadata.** Config, label, `tools_called`,
-  `supported_sequence_types`, `input_labels`, description — one source of truth.
-- **Shared config guaranteed.** If forward and backward share a config class (as in AF2
-  binder design), users can't accidentally configure one mode differently from the other.
-
-**Canonical in-tree example.** `af2-binder`
-(`proto_language/constraint/differentiable/af2_binder_constraint.py`)
-registers `af2_binder_forward` as the forward callable, pairs with `af2_binder_backward`,
-and both paths construct the same `AlphaFold2BinderConfig` from shared `AF2BinderConstraintConfig`
-fields — only `soft`, `hard`, and `compute_gradient` differ between modes.
-
-**Rule of thumb:** if your constraint's underlying computation supports both forward and
-backward, register as dual-mode. Single-mode is only appropriate when the other mode
-genuinely doesn't exist (pure discrete heuristics with no differentiable form; pure
-gradient hooks with no scoring interpretation).
+**Canonical use case: AF2 binder design.** The forward callable scores designed binders via AlphaFold2 + interface contact loss; the backward callable computes gradients through the same AF2 fold (`compute_gradient=True`). Both paths share one config — only `soft`, `hard`, and `compute_gradient` differ between modes. For working dual-mode constraints in the repo, grep for `backward=` under `proto_language/constraint/`; use `ConstraintRegistry.list_all()` and filter on `spec.mode == "dual"` at runtime.
 
 ## Scoring Convention
 
