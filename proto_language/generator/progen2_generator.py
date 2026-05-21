@@ -213,17 +213,24 @@ class ProGen2Generator(Generator):
         self,
         prompts: list[str] | None = None,
         prepend_prompt: bool | None = None,
+        max_new_tokens: int | None = None,
+        old_kv_cache: None = None,
     ) -> None:
         """Generate protein sequences using ProGen2 tool.
 
         Args:
-            prompts (list[str] | None): Optional prompts to use instead of self.prompts.
-            prepend_prompt (bool | None): Optional override for prepend_prompt setting.
+            prompts (list[str] | None): Optional prompts overriding self.prompts.
+            prepend_prompt (bool | None): Optional prepend_prompt override.
+            max_new_tokens (int | None): Optional new-token count; derived from segment length if None.
+            old_kv_cache (None): Must be None; ProGen2 does not support KV caching.
         """
+        if old_kv_cache is not None:
+            raise ValueError("ProGen2Generator does not support KV caching; use use_kv_caching=False")
         self._validate_generator()
         sampling_prompts = prompts if prompts is not None else self._replicate_prompts(self.prompts)
         prepend_prompt = prepend_prompt if prepend_prompt is not None else self.prepend_prompt
-        max_new_tokens = self._compute_max_new_tokens(len(sampling_prompts[0]), prepend_prompt)
+        if max_new_tokens is None:
+            max_new_tokens = self._compute_max_new_tokens(len(sampling_prompts[0]), prepend_prompt)
 
         tool_input = ProGen2SampleInput(prompts=sampling_prompts)
 

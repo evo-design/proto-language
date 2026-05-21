@@ -172,3 +172,4 @@ class TestProGen2GeneratorValidation:
         error_msg = str(exc_info.value)
         assert "does not support sequence type" in error_msg
         assert seq_type in error_msg.lower()
+

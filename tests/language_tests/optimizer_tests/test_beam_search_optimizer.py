@@ -163,6 +163,25 @@ class MockAutoregressiveGeneratorNoKVCache(Generator):
             proposal.sequence = sequence
 
 
+class MockAutoregressiveGeneratorOldSignature(Generator):
+    """Mock with the pre-#1457 _sample signature (no max_new_tokens / old_kv_cache)."""
+
+    input_type = GeneratorInputType.PROMPT
+
+    def __init__(self):
+        super().__init__()
+        self.kv_caches: list[dict] = []
+
+    def assign(self, segments: Segment | Iterable[Segment]) -> None:
+        self._assigned_segments = (segments,) if isinstance(segments, Segment) else tuple(segments)
+
+    def _sample(self, prompts: list[str] | None = None, prepend_prompt: bool | None = None) -> None:
+        pass
+
+    def release_kv_cache(self, cache: dict) -> None:
+        pass
+
+
 def _setup_beam_search(
     segment_length: int = 100,
     beam_length: int = 20,
@@ -425,6 +444,28 @@ class TestBeamSearchOptimizer:
             BeamSearchOptimizer(
                 target_segment=segment,
                 constructs=[construct],
+                generators=[generator],
+                constraints=[constraint],
+                config=config,
+            )
+
+    def test_generator_with_incompatible_sample_signature_fails(self):
+        """_sample() missing max_new_tokens/old_kv_cache is rejected at construct time."""
+        segment = Segment(length=100, sequence_type="dna")
+        generator = MockAutoregressiveGeneratorOldSignature()
+        generator._assigned_segments = (segment,)
+        constraint = Constraint(
+            inputs=[segment],
+            function=gc_content_constraint,
+            function_config=GCContentConfig(min_gc=40.0, max_gc=60.0),
+        )
+        config = BeamSearchOptimizerConfig(
+            prompt="ATCG", beam_length=10, num_results=3, proposals_per_result=5, use_kv_caching=False
+        )
+        with pytest.raises(ValueError, match=r"_sample\(\) missing required parameter\(s\)"):
+            BeamSearchOptimizer(
+                target_segment=segment,
+                constructs=[Construct([segment])],
                 generators=[generator],
                 constraints=[constraint],
                 config=config,
@@ -726,6 +767,61 @@ class TestBeamSearchOptimizerGPU:
         assert len(segment.result_sequences) == 3
         for seq in segment.result_sequences:
             assert len(seq.sequence) == len(prompt) + 100
+
+    def test_with_evo1_generator(self):
+        """Beam search runs end-to-end with Evo1 and use_kv_caching=False."""
+        from proto_language.generator import Evo1Generator, Evo1GeneratorConfig
+
+        prompt = "ATCGATCGATCG"
+        segment = Segment(length=80, sequence_type="dna")
+        gen = Evo1Generator(Evo1GeneratorConfig(prompts=[prompt], prepend_prompt=True))
+        gen.assign(segment)
+        constraint = Constraint(
+            inputs=[segment],
+            function=gc_content_constraint,
+            function_config=GCContentConfig(min_gc=30.0, max_gc=70.0),
+        )
+        optimizer = BeamSearchOptimizer(
+            target_segment=segment,
+            constructs=[Construct([segment])],
+            generators=[gen],
+            constraints=[constraint],
+            config=BeamSearchOptimizerConfig(
+                prompt=prompt, beam_length=40, num_results=2, proposals_per_result=3, use_kv_caching=False
+            ),
+        )
+        optimizer.run()
+        assert len(segment.result_sequences) == 2
+        assert all(len(s.sequence) == len(prompt) + 80 for s in segment.result_sequences)
+
+    def test_with_progen2_generator(self):
+        """Beam search runs end-to-end with ProGen2 and use_kv_caching=False."""
+        from proto_language.generator import ProGen2Generator, ProGen2GeneratorConfig
+
+        prompt = "1MKTL"
+        segment = Segment(length=40, sequence_type="protein")
+        gen = ProGen2Generator(
+            ProGen2GeneratorConfig(
+                prompts=[prompt], prepend_prompt=True, truncate_at_stop=False, strip_special_tokens=False
+            )
+        )
+        gen.assign(segment)
+
+        def zero_score(input_sequences, config):
+            return [ConstraintOutput(score=0.0) for _ in input_sequences]
+
+        constraint = Constraint(inputs=[segment], function=zero_score, function_config=None)
+        optimizer = BeamSearchOptimizer(
+            target_segment=segment,
+            constructs=[Construct([segment])],
+            generators=[gen],
+            constraints=[constraint],
+            config=BeamSearchOptimizerConfig(
+                prompt=prompt, beam_length=20, num_results=2, proposals_per_result=3, use_kv_caching=False
+            ),
+        )
+        optimizer.run()
+        assert len(segment.result_sequences) == 2
 
 
 class TestBeamSearchOptimizerRestart:

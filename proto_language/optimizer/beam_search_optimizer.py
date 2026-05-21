@@ -3,6 +3,7 @@
 performs beam search, accumulating KV cache state across beams.
 """
 
+import inspect
 import logging
 import math
 from collections.abc import Callable, Iterator
@@ -280,12 +281,13 @@ class BeamSearchOptimizer(Optimizer):
         """Validate beam search optimizer configuration.
 
         Extends base validation with beam-search-specific checks:
-        target_segment membership, KV caching interface, non-empty prompt,
-        and beam_length bounds. Generator key compatibility is enforced
-        centrally via ``OptimizerSpec.compatible_generators``.
+        target_segment membership, ``_sample()`` signature, KV caching interface,
+        non-empty prompt, and beam_length bounds. Generator key compatibility is
+        enforced centrally via ``OptimizerSpec.compatible_generators``.
         """
         super()._validate_optimizer()
         self._validate_target_segment(self.target_segment)
+        self._validate_generator_sample_signature()
 
         # KV caching support (if enabled)
         if self.use_kv_caching and not hasattr(self.generator, "kv_caches"):
@@ -306,6 +308,22 @@ class BeamSearchOptimizer(Optimizer):
             raise ValueError(
                 f"beam_length={self.beam_length} cannot be greater than "
                 f"target_segment length ({self.target_segment.sequence_length})"
+            )
+
+    def _validate_generator_sample_signature(self) -> None:
+        """Require generator._sample() to accept ``max_new_tokens`` and ``old_kv_cache``."""
+        required_params = ("max_new_tokens", "old_kv_cache")
+        try:
+            sig = inspect.signature(self.generator._sample)
+        except (TypeError, ValueError):
+            return
+        params = sig.parameters
+        if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
+            return
+        missing = [name for name in required_params if name not in params]
+        if missing:
+            raise ValueError(
+                f"Generator '{self.generator.__class__.__name__}' _sample() missing required parameter(s) {missing}"
             )
 
     def _capture_initial_state(self) -> None:

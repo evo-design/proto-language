@@ -101,3 +101,4 @@ class TestEvo1GeneratorValidation:
         # prepend_prompt=True → should subtract prompt len: 100 - 4 = 96
         gen.sample(prepend_prompt=True)
         assert mock_run.call_args[1]["config"].max_new_tokens == 96
+
