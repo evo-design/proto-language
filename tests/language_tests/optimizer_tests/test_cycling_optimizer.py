@@ -1065,12 +1065,13 @@ class TestCyclingOptimizerPipelineResolution:
         )
         assert optimizer.pipeline == "protein-hunter"
 
-    def test_protein_hunter_passes_cycle_seed_for_seed_sensitive_unroll(self, monkeypatch):
-        """conditioning_fn must provide seeded runs to the seed-sensitive @tool layer.
+    def test_protein_hunter_passes_cycle_seed_for_stochastic_tool(self, monkeypatch):
+        """conditioning_fn must provide seeded runs to a `stochastic=True` @tool.
 
-        Per-candidate seed derivation now lives in the proto-tools framework
-        via decorator-level unroll. The cycling code is responsible only for
-        sending one deterministic seed per cycle when the optimizer is seeded.
+        Per-item seed derivation is the tool's responsibility — the proto-tools
+        framework does not unroll multi-item dispatches. The cycling code is
+        responsible only for sending one deterministic seed per cycle when the
+        optimizer is seeded.
         """
         from proto_language.optimizer import cycling_optimizer as co
 
