@@ -9,7 +9,7 @@ proto-language is a constraint-based optimization framework for designing biolog
 
 ## Related Repositories
 
-- [`proto-tools`](https://github.com/evo-design/proto-tools) — Standalone tool layer for biological models. Mounted here as a git submodule at `proto-tools/`.
+- [`proto-tools`](https://github.com/evo-design/proto-tools) — tool execution layer (submodule).
 
 ## Installation
 
