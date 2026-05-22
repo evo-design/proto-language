@@ -116,7 +116,7 @@ class StructureSimilarityConfig(StructureBasedConstraintConfig):
     min_target_plddt: float = ConfigField(
         title="Min Target pLDDT",
         default=0.6,
-        description="Minimum confidence for the target if it is folded from sequence.",
+        description="Min mean pLDDT (0-1 scale) for a target folded from sequence; ignored when target_structure is set.",
     )
 
     @model_validator(mode="after")
@@ -162,9 +162,9 @@ class StructureRMSDConfig(StructureSimilarityConfig):
     """
 
     inflection_point_angstroms: float = ConfigField(
-        title="RMSD Inflection Point",
+        title="RMSD Inflection (Å)",
         default=2.0,
-        description="RMSD (Angstroms) where score is 0.5. < 2.0 is good.",
+        description="RMSD in Ångströms where the sigmoid score equals 0.5; values below 2 Å are generally a good match.",
     )
     sigmoid_slope: float = ConfigField(
         title="Sigmoid Slope",
@@ -216,12 +216,14 @@ class StructureTMScoreConfig(StructureSimilarityConfig):
     plddt_threshold: float | None = ConfigField(
         title="pLDDT Threshold",
         default=None,
-        description="Ignore residues in the proposal with pLDDT < threshold (e.g. 70).",
+        description="Drop residues with pLDDT (0-100 scale, in B-factor) below this before alignment; None keeps all.",
     )
     tm_score_normalization: Literal["structure1", "structure2", "max", "min", "mean"] = ConfigField(
         title="TM-score Normalization",
         default="mean",
-        description=("How to handle the two TM-scores returned by TMalign/USalign."),
+        description=(
+            "How to combine the two TM-scores from TM-align/US-align: structure1, structure2, max, min, or mean."
+        ),
     )
 
 

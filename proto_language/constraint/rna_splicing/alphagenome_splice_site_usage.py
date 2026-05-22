@@ -231,12 +231,7 @@ class AlphaGenomeSpliceSiteUsageConfig(BaseConfig):
     key="alphagenome-splice-site-usage",
     label="AlphaGenome splice site usage score",
     config=AlphaGenomeSpliceSiteUsageConfig,
-    description=(
-        "Score splice-site usage with AlphaGenome. "
-        "Takes three segments (left_flank, intron_core, right_flank), "
-        "integrates into genomic context via cassette insertion, and "
-        "scores SSU at specified positions."
-    ),
+    description="Score splice-site usage with AlphaGenome on three segments (left_flank, intron_core, right_flank).",
     uses_gpu=True,
     tools_called=["alphagenome-predict-sequences"],
     category="rna splicing",

@@ -43,7 +43,11 @@ from proto_language.utils.base import BaseOptimizerConfig, ConfigField
 class ConcreteOptimizerConfig(BaseOptimizerConfig):
     """Config for the test optimizer."""
 
-    num_results: int | None = ConfigField(default=None)
+    num_results: int | None = ConfigField(
+        default=None,
+        title="Design Candidates",
+        description="Number of candidate designs to keep; None defers to the program-level count.",
+    )
 
 
 # Concrete implementation for testing the abstract base class

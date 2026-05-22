@@ -142,7 +142,7 @@ class MMseqsSimilarityConfig(BaseConfig):
     key="mmseqs-gene-similarity",
     label="Gene/Protein Similarity",
     config=MMseqsSimilarityConfig,
-    description="Evaluate similarity (percent identity) using MMseqs. For DNA: predicts ORFs first. For proteins: searches directly.",
+    description="Score percent identity via MMseqs2 (DNA is ORF-predicted first; proteins search directly).",
     tools_called=["mmseqs2-search-proteins", "prodigal-prediction", "orfipy-prediction"],
     category="sequence annotation",
     supported_sequence_types=["dna", "protein"],

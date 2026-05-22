@@ -23,31 +23,35 @@ class ConstraintSpec(BaseSpec):
     """Specification for a registered constraint."""
 
     tools_called: list[str] = Field(
-        description="List of tool keys this constraint calls (e.g., ['esmfold-prediction', 'prodigal-prediction']). Helps agent find relevant tool documentation."
+        title="Tools Called",
+        description="Tool keys this constraint calls (e.g. 'esmfold-prediction', 'prodigal-prediction')",
     )
     category: str | None = Field(
         default=None,
-        description="Optional category for organization (e.g., 'protein_structure', 'sequence_composition'). Not required for custom constraints.",
+        title="Category",
+        description="Optional grouping (e.g. 'protein_structure', 'sequence_composition'); not required",
     )
     supported_sequence_types: list[str] = Field(
-        description="List of supported sequence types (e.g., ['dna', 'protein']). Must be non-empty."
+        title="Supported Sequence Types",
+        description="Sequence types this constraint accepts (e.g. ['dna', 'protein']); must be non-empty",
     )
     input_labels: list[str | InputSlot] | None = Field(  # type: ignore[assignment]
         default_factory=lambda: ["Sequence"],
-        description="Per-slot labels; strings for plain labels, InputSlot for swap-detection. "
-        "None means any number of interchangeable inputs.",
+        title="Input Labels",
+        description="Per-slot labels (strings, or InputSlot for swap-detection). None means any number of inputs.",
     )
 
     requires_generators: list[str] | None = Field(
         default=None,
-        description="Generator registry keys required in the same optimizer stage. "
-        "Validated at optimizer construction time. None means no generator dependency.",
+        title="Required Generators",
+        description="Generator registry keys required in the same optimizer stage; None means none",
     )
 
     # Constraint mode — set during registration, exposed in API
     mode: Literal["discrete", "gradient", "dual"] = Field(
         default="discrete",
-        description="Whether this constraint uses discrete scoring ('discrete'), gradient computation ('gradient'), or both ('dual').",
+        title="Constraint Mode",
+        description="'discrete' for scoring only, 'gradient' for gradient only, 'dual' for both.",
     )
 
     # Separate config model for backward callable (None = uses config_model)

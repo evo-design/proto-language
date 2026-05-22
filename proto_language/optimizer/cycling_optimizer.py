@@ -177,7 +177,7 @@ class CyclingOptimizerConfig(BaseOptimizerConfig):
     num_steps: int = ConfigField(
         ge=1,
         title="Number of Steps",
-        description="Number of conditioning -> generation cycles to run.",
+        description="Number of conditioning-then-generation cycles to run.",
     )
     num_results: int | None = ConfigField(
         default=None,

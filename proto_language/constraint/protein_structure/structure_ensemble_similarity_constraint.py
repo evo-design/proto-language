@@ -348,7 +348,7 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
     rmsd_aggregation: Literal["min", "p10", "mean", "median"] = ConfigField(
         title="RMSD Aggregation",
         default="min",
-        description="How to summarize RMSD values across the ensemble.",
+        description="How to summarize ensemble RMSD values: min (best match), p10, mean, or median.",
     )
     pymol_alignment_method: Literal["cealign", "align"] = ConfigField(
         title="PyMOL Alignment Method",
@@ -358,9 +358,9 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
 
     # Scoring configuration
     inflection_point_angstroms: float = ConfigField(
-        title="RMSD Inflection Point",
+        title="RMSD Inflection (Å)",
         default=3.0,
-        description="RMSD (Angstroms) where score is 0.5. < 3.0 is generally good.",
+        description="RMSD in Ångströms where the sigmoid score equals 0.5; values below 3 Å are generally a good match.",
         gt=0.0,
     )
     sigmoid_slope: float = ConfigField(
@@ -399,10 +399,7 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
     key="structure-ensemble-rmsd",
     label="Structure Ensemble RMSD",
     config=StructureEnsembleSimilarityConfig,
-    description=(
-        "Generate conformational ensemble and compute RMSD against "
-        "an experimental target structure using PyMOL alignment."
-    ),
+    description="Generate a conformational ensemble and compute RMSD against a target structure via PyMOL.",
     uses_gpu=True,
     tools_called=["bioemu-sample", "pymol-rmsd-alignment"],
     category="protein_structure",

@@ -22,10 +22,10 @@ class GyrationRadiusConfig(BaseConfig):
     """
 
     max_gyration_radius: float = ConfigField(
-        title="Max Gyration Radius",
+        title="Max Radius of Gyration",
         default=45.0,
         gt=0.0,
-        description="Maximum acceptable gyration radius in Angstroms",
+        description="Maximum acceptable radius of gyration in Ångströms (lower values are more compact).",
     )
 
 

@@ -40,7 +40,7 @@ class Evo1GeneratorConfig(BaseConfig):
     model_checkpoint: EVO1_MODEL_CHECKPOINTS = ConfigField(
         default="evo-1-8k-base",
         title="Model Checkpoint",
-        description="Evo1 model checkpoint to use",
+        description="Evo1 model variant to load (e.g. evo-1-8k-base).",
     )
 
     # Advanced parameters
@@ -48,13 +48,13 @@ class Evo1GeneratorConfig(BaseConfig):
         default=4,
         ge=1,
         title="Top-k",
-        description="Top-k sampling parameter",
+        description="At each step, restrict sampling to the k most probable tokens.",
     )
     temperature: float = ConfigField(
         default=1.0,
         gt=0.0,
         title="Temperature",
-        description="Sampling temperature",
+        description="Sharpness of the sampling distribution. Below 1 sharpens; above 1 increases diversity. Must be > 0.",
     )
     prepend_prompt: bool = ConfigField(
         default=False,

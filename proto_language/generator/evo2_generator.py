@@ -104,7 +104,7 @@ class Evo2GeneratorConfig(BaseConfig):
     model_checkpoint: EVO2_MODEL_CHECKPOINTS = ConfigField(
         default="evo2_7b",
         title="Model Checkpoint",
-        description="Evo2 model checkpoint to use",
+        description="Evo2 model variant to load (currently only evo2_7b).",
     )
 
     # Advanced parameters
@@ -129,13 +129,13 @@ class Evo2GeneratorConfig(BaseConfig):
         default=1,
         gt=0.0,
         le=1.0,
-        description="Chooses the smallest set of tokens whose cumulative probability mass ≥ top-p.",
+        description="Nucleus sampling cutoff. Restricts to the smallest token set with cumulative prob ≤ top-p.",
     )
     temperature: float = ConfigField(
         default=1.0,
         gt=0.0,
         title="Temperature",
-        description="Scales the randomness of sampling by adjusting probability distribution sharpness.",
+        description="Sharpness of sampling. Below 1 favors high-probability tokens; above 1 increases diversity.",
     )
     force_prompt_threshold: int | None = ConfigField(
         default=None,
@@ -154,8 +154,8 @@ class Evo2GeneratorConfig(BaseConfig):
     )
     batched: bool = ConfigField(
         default=True,
-        title="Batched",
-        description="Whether to use batched generation, set to true if # of prompts > 1.",
+        title="Batched Generation",
+        description="Generate all prompts together in a single batched forward pass. Required for multiple prompts.",
     )
     batch_size: int = ConfigField(
         title="Batch Size",
@@ -166,12 +166,12 @@ class Evo2GeneratorConfig(BaseConfig):
     cached_generation: bool = ConfigField(
         default=True,
         title="Cached Generation",
-        description="Whether to use cached generation",
+        description="Whether to reuse KV-cache state across decoding steps to avoid recomputation.",
     )
     store_kv_cache: bool = ConfigField(
         default=False,
         title="Store KV Cache",
-        description="Whether to store and reuse Key-Value cache",
+        description="Retain and expose the per-sequence KV-cache after generation so downstream callers can continue.",
     )
     prepend_prompt: bool = ConfigField(
         default=False,

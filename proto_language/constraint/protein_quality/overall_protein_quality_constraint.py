@@ -116,8 +116,8 @@ class ProteinQualitySubConfig(BaseConfig):
 
     enable_length: bool = ConfigField(
         default=False,
-        title="Enable Sequence Length Constraint",
-        description="Toggle to include the sequence length constraint. Provide min/max or target values below.",
+        title="Enable Length",
+        description="Include the sequence length constraint; provide min/max or target values below.",
     )
     length_min_length: int | None = ConfigField(
         default=None,
@@ -140,8 +140,8 @@ class ProteinQualitySubConfig(BaseConfig):
 
     enable_complexity: bool = ConfigField(
         default=False,
-        title="Enable Complexity Constraint",
-        description="Toggle to include segmasker-based low-complexity detection.",
+        title="Enable Complexity",
+        description="Include the segmasker-based low-complexity sub-constraint.",
     )
     complexity_max_low_complexity: float = ConfigField(
         default=0.2,
@@ -152,8 +152,8 @@ class ProteinQualitySubConfig(BaseConfig):
     )
     enable_repetitiveness: bool = ConfigField(
         default=False,
-        title="Enable Repetitiveness Constraint",
-        description="Toggle to include the k-mer repetitiveness constraint.",
+        title="Enable Repetitiveness",
+        description="Include the k-mer repetitiveness constraint.",
     )
     repetitiveness_max_repetitiveness: float = ConfigField(
         default=0.1,
@@ -171,8 +171,8 @@ class ProteinQualitySubConfig(BaseConfig):
 
     enable_diversity: bool = ConfigField(
         default=False,
-        title="Enable Diversity Constraint",
-        description="Toggle to include the amino acid diversity constraint.",
+        title="Enable Diversity",
+        description="Include the amino acid diversity sub-constraint.",
     )
     diversity_min_diversity: float = ConfigField(
         default=0.7,
@@ -184,8 +184,8 @@ class ProteinQualitySubConfig(BaseConfig):
 
     enable_balanced_aas: bool = ConfigField(
         default=False,
-        title="Enable Balanced Amino Acids Constraint",
-        description="Toggle to include the balanced amino acid representation constraint.",
+        title="Enable Balanced AAs",
+        description="Include the balanced amino acid representation constraint.",
     )
     balanced_min_aa_frequency: float = ConfigField(
         default=0.02,

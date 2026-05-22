@@ -140,23 +140,23 @@ class BoltzBindingStrengthConfig(BaseConfig):
 
     desired_higher: dict[str, float] = ConfigField(
         default=DEFAULT_DESIRED_HIGHER,
-        title="Desired Higher Bound Metrics",
+        title="Higher-Target Goals",
         description="Target values for 'higher is better' metrics.",  #  Provide partial dict to override specific metrics while keeping defaults for others.
     )
     desired_lower: dict[str, float] = ConfigField(
         default=DEFAULT_DESIRED_LOWER,
-        title="Desired Lower Bound Metrics",
+        title="Lower-Target Goals",
         description="Target values for 'lower is better' metrics.",  # Provide partial dict to override specific metrics.
     )
     tol_higher: dict[str, float] = ConfigField(
         default=DEFAULT_TOL_HIGHER,
-        title="Tolerances Higher Bound Metrics",
-        description="Tolerances for 'higher is better' metrics (distance below target = penalty 1.0).",  # Provide partial dict to override.
+        title="Higher-Target Tolerances",
+        description="Tolerances for higher-is-better metrics; once a value falls this far below target, penalty hits 1.0.",  # Provide partial dict to override.
     )
     tol_lower: dict[str, float] = ConfigField(
         default=DEFAULT_TOL_LOWER,
-        title="Tolerances Lower Bound Metrics",
-        description="Tolerances for 'lower is better' metrics (distance above target = penalty 1.0, in Angstroms).",  #  Provide partial dict to override.
+        title="Lower-Target Tolerances",
+        description="Tolerances for lower-is-better metrics (Å); once exceeding target by this much, penalty hits 1.0.",  #  Provide partial dict to override.
     )
     weights: dict[str, float] | None = ConfigField(
         default=None,

@@ -75,32 +75,36 @@ class MCMCOptimizerConfig(BaseOptimizerConfig):
     """
 
     # Required parameters
-    num_steps: int = ConfigField(ge=1, title="Num Steps", description="Number of MCMC steps to run.")
+    num_steps: int = ConfigField(
+        ge=1,
+        title="Number of MCMC Steps",
+        description="Number of Metropolis-Hastings steps. Each step proposes, evaluates, and accept/reject samples.",
+    )
 
     # Advanced parameters
     num_results: int | None = ConfigField(
         default=None,
         ge=1,
         title="Design Candidates",
-        description="Candidate designs for this optimizer. Overrides program-level count.",
+        description="Independent MCMC trajectories run in parallel; each yields one candidate. Overrides program count.",
     )
     proposals_per_result: int = ConfigField(
         default=1,
         ge=1,
-        title="Proposals Per Result",
-        description="Number of proposals to generate per result sequence per MCMC step.",
+        title="Proposals Per Step",
+        description="Proposals per trajectory each step; the best by energy is chosen, then accept/reject is applied.",
     )
     max_temperature: float = ConfigField(
         default=1.0,
         gt=0.0,
         title="Max Temperature",
-        description="Maximum temperature for annealing",
+        description="Starting temperature for simulated annealing; higher accepts worse proposals more readily.",
     )
     min_temperature: float = ConfigField(
         default=0.001,
         gt=0.0,
         title="Min Temperature",
-        description="Minimum temperature for annealing",
+        description="Ending dimensionless temperature for simulated annealing; must be greater than 0 and below the max.",
     )
     temperature_schedule: Scheduler = ConfigField(
         default="exponential",

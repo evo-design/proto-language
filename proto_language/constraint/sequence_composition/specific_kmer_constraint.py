@@ -42,12 +42,12 @@ class SpecificKmerConfig(BaseConfig):
         examples=["frequency", "usage_deviation"],
     )
     min_value: float = ConfigField(
-        title="Minimum acceptable value",
+        title="Min Value",
         ge=0.0,
         description="Minimum acceptable frequency/deviation based on scoring_mode",
     )
     max_value: float = ConfigField(
-        title="Maximum acceptable value",
+        title="Max Value",
         ge=0.0,
         description="Maximum acceptable frequency/deviation based on scoring_mode",
     )

@@ -31,20 +31,26 @@ class OptimizerSpec(BaseSpec):
 
     targets_single_segment: bool = Field(
         default=False,
-        description="Whether this optimizer requires a target_segment parameter",
+        title="Targets Single Segment",
+        description="Whether the optimizer operates on one specific segment per run instead of all design segments.",
     )
     compatible_generators: list[str] | None = Field(
         default=None,
-        description="Generator keys this optimizer accepts. None means all unclaimed generators.",
+        title="Compatible Generators",
+        description="Generator registry keys this optimizer accepts; None accepts any unclaimed generator.",
     )
     required_constraint_mode: Literal["discrete", "gradient"] | None = Field(
         default=None,
-        description="If set, all constraints must support this mode. "
-        "'gradient' accepts mode='gradient' or 'dual'. 'discrete' accepts mode='discrete' or 'dual'.",
+        title="Required Constraint Mode",
+        description="Constraint mode every paired constraint must support (discrete or gradient); None accepts either.",
     )
 
     # Private field - excluded from serialization
-    optimizer_class: type[Optimizer] = Field(exclude=True)
+    optimizer_class: type[Optimizer] = Field(
+        exclude=True,
+        title="Optimizer Class",
+        description="Concrete Optimizer subclass implementing this optimizer's algorithm.",
+    )
 
 
 class OptimizerRegistry(BaseRegistry[OptimizerSpec]):

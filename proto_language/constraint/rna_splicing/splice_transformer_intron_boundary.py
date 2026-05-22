@@ -113,11 +113,7 @@ class SpliceTransformerIntronBoundaryConfig(BaseConfig):
     key="splice-transformer-intron-boundary",
     label="SpliceTransformer intron boundary score",
     config=SpliceTransformerIntronBoundaryConfig,
-    description=(
-        "Evaluate intron boundary prediction with SpliceTransformer. "
-        "Takes three segments (left_flank, intron_core, right_flank), "
-        "concatenates them into the 1-kb target, and scores splice sites."
-    ),
+    description="Score intron-boundary prediction with SpliceTransformer on three concatenated 1-kb segments.",
     uses_gpu=True,
     tools_called=["splice-transformer-prediction"],
     category="rna splicing",

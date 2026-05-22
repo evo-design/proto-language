@@ -48,10 +48,10 @@ class ProteinRepetitivenessConfig(BaseConfig):
         examples=[0.05, 0.3],
     )
     min_repeat_length: int = ConfigField(
-        title="Minimum Repeat Length",
+        title="Min Repeat Length",
         default=1,
         ge=1,
-        description="Minimum k-mer length to consider as repeats.",
+        description="Smallest k-mer length treated as a repeat; the scan continues up to this length plus 7.",
         examples=[1, 3],
     )
 

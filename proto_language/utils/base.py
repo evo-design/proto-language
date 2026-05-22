@@ -7,6 +7,22 @@ from typing import Any, ClassVar, Generic, TypeVar
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
+def _require_title_and_description(field_helper: str, title: str | None, description: str | None) -> None:
+    """Ensure ``title=`` and ``description=`` are non-empty.
+
+    Both are surfaced via ``model_json_schema()`` and must be non-empty strings.
+    """
+    missing = []
+    if not title:
+        missing.append("title=")
+    if not description:
+        missing.append("description=")
+    if not missing:
+        return
+    names = " and ".join(missing)
+    raise TypeError(f"{field_helper} requires {names} as non-empty kwarg(s).")
+
+
 def ConfigField(
     default: Any = ...,
     *,
@@ -18,14 +34,15 @@ def ConfigField(
 
     Args:
         default (Any): Default value for the configuration field.
-        title (str | None): Human-readable display title for the field.
-        description (str | None): Short description shown as a UI tooltip.
+        title (str | None): Short user-readable title; must be a non-empty string.
+        description (str | None): Field description; must be a non-empty string.
         kwargs: All other standard Pydantic Field arguments (passed through
             to ``pydantic.Field``).
 
     Usage:
-        param: int = ConfigField(default=42, title="Param", ge=0)
+        param: int = ConfigField(default=42, title="Param", description="...", ge=0)
     """
+    _require_title_and_description("ConfigField", title, description)
     return Field(default, title=title, description=description, **kwargs)
 
 
@@ -74,7 +91,7 @@ class BaseOptimizerConfig(BaseConfig):
     verbose: bool = ConfigField(
         default=False,
         title="Verbose",
-        description="Whether to print progress information.",
+        description="Emit per-step debug information about proposals, scores, and acceptance through the logger.",
     )
 
 
@@ -94,13 +111,26 @@ class BaseSpec(BaseModel):
         config_model (type[BaseModel]): Pydantic model class for the component configuration.
     """
 
-    key: str = Field(description="Internal identifier (e.g., 'mcmc', 'gc-content')")
-    label: str = Field(description="External display name (e.g., 'MCMC Optimizer', 'GC Content Range')")
-    description: str = Field(description="Detailed description of component functionality")
-    uses_gpu: bool = Field(default=False, description="Whether this component requires GPU")
-
+    key: str = Field(
+        title="Registry Key",
+        description="Internal kebab-case identifier (e.g. 'mcmc', 'gc-content')",
+    )
+    label: str = Field(
+        title="Display Label",
+        description="External display name (e.g. 'MCMC Optimizer', 'GC Content Range')",
+    )
+    description: str = Field(
+        title="Component Description",
+        description="Detailed description of component functionality",
+    )
+    uses_gpu: bool = Field(
+        default=False,
+        title="Uses GPU",
+        description="Whether this component requires GPU resources",
+    )
     config_model: type[BaseModel] = Field(
-        description="Pydantic model for configuration validation and schema generation"
+        title="Config Model",
+        description="Pydantic model for configuration validation and schema generation",
     )
 
     model_config = {

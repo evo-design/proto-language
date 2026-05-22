@@ -45,7 +45,7 @@ class PositionWeightGeneratorConfig(BaseConfig):
         default=1.0,
         gt=0.0,
         title="Temperature",
-        description="Softmax temperature used when logits are provided.",
+        description="Softmax temperature on logits before decoding. Below 1 sharpens; above 1 flattens. Must be > 0.",
     )
     sequence_bias: SequenceLogitBiasConfig | None = ConfigField(
         default=None,
@@ -60,8 +60,8 @@ class PositionWeightGeneratorConfig(BaseConfig):
     )
     entropy_positions: list[int] | None = ConfigField(
         default=None,
-        title="Entropy Positions",
-        description="Positions to average over when computing mean_peak_probability. None = all.",
+        title="Peak Prob Positions",
+        description="Position indices used in the mean per-position peak-probability metric; None averages over all.",
     )
 
     @field_validator("entropy_positions")

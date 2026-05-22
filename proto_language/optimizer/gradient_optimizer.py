@@ -52,12 +52,12 @@ class ConstraintWeightSchedule(BaseConfig):
     start_weight: float = ConfigField(
         title="Start Weight",
         ge=0.0,
-        description="Weight at the first step.",
+        description="Target weight near the first step; interpolating schedules reach this exactly only at step zero.",
     )
     end_weight: float = ConfigField(
         title="End Weight",
         ge=0.0,
-        description="Weight at the final step.",
+        description="Weight reached exactly at the final step. Ignored when the schedule is 'constant'.",
     )
     schedule: Scheduler = ConfigField(
         default="linear",
@@ -136,7 +136,7 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
     num_steps: int = ConfigField(
         default=1,
         ge=1,
-        title="Num Steps",
+        title="Number of Steps",
         description="Number of gradient descent steps.",
     )
     lr: float = ConfigField(
@@ -148,57 +148,57 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
     sequence_bias: SequenceLogitBiasConfig | None = ConfigField(
         default=None,
         title="Sequence Bias",
-        description="Declarative sequence-symbol bias resolved against the target segment vocabulary.",
+        description="Per-position logit bias for the target vocabulary; added to initial logits to seed the search.",
     )
     soft_start: float = ConfigField(
         default=1.0,
         ge=0.0,
         le=1.0,
         title="Soft Start",
-        description="Soft blending at step 1 (0=hard logits, 1=full softmax).",
+        description="Soft sampling weight at the first step. 0 uses hard logits; 1 uses the full softmax over logits.",
     )
     soft_end: float = ConfigField(
         default=1.0,
         ge=0.0,
         le=1.0,
         title="Soft End",
-        description="Soft blending at final step.",
+        description="Soft sampling weight at the final step. 0 uses hard logits; 1 uses the full softmax.",
     )
     hard_start: float = ConfigField(
         default=0.0,
         ge=0.0,
         le=1.0,
         title="Hard Start",
-        description="Straight-through estimator blending at step 1 (0=relaxed, 1=argmax).",
+        description="Straight-through blend at step 1. 0 is fully relaxed; 1 is argmax forward + relaxed gradient.",
     )
     hard_end: float = ConfigField(
         default=0.0,
         ge=0.0,
         le=1.0,
         title="Hard End",
-        description="Straight-through estimator blending at final step.",
+        description="Straight-through blend at the final step. 0 is fully relaxed; 1 = argmax forward + relaxed grad.",
     )
     temperature_start: float = ConfigField(
         default=1.0,
         gt=0.0,
-        title="Temperature Start",
-        description="Softmax temperature at step 1.",
+        title="Start Temperature",
+        description="Softmax temperature at the first step. Lower values produce sharper distributions.",
     )
     temperature_end: float = ConfigField(
         default=1.0,
         gt=0.0,
-        title="Temperature End",
-        description="Softmax temperature at final step.",
+        title="End Temperature",
+        description="Softmax temperature at the final step. Lower values produce sharper distributions.",
     )
     softmax_schedule: Scheduler = ConfigField(
         default="constant",
-        title="Softmax Schedule",
-        description="Softmax sharpening schedule for constraints.",
+        title="Softmax Temp Schedule",
+        description="Curve interpolating the softmax temperature from start to end across optimization steps.",
     )
     lr_schedule: Scheduler = ConfigField(
         default="constant",
-        title="LR Schedule",
-        description="Learning rate decay schedule.",
+        title="Learning Rate Schedule",
+        description="Curve used to scale the base learning rate across optimization steps.",
     )
     merger: GradientMergerName = ConfigField(
         default="weighted_sum",
@@ -207,18 +207,18 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
     )
     ml_optimizer: MLOptimizerType = ConfigField(
         default="sgd",
-        title="ML Optimizer",
-        description="Gradient update algorithm (SGD, Adam).",
+        title="Update Algorithm",
+        description="Gradient update rule applied each step. Currently 'sgd' or 'adam'.",
     )
     adam_config: AdamConfig = ConfigField(
         default_factory=AdamConfig,
-        title="Adam Config",
-        description="Adam hyperparameters.",
+        title="Adam Hyperparameters",
+        description="Beta and epsilon parameters used when the update algorithm is 'adam'.",
     )
     norm_alignment: Literal["none", "unit", "match_first"] = ConfigField(
         default="none",
         title="Norm Alignment",
-        description="Per-constraint gradient normalization before merging.",
+        description="How per-constraint gradients are rescaled before merging: as-is, unit-normalized, or match-first.",
     )
     zero_norm_eps: float = ConfigField(
         default=0.0,
@@ -234,23 +234,23 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
     normalize_mode: Literal["unit", "sqrt_length"] = ConfigField(
         default="unit",
         title="Normalize Mode",
-        description="'unit' = L2 to 1.0. 'sqrt_length' = g*sqrt(eff_L)/||g||.",
+        description="'unit' rescales the gradient to unit L2 norm; 'sqrt_length' scales magnitude by sqrt(length).",
     )
     fixed_positions: list[int] | None = ConfigField(
         default=None,
         title="Fixed Positions",
-        description="Sequence positions to freeze. Pair with sequence_bias to anchor them at the desired AA.",
+        description="Zero-based positions to freeze during optimization. Pair with sequence_bias to anchor each position.",
     )
     scale_lr_by_temperature: bool = ConfigField(
         default=False,
         title="Scale LR by Temperature",
-        description="Multiply LR by soft/temperature blending factor.",
+        description="Multiply LR by a blend of soft weight and softmax temperature; slows updates as sharpness rises.",
     )
     min_lr_scale: float = ConfigField(
         default=0.0,
         ge=0.0,
         title="Min LR Scale",
-        description="Floor for effective LR scale when temperature scaling is enabled.",
+        description="Lower bound on the learning-rate scale factor when temperature scaling is enabled.",
     )
     save_best: bool = ConfigField(
         default=True,
@@ -260,28 +260,28 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
     constraint_weight_schedules: list[ConstraintWeightSchedule] | None = ConfigField(
         default=None,
         title="Constraint Weight Schedules",
-        description="Per-label weight schedules that override Constraint.weight each step.",
+        description="Per-constraint weight schedules that override the constraint's static weight at each step.",
     )
     gumbel_logit_init: bool = ConfigField(
         default=False,
         title="Gumbel Logit Init",
-        description="Gumbel(0,1) noise at init; zeroed at fixed_positions; additive with sequence_bias.",
+        description="Add Gumbel noise to initial logits so parallel trajectories diverge. Suppressed at frozen positions.",
     )
     gumbel_init_alpha: float = ConfigField(
         default=1.0,
         gt=0.0,
         title="Gumbel Init Alpha",
-        description="Divisor for Gumbel init noise. 1.0 = unscaled.",
+        description="Divisor applied to the Gumbel init noise. 1.0 leaves it unscaled; larger values shrink it.",
     )
     initial_logits: list[list[float]] | None = ConfigField(
         default=None,
         title="Initial Logits",
-        description="Base logit matrix (L x |vocab|) replacing default initialization.",
+        description="Base logit matrix (rows=positions, cols=vocab) that replaces default initialization.",
     )
     softmax_init_positions: list[int] | None = ConfigField(
         default=None,
         title="Softmax Init Positions",
-        description="Positions receiving Gumbel noise + softmax over initial_logits.",
+        description="Zero-based positions perturbed with Gumbel noise and passed through a softmax over initial logits.",
     )
 
     @property

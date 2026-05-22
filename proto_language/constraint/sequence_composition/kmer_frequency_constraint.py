@@ -83,16 +83,16 @@ class KmerFrequencyConfig(BaseConfig):
     scoring_mode: Literal["frequency", "usage_deviation"] = ConfigField(
         title="Scoring Mode",
         default="frequency",
-        description="Scoring mode for k-mer evaluation. Specifies which metric is compared to range",
+        description="Scoring metric: 'frequency' uses raw k-mer counts; 'usage_deviation' uses observed/expected ratios.",
         examples=["frequency", "usage_deviation"],
     )
     min_value: float = ConfigField(
-        title="Minimum acceptable value",
+        title="Min Value",
         ge=0.0,
         description="Minimum acceptable frequency/deviation based on scoring_mode",
     )
     max_value: float = ConfigField(
-        title="Maximum acceptable value",
+        title="Max Value",
         ge=0.0,
         description="Maximum acceptable frequency/deviation based on scoring_mode",
     )

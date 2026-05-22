@@ -177,11 +177,7 @@ class GapGiniConfig(BaseConfig):
     key="gap-gini",
     label="Alignment Gap Gini",
     config=GapGiniConfig,
-    description=(
-        "Compute gap-distribution Gini coefficient for pairwise protein "
-        "alignments (MAFFT). Low values indicate evenly distributed gaps; "
-        "high values indicate truncation artifacts."
-    ),
+    description="Gap-distribution Gini for pairwise protein alignments (MAFFT); low is even, high is truncated.",
     tools_called=["mafft-align"],
     category="sequence_alignment",
     supported_sequence_types=["protein"],

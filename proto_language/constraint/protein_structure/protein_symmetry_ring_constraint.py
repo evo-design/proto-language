@@ -64,8 +64,8 @@ class ProteinSymmetryRingConfig(BaseConfig):
     max_symmetry_std: float = ConfigField(
         default=10.0,
         ge=0.0,
-        title="Max Symmetry Standard Deviation",
-        description="Maximum std of inter-protomer distances in Å for normalization. Values above this get score 1.0.",
+        title="Max Symmetry Std (Å)",
+        description="Max std of inter-protomer centroid distances (Å) for normalization; above this gets worst score 1.0.",
         examples=[5, 10],  # Typical: 5-10 Å for tight rings.
     )
     all_to_all_protomer_symmetry: bool = ConfigField(

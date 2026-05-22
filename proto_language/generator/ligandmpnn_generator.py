@@ -140,12 +140,12 @@ class LigandMPNNGeneratorConfig(BaseConfig):
         ge=0.0,
         le=1.0,
         title="Temperature",
-        description="Controls randomness in sampling. Lower values produce more deterministic sequences.",
+        description="Randomness of sampling (0-1). Near 0 is deterministic; near 1 is proportional to model probs.",
     )
     excluded_amino_acids: list[str] | None = ConfigField(
         default=None,
-        title="Unallowed Amino Acids",
-        description="List of amino acids (single-letter codes) to exclude from designed sequences.",
+        title="Excluded Amino Acids",
+        description="Single-letter amino-acid codes to forbid in the designed sequence.",
     )
     batch_size: int = ConfigField(
         default=1,

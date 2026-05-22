@@ -38,7 +38,7 @@ class MaxHomopolymerConfig(BaseConfig):
     max_length: int = ConfigField(
         title="Max Homopolymer Length",
         gt=0,
-        description="Max homopolymer length in consecutive identical nucleotides or amino acids (Longer penalized)",  #  Sequences with longer homopolymers are penalized.
+        description="Maximum allowed run of consecutive identical nucleotides or amino acids; longer runs are penalized.",  #  Sequences with longer homopolymers are penalized.
     )
 
 

@@ -46,30 +46,33 @@ class GeneratorSpec(BaseSpec):
     """
 
     category: GeneratorCategory = Field(
-        description=(
-            "Generator category bucket: 'autoregressive', 'mutation', 'inverse_folding', or 'gradient'. "
-            "Derived from the input_type classvar on the Generator subclass via INPUT_TYPE_TO_CATEGORY."
-        )
+        title="Generator Category",
+        description="How the generator produces sequences: autoregressive, mutation, inverse_folding, or gradient.",
     )
     input_type: GeneratorInputType = Field(
-        description=(
-            "Typed declaration of what kind of starting input this generator consumes: 'prompt', "
-            "'starting_sequence', 'structure', or 'logits'."
-        )
+        title="Input Type",
+        description="Kind of starting input the generator consumes: prompt, starting_sequence, structure, or logits.",
     )
     allows_empty_starting_sequence: bool = Field(
         default=False,
-        description="Whether this generator can initialize a length-only target segment with no starting sequence.",
+        title="Allows Empty Start",
+        description="Whether the generator can initialize a length-only segment without a starting sequence",
     )
     tools_called: list[str] = Field(
-        description="List of tool keys this generator calls. Helps agent find relevant tool documentation."
+        title="Tools Called",
+        description="Tool keys this generator calls (helps locate relevant tool documentation)",
     )
     supported_sequence_types: list[str] = Field(
-        description="List of supported sequence types (e.g., ['dna', 'protein']). Empty list means supports all types."
+        title="Supported Sequence Types",
+        description="Sequence types this generator can produce (e.g. ['dna', 'protein']); empty list means all types.",
     )
 
     # Private field - excluded from serialization
-    generator_class: type[Generator] = Field(exclude=True)
+    generator_class: type[Generator] = Field(
+        exclude=True,
+        title="Generator Class",
+        description="Generator subclass implementing the generation logic (excluded from serialization)",
+    )
 
 
 class GeneratorRegistry(BaseRegistry[GeneratorSpec]):

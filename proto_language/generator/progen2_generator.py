@@ -103,7 +103,7 @@ class ProGen2GeneratorConfig(BaseConfig):
     model_checkpoint: PROGEN2_MODEL_CHECKPOINTS = ConfigField(
         default="progen2-large",
         title="Model Checkpoint",
-        description="ProGen2 model checkpoint to use",
+        description="ProGen2 model variant to load (e.g. progen2-large).",
     )
 
     # Advanced parameters
@@ -121,20 +121,20 @@ class ProGen2GeneratorConfig(BaseConfig):
         default=0.2,
         gt=0.0,
         title="Temperature",
-        description="Scales the randomness of sampling.",
+        description="Sharpness of sampling. Below 1 favors high-probability tokens; above 1 increases diversity.",
     )
     top_p: float = ConfigField(
         default=0.95,
         gt=0.0,
         le=1.0,
         title="Top-p",
-        description="Nucleus sampling parameter.",
+        description="Nucleus sampling cumulative probability cutoff. 1.0 disables nucleus sampling.",
     )
     top_k: int = ConfigField(
         default=0,
         ge=0,
         title="Top-k",
-        description="Limits sampling to the top-k most probable tokens.",
+        description="At each step, restrict sampling to the k most probable tokens. Set to 0 to disable top-k truncation.",
     )
     truncate_at_stop: bool = ConfigField(
         default=True,

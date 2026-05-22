@@ -86,7 +86,7 @@ class ESM3GeneratorConfig(BaseConfig):
     model_checkpoint: ESM3_MODEL_CHECKPOINTS = ConfigField(
         default="esm3_sm_open_v1",
         title="Model Checkpoint",
-        description="ESM3 model checkpoint to use",
+        description="ESM-3 model variant to load.",
     )
 
     masking_strategy: MaskingStrategy = ConfigField(
@@ -98,7 +98,9 @@ class ESM3GeneratorConfig(BaseConfig):
     sampling_method: Literal["single_pass", "iterative_refinement"] = ConfigField(
         default="single_pass",
         title="Sampling Method",
-        description=("'single_pass' samples every mask in one forward; 'iterative_refinement' uses batch_generate"),
+        description=(
+            "'single_pass' fills all masks in one forward; 'iterative_refinement' uses ESM-3 batch generation."
+        ),
     )
 
     # Advanced parameters

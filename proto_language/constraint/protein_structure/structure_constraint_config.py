@@ -86,7 +86,7 @@ class AlphaFold2MultimerStructureConfig(BaseConfig):
     design_positions: list[int] | None = ConfigField(
         default=None,
         title="Design Positions",
-        description="Binder positions used by focused losses.",
+        description="Binder positions used by focused losses (zero-based, ColabDesign convention).",
     )
     omit_aas: list[AminoAcid] | None = ConfigField(
         default=None,
@@ -103,7 +103,7 @@ class AlphaFold2MultimerStructureConfig(BaseConfig):
     recycle_mode: Literal["last", "sample", "average", "first"] = ConfigField(
         default="last",
         title="Recycle Mode",
-        description="Recycle output mode.",
+        description="How to combine AF2 recycle iterations: last, sample, average, or first.",
     )
     model_num: int = ConfigField(
         default=1,
@@ -120,8 +120,8 @@ class AlphaFold2MultimerStructureConfig(BaseConfig):
     )
     intra_contact_cutoff: float = ConfigField(
         default=14.0,
-        title="Intra Cutoff",
-        description="Intra-chain contact cutoff in Angstroms.",
+        title="Intra Cutoff (Å)",
+        description="Intra-chain contact distance cutoff in Ångströms.",
         gt=0.0,
     )
     inter_contact_num: int = ConfigField(
@@ -132,8 +132,8 @@ class AlphaFold2MultimerStructureConfig(BaseConfig):
     )
     inter_contact_cutoff: float = ConfigField(
         default=21.6875,
-        title="Inter Cutoff",
-        description="Inter-chain contact cutoff in Angstroms.",
+        title="Inter Cutoff (Å)",
+        description="Inter-chain contact distance cutoff in Ångströms.",
         gt=0.0,
     )
     framework_contact_offset: float = ConfigField(
@@ -165,12 +165,12 @@ class AlphaFold2MultimerStructureConfig(BaseConfig):
     )
     rm_target_sc: bool = ConfigField(
         default=False,
-        title="Mask Target SC",
+        title="Mask Target Side Chains",
         description="Whether to mask target template side chains.",
     )
     rm_template_ic: bool = ConfigField(
         default=True,
-        title="Mask Template IC",
+        title="Mask Template Contacts",
         description="Whether to mask inter-chain template contacts.",
     )
     include_pae_matrix: bool = ConfigField(
@@ -181,7 +181,7 @@ class AlphaFold2MultimerStructureConfig(BaseConfig):
     backend: Literal["base", "germinal"] = ConfigField(
         default="base",
         title="Backend",
-        description="AF2 backend implementation.",
+        description="AF2 backend: 'base' (default) or 'germinal' (Germinal VHH extensions).",
     )
     device: str = ConfigField(
         default="cuda",
@@ -328,7 +328,7 @@ class StructureBasedConstraintConfig(BaseConfig):
         ConfigField(
             title="Structure Prediction Tool",
             default="esmfold",
-            description="Tool to use for structure prediction.",
+            description="Structure predictor: esmfold, alphafold3, boltz2, chai1, protenix, or alphafold2_multimer.",
         )
     )
 

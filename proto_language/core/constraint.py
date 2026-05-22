@@ -69,9 +69,17 @@ class InputSlot(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    label: str
-    requires_logits: bool = False
-    requires_structure: bool = False
+    label: str = Field(title="Slot Label", description="Slot name surfaced in error messages")
+    requires_logits: bool = Field(
+        default=False,
+        title="Requires Logits",
+        description="When True, the proposal sequence supplied to this slot must include logits.",
+    )
+    requires_structure: bool = Field(
+        default=False,
+        title="Requires Structure",
+        description="When True, the proposal sequence supplied to this slot must include a predicted structure.",
+    )
 
 
 class ConstraintOutput(BaseModel):
@@ -94,11 +102,30 @@ class ConstraintOutput(BaseModel):
 
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
-    score: float
-    metadata: dict[str, Any] = Field(default_factory=dict)
-    structures: tuple[Structure | None, ...] = ()
-    logits: tuple[np.ndarray | None, ...] = ()
-    metadata_recipient: str | None = None
+    score: float = Field(
+        title="Score",
+        description="Per-proposal scalar score; conventionally in [0, 1] where lower is better.",
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        title="Metadata",
+        description="Per-segment auxiliary metadata returned alongside the score",
+    )
+    structures: tuple[Structure | None, ...] = Field(
+        default=(),
+        title="Per-Segment Structures",
+        description="Optional per-segment predicted structures, aligned with the input tuple.",
+    )
+    logits: tuple[np.ndarray | None, ...] = Field(
+        default=(),
+        title="Per-Segment Logits",
+        description="Optional per-segment logits, aligned with the input tuple.",
+    )
+    metadata_recipient: str | None = Field(
+        default=None,
+        title="Metadata Recipient",
+        description="Input slot or segment label that should receive metadata; None broadcasts to all.",
+    )
 
 
 class GradientConstraintOutput(BaseModel):
@@ -115,10 +142,24 @@ class GradientConstraintOutput(BaseModel):
 
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
-    gradient: tuple[np.ndarray, ...]
-    loss: float
-    metrics: dict[str, Any] = Field(default_factory=dict)
-    structures: tuple[Structure | None, ...] = ()
+    gradient: tuple[np.ndarray, ...] = Field(
+        title="Per-Segment Gradients",
+        description="Gradient of the scalar loss with respect to each input segment's logits.",
+    )
+    loss: float = Field(
+        title="Loss",
+        description="Scalar objective from the differentiable backend; lower is better.",
+    )
+    metrics: dict[str, Any] = Field(
+        default_factory=dict,
+        title="Metrics",
+        description="Auxiliary metrics (e.g. pLDDT, pTM) reported alongside the loss",
+    )
+    structures: tuple[Structure | None, ...] = Field(
+        default=(),
+        title="Per-Segment Structures",
+        description="Optional per-segment predicted structures, aligned with the gradient tuple.",
+    )
 
     def __repr__(self) -> str:
         """Return a compact repr that does not dump the full gradient arrays."""

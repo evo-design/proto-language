@@ -98,8 +98,8 @@ class RejectionSamplingOptimizerConfig(BaseOptimizerConfig):
     # Required parameters
     num_samples: int = ConfigField(
         ge=1,
-        title="Num Samples",
-        description="Number of samples to generate.",
+        title="Number of Samples",
+        description="Maximum proposal sequences to generate; may stop earlier when the energy threshold is met.",
     )
 
     # Advanced parameters
@@ -107,7 +107,7 @@ class RejectionSamplingOptimizerConfig(BaseOptimizerConfig):
         default=None,
         ge=1,
         title="Design Candidates",
-        description="Top candidate designs to keep for this optimizer. Overrides program-level count.",
+        description="Number of top-scoring candidate designs to retain (lowest energy first). Overrides program count.",
     )
     proposal_batch_size: int | None = ConfigField(
         default=None,
@@ -119,7 +119,7 @@ class RejectionSamplingOptimizerConfig(BaseOptimizerConfig):
         default=None,
         ge=0.0,
         title="Energy Threshold",
-        description="Early stop when all energy scores in results are below threshold.",
+        description="Optional early-stop (lower energy = better); stops once every retained candidate is below this.",
     )
 
     @model_validator(mode="after")

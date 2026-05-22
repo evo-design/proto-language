@@ -55,13 +55,13 @@ class SemigreedyMutationGeneratorConfig(BaseConfig):
     position_weighting: Literal["uniform", "entropy", "plddt"] = ConfigField(
         default="uniform",
         title="Position Weighting",
-        description="Strategy for selecting mutation positions.",
+        description="'uniform' picks at random; 'entropy' picks high-entropy positions; 'plddt' picks low-pLDDT.",
     )
     temperature: float = ConfigField(
         default=1.0,
         gt=0.0,
         title="Temperature",
-        description="Softmax temperature for converting logits to the PSSM.",
+        description="Softmax temperature on logits when building the PSSM. Below 1 sharpens; above 1 flattens (> 0).",
     )
     exclude_current: bool = ConfigField(
         default=True,
@@ -76,12 +76,12 @@ class SemigreedyMutationGeneratorConfig(BaseConfig):
     clear_logits: bool = ConfigField(
         default=False,
         title="Clear Logits",
-        description="Sample replacement AAs from sequence_bias only (or uniform), ignoring proposal.logits.",
+        description="When True, ignore proposal logits and sample replacement from sequence_bias (or uniform if unset).",
     )
     frozen_positions: list[int] | None = ConfigField(
         default=None,
         title="Frozen Positions",
-        description="Zero-indexed positions excluded from mutation.",
+        description="Position indices to keep untouched during mutation (Python-style zero-based).",
     )
 
     @field_validator("frozen_positions")

@@ -88,7 +88,7 @@ class ESM2GeneratorConfig(BaseConfig):
     model_checkpoint: ESM2_MODEL_CHECKPOINTS = ConfigField(
         default="esm2_t33_650M_UR50D",
         title="Model Checkpoint",
-        description="ESM2 model checkpoint to use",
+        description="ESM-2 model variant to load (e.g. esm2_t33_650M_UR50D).",
     )
 
     masking_strategy: MaskingStrategy = ConfigField(
@@ -100,9 +100,7 @@ class ESM2GeneratorConfig(BaseConfig):
     sampling_method: Literal["single_pass", "iterative_refinement"] = ConfigField(
         default="single_pass",
         title="Sampling Method",
-        description=(
-            "'single_pass' samples every mask in one forward; 'iterative_refinement' runs the MaskGIT-style loop"
-        ),
+        description=("'single_pass' fills all masks in one forward; 'iterative_refinement' runs a MaskGIT-style loop."),
     )
 
     # Advanced parameters
@@ -110,30 +108,30 @@ class ESM2GeneratorConfig(BaseConfig):
         default=1.0,
         gt=0.0,
         title="Temperature",
-        description="Scales the randomness of sampling by adjusting probability distribution sharpness.",
+        description="Sharpness of sampling. Below 1 sharpens toward the likely amino acid; above 1 increases diversity.",
     )
     top_p: float = ConfigField(
         default=1.0,
         gt=0.0,
         le=1.0,
-        title="Top P",
-        description="Nucleus sampling threshold; 1.0 disables",
+        title="Top-p",
+        description="Nucleus sampling cumulative probability cutoff used in iterative refinement. 1.0 disables it.",
     )
     num_steps: int = ConfigField(
         default=20,
         ge=1,
-        title="Num Steps",
-        description="Iterative-refinement decoding steps; diminishing returns above 20",
+        title="Refinement Steps",
+        description="Number of iterative-refinement rounds. Returns diminish above 20.",
     )
     schedule: Literal["cosine", "linear"] = ConfigField(
         default="cosine",
         title="Unmask Schedule",
-        description="Unmask schedule across rounds; 'cosine' fronts more commits late",
+        description="Per-round unmask rate. 'cosine' commits more positions late; 'linear' commits the same each round.",
     )
     strategy: Literal["random", "entropy"] = ConfigField(
         default="random",
         title="Unmask Strategy",
-        description="Position-selection per round; 'entropy' commits the most-confident first",
+        description="How positions are picked each round. 'entropy' takes most-confident first; 'random' is uniform.",
     )
     temperature_annealing: bool = ConfigField(
         default=True,

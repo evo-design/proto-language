@@ -79,9 +79,9 @@ class ProteinDomainConfig(BaseConfig):
 
     # Advanced parameters
     evalue_threshold: float = ConfigField(
-        title="Max E-value Threshold",
+        title="Max E-value",
         default=0.005,
-        description="Max E-value threshold for significant hits. Lower values are more stringent. Typical: 0.0001-0.01",
+        description="Maximum E-value for significant HMM hits; lower is more stringent (typical range 0.0001 to 0.01).",
         examples=[0.0001, 0.01],
     )
     query_coverage: float | None = ConfigField(

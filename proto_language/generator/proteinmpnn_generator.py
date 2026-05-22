@@ -129,8 +129,8 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
 
     model_choice: Literal["proteinmpnn", "abmpnn", "soluble"] = ConfigField(
         default="proteinmpnn",
-        title="Model Choice",
-        description="Model weights: 'proteinmpnn' (general), 'abmpnn' (antibody), or 'soluble' (soluble proteins).",
+        title="ProteinMPNN Weights",
+        description="ProteinMPNN weights: 'proteinmpnn' (general), 'abmpnn' (antibody), or 'soluble' (soluble proteins).",
     )
 
     # Structure parameters - bundles structure, chains_to_redesign, and fixed_positions per structure.
@@ -151,12 +151,12 @@ class ProteinMPNNGeneratorConfig(BaseConfig):
         ge=0.0,
         le=1.0,
         title="Temperature",
-        description="Controls randomness in sampling. Lower values produce more deterministic sequences.",
+        description="Randomness of sampling (0-1). Near 0 is deterministic; near 1 is proportional to model probs.",
     )
     excluded_amino_acids: list[str] | None = ConfigField(
         default=None,
-        title="Unallowed Amino Acids",
-        description="List of amino acids (single-letter codes) to exclude from designed sequences.",
+        title="Excluded Amino Acids",
+        description="Single-letter amino-acid codes to forbid in the designed sequence (e.g. 'C' to avoid disulfides).",
     )
     batch_size: int = ConfigField(
         default=1,

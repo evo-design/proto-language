@@ -99,12 +99,15 @@ class BeamSearchOptimizerConfig(BaseOptimizerConfig):
     """
 
     # Required parameters
-    prompt: str = ConfigField(title="Prompt", description="The prompt to start the beam search (e.g. ATCG)")
+    prompt: str = ConfigField(
+        title="Initial Prompt",
+        description="Non-empty seed sequence that every beam begins from and extends (e.g. 'ATCG' for DNA).",
+    )
     num_results: int | None = ConfigField(
         default=None,
         ge=1,
         title="Design Candidates",
-        description="Candidate designs (beam width) for this optimizer. Overrides program-level count.",
+        description="Number of beams (top-K by energy) retained at each beam boundary. Overrides program-level count.",
     )
     proposals_per_result: int = ConfigField(
         ge=1,
@@ -115,13 +118,13 @@ class BeamSearchOptimizerConfig(BaseOptimizerConfig):
     # Generation parameters
     beam_length: int = ConfigField(
         ge=1,
-        title="Beam Length",
-        description="Number of tokens to generate per beam.",
+        title="Tokens Per Step",
+        description="Tokens per beam-search step before re-ranking; segment split into ceil(len/this) steps.",
     )
     score_by: Literal["mean", "last"] = ConfigField(
         default="mean",
-        title="Score By",
-        description="How to aggregate beam scores: 'mean' (average all beams) or 'last' (use most recent).",
+        title="Score Aggregation",
+        description="'mean' averages a beam's per-step energies across all steps; 'last' uses only the most recent.",
     )
     prepend_prompt: bool = ConfigField(
         default=True,
@@ -130,8 +133,8 @@ class BeamSearchOptimizerConfig(BaseOptimizerConfig):
     )
     use_kv_caching: bool = ConfigField(
         default=False,
-        title="KV Caching",
-        description="Whether to use KV caching for generation. Enables faster sequential generation.",
+        title="Use KV Caching",
+        description="Reuse cached KV state across beam steps to speed up generation; needs a KV-capable generator.",
     )
 
     # Advanced parameters

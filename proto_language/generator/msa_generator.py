@@ -41,7 +41,7 @@ class MSAGeneratorConfig(BaseConfig):
     """
 
     msa: MSA = ConfigField(
-        title="MSA",
+        title="Input MSA",
         description="Multiple sequence alignment (list of aligned sequences).",
     )
     num_mutations: int = ConfigField(

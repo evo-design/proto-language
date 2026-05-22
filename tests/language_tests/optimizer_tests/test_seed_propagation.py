@@ -20,18 +20,41 @@ _GC = GCContentConfig(min_gc=0.0, max_gc=100.0)
 
 
 class RuntimeNestedSeedConfig(BaseConfig):
-    """Nested seed-bearing test config."""
+    """Nested seed-bearing test config.
 
-    seed: int | None = ConfigField(default=None, ge=0)
+    Attributes:
+        seed (int | None): Random seed for the nested config.
+    """
+
+    seed: int | None = ConfigField(default=None, ge=0, title="Seed", description="Random seed for the nested config.")
 
 
 class RuntimeSeedConfig(BaseConfig):
-    """Seed-bearing test config."""
+    """Seed-bearing test config.
 
-    seed: int | None = ConfigField(default=None, ge=0)
-    seeds: list[int] = ConfigField(default_factory=lambda: [999])
-    nested: RuntimeNestedSeedConfig = ConfigField(default_factory=RuntimeNestedSeedConfig)
-    raw: dict[str, object] = ConfigField(default_factory=lambda: {"seed": None, "seeds": [999]})
+    Attributes:
+        seed (int | None): Top-level random seed.
+        seeds (list[int]): Multiple seed values used by the fixture.
+        nested (RuntimeNestedSeedConfig): Nested seed-bearing config.
+        raw (dict[str, object]): Raw seed payload used by the fixture.
+    """
+
+    seed: int | None = ConfigField(default=None, ge=0, title="Seed", description="Top-level random seed.")
+    seeds: list[int] = ConfigField(
+        default_factory=lambda: [999],
+        title="Seeds",
+        description="Multiple seed values used by the fixture.",
+    )
+    nested: RuntimeNestedSeedConfig = ConfigField(
+        default_factory=RuntimeNestedSeedConfig,
+        title="Nested",
+        description="Nested seed-bearing config.",
+    )
+    raw: dict[str, object] = ConfigField(
+        default_factory=lambda: {"seed": None, "seeds": [999]},
+        title="Raw",
+        description="Raw seed payload used by the fixture.",
+    )
 
 
 def _make_mcmc(seed=None, num_steps=5, num_results=2, constraint=None):

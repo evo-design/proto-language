@@ -58,11 +58,11 @@ def test_config_consistency(config_model: type):
             f"{config_model.__name__}.{field_name} title is too long (currently {len(title)} characters, must be under {MAX_FIELD_TITLE_LENGTH} characters). "
         )
 
-        # DESCRIPTION: Must exist and be concise (~15 words / ~90 chars for tooltip)
+        # DESCRIPTION: Must exist and be concise (~15 words / ~90 chars)
         description_error = _field_description_is_valid(field_info.description)
         assert description_error == "", (
             f"{config_model.__name__}.{field_name} {description_error}. "
-            "Ensure: Field(..., description='Brief explanation for tooltip')"
+            "Ensure: Field(..., description='Brief explanation')"
         )
 
         # OPTIONALITY: Check for Optional types (should be rare)
@@ -88,7 +88,7 @@ def test_config_consistency(config_model: type):
     missing_fields = [f for f in missing_fields if f not in standard_base_config_fields]
     assert len(missing_fields) == 0, (
         f"{config_model.__name__} is missing the following fields in the docstring: {missing_fields}. "
-        "Add: Field(..., description='Brief explanation for tooltip')"
+        "Add: Field(..., description='Brief explanation')"
     )
 
 
@@ -121,25 +121,37 @@ def test_tool_input_and_output_consistency(tool_input: type, tool_output: type):
 
     # Iterate through input fields and ensure they are defined consistently
     for field_name, field_info in tool_input.model_fields.items():
+        title = field_info.title
+        assert title is not None, f"Tool input {tool_input.__name__}.{field_name} is missing title."
+        assert len(title) <= MAX_FIELD_TITLE_LENGTH, (
+            f"Tool input {tool_input.__name__}.{field_name} title is too long "
+            f"({len(title)} chars, must be ≤ {MAX_FIELD_TITLE_LENGTH})."
+        )
         description_error = _field_description_is_valid(field_info.description)
         assert description_error == "", (
             f"Tool input {tool_input.__name__} has field {field_name} {description_error}. "
-            "Ensure: Field(..., description='Brief explanation for tooltip')"
+            "Ensure: Field(..., title='Label', description='Brief explanation')"
         )
 
     # Iterate through output fields and ensure they are defined consistently
     for field_name, field_info in tool_output.model_fields.items():
+        title = field_info.title
+        assert title is not None, f"Tool output {tool_output.__name__}.{field_name} is missing title."
+        assert len(title) <= MAX_FIELD_TITLE_LENGTH, (
+            f"Tool output {tool_output.__name__}.{field_name} title is too long "
+            f"({len(title)} chars, must be ≤ {MAX_FIELD_TITLE_LENGTH})."
+        )
         description_error = _field_description_is_valid(field_info.description)
         assert description_error == "", (
             f"Tool output {tool_output.__name__} has field {field_name} {description_error}. "
-            "Ensure: Field(..., description='Brief explanation for tooltip')"
+            "Ensure: Field(..., title='Label', description='Brief explanation')"
         )
 
     # DOCUMENTATION CHECK: Ensure that all fields are mentioned in the docstring
     missing_fields = _find_missing_fields_in_docstring(input_docstring, tool_input.model_fields.keys())
     assert len(missing_fields) == 0, (
         f"Tool input {tool_input.__name__} is missing the following fields in the docstring: {missing_fields}. "
-        "Ensure: Field(..., description='Brief explanation for tooltip')"
+        "Ensure: Field(..., description='Brief explanation')"
     )
     missing_fields = _find_missing_fields_in_docstring(output_docstring, tool_output.model_fields.keys())
     # Remove standardized output fields
@@ -155,7 +167,7 @@ def test_tool_input_and_output_consistency(tool_input: type, tool_output: type):
     missing_fields = [field for field in missing_fields if field not in standard_tool_output_fields]
     assert len(missing_fields) == 0, (
         f"Tool output {tool_output.__name__} is missing the following fields in the docstring: {missing_fields}. "
-        "Ensure: Field(..., description='Brief explanation for tooltip')"
+        "Ensure: Field(..., description='Brief explanation')"
     )
 
     # Ensure tool output is concrete (all abstract methods implemented)

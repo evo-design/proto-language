@@ -155,11 +155,7 @@ class SpliceTransformerSpecificityConfig(BaseConfig):
     key="splice-transformer-specificity",
     label="SpliceTransformer tissue specificity score",
     config=SpliceTransformerSpecificityConfig,
-    description=(
-        "Evaluate tissue-specific splicing with SpliceTransformer. "
-        "Takes three segments (left_flank, intron_core, right_flank), "
-        "concatenates them into the 1-kb target, and scores tissue specificity."
-    ),
+    description="Score tissue-specific splicing with SpliceTransformer on three concatenated 1-kb segments.",
     uses_gpu=True,
     tools_called=["splice-transformer-prediction"],
     category="rna splicing",
