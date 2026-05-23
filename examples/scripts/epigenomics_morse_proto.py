@@ -1,4 +1,14 @@
 #!/usr/bin/env python3
+"""Design a DNA insert whose predicted chromatin-accessibility profile spells Morse code.
+
+This script builds a left-flank/target/right-flank construct, generates candidate
+target segments with Evo2 beam search, and scores complete constructs with Borzoi
+and Enformer Morse constraints. The objective rewards high predicted
+accessibility in dash and dot windows and low accessibility in gap windows. It is
+a full example of composing sequence generation, epigenomic scoring, and
+window-level logging for a synthetic regulatory-design task.
+"""
+
 from __future__ import annotations
 
 import argparse

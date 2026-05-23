@@ -1,3 +1,13 @@
+"""Run the smallest end-to-end DNA optimization example.
+
+This script shows the canonical proto-language flow: define one variable DNA
+segment, assign a random nucleotide generator, add a GC-content constraint, run
+MCMC, and inspect the final joined sequence. The toy objective enriches a 20 bp
+synthetic DNA sequence to 80-90% GC content. It is intended as the minimal pattern
+for copying Program, Construct, Segment, Generator, Constraint, and Optimizer
+wiring.
+"""
+
 from proto_language.constraint import gc_content_constraint
 from proto_language.core import (
     Constraint,

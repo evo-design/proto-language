@@ -1,3 +1,13 @@
+"""Design synthetic introns with SpliceTransformer and AlphaGenome scoring.
+
+This script extends the base intron-design example with AlphaGenome splice-site
+usage constraints across genomic safe-harbor contexts. It keeps GT/AG intron
+boundaries fixed, optimizes the intron core with random nucleotide or Evo2
+proposals, and can combine plasmid-context SpliceTransformer scores with
+genomic-context AlphaGenome scores. The legacy specificity_type names use brain,
+blood, and liver tokens while the AlphaGenome ontology terms remain configurable.
+"""
+
 import math
 from pathlib import Path
 from typing import Literal

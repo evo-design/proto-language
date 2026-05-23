@@ -1,3 +1,12 @@
+"""Design a synthetic spliceable intron inside a split fluorescent reporter.
+
+This script inserts a variable intron core between fixed GT/AG splice-site
+dinucleotides and embeds the cassette in SpliceTransformer target windows with
+4 kb left and right context. It optimizes donor and acceptor usage plus
+tissue-specific splicing scores across one or more plasmid contexts. The default
+target is a synthetic mScarlet split-complementation reporter.
+"""
+
 import logging
 import random
 from pathlib import Path

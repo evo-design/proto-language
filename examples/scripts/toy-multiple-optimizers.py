@@ -1,3 +1,13 @@
+"""Run a two-stage DNA optimization with shared construct state.
+
+This example demonstrates a multi-optimizer pattern where rejection sampling and
+downstream MCMC reuse the same Segment and Construct objects. Accepted sequences
+from stage 1 become the starting pool for stage 2, allowing incremental execution
+without rebuilding the program. The toy objective first enriches a 20 bp
+synthetic DNA sequence to 70-100% GC content, then refines it to 80-90% GC
+content.
+"""
+
 from proto_tools.transforms.masking import MaskingStrategy
 
 from proto_language.constraint import gc_content_constraint
