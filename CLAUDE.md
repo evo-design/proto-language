@@ -1,6 +1,3 @@
-`SYSTEM_PROMPT.md` is for agents that use the existing framework to write
-programs and scripts. Use the contents of this file when contributing to the repo itself.
-
 ## Project Overview
 
 `proto-language` is the Proto Bio constraint-based optimization framework for
