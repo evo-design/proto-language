@@ -71,7 +71,7 @@ language generator.
 
 ## 3. Constraint Plan
 
-Ordered cheap-to-expensive. Constraints below use actual available
+Constraints below use actual available
 proto-language registry entries where possible, with explicit notes where
 postprocessing is external.
 
@@ -83,10 +83,10 @@ postprocessing is external.
 | 4 | `overall-protein-quality` | cheap composite filter | maximize | pass internal sub-thresholds | Stage 2 onward | `binder_segment` | Catches repetitiveness / low complexity / poor composition. |
 | 5 | generator config `excluded_amino_acids=["C"]` | generation-time filter | exclude | no cysteine | Stage 2 | `binder_segment` | There is no separate built-in no-cysteine constraint; enforce in generator config and audit outputs. |
 | 6 | `structure-plddt` with `structure_tool="esmfold"` | medium-cost monomer filter | maximize confidence | equivalent to mean pLDDT ≥ 75–80 | post-Stage-2 | `binder_segment` | Fast monomer fold screen. Constraint returns normalized energy, so threshold is applied on transformed score. |
-| 7 | `structure-plddt` with `structure_tool="boltz2"` or `alphafold3` | heavy monomer validation | maximize confidence | equivalent to mean pLDDT ≥ 80 | post-fold-screen | `binder_segment` | Stronger monomer confirmation using a second predictor family. |
-| 8 | `structure-iptm` with `structure_tool="boltz2"` or `alphafold3` | heavy binding validation | maximize interface confidence | high ipTM | post-monomer | `complex_construct` | Primary binding-confidence signal for the PD-L1:binder complex. |
-| 9 | `structure-pae` with `structure_tool="boltz2"` or `alphafold3` | heavy binding validation | minimize | equivalent to interface / complex pAE ≤ 10 Å | post-monomer | `complex_construct` | Real pAE-based complex-confidence signal. |
-| 10 | `mmseqs-gene-similarity` | heavy novelty filter | minimize similarity | best-hit identity < 30% | post-binding | `binder_segment` | Real registry novelty filter against a staged UniRef50 MMseqs DB. |
+| 7 | `structure-plddt` with `structure_tool="boltz2"` or `alphafold3` | monomer validation | maximize confidence | equivalent to mean pLDDT ≥ 80 | post-fold-screen | `binder_segment` | Stronger monomer confirmation using a second predictor family. |
+| 8 | `structure-iptm` with `structure_tool="boltz2"` or `alphafold3` | binding validation | maximize interface confidence | high ipTM | post-monomer | `complex_construct` | Primary binding-confidence signal for the PD-L1:binder complex. |
+| 9 | `structure-pae` with `structure_tool="boltz2"` or `alphafold3` | binding validation | minimize | equivalent to interface / complex pAE ≤ 10 Å | post-monomer | `complex_construct` | Real pAE-based complex-confidence signal. |
+| 10 | `mmseqs-gene-similarity` | novelty filter | minimize similarity | best-hit identity < 30% | post-binding | `binder_segment` | Real registry novelty filter against a staged UniRef50 MMseqs DB. |
 | 11 | external pairwise identity selection | diversity guard | — | pairwise identity ≤ 60% among finals | final selection | full surviving pool | Not currently a native registry constraint; perform in postprocessing. |
 
 ### Threshold Translation
@@ -108,26 +108,13 @@ in implementation.
 
 Requirement (a), monomer fold stability, uses two structure oracles:
 
-- `structure-plddt` with `esmfold` as a faster pre-screen
-- `structure-plddt` with `boltz2` or `alphafold3` as a heavier confirmation
+- `structure-plddt` with `esmfold`
+- `structure-plddt` with `boltz2` or `alphafold3`
 
 Requirement (b), binding, uses complex structure confidence from
 `structure-iptm` and `structure-pae`. This is stronger than a single scalar
 alone, but still ultimately depends on structure-prediction-based binding
 surrogates rather than experimental affinity data.
-
-### Cost Per Iteration (Rough)
-
-- **Stage 1 (`rfdiffusion3-design`):** dominant backbone-generation cost; depends
-  strongly on number of diffusion samples and timestep settings.
-- **Stage 2 (`proteinmpnn`):** relatively cheap per backbone compared with
-  diffusion and complex prediction.
-- **`esmfold` monomer screen:** moderate and practical as a broad filter.
-- **`boltz2` / `alphafold3` monomer confirmation:** heavier.
-- **Complex prediction for all survivors:** likely the dominant validation
-  bottleneck after Stage 1.
-- **`mmseqs-gene-similarity`:** CPU-heavy but manageable relative to structure
-  prediction.
 
 Total cost is still high enough that the pipeline should be described as a
 substantial compute job rather than a casual screening run.
@@ -265,19 +252,7 @@ What is not yet native:
   `ProteinMPNNGeneratorConfig` to reduce free-cysteine liabilities in monomeric
   designs.
 
-### §B — Tool Deep-Dive: Monomer Fold Validation
-
-- **Question:** What is the best in-repo validation strategy for monomer fold
-  quality?
-- **Recommended primary:** `structure-plddt` with `esmfold` as a fast screen,
-  followed by `structure-plddt` with `boltz2` or `alphafold3` as confirmation.
-- **Reason:** these are actual supported structure tools in
-  `StructureBasedConstraintConfig`, and the two-stage screen keeps heavy compute
-  focused on the best candidates.
-- **Ruled-out simplification:** using only one monomer confidence oracle. That
-  would reduce cost but weakens the reliability of fold filtering.
-
-### §C — Tool Deep-Dive: Binding Validation
+### §B — Tool Deep-Dive: Binding Validation
 
 - **Question:** What is the best in-repo structure-based proxy for binding
   quality?
@@ -290,7 +265,7 @@ What is not yet native:
   constraint endpoint here. In this repo, the actual language-level abstractions
   are the structure-confidence constraints with configurable structure tools.
 
-### §D — Tool Deep-Dive: Novelty Against UniRef50
+### §C — Tool Deep-Dive: Novelty Against UniRef50
 
 - **Question:** Which native constraint should implement the < 30% identity
   novelty screen?
