@@ -439,8 +439,8 @@ def structure_tmscore_constraint(
             try:
                 _tmalign_out = run_tmalign(
                     TMalignInput(
-                        pdb_text_1=proposal_pdb,
-                        pdb_text_2=target_pdb,
+                        query_structure=proposal_pdb,
+                        reference_structure=target_pdb,
                     ),
                     TMalignConfig(),
                 )
@@ -458,8 +458,8 @@ def structure_tmscore_constraint(
             try:
                 _usalign_out = run_usalign(
                     USalignInput(
-                        pdb_text_1=proposal_pdb,
-                        pdb_text_2=target_pdb,
+                        query_structure=proposal_pdb,
+                        reference_structure=target_pdb,
                     ),
                     USalignConfig(),
                 )

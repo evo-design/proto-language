@@ -198,7 +198,7 @@ class TestESMFoldTMscoreConstraint:
         with patch(
             "proto_language.constraint.protein_structure.structure_similarity_constraint._prepare_target_structure"
         ) as m:
-            m.return_value = "TARGET_PDB_CONTENT"
+            m.return_value = MockStructure().structure_pdb
             yield m
 
     @pytest.fixture
