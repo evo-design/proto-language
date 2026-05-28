@@ -41,6 +41,7 @@ logger = getLogger(__name__)
 
 TOOL_AVAILABLE_METRICS: dict[str, set[str]] = {
     "esmfold": {"avg_plddt", "ptm", "avg_pae"},
+    "esmfold2": {"avg_plddt", "ptm", "iptm", "avg_pae"},
     "alphafold3": {"avg_plddt", "ptm", "iptm", "avg_pae"},
     "boltz2": {"avg_plddt", "ptm", "iptm", "avg_pae"},
     "chai1": {"avg_plddt", "ptm", "iptm", "avg_pae"},
@@ -49,7 +50,7 @@ TOOL_AVAILABLE_METRICS: dict[str, set[str]] = {
 }
 PAE_MAXIMUM: float = 31.75  # Angstroms.
 COMPOSITE_REQUIRED_METRICS: frozenset[str] = frozenset({"avg_plddt", "iptm", "ptm", "avg_pae"})
-COMPOSITE_SUPPORTED_TOOLS: frozenset[str] = frozenset({"alphafold3", "boltz2", "chai1", "protenix"})
+COMPOSITE_SUPPORTED_TOOLS: frozenset[str] = frozenset({"esmfold2", "alphafold3", "boltz2", "chai1", "protenix"})
 
 
 @dataclass(frozen=True)
@@ -150,9 +151,12 @@ def _structure_confidence(
     for record, _proposal_tuple in zip(records, proposals, strict=True):
         metric_value = record.metrics.get(target_metric)
         if metric_value is None:
-            alt = {"avg_plddt": "complex_plddt", "avg_pae": "complex_pde"}.get(target_metric)
-            if alt:
+            # Bridge tool-native names (Boltz2 ``complex_plddt``, ESMFold2 ``plddt``) to canonical metrics.
+            alts = {"avg_plddt": ("complex_plddt", "plddt"), "avg_pae": ("complex_pde",)}.get(target_metric, ())
+            for alt in alts:
                 metric_value = record.metrics.get(alt)
+                if metric_value is not None:
+                    break
 
         if metric_value is None:
             logger.warning("Metric %r not found in structure output, returning worst score.", target_metric)
@@ -204,6 +208,7 @@ def _assemble_result(
     uses_gpu=True,
     tools_called=[
         "esmfold-prediction",
+        "esmfold2-prediction",
         "alphafold3-prediction",
         "boltz2-prediction",
         "chai1-prediction",
@@ -278,6 +283,7 @@ def structure_plddt_constraint(
     uses_gpu=True,
     tools_called=[
         "esmfold-prediction",
+        "esmfold2-prediction",
         "alphafold3-prediction",
         "boltz2-prediction",
         "chai1-prediction",
@@ -345,6 +351,7 @@ def structure_ptm_constraint(
     description="Evaluate interface quality using predicted interface TM score",
     uses_gpu=True,
     tools_called=[
+        "esmfold2-prediction",
         "alphafold3-prediction",
         "boltz2-prediction",
         "chai1-prediction",
@@ -368,7 +375,7 @@ def structure_iptm_constraint(
     This constraint returns ``1.0 - iptm``, so lower scores indicate
     better predicted interface quality.
 
-    **Supported tools**: AlphaFold3, Boltz2, Chai1, Protenix, AlphaFold2 multimer (NOT ESMFold)
+    **Supported tools**: ESMFold2, AlphaFold3, Boltz2, Chai1, Protenix, AlphaFold2 multimer (NOT ESMFold v1)
 
     Args:
         input_sequences (list[tuple[Sequence, ...]]): Per-proposal tuples of input sequences.
@@ -432,6 +439,7 @@ def structure_iptm_constraint(
     uses_gpu=True,
     tools_called=[
         "esmfold-prediction",
+        "esmfold2-prediction",
         "alphafold3-prediction",
         "boltz2-prediction",
         "chai1-prediction",
@@ -611,7 +619,13 @@ def structure_ipae_constraint(
     config=StructureBasedConstraintConfig,
     description="Score structure quality using a composite of plddt/iptm/ptm/pae from a single prediction call",
     uses_gpu=True,
-    tools_called=["alphafold3-prediction", "boltz2-prediction", "chai1-prediction", "protenix-prediction"],
+    tools_called=[
+        "esmfold2-prediction",
+        "alphafold3-prediction",
+        "boltz2-prediction",
+        "chai1-prediction",
+        "protenix-prediction",
+    ],
     category="protein_structure",
     supported_sequence_types=["protein", "rna", "dna", "ligand"],
     input_labels=None,
@@ -636,10 +650,11 @@ def structure_composite_constraint(
     (one ``predict_structures`` call instead of four) and exposes all metrics
     for post-hoc threshold labeling.
 
-    **Supported tools**: AlphaFold3, Boltz2, Chai1, Protenix (NOT ESMFold — ESMFold does
-    not produce ``iptm`` and cannot handle multi-chain complexes; NOT AF2
-    multimer because its interface TM value is exposed as a differentiable
-    objective rather than the same forward confidence metric used here).
+    **Supported tools**: ESMFold2, AlphaFold3, Boltz2, Chai1, Protenix (NOT ESMFold v1 —
+    it does not produce ``iptm`` and cannot handle multi-chain complexes, whereas
+    ESMFold2 does both; NOT AF2 multimer because its interface TM value is exposed
+    as a differentiable objective rather than the same forward confidence metric
+    used here).
 
     Args:
         input_sequences (list[tuple[Sequence, ...]]): Per-proposal tuples of input sequences.
@@ -700,6 +715,8 @@ def structure_composite_constraint(
         plddt_raw = m.get("avg_plddt")
         if plddt_raw is None:
             plddt_raw = m.get("complex_plddt")
+        if plddt_raw is None:
+            plddt_raw = m.get("plddt")
         iptm = m.get("iptm")
         ptm = m.get("ptm")
         pae = m.get("avg_pae")

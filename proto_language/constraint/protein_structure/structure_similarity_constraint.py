@@ -77,7 +77,7 @@ class StructureSimilarityConfig(StructureBasedConstraintConfig):
 
     Inherits tool selection and per-tool configuration from
     ``StructureBasedConstraintConfig`` (``structure_tool``, ``esmfold_config``,
-    ``alphafold3_config``, ``boltz2_config``, ``chai1_config``,
+    ``esmfold2_config``, ``alphafold3_config``, ``boltz2_config``, ``chai1_config``,
     ``alphafold2_multimer_config``).
 
     Attributes:
@@ -140,7 +140,7 @@ class StructureRMSDConfig(StructureSimilarityConfig):
 
     Inherits target specification (``target_chains``, ``target_structure``,
     ``min_target_plddt``) from ``StructureSimilarityConfig`` and tool selection
-    (``structure_tool``, ``esmfold_config``, ``alphafold3_config``,
+    (``structure_tool``, ``esmfold_config``, ``esmfold2_config``, ``alphafold3_config``,
     ``boltz2_config``, ``chai1_config``, ``protenix_config``,
     ``alphafold2_multimer_config``) from ``StructureBasedConstraintConfig``.
 
@@ -192,7 +192,7 @@ class StructureTMScoreConfig(StructureSimilarityConfig):
 
     Inherits target specification (``target_chains``, ``target_structure``,
     ``min_target_plddt``) from ``StructureSimilarityConfig`` and tool selection
-    (``structure_tool``, ``esmfold_config``, ``alphafold3_config``,
+    (``structure_tool``, ``esmfold_config``, ``esmfold2_config``, ``alphafold3_config``,
     ``boltz2_config``, ``chai1_config``, ``protenix_config``,
     ``alphafold2_multimer_config``) from ``StructureBasedConstraintConfig``.
 
@@ -277,6 +277,7 @@ def _prepare_target_structure(config: StructureSimilarityConfig) -> str | None:
     uses_gpu=True,
     tools_called=[
         "esmfold-prediction",
+        "esmfold2-prediction",
         "alphafold3-prediction",
         "boltz2-prediction",
         "chai1-prediction",
@@ -361,6 +362,7 @@ def _count_pdb_chains(pdb_text: str) -> int:
     uses_gpu=True,
     tools_called=[
         "esmfold-prediction",
+        "esmfold2-prediction",
         "alphafold3-prediction",
         "boltz2-prediction",
         "chai1-prediction",

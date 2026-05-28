@@ -1159,3 +1159,55 @@ class TestStructureComposite:
             )
             results = structure_composite_constraint(proposals, config)
             assert len(results) == n and mock_predict.call_count == 1
+
+
+# ============================================================================
+# Test ESMFold2 (native ``plddt`` key; complex-capable with ipTM)
+# ============================================================================
+
+
+class TestESMFold2:
+    """ESMFold2 uses a native ``plddt`` key and is complex-capable.
+
+    Unlike ESMFold v1 it yields ``iptm`` and folds complexes, so the native-name bridge
+    must resolve ``plddt`` or confidence constraints silently return the worst score.
+    """
+
+    def test_available_metrics(self):
+        """ESMFold2 advertises the complex-capable canonical metric set."""
+        assert TOOL_AVAILABLE_METRICS["esmfold2"] == {"avg_plddt", "ptm", "iptm", "avg_pae"}
+
+    def test_plddt_bridges_native_key(self, protein_sequence):
+        """Regression: ESMFold2 reports ``plddt``; structure-plddt must score it, not return the worst score."""
+        config = StructureBasedConstraintConfig(structure_tool="esmfold2")
+        with patch(
+            "proto_language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
+        ) as mock_predict:
+            mock_predict.return_value = make_mock_output([make_mock_structure(plddt=0.9, ptm=0.8, avg_pae=5.0)])
+            [result] = structure_plddt_constraint([(protein_sequence,)], config)
+            assert result.score == pytest.approx(0.1)
+            assert mock_predict.call_args[0][1] == "esmfold2"
+
+    def test_iptm_supported_for_complexes(self, protein_sequence, protein_sequence_b):
+        """ESMFold2 produces ipTM for multi-chain complexes (ESMFold v1 does not)."""
+        config = StructureBasedConstraintConfig(structure_tool="esmfold2")
+        with patch(
+            "proto_language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
+        ) as mock_predict:
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(plddt=0.9, ptm=0.8, iptm=0.75, avg_pae=5.0)]
+            )
+            [result] = structure_iptm_constraint([(protein_sequence, protein_sequence_b)], config)
+            assert result.score == pytest.approx(0.25)
+
+    def test_composite_supported(self, protein_sequence, protein_sequence_b):
+        """ESMFold2 has all four metrics and folds complexes, so structure-composite accepts it."""
+        config = StructureBasedConstraintConfig(structure_tool="esmfold2")
+        with patch(
+            "proto_language.constraint.protein_structure.structure_confidence_constraint.predict_structures"
+        ) as mock_predict:
+            mock_predict.return_value = make_mock_output(
+                [make_mock_structure(plddt=0.9, iptm=0.8, ptm=0.7, avg_pae=3.175)]
+            )
+            [result] = structure_composite_constraint([(protein_sequence, protein_sequence_b)], config)
+            assert result.score == pytest.approx(0.175)

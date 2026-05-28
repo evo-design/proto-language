@@ -11,6 +11,7 @@ from proto_tools import (
     AlphaFold3Config,
     Boltz2Config,
     Chai1Config,
+    ESMFold2Config,
     ESMFoldConfig,
     ProtenixConfig,
 )
@@ -291,8 +292,9 @@ class StructureBasedConstraintConfig(BaseConfig):
     the structure_tool field with a narrower Literal type.
 
     Attributes:
-        structure_tool (Literal['esmfold', 'alphafold3', 'boltz2', 'chai1', 'protenix', 'alphafold2_multimer']): Tool to use for structure prediction. Supported options:
+        structure_tool (Literal['esmfold', 'esmfold2', 'alphafold3', 'boltz2', 'chai1', 'protenix', 'alphafold2_multimer']): Tool to use for structure prediction. Supported options:
             - "esmfold": ESMFold (Meta AI)
+            - "esmfold2": ESMFold2 (Biohub) — all-atom, complex-capable
             - "alphafold3": AlphaFold 3 (Google DeepMind)
             - "boltz2": Boltz2 (MIT)
             - "chai1": Chai-1 (Chai Discovery)
@@ -302,6 +304,9 @@ class StructureBasedConstraintConfig(BaseConfig):
 
         esmfold_config (ESMFoldConfig): Configuration for ESMFold structure prediction.
             Used when ``structure_tool == "esmfold"``.
+
+        esmfold2_config (ESMFold2Config): Configuration for ESMFold2 structure prediction.
+            Used when ``structure_tool == "esmfold2"``.
 
         alphafold3_config (AlphaFold3Config): Configuration for AlphaFold3 structure prediction.
             Used when ``structure_tool == "alphafold3"``.
@@ -324,18 +329,25 @@ class StructureBasedConstraintConfig(BaseConfig):
         >>> config = MyConstraintConfig(structure_tool="alphafold3", alphafold3_config={"seeds": [0, 1]})
     """
 
-    structure_tool: Literal["esmfold", "alphafold3", "boltz2", "chai1", "protenix", "alphafold2_multimer"] = (
-        ConfigField(
-            title="Structure Prediction Tool",
-            default="esmfold",
-            description="Structure predictor: esmfold, alphafold3, boltz2, chai1, protenix, or alphafold2_multimer.",
-        )
+    structure_tool: Literal[
+        "esmfold", "esmfold2", "alphafold3", "boltz2", "chai1", "protenix", "alphafold2_multimer"
+    ] = ConfigField(
+        title="Structure Prediction Tool",
+        default="esmfold",
+        description=(
+            "Structure predictor: esmfold, esmfold2, alphafold3, boltz2, chai1, protenix, or alphafold2_multimer."
+        ),
     )
 
     esmfold_config: ESMFoldConfig = ConfigField(
         default_factory=ESMFoldConfig,
         title="ESMFold Configuration",
         description="Configuration for ESMFold structure prediction.",
+    )
+    esmfold2_config: ESMFold2Config = ConfigField(
+        default_factory=ESMFold2Config,
+        title="ESMFold2 Configuration",
+        description="Configuration for ESMFold2 structure prediction.",
     )
     alphafold3_config: AlphaFold3Config = ConfigField(
         default_factory=AlphaFold3Config,
@@ -368,6 +380,7 @@ class StructureBasedConstraintConfig(BaseConfig):
         self,
     ) -> (
         ESMFoldConfig
+        | ESMFold2Config
         | AlphaFold3Config
         | Boltz2Config
         | Chai1Config
@@ -377,6 +390,7 @@ class StructureBasedConstraintConfig(BaseConfig):
         """Return the active tool configuration based on structure_tool."""
         configs = {
             "esmfold": self.esmfold_config,
+            "esmfold2": self.esmfold2_config,
             "alphafold3": self.alphafold3_config,
             "boltz2": self.boltz2_config,
             "chai1": self.chai1_config,
