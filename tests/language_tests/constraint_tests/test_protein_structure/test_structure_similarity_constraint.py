@@ -376,3 +376,24 @@ class TestSlowStructurePredictorSimilarityConstraint:
             config,
         )[0].score
         assert rmsd < EPSILON
+
+
+class TestESMFold2SimilarityBridge:
+    """ESMFold2 folds similarity targets with a native ``plddt`` key.
+
+    ``_prepare_target_structure`` must bridge ``plddt`` → ``avg_plddt`` or
+    structure-rmsd / -tmscore silently return MAX_ENERGY for every proposal.
+    """
+
+    def test_rmsd_esmfold2_target_uses_plddt(self):
+        """Regression: an esmfold2 target fold (native ``plddt``) is accepted, not scored worst."""
+        config = StructureRMSDConfig(target_chains=[CRO_SEQ], structure_tool="esmfold2")
+        folded = MockResult(structures=[MockStructure(metrics={"plddt": 0.9})])
+        sim = "proto_language.constraint.protein_structure.structure_similarity_constraint"
+        with (
+            patch(f"{sim}.predict_structures", return_value=folded),
+            patch(f"{sim}.run_pymol_rmsd_alignment", return_value=SimpleNamespace(rmsd=1.0)),
+        ):
+            [result] = structure_rmsd_constraint([(Sequence(CRO_SEQ, "protein"),)], config)
+        assert result.metadata.get("reason") != "unconfident_target"
+        assert "rmsd_val" in result.metadata

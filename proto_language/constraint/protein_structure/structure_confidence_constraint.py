@@ -24,6 +24,7 @@ from proto_tools import Complex, Structure, predict_structures
 from proto_language.constraint.constraint_registry import constraint
 from proto_language.constraint.protein_structure.structure_constraint_config import (
     StructureBasedConstraintConfig,
+    resolve_metric,
 )
 from proto_language.core import ConstraintOutput, Sequence
 from proto_language.utils import MAX_ENERGY
@@ -149,14 +150,7 @@ def _structure_confidence(
 
     outcomes: list[tuple[float | None, _StructureConfidenceRecord | None]] = []
     for record, _proposal_tuple in zip(records, proposals, strict=True):
-        metric_value = record.metrics.get(target_metric)
-        if metric_value is None:
-            # Bridge tool-native names (Boltz2 ``complex_plddt``, ESMFold2 ``plddt``) to canonical metrics.
-            alts = {"avg_plddt": ("complex_plddt", "plddt"), "avg_pae": ("complex_pde",)}.get(target_metric, ())
-            for alt in alts:
-                metric_value = record.metrics.get(alt)
-                if metric_value is not None:
-                    break
+        metric_value = resolve_metric(record.metrics, target_metric)
 
         if metric_value is None:
             logger.warning("Metric %r not found in structure output, returning worst score.", target_metric)
@@ -712,16 +706,10 @@ def structure_composite_constraint(
     results: list[ConstraintOutput] = []
     for record, proposal_tuple in zip(records, input_sequences, strict=True):
         m = record.metrics
-        plddt_raw = m.get("avg_plddt")
-        if plddt_raw is None:
-            plddt_raw = m.get("complex_plddt")
-        if plddt_raw is None:
-            plddt_raw = m.get("plddt")
+        plddt_raw = resolve_metric(m, "avg_plddt")
         iptm = m.get("iptm")
         ptm = m.get("ptm")
-        pae = m.get("avg_pae")
-        if pae is None:
-            pae = m.get("complex_pde")
+        pae = resolve_metric(m, "avg_pae")
 
         if plddt_raw is None or iptm is None or ptm is None or pae is None:
             err_msg = (

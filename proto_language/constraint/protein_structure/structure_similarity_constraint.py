@@ -25,6 +25,7 @@ from pydantic import model_validator
 from proto_language.constraint.constraint_registry import constraint
 from proto_language.constraint.protein_structure.structure_constraint_config import (
     StructureBasedConstraintConfig,
+    resolve_metric,
 )
 from proto_language.core import ConstraintOutput, Sequence
 from proto_language.utils import MAX_ENERGY, sigmoid_score
@@ -253,10 +254,8 @@ def _prepare_target_structure(config: StructureSimilarityConfig) -> str | None:
 
         output = predict_structures(complexes, config.structure_tool, config.tool_config)
 
-        metrics = output.structures[0].metrics
-        target_plddt = metrics.get("avg_plddt")
-        if target_plddt is None:
-            target_plddt = metrics.get("complex_plddt")
+        metrics = dict(output.structures[0].metrics.items())
+        target_plddt = resolve_metric(metrics, "avg_plddt")
         if target_plddt is None:
             logger.warning("Target fold lacks pLDDT metric; cannot apply min_target_plddt threshold.")
             return None

@@ -5,6 +5,7 @@ use structure prediction tools (ESMFold, AlphaFold3, Boltz2, Chai1, Protenix,
 AlphaFold2 multimer).
 """
 
+from collections.abc import Mapping
 from typing import Any, Literal
 
 from proto_tools import (
@@ -19,6 +20,38 @@ from proto_tools.utils import AminoAcid
 from pydantic import PrivateAttr, field_validator, model_validator
 
 from proto_language.utils.base import BaseConfig, ConfigField
+
+# Canonical confidence-metric names → tool-native aliases tried as fallbacks
+# (e.g. Boltz2's ``complex_plddt``, ESMFold2's ``plddt``), so scoring code stays
+# agnostic to each predictor's native metric naming.
+_METRIC_ALIASES: dict[str, tuple[str, ...]] = {
+    "avg_plddt": ("complex_plddt", "plddt"),
+    "avg_pae": ("complex_pde",),
+}
+
+
+def resolve_metric(metrics: Mapping[str, Any], canonical: str) -> Any:
+    """Resolve a canonical confidence metric from a predictor's raw metrics.
+
+    Tries the canonical key first, then any tool-native aliases, returning the
+    first present value (or ``None``). Keeps callers agnostic to per-tool metric
+    names — e.g. ESMFold2 emits ``plddt`` where others emit ``avg_plddt``.
+
+    Args:
+        metrics (Mapping[str, Any]): Raw per-structure metrics from a predictor.
+        canonical (str): Canonical metric name (e.g. ``"avg_plddt"``).
+
+    Returns:
+        Any: The resolved metric value, or ``None`` if absent.
+    """
+    value = metrics.get(canonical)
+    if value is not None:
+        return value
+    for alias in _METRIC_ALIASES.get(canonical, ()):
+        value = metrics.get(alias)
+        if value is not None:
+            return value
+    return None
 
 
 class AlphaFold2MultimerStructureConfig(BaseConfig):
