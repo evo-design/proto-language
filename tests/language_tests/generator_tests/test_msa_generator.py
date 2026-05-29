@@ -3,7 +3,7 @@
 import copy
 
 import pytest
-from proto_tools import MSA
+from proto_tools.entities.msa import MSA
 
 from proto_language.core import Segment
 from proto_language.generator import MSAGenerator, MSAGeneratorConfig
