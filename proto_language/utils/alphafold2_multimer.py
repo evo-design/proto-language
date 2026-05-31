@@ -179,7 +179,9 @@ def af2_multimer_structures(
 ) -> tuple[Structure | None, ...]:
     """Return per-input structures from an AF2 multimer complex."""
     structures: list[Structure | None] = [None] * n_inputs
-    structures[config.binder_input_index] = output_structure.select_chain(config.binder_chain)
+    # De-novo design (binder_chain=None) emits the binder as chain "B" (after a single target "A").
+    binder_chain = config.binder_chain if config.binder_chain is not None else "B"
+    structures[config.binder_input_index] = output_structure.select_chain(binder_chain)
     for input_idx, chain_id in zip(config.target_input_indices, config.target_chains, strict=True):
         structures[input_idx] = output_structure.select_chain(chain_id)
     return tuple(structures)

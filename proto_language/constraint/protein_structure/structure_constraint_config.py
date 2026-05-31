@@ -62,7 +62,7 @@ class AlphaFold2MultimerStructureConfig(BaseConfig):
         binder_input_index (int): Input slot containing the optimizable binder.
         target_input_indices (list[int]): Input slots containing frozen target chains.
         target_chains (list[str]): Target chain IDs in the template PDB.
-        binder_chain (str): Binder chain ID in the template PDB.
+        binder_chain (str | None): Binder template chain to redesign; None designs the binder de novo.
         target_hotspot (str | None): Comma-separated target hotspot residue IDs.
         design_positions (list[int] | None): Binder positions used by focused losses.
         omit_aas (list[AminoAcid] | None): Amino acids omitted during AF2 optimization.
@@ -107,10 +107,10 @@ class AlphaFold2MultimerStructureConfig(BaseConfig):
         title="Target Chains",
         description="Target chain IDs in the template PDB.",
     )
-    binder_chain: str = ConfigField(
+    binder_chain: str | None = ConfigField(
         default="H",
         title="Binder Chain",
-        description="Binder chain ID in the template PDB.",
+        description="Binder template chain to redesign; None designs the binder de novo (no template).",
     )
     target_hotspot: str | None = ConfigField(
         default=None,

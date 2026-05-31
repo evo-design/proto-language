@@ -58,7 +58,6 @@ from proto_language.utils.ml_optimizers import AdamConfig
 logger = logging.getLogger(__name__)
 
 DEFAULT_TARGET_PDB = Path(__file__).resolve().parents[2] / "examples" / "germinal" / "pdbs" / "pdl1.pdb"
-BINDER_CHAIN = "B"
 
 AF2_LOSS_FUNCTIONS = {
     "plddt": structure_plddt_constraint,
@@ -183,7 +182,7 @@ def main() -> None:
     af2_config = AlphaFold2MultimerStructureConfig(
         target_pdb=target_pdb_text,
         target_chains=[args.target_chain],
-        binder_chain=BINDER_CHAIN,
+        binder_chain=None,  # de novo: hallucinate the binder, no template
         target_hotspot=args.target_hotspot,
         omit_aas=[aa.strip().upper() for aa in args.omit_aas.split(",") if aa.strip()] or None,
         num_recycles=args.num_recycles,

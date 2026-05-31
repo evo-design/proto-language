@@ -8,6 +8,7 @@ from proto_tools.entities.structures import Structure
 from proto_tools.tools.structure_scoring.dssp import DSSPSecondaryStructureInput
 
 from examples.bindcraft import run_bindcraft_full as bindcraft
+from proto_language.utils.alphafold2_multimer import af2_multimer_structures
 from proto_language.utils.scheduling import SCHEDULES
 
 
@@ -261,3 +262,12 @@ def test_redesign_perplexity_constraint_scores_binder_not_complex(tmp_path: Path
     assert len(structure_input.structure.get_chain_positions(bindcraft.BINDER_CHAIN)) == binder_len
     complex_len = sum(len(complex_struct.get_chain_positions(c)) for c in ("A", bindcraft.BINDER_CHAIN))
     assert complex_len > binder_len
+
+
+def test_af2_multimer_structures_selects_chain_b_for_de_novo() -> None:
+    """De-novo (binder_chain=None) extracts the binder from output chain 'B'; the target stays 'A'."""
+    complex_struct = Structure(structure=Path("examples/germinal/pdbs/pdl1.pdb").read_text())
+    config = bindcraft.AlphaFold2MultimerStructureConfig(binder_chain=None)
+    binder_struct, target_struct = af2_multimer_structures(complex_struct, config, n_inputs=2)
+    assert len(binder_struct.get_chain_positions("B")) == 118
+    assert len(target_struct.get_chain_positions("A")) == 115

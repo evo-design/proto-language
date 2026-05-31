@@ -312,7 +312,7 @@ def _make_af2_config(
     af2_cfg = AlphaFold2MultimerStructureConfig(
         target_pdb=target_pdb_text,
         target_chains=config.target_chains,
-        binder_chain=BINDER_CHAIN,
+        binder_chain=None,  # BindCraft is de novo: hallucinate the binder, no template
         backend="base",
         omit_aas=[aa.strip().upper() for aa in config.omit_aas.split(",") if aa.strip()] or None,
         num_recycles=num_recycles,
@@ -688,7 +688,7 @@ def _predict_validation_complex(
                 target_pdb=target_pdb_text,
                 target_chain=",".join(config.target_chains),
                 target_hotspot=config.target_hotspot,
-                binder_chain=BINDER_CHAIN,
+                binder_chain=None,  # de-novo: fold the MPNN binder sequence, no template
             ),
             AlphaFold2BinderConfig(
                 num_recycles=config.validation_recycles,
