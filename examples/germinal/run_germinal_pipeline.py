@@ -33,16 +33,20 @@ Pipeline (same for both modes):
 All numeric defaults come from the colocated script-owned preset file
 ``antibody_presets.yaml``.
 
-Known parity gaps (require proto-tools support, not yet closed):
+Known parity gaps:
 - VHH external cofold uses Chai-1/AF3 fallbacks instead of Germinal's Protenix until
   proto-language/proto-tools can pass Protenix full-PAE outputs through final pDockQ2.
 - Cofold runs single-sequence; Germinal conditions the target chain on an MSA
   (``msa_mode="target"``). Needs a target-only MSA in the structure-composite path.
-- Cofold scores the best predicted sample; Germinal scores the worst
-  (``af3_structure_select_mode="worst"``). Needs a worst-pose select mode on chai1/alphafold3.
+- Cofold scores one trajectory-seeded sample; Germinal's AF3/Protenix presets run several
+  seeds (3 pre-redesign, 5 final) and score the worst (``af3_structure_select_mode="worst"``).
+  The Chai-1 default matches (single seed, best-of). Needs a multi-seed worst-pose select mode.
 - Chai cofold is unrestrained; Germinal restrains the VH-CDR3 midpoint to the hotspot pocket.
   Needs restraint support on the chai1 tool.
-- Post-softmax entropy gate dropped (moot — Stage-3 AbMPNN rebuilds sequence).
+- AbMPNN top-K keeps the best proposals without deduplicating identical sampled sequences;
+  Germinal dedupes by sequence first (redesign.py:241).
+- Post-softmax entropy gate dropped. Stage-3 AbMPNN re-samples only non-interface CDR positions
+  (framework + interface CDRs stay fixed), so it does not fully recover a low-entropy collapse.
 
 Usage:
     # VHH against PD-L1 (default)
@@ -260,10 +264,12 @@ class PreRedesignFilterMetrics:
     cdr3_hotspot_contacts: int
     percent_interface_cdr: float
     interface_sc: float
+    has_hotspots: bool
 
     @property
     def binder_near_hotspot(self) -> bool:
-        return self.cdr_hotspot_contacts >= MIN_CDR_HOTSPOT_CONTACTS
+        # No hotspots configured -> Germinal vacuously passes the hotspot gate (filter_utils.py:697).
+        return not self.has_hotspots or self.cdr_hotspot_contacts >= MIN_CDR_HOTSPOT_CONTACTS
 
 
 @dataclass
@@ -498,6 +504,9 @@ GERMINAL_PRESETS = _load_presets()
 ATOM_DISTANCE_CUTOFF = 3.0
 CLASH_THRESHOLD = 2.5  # post-stage-2 CA-clash gate (Germinal: calculate_clash_score 2.5, only_ca=True)
 FILTER_CLASH_THRESHOLD = 2.4  # cofold-filter CA-clash gate (Germinal: clash_threshold 2.4, only_ca=True)
+# Germinal inits -corrections::beta_nov16, so its get_fa_scorefxn() relax + interface analysis use beta_nov16.
+# The proto config default is ref2015 (a named score function the corrections flag does NOT remap).
+PYROSETTA_SCORE_FUNCTION = "beta_nov16"
 HOTSPOT_DISTANCE_THRESHOLD = 5.3
 RESIDUE_CONTACT_DISTANCE = 6.0
 MIN_CDR_HOTSPOT_CONTACTS = 3
@@ -507,7 +516,6 @@ SCAFFOLD_OFFSET = np.array([30.0, 30.0, 0.0])
 STITCHED_BINDER_CHAIN = "B"
 COFOLD_BINDER_CHAIN = "A"
 COFOLD_TARGET_CHAIN = "B"
-_BACKBONE_ATOMS = {"N", "CA", "C", "O"}
 
 
 def _cofold_config(tool: str, seed: int) -> dict[str, Any]:
@@ -1011,6 +1019,7 @@ def run_trajectory(
                 max_iter=200,
                 disable_jumps=True,
                 copy_b_factors_from_start=True,
+                scorefxn=PYROSETTA_SCORE_FUNCTION,
             ),
         )
         relaxed_struct = relax_result.results[0].relax.relaxed_structure
@@ -1027,7 +1036,8 @@ def run_trajectory(
             cofold_binder_chain=COFOLD_BINDER_CHAIN,
         )
 
-        cofold_binder_near_hotspot = False
+        # No hotspots configured -> Germinal vacuously passes the hotspot gate (filter_utils.py:697).
+        cofold_binder_near_hotspot = True
         cofold_cdr3_contacts = 0
         if cofold_hotspots:
             cofold_hotspot_hits = set(
@@ -1062,7 +1072,7 @@ def run_trajectory(
                     )
                 ]
             ),
-            PyRosettaInterfaceAnalyzerConfig(),
+            PyRosettaInterfaceAnalyzerConfig(scorefxn=PYROSETTA_SCORE_FUNCTION),
         ).results[0]
         filter_values: dict[str, float] = {
             "external_plddt": plddt,
@@ -1347,6 +1357,7 @@ def run_pre_redesign_external_filters(
             max_iter=200,
             disable_jumps=True,
             copy_b_factors_from_start=True,
+            scorefxn=PYROSETTA_SCORE_FUNCTION,
         ),
     )
     relaxed_struct = relax_result.results[0].relax.relaxed_structure
@@ -1378,7 +1389,7 @@ def run_pre_redesign_external_filters(
                 )
             ]
         ),
-        PyRosettaInterfaceAnalyzerConfig(),
+        PyRosettaInterfaceAnalyzerConfig(scorefxn=PYROSETTA_SCORE_FUNCTION),
     )
 
     return PreRedesignFilterMetrics(
@@ -1387,6 +1398,7 @@ def run_pre_redesign_external_filters(
         cdr3_hotspot_contacts=len(hotspot_hits & cdr3_positions_1idx),
         percent_interface_cdr=percent_interface_cdr,
         interface_sc=float(iface_result.results[0].interface_sc),
+        has_hotspots=bool(cofold_hotspots),
     )
 
 
@@ -1423,7 +1435,7 @@ def compute_sc_rmsd(
     cofold_target_chain: str,
     cofold_binder_chain: str,
 ) -> float:
-    """Binder backbone RMSD after target-CA superposition."""
+    """Binder all-heavy-atom RMSD after target-CA superposition (matches Germinal's RMSDMetric)."""
     parser = PDBParser(QUIET=True)
 
     def _parse(struct: Structure, label: str) -> BioStructure:
@@ -1448,15 +1460,14 @@ def compute_sc_rmsd(
             atoms.extend(atom for residue in chain for atom in residue if atom.get_name() == "CA")
         return atoms
 
-    def _bb_atoms(bio_struct: BioStructure, chain_id: str) -> list:
-        return [
-            atom
-            for chain in bio_struct[0]
-            if chain.id == chain_id
-            for residue in chain
-            for atom in residue
-            if atom.get_name() in _BACKBONE_ATOMS
-        ]
+    def _binder_heavy_residues(bio_struct: BioStructure, chain_id: str) -> list[dict[str, Any]]:
+        """Per-residue {atom_name: atom} maps of heavy (non-H) atoms, in residue order."""
+        for chain in bio_struct[0]:
+            if chain.id == chain_id:
+                return [
+                    {atom.get_name(): atom for atom in residue if atom.element not in ("H", "D")} for residue in chain
+                ]
+        raise ValueError(f"Chain {chain_id} not found in structure.")
 
     hall_target_ca = _ca_atoms(hall_bio, hall_target_chains)
     cofold_target_ca = _ca_atoms(cofold_bio, [cofold_target_chain])
@@ -1469,17 +1480,20 @@ def compute_sc_rmsd(
     sup = Superimposer()
     sup.set_atoms(hall_target_ca[:n_align], cofold_target_ca[:n_align])
 
-    hall_bb = _bb_atoms(hall_bio, hall_binder_chain)
-    cofold_bb = _bb_atoms(cofold_bio, cofold_binder_chain)
-    n_bb = min(len(hall_bb), len(cofold_bb))
-    if n_bb == 0:
-        raise ValueError(
-            f"No backbone atoms found: hall chain {hall_binder_chain}={len(hall_bb)}, cofold chain {cofold_binder_chain}={len(cofold_bb)}"
-        )
+    # All-heavy-atom RMSD, atoms paired per residue by name (Germinal's RMSDMetric default).
+    hall_res = _binder_heavy_residues(hall_bio, hall_binder_chain)
+    cofold_res = _binder_heavy_residues(cofold_bio, cofold_binder_chain)
+    hall_atoms, cofold_atoms = [], []
+    for hall_map, cofold_map in zip(hall_res, cofold_res, strict=False):
+        for name in hall_map.keys() & cofold_map.keys():
+            hall_atoms.append(hall_map[name])
+            cofold_atoms.append(cofold_map[name])
+    if not hall_atoms:
+        raise ValueError(f"No shared heavy atoms: hall chain {hall_binder_chain}, cofold chain {cofold_binder_chain}")
 
-    sup.apply(cofold_bb[:n_bb])
+    sup.apply(cofold_atoms)
     diff = np.array(
-        [h.get_vector().get_array() - c.get_vector().get_array() for h, c in zip(hall_bb[:n_bb], cofold_bb[:n_bb])]
+        [h.get_vector().get_array() - c.get_vector().get_array() for h, c in zip(hall_atoms, cofold_atoms, strict=True)]
     )
     return round(float(np.sqrt(np.mean(np.sum(diff**2, axis=1)))), 2)
 
