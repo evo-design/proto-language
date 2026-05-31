@@ -65,7 +65,7 @@ When using MCMC or another feedback optimizer, include the failing submetrics ex
 
 ## Verify Plan-to-Code Conformance
 
-Before declaring a script ready, trace every final-plan heavy validator, named comparison-set query, and ranker into executable code that runs before the requested output is written. A plan that promises SpliceTransformer, Borzoi, MMseqs, BLAST, structure prediction, docking, or another decisive validator is not satisfied by deterministic motif filters alone. If a planned validator cannot be implemented, update the plan and fail loudly rather than silently shipping candidates that never passed the promised validation panel.
+Before declaring a script ready, trace every final-plan heavy validator, named comparison-set query, and ranker into executable code that runs before the requested output is written. A plan that promises a decisive learned or model-backed validator—splicing, regulatory, homology/genome-scale search, structure prediction, docking, or similar—is not satisfied by deterministic motif filters alone. If a planned validator cannot be implemented, update the plan and fail loudly rather than silently shipping candidates that never passed the promised validation panel.
 
 ## Smoke-Test Before Expensive Runs
 
@@ -84,14 +84,14 @@ Do not drop the strongest available validator only because its optional packages
 
 ## Manage Time Without Lowering Standards
 
-Write lower-evidence progress snapshots only to separate checkpoint files, not to the requested final output path. Write the requested output only after unique candidates have passed deterministic checks and the strongest validation panel currently available, then overwrite it only as better final-equivalent candidates pass the validation panel. Never pad a draft or final file with duplicates, relabeled records, or placeholder sequences to meet the requested count. A draft protects against timeouts; it does not permit unvalidated placeholders or temporary use of the final output path.
+Write the requested output only after unique candidates have passed deterministic checks and the strongest validation panel currently available, then overwrite it only as better final-equivalent candidates pass the validation panel. Never pad a draft or final file with duplicates, relabeled records, or placeholder sequences to meet the requested count. A draft protects against timeouts, but it should not be populated by unvalidated placeholders.s
 
 If the candidate count undershoots:
 
 - Sample more if budget remains, and implement this as an explicit loop in the script rather than a single fixed batch.
 - Keep valid partial survivors and continue from them.
 - Log which stage is starving the pool.
-- For high-rejection validators, replenish the upstream candidate pool in bounded rounds until the target count is reached or an explicit proposal, wall-clock, or compute cap is hit. Size the cap from the available execution budget so the script uses the budget intentionally instead of exiting after an arbitrary first undershoot.
+- For high-rejection validators, minimally adjust the thresholds or replenish the upstream candidate pool in bounded rounds until the target count is reached or an explicit proposal, wall-clock, or compute cap is hit. Size the cap from the available execution budget so the script uses the budget intentionally instead of exiting after an arbitrary first undershoot.
 - Revisit the generator or validation plan if no valid candidates appear.
 
-Never lower a must-pass threshold to fill the requested count. A smaller validated set plus a loud failure is better than a full file of candidates that the script knows are unsupported.
+Never lower a must-pass threshold to fill the requested count. A smaller validated set plus a loud failure is better than a full file of candidates that are low-quality.
