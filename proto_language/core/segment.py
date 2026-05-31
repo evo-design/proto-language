@@ -1,4 +1,29 @@
-"""Represents building blocks for biological constructs."""
+"""Segment: one design region of a Construct, with a dual pool of candidate Sequences.
+
+A Segment is the unit an optimizer works on. It carries two pools of
+:class:`~proto_language.core.sequence.Sequence` objects: ``proposal_sequences``, the work space the
+optimizer's generator fills with candidate mutations/offspring each iteration, and
+``result_sequences``, the surviving best that constraints have selected and that the user reads out.
+Create one length-only (``Segment(length=20)``) to design from scratch, or sequence-seeded
+(``Segment(sequence="TATA")``) to optimize from a starting point; the type is fixed at construction via
+``sequence_type`` ("dna", "rna", "protein", or "ligand"). A generator is bound to the Segment with the
+generator's ``assign`` method, after which the optimizer proposes onto, scores, and selects within it.
+
+Examples:
+    Seed a region or design one from scratch, then bind a generator to it:
+    >>> from proto_language.core import Segment
+    >>> from proto_language.generator import RandomNucleotideGenerator, RandomNucleotideGeneratorConfig
+    >>> region = Segment(length=20, sequence_type="dna", label="variable")
+    >>> region.sequence_length  # 20
+    >>> region.num_proposals  # 1 (proposal pool seeded with one empty Sequence)
+    >>> gen = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig())
+    >>> gen.assign(region)  # generator now proposes onto this Segment's proposal pool
+
+    After a run, the surviving best live in the result pool (proposal_sequences is scratch space):
+    >>> promoter = Segment(sequence="TATA", sequence_type="dna", label="promoter")
+    >>> promoter.result_sequences[0].sequence  # "TATA"
+    >>> promoter.has_original_sequence  # True
+"""
 
 import copy
 import logging

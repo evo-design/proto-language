@@ -46,9 +46,16 @@ See `notes/dev.md` for setup, submodules, export validation, and CI. See
 - Config classes inherit the local `BaseConfig` and use `ConfigField`.
 - Registry keys are kebab-case. Follow neighboring file, class, function,
   config, and test naming patterns.
-- Google-style docstrings are enforced by
-  `tests/test_docstring_consistency.py`; Pydantic classes include an
-  `Attributes:` section.
+- Google-style docstrings, enforced by `tests/test_docstring_consistency.py`:
+  class/function `Args`/`Attributes`/`Returns` types match signatures; Pydantic
+  classes carry an `Attributes:` section.
+- `proto_language/core/` is held to a documentation standard (gated by the same
+  test): every component module has a header (summary → blank line → role
+  overview → `Examples:` with a `>>> expr  # result` snippet) and every public
+  behavioral class has an `Examples:` section; Pydantic models and enums use
+  `Attributes:`/values instead, and the package `__init__` aggregator stays a
+  plain summary. Apply the same pattern to new modules and components elsewhere.
+  See `notes/dev.md`.
 - Mypy is strict. Every `# type: ignore` needs an error code; prefer runtime
   `assert` narrowing over `cast()`, ad-hoc `Protocol`, or `TYPE_CHECKING`.
 - Framework helpers raise by default. Per-proposal failures inside a scoring

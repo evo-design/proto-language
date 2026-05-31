@@ -1,4 +1,30 @@
-"""Rejection Sampling Optimizer that samples independent proposals and returns the best constructs."""
+"""Rejection Sampling Optimizer that samples independent proposals and returns the best constructs.
+
+Provides the ``rejection-sampling`` optimization strategy. Each internal proposal batch
+starts fresh from the segments' original sequences, runs every generator, and scores the
+proposals with the constraints into one energy per proposal; no state is carried between
+batches. The optimizer maintains a running top-``num_results`` set ordered by lowest energy,
+generating up to ``num_samples`` proposals total and optionally stopping early once every
+retained candidate beats ``energy_threshold``. Use it as a stateless, embarrassingly parallel
+baseline when many cheap independent draws beat a guided walk.
+
+Examples:
+    >>> from proto_language.constraint import gc_content_constraint
+    >>> from proto_language.core import Constraint, Construct, Program, Segment
+    >>> from proto_language.generator import RandomNucleotideGenerator, RandomNucleotideGeneratorConfig
+    >>> from proto_language.optimizer import RejectionSamplingOptimizer, RejectionSamplingOptimizerConfig
+    >>> seg = Segment(length=20, sequence_type="dna")
+    >>> gen = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig())
+    >>> gen.assign(seg)
+    >>> gc = Constraint(inputs=[seg], function=gc_content_constraint, function_config={"min_gc": 80, "max_gc": 90})
+    >>> optimizer = RejectionSamplingOptimizer(
+    ...     constructs=[Construct([seg])],
+    ...     generators=[gen],
+    ...     constraints=[gc],
+    ...     config=RejectionSamplingOptimizerConfig(num_samples=100, num_results=1),
+    ... )
+    >>> Program(optimizers=[optimizer], num_results=1).run()
+"""
 
 import bisect
 import copy

@@ -1,4 +1,24 @@
-"""Represents a full biological construct composed of multiple segments."""
+"""Construct: an ordered list of Segments concatenated into one biological construct.
+
+A ``Construct`` glues several :class:`~proto_language.core.segment.Segment` objects together in
+order (e.g. promoter + coding region, or the chains of a multi-chain protein). It enforces that all
+segments share one ``sequence_type`` and ``valid_chars`` and carry unique labels, deriving those
+read-only properties from its first segment. In the optimization loop the Construct is what an
+Optimizer scores and selects against, and after ``Program.run`` the user reads results from
+``program.constructs[i].joined_sequences`` -- the property zips each segment's ``result_sequences``
+pool position-wise and concatenates them into one ``Sequence`` per result, nesting per-segment
+metadata under ``_metadata["segments"][label]``. Unlabeled segments are auto-named ``segment_{i}``.
+
+Examples:
+    Concatenate fixed segments and read the joined result (segments with explicit sequences start
+    with length-one result pools, so joined_sequences resolves immediately):
+    >>> from proto_language.core import Construct, Segment
+    >>> promoter = Segment(sequence="TATA", sequence_type="dna", label="promoter")
+    >>> cds = Segment(sequence="ATGCCC", sequence_type="dna", label="coding_region")
+    >>> gene = Construct([promoter, cds], label="my_gene")
+    >>> gene.sequence_type  # 'dna'
+    >>> gene.joined_sequences[0].sequence  # 'TATAATGCCC'
+"""
 
 import logging
 from collections.abc import Iterable

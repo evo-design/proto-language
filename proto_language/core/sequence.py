@@ -1,7 +1,24 @@
-"""Sequence class for the proto-language.
+"""Sequence: the atomic unit of design in the proto-language.
 
-Represents a single DNA, RNA, protein, or ligand sequence with validation and metadata.
-Optionally carries continuous logits for gradient-based optimization and 3D structure.
+A Sequence is a typed string (``dna``, ``rna``, ``protein``, or ``ligand``) with character
+validation, three metadata bags (free-form user metadata plus namespaced ``constraints`` and
+``generators`` views), and two optional payloads: per-position ``logits`` for gradient-based
+optimizers and a folded ``Structure`` for structure-conditioned workflows. Sequences are what
+Generators propose and what Constraints score and annotate, so each optimization iteration
+flows entirely through Sequence objects before survivors become a Segment's result. This module
+also exports the alphabet constants (``DNA_NUCLEOTIDES``, ``RNA_NUCLEOTIDES``,
+``PROTEIN_AMINO_ACIDS``) and helpers ``detect_sequence_type``, ``create_concatenated_sequence``,
+and ``validate_smiles``.
+
+Examples:
+    >>> from proto_language.core import Sequence
+    >>> seq = Sequence(sequence="ACGTACGT", sequence_type="dna")
+    >>> len(seq)  # 8
+    >>> seq.sequence_type  # 'dna'
+    >>> seq.ordered_vocab()  # ['A', 'C', 'G', 'T']
+
+    >>> from proto_language.core import detect_sequence_type
+    >>> detect_sequence_type("ACGUACGU")  # 'rna'
 """
 
 import copy
@@ -48,6 +65,13 @@ class Sequence:
 
     Validation is performed on all sequences. Invalid genetic characters or SMILES
     syntax results in a warning but does not terminate the program.
+
+    Examples:
+        >>> from proto_language.core import Sequence
+        >>> seq = Sequence(sequence="ACGTACGT", sequence_type="dna")
+        >>> len(seq)  # 8
+        >>> seq.sequence_type  # 'dna'
+        >>> seq.ordered_vocab()  # ['A', 'C', 'G', 'T']
     """
 
     def __init__(

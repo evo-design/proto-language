@@ -525,3 +525,119 @@ def test_docstring_continuation_indentation(
 
     details = "\n".join(f"  {section} line {lineno}: {text}" for section, lineno, text in violations)
     pytest.fail(f"{file_path}::{name} has continuation lines at entry indent (should be indented further):\n{details}")
+
+
+# ── Core documentation standard: module headers + class examples ─────────────
+# core/ component modules need a header with an Examples: section; public behavioral
+# classes need Examples:. Pydantic models, enums, and the package __init__ are exempt.
+# See CLAUDE.md and notes/dev.md.
+
+_CORE_DIR = _REPO_ROOT / "proto_language" / "core"
+
+# Bases whose classes document via Attributes:/values rather than an Examples: section.
+_EXAMPLES_EXEMPT_BASES = {"BaseModel", "Enum"}
+
+
+def _has_examples(docstring: str) -> bool:
+    return "Examples:" in docstring or "Example:" in docstring
+
+
+def _collect_core_modules() -> list[tuple[str, str | None]]:
+    """Collect (rel_path, module_docstring) for each component module (excludes __init__)."""
+    results = []
+    for py_file in sorted(_CORE_DIR.glob("*.py")):
+        if py_file.name == "__init__.py":
+            continue
+        rel_path = str(py_file.relative_to(_REPO_ROOT))
+        tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
+        results.append((rel_path, ast.get_docstring(tree)))
+    return results
+
+
+def _collect_core_classes() -> list[tuple[str, str, list[str], str | None]]:
+    """Collect (rel_path, class_name, base_names, docstring) for public top-level core classes."""
+    results = []
+    for py_file in sorted(_CORE_DIR.glob("*.py")):
+        rel_path = str(py_file.relative_to(_REPO_ROOT))
+        tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
+        for node in tree.body:
+            if not isinstance(node, ast.ClassDef) or node.name.startswith("_"):
+                continue
+            bases = [b.id for b in node.bases if isinstance(b, ast.Name)]
+            bases += [b.attr for b in node.bases if isinstance(b, ast.Attribute)]
+            results.append((rel_path, node.name, bases, ast.get_docstring(node)))
+    return results
+
+
+_CORE_MODULES = _collect_core_modules()
+_CORE_CLASSES = _collect_core_classes()
+
+
+@pytest.mark.parametrize("file_path, docstring", _CORE_MODULES, ids=[fp for fp, _ in _CORE_MODULES])
+def test_core_module_header_documented(file_path: str, docstring: str | None):
+    """Every proto_language/core/*.py module has a detailed header with an Examples: section."""
+    assert docstring is not None, f"{file_path}: missing module-level docstring"
+    assert "\n\n" in docstring.strip(), f"{file_path}: module header needs an extended description (summary + body)"
+    assert _has_examples(docstring), f"{file_path}: module header needs an 'Examples:' section"
+
+
+@pytest.mark.parametrize(
+    "file_path, class_name, bases, docstring",
+    _CORE_CLASSES,
+    ids=[f"{fp}::{n}" for fp, n, *_ in _CORE_CLASSES],
+)
+def test_core_class_has_examples(file_path: str, class_name: str, bases: list[str], docstring: str | None):
+    """Public core classes carry an Examples: section (Pydantic models and enums are exempt)."""
+    if _EXAMPLES_EXEMPT_BASES & set(bases):
+        pytest.skip(f"{class_name}: Pydantic/Enum class documents via Attributes:")
+    assert docstring is not None, f"{file_path}::{class_name}: missing class docstring"
+    assert _has_examples(docstring), f"{file_path}::{class_name}: behavioral core class needs an 'Examples:' section"
+
+
+# ── Optimizer strategies: detailed behavioral docstrings + examples ──────────
+# Every Optimizer subclass needs an Examples: section, and each file defining one needs
+# a header with an Examples: section. Same standard as core/.
+
+_OPTIMIZER_DIR = _REPO_ROOT / "proto_language" / "optimizer"
+
+
+def _collect_optimizer_strategies() -> tuple[list[tuple[str, str | None]], list[tuple[str, str, str | None]]]:
+    """Return (module_rows, class_rows) for files defining an Optimizer subclass."""
+    module_rows: list[tuple[str, str | None]] = []
+    class_rows: list[tuple[str, str, str | None]] = []
+    for py_file in sorted(_OPTIMIZER_DIR.glob("*.py")):
+        rel_path = str(py_file.relative_to(_REPO_ROOT))
+        tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
+        strategies = [
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef)
+            and any(isinstance(b, ast.Name) and b.id == "Optimizer" for b in node.bases)
+        ]
+        if not strategies:
+            continue
+        module_rows.append((rel_path, ast.get_docstring(tree)))
+        class_rows.extend((rel_path, node.name, ast.get_docstring(node)) for node in strategies)
+    return module_rows, class_rows
+
+
+_OPTIMIZER_MODULES, _OPTIMIZER_CLASSES = _collect_optimizer_strategies()
+
+
+@pytest.mark.parametrize("file_path, docstring", _OPTIMIZER_MODULES, ids=[fp for fp, _ in _OPTIMIZER_MODULES])
+def test_optimizer_module_header_documented(file_path: str, docstring: str | None):
+    """Every optimizer-strategy module has a detailed header with an Examples: section."""
+    assert docstring is not None, f"{file_path}: missing module-level docstring"
+    assert "\n\n" in docstring.strip(), f"{file_path}: module header needs an extended description (summary + body)"
+    assert _has_examples(docstring), f"{file_path}: module header needs an 'Examples:' section"
+
+
+@pytest.mark.parametrize(
+    "file_path, class_name, docstring",
+    _OPTIMIZER_CLASSES,
+    ids=[f"{fp}::{n}" for fp, n, _ in _OPTIMIZER_CLASSES],
+)
+def test_optimizer_class_has_examples(file_path: str, class_name: str, docstring: str | None):
+    """Every registered optimizer strategy documents its behavior with an Examples: section."""
+    assert docstring is not None, f"{file_path}::{class_name}: missing class docstring"
+    assert _has_examples(docstring), f"{file_path}::{class_name}: optimizer strategy needs an 'Examples:' section"

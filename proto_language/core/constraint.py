@@ -1,22 +1,43 @@
 """Constraint evaluation, gradient computation, and metadata propagation for sequences.
 
-Constraints score how well sequences satisfy biological or design requirements.
-They support two evaluation modes, both optional (at least one required):
+Constraints score how well sequences satisfy biological or design requirements. A
+constraint supports two evaluation modes, both optional (at least one required):
 
-- **Discrete** (``function``): scores proposals via ``evaluate()``. The
-  registered scoring function returns ``list[ConstraintOutput]`` — a
-  typed per-proposal record carrying score, metadata, and optional per-segment
-  predicted structures / logits. Supports threshold-based filtering on the score.
-- **Gradient** (``backward``): computes gradients via ``compute_gradient()``,
-  returning ``list[GradientConstraintOutput]`` with per-segment gradients, scalar
-  loss, metrics, and optional structures for gradient-based optimizers.
+- **Discrete** (``function``): scores proposals via ``evaluate()``. The registered scoring
+  function returns ``list[ConstraintOutput]`` — a typed per-proposal record carrying score,
+  metadata, and optional per-segment predicted structures / logits. Passing a ``threshold``
+  switches ``evaluate()`` from weighted float scores to boolean accept/reject.
+- **Gradient** (``backward``): computes gradients via ``compute_gradient()``, returning
+  ``list[GradientConstraintOutput]`` with per-segment gradients, a scalar loss, metrics, and
+  optional structures for gradient-based optimizers.
 
-Key Features:
-    - Evaluation of all proposals as a batch
-    - Multi-segment support (pass tuple of sequences per proposal)
-    - Typed results for both forward and backward; no sequence mutation by scoring functions
-    - Threshold-based filtering (converts scores to boolean accept/reject)
-    - Gradient computation for continuous sequence optimization.
+In the optimization loop, an Optimizer hands a Segment's proposal Sequences to each Constraint,
+which scores them and writes ``score`` plus namespaced metadata under
+``sequence._constraints_metadata[label]``; the Optimizer then aggregates those scores to select
+survivors. A Constraint is bound to its segments at construction (``inputs=``, ``function=``,
+``function_config=``) and reused every iteration; dict configs are coerced to the scoring
+function's registered Pydantic config.
+
+Examples:
+    Discrete scoring constraint wired the way ``examples/scripts/toy.py`` does it. The dict
+    ``function_config`` is coerced to the scoring function's registered config
+    (``GCContentConfig``), so ``evaluate()`` returns one weighted float score per proposal:
+
+    >>> from proto_language.constraint import gc_content_constraint
+    >>> from proto_language.core import Constraint, Segment
+    >>> seg = Segment(length=20, sequence_type="dna")
+    >>> gc = Constraint(inputs=[seg], function=gc_content_constraint, function_config={"min_gc": 80, "max_gc": 90})
+    >>> gc.label  # 'gc_content_constraint'
+    >>> gc.supports_discrete  # True
+    >>> scores = gc.evaluate()  # list[float], one per proposal on seg
+
+    Passing ``threshold`` switches to filter mode: ``evaluate()`` returns booleans
+    (``score <= threshold`` is accepted) instead of floats:
+
+    >>> gate = Constraint(
+    ...     inputs=[seg], function=gc_content_constraint, function_config={"min_gc": 80, "max_gc": 90}, threshold=0.0
+    ... )
+    >>> accept = gate.evaluate()  # list[bool], True where score <= 0.0
 """
 
 import logging

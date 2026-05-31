@@ -1,7 +1,33 @@
-"""A generalized optimizer that iteratively runs a user-defined conditioning function.
+"""Cycling optimizer: alternate a conditioning function with a generator.
 
-and passes its output to a generator. Supports optional constraint filtering with
-accept pattern for passing proposals.
+Provides the ``cycling`` optimization strategy (registered via ``@optimizer``). Each cycle feeds the
+current ``result_sequences`` to a user-defined conditioning function, passes that conditioning data
+into the generator's ``sample()``, then either keeps every proposal (no constraints) or accepts only
+proposals passing the filter constraints. Repeating drives feedback loops such as Protein Hunter
+(structure prediction -> inverse folding hallucination), reachable in JSON via the registered
+``protein-hunter`` pipeline or programmatically via a Python ``conditioning_fn``. Targets a single
+segment.
+
+Examples:
+    >>> from proto_tools import Complex, predict_structures
+    >>> from proto_language.core import Construct, Program, Segment, Sequence
+    >>> from proto_language.generator import ProteinMPNNGenerator, ProteinMPNNGeneratorConfig
+    >>> from proto_language.optimizer import CyclingOptimizer, CyclingOptimizerConfig
+    >>> protein = Segment(sequence="X" * 100, sequence_type="protein", label="designed_protein")
+    >>> gen = ProteinMPNNGenerator(ProteinMPNNGeneratorConfig(temperature=0.1, excluded_amino_acids=["C"]))
+    >>> gen.assign(protein)
+    >>> def structure_conditioning_fn(sequences: list[Sequence]) -> list:
+    ...     complexes = [Complex(chains=[seq.sequence]) for seq in sequences]
+    ...     return predict_structures(complexes, "boltz2", {}).structures  # condition each cycle on folds
+    >>> optimizer = CyclingOptimizer(
+    ...     target_segment=protein,
+    ...     constructs=[Construct([protein])],
+    ...     generators=[gen],
+    ...     constraints=[],
+    ...     config=CyclingOptimizerConfig(num_steps=5, num_results=2),
+    ...     conditioning_fn=structure_conditioning_fn,
+    ... )
+    >>> Program(optimizers=[optimizer], num_results=2).run()  # runs the cycles
 """
 
 import copy

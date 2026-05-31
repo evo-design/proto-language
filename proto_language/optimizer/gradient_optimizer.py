@@ -1,4 +1,39 @@
-"""Gradient-based optimizer for differentiable sequence design."""
+"""Gradient-based optimizer for differentiable sequence design.
+
+Provides ``GradientOptimizer`` (registered under key ``"gradient"``) and its
+``GradientOptimizerConfig``. The strategy holds one ``PositionWeightGenerator``'s
+per-position logits as the optimization variable and runs continuous gradient
+descent on the target ``Segment``: it backpropagates each differentiable
+(gradient-mode) ``Constraint`` into a per-position logit gradient, merges the
+per-constraint gradients (weighted-sum/PCGrad/MGDA), and updates the logits with
+the configured ML optimizer (SGD or Adam) over ``num_steps``. ``ConstraintWeightSchedule``
+lets a constraint's weight ramp across steps. Chain multiple stages in a ``Program``
+(e.g. a logit-relaxation phase then a softmax-annealing phase).
+
+Examples:
+    >>> from proto_language.constraint import MalinoisActivityConfig, malinois_activity_constraint
+    >>> from proto_language.core import Constraint, Construct, Program, Segment
+    >>> from proto_language.generator import PositionWeightGenerator, PositionWeightGeneratorConfig
+    >>> from proto_language.optimizer import GradientOptimizer, GradientOptimizerConfig
+    >>> seg = Segment(sequence="A" * 200, sequence_type="dna", label="enhancer")
+    >>> gen = PositionWeightGenerator(PositionWeightGeneratorConfig(sampling_mode="argmax"))
+    >>> gen.assign(seg)
+    >>> con = Constraint(  # differentiable path
+    ...     inputs=[seg],
+    ...     function=malinois_activity_constraint,
+    ...     function_config=MalinoisActivityConfig(cell_type="K562", direction="max"),
+    ...     label="malinois_k562_max",
+    ... )
+    >>> optimizer = GradientOptimizer(
+    ...     target_segment=seg,
+    ...     constructs=[Construct([seg])],
+    ...     generators=[gen],
+    ...     constraints=[con],
+    ...     config=GradientOptimizerConfig(num_results=4, num_steps=300, lr=0.5, ml_optimizer="adam"),
+    ... )
+    >>> program = Program([optimizer], num_results=4)
+    >>> # program.run()  # needs GPU
+"""
 
 import copy
 import logging
@@ -375,17 +410,81 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
 )
 @final
 class GradientOptimizer(Optimizer):
-    """Gradient-based optimizer for differentiable sequence design.
+    """Continuous gradient descent on per-position logits of a single segment.
 
-    Updates ``seq.logits`` directly on proposal sequences via gradient descent
-    through differentiable constraints. Uses ``PositionWeightGenerator``
-    to discretize logits into sequences for tracking and handoff.
+    The optimization variable is ``seq.logits``: an ``(L, |vocab|)`` matrix carried on
+    each of ``num_results`` parallel proposal Sequences (one independent trajectory per
+    result). The companion ``PositionWeightGenerator`` is the only thing that maps those
+    continuous logits back to a discrete sequence — it never proposes; it merely decodes
+    (argmax or categorical) at tracked steps so snapshots, ``result_sequences``, and the
+    next-stage handoff carry a real sequence. Logits are seeded once (zeros, or
+    ``initial_logits``/``sequence_bias``, optionally plus per-trajectory Gumbel noise so
+    parallel trajectories diverge) and then mutated in place every step; they are never
+    re-proposed.
 
-    Chain multiple GradientOptimizers in a ``Program`` for multi-phase
-    pipelines (e.g., logit phase → softmax phase).
+    Each step: (1) interpolate ``soft`` (relax↔hard blend), ``hard`` (straight-through),
+    softmax ``temperature`` and learning rate from their start→end configs/schedules with
+    ``progress = step / num_steps``; (2) ask every compiled gradient provider to backpropagate
+    its differentiable (gradient-mode or compiler-backed) constraint into a per-trajectory logit
+    gradient and per-trajectory loss, given the current ``temperature``/``soft``/``hard`` and the
+    step's effective weight; non-finite gradients raise. Then per trajectory: (3) align per-constraint
+    gradient norms (``norm_alignment``), scale each by its effective weight, and merge them with the
+    configured ``merger`` (``weighted_sum``/``pcgrad``/``mgda``); (4) zero ``fixed_positions`` and
+    optionally normalize the merged gradient; (5) take one ``ml_optimizer`` step (SGD or Adam) at the
+    effective learning rate (``_effective_lr`` optionally scales it by ``(1 - soft) + soft * temp``,
+    floored at ``min_lr_scale``). After updating, ``energy_scores`` is set to the summed weighted
+    constraint losses — the exact objective being minimized. At ``tracking_interval`` steps (and the
+    last step) the generator decodes logits, proposals sync to results, and a snapshot is saved.
+
+    Per-constraint weights can ramp over steps via ``constraint_weight_schedules`` (a
+    ``ConstraintWeightSchedule`` keyed by ``Constraint.label``); unknown labels warn and are
+    ignored. With ``save_best=True`` (default) the lowest-loss logits per trajectory are restored
+    and re-decoded at the end instead of returning the final step. Constraints: single target
+    segment only; exactly one ``PositionWeightGenerator``; every constraint must support gradient
+    evaluation. Chain stages in a ``Program`` for multi-phase pipelines (logit-relaxation phase
+    via ``germinal_logit_preset`` → softmax-annealing phase via ``germinal_softmax_preset``).
 
     Attributes:
         config (GradientOptimizerConfig): Optimizer configuration.
+
+    Examples:
+        >>> from proto_language.constraint import MalinoisActivityConfig, malinois_activity_constraint
+        >>> from proto_language.core import Constraint, Construct, Program, Segment
+        >>> from proto_language.generator import PositionWeightGenerator, PositionWeightGeneratorConfig
+        >>> from proto_language.optimizer import GradientOptimizer, GradientOptimizerConfig
+        >>> seg = Segment(sequence="A" * 200, sequence_type="dna", label="enhancer")
+        >>> gen = PositionWeightGenerator(PositionWeightGeneratorConfig(sampling_mode="argmax"))
+        >>> gen.assign(seg)
+        >>> on_target = Constraint(  # differentiable path
+        ...     inputs=[seg],
+        ...     function=malinois_activity_constraint,
+        ...     function_config=MalinoisActivityConfig(cell_type="K562", direction="max"),
+        ...     label="malinois_k562_max",
+        ...     weight=1.0,
+        ... )
+        >>> off_target = Constraint(
+        ...     inputs=[seg],
+        ...     function=malinois_activity_constraint,
+        ...     function_config=MalinoisActivityConfig(cell_type="HepG2", direction="min"),
+        ...     label="malinois_hepg2_min",
+        ...     weight=1.0,
+        ... )
+        >>> optimizer = GradientOptimizer(
+        ...     target_segment=seg,
+        ...     constructs=[Construct([seg])],
+        ...     generators=[gen],
+        ...     constraints=[on_target, off_target],
+        ...     config=GradientOptimizerConfig(
+        ...         num_results=20,
+        ...         num_steps=300,
+        ...         lr=0.5,
+        ...         ml_optimizer="adam",
+        ...         merger="weighted_sum",
+        ...         gumbel_logit_init=True,  # diverge the 20 trajectories
+        ...     ),
+        ... )
+        >>> program = Program([optimizer], num_results=20)
+        >>> # program.run()  # needs GPU
     """
 
     # Class attribute required by OptimizerRegistry

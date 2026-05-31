@@ -1,4 +1,29 @@
-"""Provides the abstract interface for sequence generation algorithms."""
+"""Abstract interface for sequence-proposal algorithms.
+
+A ``Generator`` is the proposal source in the optimization loop: each iteration an
+``Optimizer`` calls a generator's ``sample()`` to write new candidate ``Sequence`` objects
+into the ``proposal_sequences`` of its assigned ``Segment`` (or a tuple of tied segments that
+share one generated value). Subclasses implement the abstract ``_sample()`` hook in place; the
+public ``sample()`` orchestrator forwards to it, mirrors the primary proposals onto any tied
+segments, and clears stale per-proposal ``logits``/``structure``. Every concrete generator
+declares a ``GeneratorInputType`` classvar — ``prompt`` (autoregressive), ``starting_sequence``
+(mutation), ``structure`` (inverse folding), or ``logits`` (gradient) — which drives pre-sample
+validation and the generator's registry category. Concrete generators register with the
+``@generator`` decorator and live in ``proto_language.generator``; this module defines only the
+abstract base, so instantiate a subclass rather than ``Generator`` directly.
+
+Examples:
+    Assign a concrete generator to a Segment and let the optimizer drive sampling (see
+    ``examples/scripts/toy.py``):
+
+    >>> from proto_language.core import Segment
+    >>> from proto_language.generator import RandomNucleotideGenerator, RandomNucleotideGeneratorConfig
+    >>> seg = Segment(length=20, sequence_type="dna")
+    >>> gen = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig())
+    >>> gen.assign(seg)
+    >>> gen.is_assigned  # True
+    >>> gen.input_type.value  # 'starting_sequence'
+"""
 
 import copy
 import logging
@@ -42,6 +67,16 @@ class Generator(ABC):
         batch_size (int): Number of sequences to generate per batch.
         input_type (GeneratorInputType): Required classvar; the kind of starting input the generator consumes.
         allows_empty_starting_sequence (bool): Whether the generator can initialize a length-only target segment.
+
+    Examples:
+        Use a concrete subclass (never instantiate ``Generator`` directly):
+        >>> from proto_language.core import Segment
+        >>> from proto_language.generator import RandomNucleotideGenerator, RandomNucleotideGeneratorConfig
+        >>> seg = Segment(length=20, sequence_type="dna")
+        >>> gen = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig())
+        >>> gen.assign(seg)
+        >>> gen.is_assigned  # True
+        >>> gen.input_type.value  # 'starting_sequence'
     """
 
     batch_size: int = 1  # GPU generators override

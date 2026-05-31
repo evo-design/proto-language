@@ -1,4 +1,31 @@
-"""Metropolis-Hastings MCMC Optimizer that uses multiple sub-generators as proposal distributions and constraints to define the energy function."""
+"""Metropolis-Hastings MCMC optimizer with simulated annealing.
+
+Provides the ``mcmc`` optimization strategy: a propose-score-refine loop that treats
+the weighted constraint energy as the objective to minimize and the assigned mutation
+generators as proposal distributions. Each step replicates every result sequence into a
+proposal pool, mutates the pool in place with one randomly chosen generator, scores the
+proposals, and per trajectory selects the lowest-energy proposal before applying the
+Metropolis-Hastings accept/reject rule. Acceptance always keeps improvements and accepts
+worse proposals with probability ``exp(-dE / T)``, where the temperature anneals from
+``max_temperature`` to ``min_temperature`` along ``temperature_schedule`` over ``num_steps``.
+
+Examples:
+    >>> from proto_language.constraint import gc_content_constraint
+    >>> from proto_language.core import Constraint, Construct, Program, Segment
+    >>> from proto_language.generator import RandomNucleotideGenerator, RandomNucleotideGeneratorConfig
+    >>> from proto_language.optimizer import MCMCOptimizer, MCMCOptimizerConfig
+    >>> seg = Segment(length=20, sequence_type="dna")
+    >>> gen = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig())
+    >>> gen.assign(seg)
+    >>> gc = Constraint(inputs=[seg], function=gc_content_constraint, function_config={"min_gc": 80, "max_gc": 90})
+    >>> optimizer = MCMCOptimizer(
+    ...     constructs=[Construct([seg])],
+    ...     generators=[gen],
+    ...     constraints=[gc],
+    ...     config=MCMCOptimizerConfig(num_results=1, proposals_per_result=20, num_steps=10),
+    ... )
+    >>> Program(optimizers=[optimizer], num_results=1).run()
+"""
 
 import copy
 import logging

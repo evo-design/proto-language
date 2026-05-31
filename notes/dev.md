@@ -103,3 +103,24 @@ See `notes/testing.md` for the test-side details (markers, fixtures, mocks) that
 ## Documentation
 
 Reference docs are generated externally from this repo's registries, docstrings, and field descriptions plus `proto-tools` tool READMEs. Update source inputs — not generated pages — and merge; downstream regeneration picks up the change. There is no `docs_autogen.yml` workflow in this repo.
+
+### Docstring standard
+
+Google convention (ruff `D`, `convention = "google"`). `tests/test_docstring_consistency.py` checks that class/function `Args`/`Attributes`/`Returns` types match signatures, and holds `proto_language/core/` to a stricter standard: every `core/*.py` component module has a detailed header with an `Examples:` section, and every public behavioral core class has an `Examples:` section. Pydantic models (`BaseModel`) and enums are exempt — they document shape via `Attributes:`/values — as is the package `__init__` aggregator.
+
+Module-header template:
+
+```python
+"""<one-line summary ending with a period>.
+
+<2-5 sentences: what the module provides and its role in the data model /
+optimization loop.>
+
+Examples:
+    >>> from proto_language.core import Thing
+    >>> thing = Thing(...)
+    >>> thing.attr  # expected value
+"""
+```
+
+Examples are illustrative, not executed (no `--doctest-modules`): use `>>> expr  # result` inline comments, never a separate expected-output line. ruff's `docstring-code-format` reformats the `>>>` blocks, so keep them valid, canonically-formatted Python. Module headers serve source readers; the generated reference docs are driven by class/function and `ConfigField` docstrings via `proto_language/utils/docs_api.py`, so user-facing classes need their own `Examples:`. The test gates `core/` only — apply the same pattern to new modules and components elsewhere.

@@ -1,4 +1,47 @@
-"""proto_language/core/program.py."""
+"""Top-level orchestrator that runs Optimizer stages over shared Constructs.
+
+A ``Program`` owns the design's ``Construct`` objects and composes one or more
+``Optimizer`` stages that run sequentially. ``run()`` walks the stages in order; each
+stage drives the propose-score-refine loop (the optimizer asks its ``Generator`` for
+proposal ``Sequence`` s, every ``Constraint`` scores them, and survivors become the
+``Segment`` 's result ``Sequence`` s). Because all optimizers share the same construct
+objects by identity, each stage's results flow into the next without manual handoff.
+A program-level ``seed`` owns run determinism and ``num_results`` flows down to any
+optimizer that does not set its own. After the run, ``constructs`` hold the final
+sequences, ``energy_scores`` reports the final-stage energies (lower is better), and
+``export()`` / ``to_dataframe()`` / ``to_fasta()`` emit results.
+
+Examples:
+    Build a single-stage program and inspect its final joined sequence:
+    >>> from proto_language.constraint import gc_content_constraint
+    >>> from proto_language.core import Constraint, Construct, Program, Segment
+    >>> from proto_language.generator import (
+    ...     RandomNucleotideGenerator,
+    ...     RandomNucleotideGeneratorConfig,
+    ... )
+    >>> from proto_language.optimizer import MCMCOptimizer, MCMCOptimizerConfig
+    >>> seg = Segment(length=20, sequence_type="dna")
+    >>> construct = Construct([seg])
+    >>> gen = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig())
+    >>> gen.assign(seg)
+    >>> gc = Constraint(
+    ...     inputs=[seg],
+    ...     function=gc_content_constraint,
+    ...     function_config={"min_gc": 80, "max_gc": 90},
+    ... )
+    >>> optimizer = MCMCOptimizer(
+    ...     constructs=[construct],
+    ...     generators=[gen],
+    ...     constraints=[gc],
+    ...     config=MCMCOptimizerConfig(num_results=1, proposals_per_result=20, num_steps=10),
+    ... )
+    >>> program = Program(optimizers=[optimizer], num_results=1)
+    >>> program.run()
+    >>> program.constructs[0].joined_sequences[0]  # the optimized DNA Sequence
+
+    Write a results folder (tables + FASTA + assets/) to disk:
+    >>> program.export(path="run_out")  # PosixPath('run_out')
+"""
 
 import logging
 import math

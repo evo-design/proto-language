@@ -1,6 +1,38 @@
-"""Base class for iterative optimization algorithms that coordinate multiple.
+"""Abstract base class for the search strategy that drives the optimization loop.
 
-generators and constraints to search for optimal biological sequences.
+An ``Optimizer`` is the orchestrator of a single optimization stage: it owns the
+``constructs`` under design and coordinates ``generators`` and ``constraints`` across
+the propose-score-refine cycle. Each iteration it asks its generators for proposal
+``Sequence`` objects on the target ``Segment`` pool, calls ``score_energy`` to evaluate
+every ``Constraint`` (filters first, then weighted scorers) into one energy score per
+proposal, then selects survivors that become each segment's ``result_sequences`` and seed
+the next iteration. ``Optimizer`` is abstract — ``__init__`` and ``run`` are abstract — so
+concrete strategies (MCMC, beam search, gradient, rejection sampling, cycling) subclass it
+and register via the ``@optimizer`` decorator; this base supplies the shared scoring,
+seed-derivation (``derive_seeds`` fans a parent seed out to per-generator/per-constraint
+streams for reproducible runs), and export machinery. ``Program`` runs a list of optimizers
+as ordered stages, reusing the same construct objects by identity.
+
+Examples:
+    Wire a concrete optimizer (the ABC is never instantiated directly) and run it:
+
+    >>> from proto_language.core import Constraint, Construct, Program, Segment
+    >>> from proto_language.generator import RandomNucleotideGenerator, RandomNucleotideGeneratorConfig
+    >>> from proto_language.optimizer import MCMCOptimizer, MCMCOptimizerConfig
+    >>> from proto_language.constraint import gc_content_constraint
+    >>> seg = Segment(length=20, sequence_type="dna")
+    >>> gen = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig())
+    >>> gen.assign(seg)
+    >>> gc = Constraint(inputs=[seg], function=gc_content_constraint, function_config={"min_gc": 80, "max_gc": 90})
+    >>> optimizer = MCMCOptimizer(
+    ...     constructs=[Construct([seg])],
+    ...     generators=[gen],
+    ...     constraints=[gc],
+    ...     config=MCMCOptimizerConfig(num_results=1, proposals_per_result=20, num_steps=10),
+    ... )
+    >>> program = Program(optimizers=[optimizer], num_results=1)
+    >>> program.run()
+    >>> len(optimizer.segments)  # 1
 """
 
 import copy
@@ -65,6 +97,24 @@ class Optimizer(ABC):
         2. Proposals must pass ALL filters (AND logic)
         3. Only accepted proposals are evaluated by scoring constraints
         4. Rejected proposals receive filter_penalty score (default: inf)
+
+    Examples:
+        Use a concrete subclass (never instantiate ``Optimizer`` directly):
+        >>> from proto_language.constraint import gc_content_constraint
+        >>> from proto_language.core import Constraint, Construct, Program, Segment
+        >>> from proto_language.generator import RandomNucleotideGenerator, RandomNucleotideGeneratorConfig
+        >>> from proto_language.optimizer import MCMCOptimizer, MCMCOptimizerConfig
+        >>> seg = Segment(length=20, sequence_type="dna")
+        >>> gen = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig())
+        >>> gen.assign(seg)
+        >>> gc = Constraint(inputs=[seg], function=gc_content_constraint, function_config={"min_gc": 80, "max_gc": 90})
+        >>> optimizer = MCMCOptimizer(
+        ...     constructs=[Construct([seg])],
+        ...     generators=[gen],
+        ...     constraints=[gc],
+        ...     config=MCMCOptimizerConfig(num_results=1, proposals_per_result=20, num_steps=10),
+        ... )
+        >>> len(optimizer.segments)  # 1
     """
 
     _require_non_empty_constraints: bool = True

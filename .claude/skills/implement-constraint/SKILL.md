@@ -394,6 +394,8 @@ def binding_constraint(input_sequences, config):
 
 Documentation reference pages are auto-generated from Python docstrings and field descriptions. To update documentation, update the Python config docstrings/field descriptions in the source code.
 
+New constraint modules carry a module-level header with an `Examples:` section, matching the `proto_language/core/` docstring standard (see `notes/dev.md`).
+
 ## Test Requirements
 
 File: `tests/language_tests/constraint_tests/test_{category}/test_{name}_constraint.py`

@@ -132,6 +132,8 @@ __all__ = [
 
 Documentation reference pages are auto-generated from Python docstrings and field descriptions. To update documentation, update the Python config docstrings/field descriptions in the source code.
 
+New optimizer modules carry a module-level header with an `Examples:` section, matching the `proto_language/core/` docstring standard (see `notes/dev.md`).
+
 ## Test Requirements
 
 File: `tests/language_tests/optimizer_tests/test_{name}_optimizer.py`

@@ -1,6 +1,31 @@
-"""This optimizer splits a single long segment into beams of `beam_length` tokens and.
+"""Beam search optimizer that generates one long segment with token-by-token beam search.
 
-performs beam search, accumulating KV cache state across beams.
+This module provides the ``beam-search`` strategy: it grows a single target Segment from a fixed
+prompt by splitting it into ``ceil(segment.sequence_length / beam_length)`` steps and expanding the
+sequence ``beam_length`` tokens at a time. At each step it asks one autoregressive language-model
+generator (Evo2/ProGen2) for ``num_results x proposals_per_result`` continuations, scores every
+proposal's FULL accumulated sequence through the constraints, and keeps the top ``num_results`` beams
+(ranked by mean or last per-step energy) to seed the next step. Optionally reuses KV-cache state
+across steps for faster generation. Use it for long autoregressive design under sequence-level
+constraints; it targets a single segment and needs a heavyweight LM generator (not a CPU generator).
+
+Examples:
+    >>> from proto_language.constraint import gc_content_constraint
+    >>> from proto_language.core import Constraint, Construct, Segment
+    >>> from proto_language.generator import Evo2Generator, Evo2GeneratorConfig
+    >>> from proto_language.optimizer import BeamSearchOptimizer, BeamSearchOptimizerConfig
+    >>>
+    >>> segment = Segment(length=10000, sequence_type="dna")
+    >>> generator = Evo2Generator(Evo2GeneratorConfig(prompts="ATCG"))
+    >>> gc = Constraint(inputs=[segment], function=gc_content_constraint, function_config={"min_gc": 40, "max_gc": 60})
+    >>> optimizer = BeamSearchOptimizer(
+    ...     target_segment=segment,
+    ...     constructs=[Construct([segment])],
+    ...     generators=[generator],
+    ...     constraints=[gc],
+    ...     config=BeamSearchOptimizerConfig(prompt="ATCG", beam_length=2000, num_results=5, proposals_per_result=10),
+    ... )
+    >>> # Program(optimizers=[optimizer], num_results=5).run() drives the loop
 """
 
 import inspect
@@ -170,33 +195,39 @@ class BeamSearchOptimizer(Optimizer):
     After constraint evaluation on the FULL accumulated sequence, only the top K sequences by
     energy are retained for the next step.
 
-    Attributes:
-        target_segment: The target segment to generate with beam search.
-        generator: Single autoregressive generator for sequence generation.
-        prompt: Initial prompt sequence starting all beams.
-        beam_length: Tokens per beam.
-        num_results: Number of beams to maintain (K).
-        proposals_per_result: Proposals generated per result sequence (N).
-        score_by: Score aggregation method ('mean' or 'last').
-        use_kv_caching: Whether KV caching is enabled.
-        beams: Current beam states.
+    The segment is split into ceil(sequence_length / beam_length) steps. Each step asks the single
+    autoregressive generator for beam_length new tokens per proposal (the last step is truncated to
+    the remaining tokens), scores each proposal on its full accumulated sequence, and resamples any
+    beam left with fewer than proposals_per_result valid proposals (up to max_resample_attempts,
+    raising RuntimeError if a beam still falls short) before ranking. Within a beam, proposals are
+    kept by their most recent step energy; across beams, the top num_results survivors are ranked by
+    score_by ("mean" averages a beam's per-step energies, "last" uses only the most recent), become
+    the next step's parent beams, and seed the final result_sequences. prepend_prompt controls whether
+    the prompt is included in the output, and use_kv_caching reuses generator cache state across steps
+    (requires a KV-cache-capable generator). Use it for long autoregressive design under sequence-level
+    constraints; it targets a single segment and requires a protein/DNA language-model generator
+    (Evo2/ProGen2), not a CPU generator.
 
-    Example:
+    Examples:
+        >>> from proto_language.constraint import gc_content_constraint
+        >>> from proto_language.core import Constraint, Construct, Segment
         >>> from proto_language.generator import Evo2Generator, Evo2GeneratorConfig
-        >>> gen_config = Evo2GeneratorConfig(prompts="ATCG", prepend_prompt=True)
-        >>> generator = Evo2Generator(config=gen_config)
+        >>>
         >>> segment = Segment(length=10000, sequence_type="dna")
-        >>> construct = Construct([segment])
-        >>> config = BeamSearchOptimizerConfig(prompt="ATCG", beam_length=2000, num_results=5, proposals_per_result=10)
+        >>> generator = Evo2Generator(Evo2GeneratorConfig(prompts="ATCG"))
+        >>> gc = Constraint(
+        ...     inputs=[segment], function=gc_content_constraint, function_config={"min_gc": 40, "max_gc": 60}
+        ... )
         >>> beam_search = BeamSearchOptimizer(
         ...     target_segment=segment,
-        ...     constructs=[construct],
+        ...     constructs=[Construct([segment])],
         ...     generators=[generator],
-        ...     constraints=[gc_constraint],
-        ...     config=config,
+        ...     constraints=[gc],
+        ...     config=BeamSearchOptimizerConfig(
+        ...         prompt="ATCG", beam_length=2000, num_results=5, proposals_per_result=10
+        ...     ),
         ... )
-        >>> beam_search.run()
-        >>> top_sequences = beam_search.target_segment.result_sequences
+        >>> # beam_search.run() drives the loop
     """
 
     # Class attribute required by OptimizerRegistry
