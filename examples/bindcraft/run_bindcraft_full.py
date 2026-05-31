@@ -144,6 +144,7 @@ SOFTMAX_GRADIENT_PARAMS: dict[str, object] = {
     "temperature_start": 1.0,
     "temperature_end": 0.01,
     "softmax_schedule": "quadratic",
+    "lr_schedule": "quadratic",  # required for scale_lr_by_temperature to decay the LR
     "scale_lr_by_temperature": True,
 }
 HARD_GRADIENT_PARAMS: dict[str, object] = {

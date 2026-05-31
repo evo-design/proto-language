@@ -7,6 +7,7 @@ from proto_tools.entities.structures import Structure
 from proto_tools.tools.structure_scoring.dssp import DSSPSecondaryStructureInput
 
 from examples.bindcraft import run_bindcraft_full as bindcraft
+from proto_language.utils.scheduling import SCHEDULES
 
 
 def _bindcraft_config() -> bindcraft.BindCraftConfig:
@@ -140,6 +141,28 @@ def test_4stage_semigreedy_uses_plddt_position_weighting() -> None:
 
     assert semigreedy.config.position_weighting == "plddt"
     assert semigreedy.config.clear_logits is True
+
+
+def test_softmax_stage_anneals_learning_rate() -> None:
+    """The softmax stage decays its learning rate, matching ColabDesign's lr ~ temperature.
+
+    Regression: a constant lr_schedule held the effective LR at the full ``lr`` for the whole
+    softmax stage; upstream decays it ~lr -> lr*1e-2 across the temperature anneal.
+    """
+    config = _bindcraft_config()
+    config.logit_steps, config.softmax_steps, config.hard_steps, config.semigreedy_steps = 0, 10, 0, 0
+    binder = bindcraft.Segment(length=8, sequence_type="protein", label="binder")
+    target = bindcraft.Segment(sequence="ACDE", sequence_type="protein", label="target")
+
+    program, stage_names = bindcraft._build_hallucination(
+        config, binder, target, bindcraft.Construct([binder, target]), _af2_config(), {"plddt": 0.1}, binder_length=8
+    )
+
+    softmax = program.optimizers[stage_names.index("softmax")].config
+    assert softmax.lr_schedule == "quadratic"
+    assert softmax.scale_lr_by_temperature is True
+    schedule = SCHEDULES[softmax.lr_schedule](softmax.temperature_start, softmax.temperature_end)
+    assert schedule(softmax.num_steps, softmax.num_steps) < schedule(1, softmax.num_steps)
 
 
 def test_empty_relaxed_interface_skips_mpnn_redesign(tmp_path: Path) -> None:
