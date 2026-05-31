@@ -9,6 +9,7 @@ TODO(@brianhie, @dguo): Consider moving some of this adapter logic into
 proto-tools if the AF2M binder interface grows a predictor-shaped API.
 """
 
+import string
 from typing import Any
 
 from proto_tools import Structure
@@ -177,13 +178,23 @@ def canonical_af2_multimer_metrics(output_metrics: dict[str, Any]) -> dict[str, 
 def af2_multimer_structures(
     output_structure: Structure, config: AlphaFold2MultimerStructureConfig, n_inputs: int
 ) -> tuple[Structure | None, ...]:
-    """Return per-input structures from an AF2 multimer complex."""
+    """Return per-input structures from an AF2 multimer complex.
+
+    Output chains are positional (targets A..N-1; de-novo binder next: N=1 -> "B", N=2 -> "C"),
+    not the source-PDB ``target_chains`` ids. An explicit ``binder_chain`` (redesign) is used as-is.
+    """
     structures: list[Structure | None] = [None] * n_inputs
-    # De-novo design (binder_chain=None) emits the binder as chain "B" (after a single target "A").
-    binder_chain = config.binder_chain if config.binder_chain is not None else "B"
+    n_targets = len(config.target_chains)
+    binder_chain = config.binder_chain if config.binder_chain is not None else string.ascii_uppercase[n_targets]
     structures[config.binder_input_index] = output_structure.select_chain(binder_chain)
-    for input_idx, chain_id in zip(config.target_input_indices, config.target_chains, strict=True):
-        structures[input_idx] = output_structure.select_chain(chain_id)
+    target_letters = [string.ascii_uppercase[position] for position in range(n_targets)]
+    if len(config.target_input_indices) == n_targets:
+        # One target input slot per chain (Germinal, single-chain de novo).
+        for position, input_idx in enumerate(config.target_input_indices):
+            structures[input_idx] = output_structure.select_chain(target_letters[position])
+    else:
+        # One slot holding all target chains (de-novo BindCraft concatenated target).
+        structures[config.target_input_indices[0]] = output_structure.select_chains(target_letters)
     return tuple(structures)
 
 

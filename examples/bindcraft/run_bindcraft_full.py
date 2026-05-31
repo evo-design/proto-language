@@ -32,6 +32,7 @@ import itertools
 import json
 import logging
 import math
+import string
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime
@@ -106,7 +107,6 @@ logger = logging.getLogger(__name__)
 # Constants
 
 PROTEINMPNN_GENERATOR_KEY = "proteinmpnn"
-BINDER_CHAIN = "B"
 BINDER_CHAIN_COFOLD = "A"
 TARGET_CHAIN_COFOLD = "B"
 CLASH_CA_THRESHOLD = 2.5
@@ -594,6 +594,12 @@ def _passes_plddt_gate(binder: Segment, threshold: float) -> bool:
     return plddt > threshold
 
 
+def _output_chains(target_chains: list[str]) -> tuple[list[str], str]:
+    """Positional AF2 output chain ids: (target chains A..N-1, de-novo binder chain N)."""
+    n = len(target_chains)
+    return [string.ascii_uppercase[i] for i in range(n)], string.ascii_uppercase[n]
+
+
 def _passes_structural_gates(complex_struct: Structure, binder_struct: Structure, target_chains: list[str]) -> bool:
     """CA clashes, final pLDDT, then interface contacts (BindCraft gate order)."""
     clashes = complex_struct.ca_clash_score(threshold=CLASH_CA_THRESHOLD)
@@ -608,9 +614,10 @@ def _passes_structural_gates(complex_struct: Structure, binder_struct: Structure
         logger.info(f"  rejected: pLDDT {plddt:.3f} < {PLDDT_FINAL}")
         return False
 
+    target_out, binder_out = _output_chains(target_chains)
     contacts = complex_struct.interface_contact_residues(
-        binder_chain=BINDER_CHAIN,
-        target_chains=target_chains,
+        binder_chain=binder_out,
+        target_chains=target_out,
         cutoff=INTERFACE_CUTOFF,
     )
     if len(contacts) < MIN_INTERFACE_CONTACTS:
@@ -704,7 +711,8 @@ def _predict_validation_complex(
                 compute_gradient=False,
             ),
         )
-        return output.structure, output.metrics, BINDER_CHAIN, config.target_chains
+        target_out, binder_out = _output_chains(config.target_chains)
+        return output.structure, output.metrics, binder_out, target_out
 
     cofold_result = predict_structures(
         complexes=[
@@ -781,7 +789,7 @@ def _score_variant(
 
         model_metrics["hotspot_rmsd"] = trajectory_complex_struct.ca_rmsd_no_superposition(
             cofold_struct,
-            self_chain_id=BINDER_CHAIN,
+            self_chain_id=binder_chain,
             other_chain_id=binder_chain,
         )
         model_metrics["target_rmsd"] = float(cofold_struct.select_chains(target_chains).backbone_rmsd(target_struct))
@@ -800,7 +808,6 @@ def _score_variant(
             ),
         )
         relaxed = relax_result.results[0].relax.relaxed_structure
-        target_chain = target_chains[0]
 
         iface = run_pyrosetta_interface_analyzer(
             PyRosettaInterfaceAnalyzerInput(
@@ -808,7 +815,7 @@ def _score_variant(
                     InterfaceStructureInput(
                         structure=relaxed,
                         binder_chain=binder_chain,
-                        target_chain=target_chain,
+                        target_chains=target_chains,
                     )
                 ]
             ),
@@ -902,10 +909,11 @@ def _redesign_and_validate(
     # unrelaxed trajectory backbone to ProteinMPNN.
     # include_hydrogens=True matches upstream's `hotspot_residues` on a PyRosetta-
     # relaxed PDB, which carries explicit hydrogens that participate in the 4 Å contact set.
+    target_out, binder_out = _output_chains(config.target_chains)
     interface_positions = list(
         mpnn_complex_struct.interface_contact_residues(
-            binder_chain=BINDER_CHAIN,
-            target_chains=config.target_chains,
+            binder_chain=binder_out,
+            target_chains=target_out,
             cutoff=INTERFACE_CUTOFF,
             include_hydrogens=True,
         ).keys()
@@ -914,16 +922,16 @@ def _redesign_and_validate(
         logger.info("  no relaxed interface residues; skipping MPNN redesign")
         return 0
 
-    fixed_positions = {chain_id: complex_struct.get_chain_positions(chain_id) for chain_id in config.target_chains}
-    fixed_positions[BINDER_CHAIN] = interface_positions
-    chains_to_redesign = [*config.target_chains, BINDER_CHAIN]
+    fixed_positions = {chain_id: complex_struct.get_chain_positions(chain_id) for chain_id in target_out}
+    fixed_positions[binder_out] = interface_positions
+    chains_to_redesign = [*target_out, binder_out]
 
     mpnn = ProteinMPNNGenerator(
         ProteinMPNNGeneratorConfig(
             model_choice="soluble",
             temperature=config.mpnn_temperature,
             excluded_amino_acids=[aa.strip().upper() for aa in config.omit_aas.split(",") if aa.strip()] or None,
-            output_chain_id=BINDER_CHAIN,
+            output_chain_id=binder_out,
             structure_inputs=[
                 InverseFoldingStructureInput(
                     structure=complex_struct,
@@ -947,7 +955,7 @@ def _redesign_and_validate(
                 function_config=MpnnPerplexityConfig(
                     structure_input=InverseFoldingStructureInput(
                         structure=binder_struct,
-                        chains_to_redesign=[BINDER_CHAIN],
+                        chains_to_redesign=[binder_out],
                     ),
                 ),
                 label="proteinmpnn_perplexity",
@@ -964,7 +972,7 @@ def _redesign_and_validate(
         {aa.strip().upper() for aa in config.omit_aas.split(",") if aa.strip()} if config.force_reject_aa else set()
     )
     candidates: list[tuple[int, float, float, str]] = []
-    binder_length = len(binder_struct.get_chain_positions(BINDER_CHAIN))
+    binder_length = len(binder_struct.get_chain_positions(binder_out))
     for i, seq_obj in enumerate(binder.result_sequences):
         binder_seq = seq_obj.sequence
         if len(binder_seq) != binder_length:
@@ -1045,6 +1053,7 @@ def run_trajectory(
     af2_cfg = _make_af2_config(config, target_pdb_text, seed)
     af2_loss_weights = _with_helicity_loss(config.loss_weights, helicity_weight)
     effective_config = config
+    _, binder_chain = _output_chains(config.target_chains)
 
     # Beta-sheet optimization: run logit_a first, check beta %, adjust remaining stages
     if config.optimise_beta and config.algorithm == "4stage" and config.logit_steps > 0:
@@ -1065,7 +1074,7 @@ def run_trajectory(
 
         binder_struct_check = binder.result_sequences[0].structure
         if binder_struct_check is not None:
-            ss = _dssp_secondary_structure_percentages(binder_struct_check, BINDER_CHAIN)
+            ss = _dssp_secondary_structure_percentages(binder_struct_check, binder_chain)
             if ss["sheet"] > config.beta_threshold:
                 logger.info(
                     f"[Traj {traj_idx}] Beta {ss['sheet']:.1f}% > {config.beta_threshold}% — "
@@ -1139,7 +1148,7 @@ def run_trajectory(
     # check above: re-measure binder SS on the FINAL trajectory structure and lift validation
     # recycles for sheet-rich trajectories. Runs for every algorithm, not just 4stage.
     if config.optimise_beta:
-        ss_final = _dssp_secondary_structure_percentages(binder_struct, BINDER_CHAIN)
+        ss_final = _dssp_secondary_structure_percentages(binder_struct, binder_chain)
         if ss_final["sheet"] > config.beta_threshold:
             logger.info(
                 f"[Traj {traj_idx}] Post-trajectory beta {ss_final['sheet']:.1f}% > "

@@ -1068,7 +1068,7 @@ def run_trajectory(
                     InterfaceStructureInput(
                         structure=relaxed_struct,
                         binder_chain=COFOLD_BINDER_CHAIN,
-                        target_chain=COFOLD_TARGET_CHAIN,
+                        target_chains=[COFOLD_TARGET_CHAIN],
                     )
                 ]
             ),
@@ -1385,7 +1385,7 @@ def run_pre_redesign_external_filters(
                 InterfaceStructureInput(
                     structure=relaxed_struct,
                     binder_chain=COFOLD_BINDER_CHAIN,
-                    target_chain=COFOLD_TARGET_CHAIN,
+                    target_chains=[COFOLD_TARGET_CHAIN],
                 )
             ]
         ),

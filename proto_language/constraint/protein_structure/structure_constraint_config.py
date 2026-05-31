@@ -269,8 +269,11 @@ class AlphaFold2MultimerStructureConfig(BaseConfig):
             raise ValueError("target_input_indices cannot contain duplicates.")
         if self.binder_input_index in self.target_input_indices:
             raise ValueError("binder_input_index cannot also be a target input.")
-        if len(self.target_chains) != len(self.target_input_indices):
-            raise ValueError("target_chains must match target_input_indices one-to-one.")
+        if len(self.target_chains) != len(self.target_input_indices) and len(self.target_input_indices) != 1:
+            raise ValueError(
+                "target_chains must map to target_input_indices one-to-one, or all target chains "
+                "may share a single target input slot (de-novo concatenated target)."
+            )
         if self.backend == "germinal":
             return self
         offenders = [

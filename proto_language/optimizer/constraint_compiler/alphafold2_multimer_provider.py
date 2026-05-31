@@ -404,8 +404,14 @@ def validate_gradient_constraint(
                 f"Constraint '{constraint.label}' target_input_index={idx} "
                 f"out of bounds for {len(constraint.inputs)} inputs."
             )
-    if len(af2_config.target_chains) != len(af2_config.target_input_indices):
-        raise ValueError("target_chains must match target_input_indices one-to-one.")
+    if (
+        len(af2_config.target_chains) != len(af2_config.target_input_indices)
+        and len(af2_config.target_input_indices) != 1
+    ):
+        raise ValueError(
+            "target_chains must map to target_input_indices one-to-one, or all target chains "
+            "may share a single target input slot (de-novo concatenated target)."
+        )
     for idx in [af2_config.binder_input_index, *af2_config.target_input_indices]:
         segment = constraint.inputs[idx]
         if segment.sequence_type != "protein":

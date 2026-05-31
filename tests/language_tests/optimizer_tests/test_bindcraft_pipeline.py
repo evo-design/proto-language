@@ -4,6 +4,7 @@ import inspect
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from proto_tools.entities.structures import Structure
 from proto_tools.tools.structure_scoring.dssp import DSSPSecondaryStructureInput
 
@@ -214,8 +215,8 @@ def test_redesign_perplexity_constraint_scores_binder_not_complex(tmp_path: Path
     rejection-sampling redesign stage on the first batch.
     """
     complex_struct = Structure(structure=Path("examples/germinal/pdbs/pdl1.pdb").read_text())
-    binder_struct = complex_struct.select_chain(bindcraft.BINDER_CHAIN)
-    binder_len = len(binder_struct.get_chain_positions(bindcraft.BINDER_CHAIN))
+    binder_struct = complex_struct.select_chain("B")
+    binder_len = len(binder_struct.get_chain_positions("B"))
     binder = bindcraft.Segment(length=binder_len, sequence_type="protein", label="binder")
     target = bindcraft.Segment(sequence="ACDE", sequence_type="protein", label="target")
 
@@ -258,9 +259,9 @@ def test_redesign_perplexity_constraint_scores_binder_not_complex(tmp_path: Path
     assert constraint.label == "proteinmpnn_perplexity"
     # Scored against the binder-only structure, so a binder-only one-hot matches the parsed
     # structure length (the contract proteinmpnn-gradient enforces; the complex is larger).
-    assert list(structure_input.chains_to_redesign.chains) == [bindcraft.BINDER_CHAIN]
-    assert len(structure_input.structure.get_chain_positions(bindcraft.BINDER_CHAIN)) == binder_len
-    complex_len = sum(len(complex_struct.get_chain_positions(c)) for c in ("A", bindcraft.BINDER_CHAIN))
+    assert list(structure_input.chains_to_redesign.chains) == ["B"]
+    assert len(structure_input.structure.get_chain_positions("B")) == binder_len
+    complex_len = sum(len(complex_struct.get_chain_positions(c)) for c in ("A", "B"))
     assert complex_len > binder_len
 
 
@@ -271,3 +272,45 @@ def test_af2_multimer_structures_selects_chain_b_for_de_novo() -> None:
     binder_struct, target_struct = af2_multimer_structures(complex_struct, config, n_inputs=2)
     assert len(binder_struct.get_chain_positions("B")) == 118
     assert len(target_struct.get_chain_positions("A")) == 115
+
+
+def _split_pdl1_two_targets() -> Structure:
+    """pdl1 with target chain A split into A+B and the binder relabeled C (two targets + binder)."""
+    lines = Path("examples/germinal/pdbs/pdl1.pdb").read_text().splitlines()
+    a_res = sorted({int(ln[22:26]) for ln in lines if ln.startswith("ATOM") and ln[21] == "A"})
+    mid = a_res[len(a_res) // 2]
+    out = []
+    for ln in lines:
+        new = ln
+        if ln.startswith(("ATOM", "HETATM")):
+            if ln[21] == "A":
+                new = ln[:21] + ("A" if int(ln[22:26]) < mid else "B") + ln[22:]
+            elif ln[21] == "B":
+                new = ln[:21] + "C" + ln[22:]
+        out.append(new)
+    return Structure(structure="\n".join(out))
+
+
+def test_output_chains_positional() -> None:
+    """De-novo output chains are positional: targets A..N-1, binder N."""
+    assert bindcraft._output_chains(["A"]) == (["A"], "B")
+    assert bindcraft._output_chains(["A", "B"]) == (["A", "B"], "C")
+
+
+def test_af2_config_target_input_topologies() -> None:
+    """Multi-chain target maps one slot per chain or all chains to one slot; neither raises."""
+    cfg = bindcraft.AlphaFold2MultimerStructureConfig
+    cfg(target_chains=["A", "B"], target_input_indices=[1, 2], binder_chain=None)  # one slot per chain
+    cfg(target_chains=["A", "B"], target_input_indices=[1], binder_chain=None)  # single shared slot
+    with pytest.raises(ValueError, match="one-to-one"):
+        cfg(target_chains=["A", "B", "C"], target_input_indices=[1, 2], binder_chain=None)
+
+
+def test_af2_multimer_structures_multichain_binder_is_chain_c() -> None:
+    """Two target chains -> binder is output chain 'C'; the single target slot holds A+B."""
+    config = bindcraft.AlphaFold2MultimerStructureConfig(
+        target_chains=["A", "B"], target_input_indices=[1], binder_chain=None
+    )
+    binder_struct, target_struct = af2_multimer_structures(_split_pdl1_two_targets(), config, n_inputs=2)
+    assert binder_struct.get_chain_ids() == ["C"]
+    assert sorted(target_struct.get_chain_ids()) == ["A", "B"]
