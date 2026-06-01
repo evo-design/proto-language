@@ -12,7 +12,7 @@ from proto_tools.tools.sequence_scoring.enformer import (
     EnformerInput,
     run_enformer,
 )
-from proto_tools.tools.sequence_scoring.shared_data_models import SequenceTargetRange
+from proto_tools.tools.sequence_scoring.shared_data_models import SequenceTargetRange, SequenceWindow
 from pydantic import field_validator, model_validator
 
 from proto_language.constraint.constraint_registry import constraint
@@ -252,10 +252,12 @@ def enformer_chromatin_accessibility_morse_constraint(
 
     result = run_enformer(
         EnformerInput(
-            sequences=[full_sequence for full_sequence, _, _ in prepared_candidates],
-            target_ranges=[
-                SequenceTargetRange(start=target_start, end=target_end)
-                for _, target_start, target_end in prepared_candidates
+            sequences=[
+                SequenceWindow(
+                    sequence=full_sequence,
+                    target_range=SequenceTargetRange(start=target_start, end=target_end),
+                )
+                for full_sequence, target_start, target_end in prepared_candidates
             ],
         ),
         EnformerConfig(

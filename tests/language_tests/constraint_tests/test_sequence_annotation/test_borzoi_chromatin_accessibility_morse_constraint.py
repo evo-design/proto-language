@@ -31,11 +31,11 @@ def test_borzoi_constraint_batches_ensemble_predictions(monkeypatch):
         return SimpleNamespace(
             results=[
                 SimpleNamespace(
-                    predictions=np.ones((4, 2, target_range.end + 2), dtype=np.float32),
+                    predictions=np.ones((4, 2, window.target_range.end + 2), dtype=np.float32),
                     output_resolution=1.0,
                     output_start=0,
                 )
-                for target_range in tool_input.target_ranges
+                for window in tool_input.sequences
             ]
         )
 
@@ -50,9 +50,9 @@ def test_borzoi_constraint_batches_ensemble_predictions(monkeypatch):
         config,
     )
 
-    assert len(captured["tool_input"].sequences[0]) == BORZOI_CONTEXT
-    assert captured["tool_input"].target_ranges[0].start == BORZOI_OUTPUT_FLANK
-    assert captured["tool_input"].target_ranges[0].end == BORZOI_OUTPUT_FLANK + 2
+    assert len(captured["tool_input"].sequences[0].sequence) == BORZOI_CONTEXT
+    assert captured["tool_input"].sequences[0].target_range.start == BORZOI_OUTPUT_FLANK
+    assert captured["tool_input"].sequences[0].target_range.end == BORZOI_OUTPUT_FLANK + 2
     assert captured["tool_config"].batch_size == 3
     assert output.metadata_recipient == "Target"
     assert output.metadata["chromatin_accessibility_morse_model"] == "borzoi"

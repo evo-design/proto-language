@@ -312,6 +312,7 @@ def _plot_track_overlay(
         BorzoiEnsembleConfig,
         BorzoiInput,
         SequenceTargetRange,
+        SequenceWindow,
         run_borzoi_ensemble,
     )
     from proto_tools.tools.sequence_scoring.enformer import (
@@ -357,8 +358,12 @@ def _plot_track_overlay(
     with ToolInstance.persist():
         borzoi_result = run_borzoi_ensemble(
             BorzoiInput(
-                sequences=[borzoi_sequence],
-                target_ranges=[SequenceTargetRange(start=borzoi_target_start, end=borzoi_target_end)],
+                sequences=[
+                    SequenceWindow(
+                        sequence=borzoi_sequence,
+                        target_range=SequenceTargetRange(start=borzoi_target_start, end=borzoi_target_end),
+                    )
+                ],
             ),
             BorzoiEnsembleConfig(
                 output_tracks=borzoi_config.borzoi_output_tracks,
@@ -377,8 +382,12 @@ def _plot_track_overlay(
         )
         enformer_result = run_enformer(
             EnformerInput(
-                sequences=[enformer_sequence],
-                target_ranges=[SequenceTargetRange(start=enformer_target_start, end=enformer_target_end)],
+                sequences=[
+                    SequenceWindow(
+                        sequence=enformer_sequence,
+                        target_range=SequenceTargetRange(start=enformer_target_start, end=enformer_target_end),
+                    )
+                ],
             ),
             EnformerConfig(
                 output_tracks=enformer_config.enformer_output_tracks,

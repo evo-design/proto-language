@@ -60,11 +60,11 @@ def test_enformer_constraint_batches_prepared_sequences(monkeypatch):
         return SimpleNamespace(
             results=[
                 SimpleNamespace(
-                    prediction=np.ones((target_range.end + 2, 1), dtype=np.float32),
+                    prediction=np.ones((window.target_range.end + 2, 1), dtype=np.float32),
                     output_resolution=1.0,
                     output_start=0,
                 )
-                for target_range in tool_input.target_ranges
+                for window in tool_input.sequences
             ]
         )
 
@@ -83,10 +83,12 @@ def test_enformer_constraint_batches_prepared_sequences(monkeypatch):
     )
 
     assert len(captured["tool_input"].sequences) == 2
-    assert len(captured["tool_input"].sequences[0]) == ENFORMER_CONTEXT
-    assert captured["tool_input"].sequences[0][ENFORMER_OUTPUT_FLANK - 2 : ENFORMER_OUTPUT_FLANK + 4] == "AACGTT"
-    assert captured["tool_input"].target_ranges[0].start == ENFORMER_OUTPUT_FLANK
-    assert captured["tool_input"].target_ranges[0].end == ENFORMER_OUTPUT_FLANK + 2
+    assert len(captured["tool_input"].sequences[0].sequence) == ENFORMER_CONTEXT
+    assert (
+        captured["tool_input"].sequences[0].sequence[ENFORMER_OUTPUT_FLANK - 2 : ENFORMER_OUTPUT_FLANK + 4] == "AACGTT"
+    )
+    assert captured["tool_input"].sequences[0].target_range.start == ENFORMER_OUTPUT_FLANK
+    assert captured["tool_input"].sequences[0].target_range.end == ENFORMER_OUTPUT_FLANK + 2
     assert captured["tool_config"].batch_size == 4
     assert [output.metadata_recipient for output in outputs] == ["Target", "Target"]
     assert outputs[0].metadata["chromatin_accessibility_morse_model"] == "enformer"
