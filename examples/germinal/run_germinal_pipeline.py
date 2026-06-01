@@ -1,5 +1,9 @@
 r"""Germinal antibody binder design pipeline — VHH (nanobody) and scFv modes.
 
+This is a re-implementation of Germinal expressed in proto-language's program
+formulation, not a byte-for-byte port of the original code: results are not
+1-to-1 identical to upstream. See "Known parity gaps" below for specifics.
+
 Mirrors ``germinal/run_germinal.py`` + ``germinal/design/design.py`` for antibody
 binder design against a target PDB. Three hallucination stages with post-stage
 confidence gates, then an external pre-redesign cofold filter pass, then AbMPNN

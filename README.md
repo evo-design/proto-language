@@ -51,7 +51,6 @@ Working programs ship under [`examples/`](examples/):
 
 - **[`examples/jsons/`](examples/jsons/)** — declarative JSON program definitions, consumed via `Program.from_json()`. The fastest way to run something end-to-end.
 - **[`examples/scripts/`](examples/scripts/)** — Python programs covering broader workloads.
-- **[`examples/germinal/`](examples/germinal/)** and **[`examples/bindcraft/`](examples/bindcraft/)** — domain-specific design pipelines.
 
 ## Architecture
 

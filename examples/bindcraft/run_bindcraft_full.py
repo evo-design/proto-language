@@ -1,6 +1,10 @@
 r"""BindCraft de novo protein binder design pipeline.
 
-Reimplementation of BindCraft (Pacesa et al., Nature 2025) on proto-language.
+This is a re-implementation of BindCraft (Pacesa et al., Nature 2025) expressed
+in proto-language's program formulation, not a byte-for-byte port of the
+original code: results are not 1-to-1 identical to upstream (see the divergence
+notes below).
+
 Per trajectory: AF2 hallucination → gates (CA clashes, pLDDT, contacts) →
 PyRosetta relax → ProteinMPNN redesign → AF2 cross-validation + monomer RMSD →
 PyRosetta interface analysis → ~16 metric filters.

@@ -1,5 +1,9 @@
 """Minimal BindCraft-style hallucination-only binder design.
 
+This is a re-implementation expressed in proto-language's program formulation,
+not a byte-for-byte port of BindCraft: results are not 1-to-1 identical to
+upstream.
+
 This script intentionally does not implement the full BindCraft pipeline. It
 only runs the pre-MPNN hallucination stages with AF2 multimer objectives:
 
