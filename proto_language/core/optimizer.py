@@ -117,7 +117,9 @@ class Optimizer(ABC):
         >>> len(optimizer.segments)  # 1
     """
 
+    _require_non_empty_generators: bool = True
     _require_non_empty_constraints: bool = True
+    _allow_unpopulated_constraint_inputs_without_generators: bool = False
     config: BaseOptimizerConfig
 
     @abstractmethod
@@ -456,7 +458,7 @@ class Optimizer(ABC):
             raise ValueError(
                 "Optimizer requires at least one Construct (got empty list); each construct holds the segments to optimize"
             )
-        if not self.generators:
+        if self._require_non_empty_generators and not self.generators:
             raise ValueError(
                 "Optimizer requires at least one Generator (got empty list); generators propose new sequences for assigned segments"
             )
@@ -521,9 +523,16 @@ class Optimizer(ABC):
 
         # 6. Valid constraint inputs
         # Constraints can only reference segments that have sequences or a generator assigned.
+        allow_unpopulated_score_only_inputs = (
+            not self.generators and self._allow_unpopulated_constraint_inputs_without_generators
+        )
         for constraint in self.constraints:
             for segment in constraint.inputs:
-                if not segment.populated_sequences and segment not in assigned_segments:
+                if (
+                    not segment.populated_sequences
+                    and segment not in assigned_segments
+                    and not allow_unpopulated_score_only_inputs
+                ):
                     raise RuntimeError(
                         f"Constraint '{constraint.label}' references segment '{segment.label or 'unlabeled'}' "
                         "which has no populated sequence and no generator assigned."

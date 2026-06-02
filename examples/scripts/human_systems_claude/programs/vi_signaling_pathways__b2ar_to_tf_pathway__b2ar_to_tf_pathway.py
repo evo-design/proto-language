@@ -1,351 +1,792 @@
 #!/usr/bin/env python3
-"""Diversification program for: b2AR to TF Pathway - b2AR to TF Pathway
-Category: VI. Signaling Pathways
+"""B2AR-to-TF pathway design and client JSON export."""
 
-This script:
-1. Loads wildtype sequences for all genes in this row
-2. Runs MCMC-based diversification with structure constraints
-3. Scores each complex with AlphaFold3
-4. Saves results to the output directory
+from __future__ import annotations
 
-To customize:
-- Add constraints in the `add_custom_constraints` function
-- Modify hyperparameters in the config or below
-"""
-
+import argparse
 import gc
+import json
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 
+import pandas as pd
 import torch
+from Bio import SeqIO
 from Bio.Seq import Seq
 
-# Add project root to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = SCRIPT_DIR.parent
+REPO_ROOT = SCRIPT_DIR.parents[3]
+sys.path.insert(0, str(SCRIPT_DIR))
+sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(PROJECT_DIR))
 
-from lib import gene_ids_to_program, load_config, score_complexes_in_program_with_af3
-from vi_signaling_pathways__b2ar_to_tf_pathway__creb_dna import (
+from vi_signaling_pathways__b2ar_to_tf_pathway__creb_dna import (  # noqa: E402
     DESIGN_SEQ_LENGTH as CREB_DNA_LENGTH,
-)
-from vi_signaling_pathways__b2ar_to_tf_pathway__creb_dna import (
+    LEFT_FLANK_FNAME,
+    PROMPT_FNAME,
+    RIGHT_FLANK_FNAME,
+    clean_dna,
+    creb_flank_lengths,
+    creb_track_ids,
     generate_creb_dna_sequence,
 )
 
-from proto_language.constraint import structure_ensemble_rmsd_constraint
-from proto_language.core import Constraint, Construct, Segment
-from proto_language.utils import inverse_sigmoid_score
+from proto_language.constraint import (  # noqa: E402
+    overall_protein_quality_constraint,
+    structure_ensemble_rmsd_constraint,
+    structure_iptm_constraint,
+    structure_pae_constraint,
+    structure_plddt_constraint,
+    structure_ptm_constraint,
+)
+from proto_language.core import Constraint, Construct, Program, Segment  # noqa: E402
+from proto_language.generator import ESM3Generator, ESM3GeneratorConfig, MaskingStrategy  # noqa: E402
+from proto_language.optimizer import (  # noqa: E402
+    MCMCOptimizer,
+    MCMCOptimizerConfig,
+    RejectionSamplingOptimizer,
+    RejectionSamplingOptimizerConfig,
+)
 
-# =============================================================================
-# CUSTOMIZE HERE: Add row-specific constraints
-# =============================================================================
+PROJECT_SLUG = "vi_signaling_pathways__b2ar_to_tf_pathway__b2ar_to_tf_pathway"
+
+DEFAULT_HUMAN_GENES_TSV = Path("examples/data/human_genes.tsv")
+DEFAULT_HUMAN_GENES_FASTA = Path("examples/data/human_genes.fasta")
+DEFAULT_PDB_CACHE_DIR = Path("examples/data/pdb_cache")
+
+EPINEPHRINE_SMILES = "CNC[C@@H](c1ccc(c(c1)O)O)O"
+ATP_SMILES = "c1nc(c2c(n1)n(cn2)[C@H]3[C@@H]([C@@H]([C@H](O3)CO[P@@](=O)(O)O[P@](=O)(O)OP(=O)(O)O)O)O)N"
+CREBBP_KIX_SEQUENCE = "GVRKGWHEHVTQDLRSHLVHKLVQAIFPTPDPAALKDRRMENLVAYAKKVEGDMYESANSRDEYYHLLAEKIYKIQKELE"
+
+CREB_MOTIF_START = (CREB_DNA_LENGTH // 2) - 25
+CREB_MOTIF_END = (CREB_DNA_LENGTH // 2) + 25
+CREB_MOTIF_LENGTH = CREB_MOTIF_END - CREB_MOTIF_START
+
+BIOEMU_JOBS = (
+    ("GNAS inactive ensemble RMSD", "GNAS", "6au6", "A", (85, 394), "gnas"),
+    ("GNAS exchange ensemble RMSD", "GNAS", "3sn6", "A", (85, 394), "gnas"),
+    ("PRKAR1A homodimer ensemble RMSD", "PRKAR1A", "1rl3", "A", (119, 379), "prkar1a"),
+    ("PRKAR1A tetramer ensemble RMSD", "PRKAR1A", "2qcs", "B", (119, 379), "prkar1a"),
+)
+BIOEMU_TIMEOUT_SECONDS = 2 * 60 * 60
 
 
-def add_custom_constraints(
-    gene_id_to_segment: dict[str, Segment],
+def _paths() -> tuple[Path, Path, Path]:
+    config_path = PROJECT_DIR / "configs" / f"{PROJECT_SLUG}.json"
+    output_dir = PROJECT_DIR / "outputs" / PROJECT_SLUG
+    json_path = Path("examples/jsons") / f"{PROJECT_SLUG}.json"
+    return config_path, output_dir, json_path
+
+
+def _load_config(path: Path) -> dict[str, Any]:
+    with path.open() as f:
+        return json.load(f)
+
+
+def _load_wildtype_sequences(gene_ids: list[str]) -> dict[str, str]:
+    gene_df = pd.read_csv(DEFAULT_HUMAN_GENES_TSV, sep="\t")
+    gene_to_uniprot = {row["From"]: row["Entry"] for _, row in gene_df.iterrows()}
+
+    missing_genes = [gene_id for gene_id in gene_ids if gene_id not in gene_to_uniprot]
+    if missing_genes:
+        raise ValueError(f"Gene IDs not found in mapping: {missing_genes}")
+
+    uniprot_to_sequence: dict[str, str] = {}
+    for record in SeqIO.parse(DEFAULT_HUMAN_GENES_FASTA, "fasta"):
+        uniprot_to_sequence[record.id.split("|")[1]] = str(record.seq)
+
+    sequences = {}
+    for gene_id in gene_ids:
+        uniprot_id = gene_to_uniprot[gene_id]
+        if uniprot_id not in uniprot_to_sequence:
+            raise ValueError(f"UniProt ID not found in FASTA for {gene_id}: {uniprot_id}")
+        sequences[gene_id] = uniprot_to_sequence[uniprot_id]
+    return sequences
+
+
+def _profile_values(profile: str) -> dict[str, Any]:
+    smoke = profile == "smoke"
+    return {
+        "creb_samples": 1 if smoke else 300,
+        "protein_steps_per_generator": 1 if smoke else 5,
+        "protein_num_steps": 1 if smoke else None,
+        "esm2_model": "esm2_t6_8M_UR50D" if smoke else "esm2_t33_650M_UR50D",
+        "esmfold_config": {"num_recycles": 1, "max_batch_residues": 1200, "verbose": False} if smoke else None,
+        "bioemu_samples": {"GNAS": 1 if smoke else 3000, "PRKAR1A": 1 if smoke else 1000},
+        "bioemu_batch_size": 1 if smoke else 100,
+        "protenix_config": _protenix_config(smoke=smoke),
+    }
+
+
+def _protenix_config(smoke: bool = False) -> dict[str, Any]:
+    config: dict[str, Any] = {
+        "model_name": "protenix_base_default_v1.0.0",
+        "use_msa": False,
+        "verbose": True,
+    }
+    if smoke:
+        config.update(
+            {
+                "model_name": "protenix_mini_default_v0.5.0",
+                "num_diffusion_samples": 1,
+                "num_diffusion_steps": 5,
+                "num_pairformer_cycles": 1,
+                "timeout": 600,
+            }
+        )
+    return config
+
+
+def _protein_quality_config() -> dict[str, Any]:
+    return {
+        "enable_length": False,
+        "enable_complexity": True,
+        "complexity_max_low_complexity": 0.2,
+        "enable_repetitiveness": True,
+        "repetitiveness_max_repetitiveness": 0.1,
+        "repetitiveness_min_repeat_length": 1,
+        "enable_diversity": False,
+        "enable_balanced_aas": False,
+    }
+
+
+def _copy_label(component_id: str, index: int, count: int) -> str:
+    return component_id if count == 1 else f"{component_id} copy {index + 1}"
+
+
+def _segment_id(component_id: str, index: int, count: int) -> str:
+    base = component_id.lower()
+    return base if count == 1 else f"{base}_{index + 1}"
+
+
+def _pathway_complexes(base_complexes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    complexes = [
+        {
+            **complex_info,
+            "gene_ids": list(complex_info["gene_ids"]),
+            "stoichiometry": dict(complex_info["stoichiometry"]),
+        }
+        for complex_info in base_complexes
+    ]
+    for complex_info in complexes:
+        if complex_info["complex_id"] == "MONOMER::GPCR":
+            complex_info["gene_ids"].append("L_epinephrine")
+            complex_info["stoichiometry"]["L_epinephrine"] = 1
+        elif complex_info["complex_id"] == "MONOMER::Adenylyl_cyclase":
+            complex_info["gene_ids"].append("ATP")
+            complex_info["stoichiometry"]["ATP"] = 1
+        elif complex_info["complex_id"] == "HOMOMER::CREB_dimer":
+            complex_info["gene_ids"] += ["CREBBP_KIX", "CREB_TF_motif1", "CREB_TF_motif2"]
+            complex_info["stoichiometry"]["CREBBP_KIX"] = 2
+            complex_info["stoichiometry"]["CREB_TF_motif1"] = 1
+            complex_info["stoichiometry"]["CREB_TF_motif2"] = 1
+    return complexes
+
+
+def _max_stoichiometry(complexes: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for complex_info in complexes:
+        for component_id in complex_info["gene_ids"]:
+            counts[component_id] = max(counts.get(component_id, 1), int(complex_info["stoichiometry"][component_id]))
+    return counts
+
+
+def _complex_segments(complex_info: dict[str, Any], component_segments: dict[str, list[Segment]]) -> list[Segment]:
+    inputs = []
+    for component_id in complex_info["gene_ids"]:
+        count = int(complex_info["stoichiometry"][component_id])
+        inputs.extend(component_segments[component_id][:count])
+    return inputs
+
+
+def _complex_segment_ids(complex_info: dict[str, Any], segment_ids: dict[str, list[str]]) -> list[str]:
+    targets = []
+    for component_id in complex_info["gene_ids"]:
+        count = int(complex_info["stoichiometry"][component_id])
+        targets.extend(segment_ids[component_id][:count])
+    return targets
+
+
+def _add_construct(
+    constructs: list[Construct],
+    component_segments: dict[str, list[Segment]],
+    component_id: str,
+    segment: Segment,
+    label: str,
+) -> None:
+    component_segments.setdefault(component_id, []).append(segment)
+    constructs.append(Construct([segment], label=label))
+
+
+def _add_static_constructs(
+    constructs: list[Construct],
+    component_segments: dict[str, list[Segment]],
+    creb_dna: str,
+) -> None:
+    creb_motif = creb_dna[CREB_MOTIF_START:CREB_MOTIF_END]
+    creb_motif_revcomp = str(Seq(creb_motif).reverse_complement())
+
+    _add_construct(
+        constructs,
+        component_segments,
+        "L_epinephrine",
+        Segment(sequence=EPINEPHRINE_SMILES, sequence_type="ligand", label="L-epinephrine"),
+        "L-epinephrine",
+    )
+    _add_construct(
+        constructs,
+        component_segments,
+        "ATP",
+        Segment(sequence=ATP_SMILES, sequence_type="ligand", label="ATP"),
+        "ATP",
+    )
+    for idx in range(2):
+        label = _copy_label("CREBBP_KIX", idx, 2)
+        _add_construct(
+            constructs,
+            component_segments,
+            "CREBBP_KIX",
+            Segment(sequence=CREBBP_KIX_SEQUENCE, sequence_type="protein", label=label),
+            label,
+        )
+    _add_construct(
+        constructs,
+        component_segments,
+        "CREB_TF_motif1",
+        Segment(sequence=creb_motif, sequence_type="dna", label="CREB TF motif 1"),
+        "CREB TF motif 1",
+    )
+    _add_construct(
+        constructs,
+        component_segments,
+        "CREB_TF_motif2",
+        Segment(sequence=creb_motif_revcomp, sequence_type="dna", label="CREB TF motif 2"),
+        "CREB TF motif 2",
+    )
+
+
+def _build_protein_design(
+    gene_ids: list[str],
+    sequences: dict[str, str],
+    complexes: list[dict[str, Any]],
+    profile: str,
+) -> tuple[list[Construct], dict[str, list[Segment]], list[ESM3Generator], list[Constraint]]:
+    profile_values = _profile_values(profile)
+    max_stoich = _max_stoichiometry(complexes)
+    structure_config: dict[str, Any] = {"structure_tool": "esmfold"}
+    if profile_values["esmfold_config"] is not None:
+        structure_config["esmfold_config"] = profile_values["esmfold_config"]
+
+    constructs: list[Construct] = []
+    component_segments: dict[str, list[Segment]] = {}
+    generators: list[ESM3Generator] = []
+    constraints: list[Constraint] = []
+
+    for gene_id in gene_ids:
+        sequence = sequences[gene_id]
+        copy_count = max_stoich.get(gene_id, 1)
+        tied_segments = [
+            Segment(
+                sequence=sequence,
+                sequence_type="protein",
+                label=_copy_label(gene_id, idx, copy_count),
+            )
+            for idx in range(copy_count)
+        ]
+        for idx, segment in enumerate(tied_segments):
+            _add_construct(constructs, component_segments, gene_id, segment, _copy_label(gene_id, idx, copy_count))
+
+        generator = ESM3Generator(
+            ESM3GeneratorConfig(
+                model_checkpoint="esm3_sm_open_v1",
+                temperature=0.3,
+                masking_strategy=MaskingStrategy(num_mutations=max(1, int(0.25 * len(sequence)))),
+                batch_size=1,
+            )
+        )
+        generator.assign(tied_segments)
+        generators.append(generator)
+
+        primary_segment = tied_segments[0]
+        constraints.extend(
+            [
+                Constraint(
+                    inputs=[primary_segment],
+                    function=structure_plddt_constraint,
+                    function_config=structure_config,
+                    label=f"{gene_id}_esmfold_plddt",
+                ),
+                Constraint(
+                    inputs=[primary_segment],
+                    function=structure_ptm_constraint,
+                    function_config=structure_config,
+                    label=f"{gene_id}_esmfold_ptm",
+                ),
+                Constraint(
+                    inputs=[primary_segment],
+                    function=overall_protein_quality_constraint,
+                    function_config={"protein_quality_config": _protein_quality_config()},
+                    threshold=0.3,
+                    label=f"{gene_id}_protein_quality",
+                ),
+            ]
+        )
+
+    return constructs, component_segments, generators, constraints
+
+
+def _bioemu_constraints(
+    component_segments: dict[str, list[Segment]],
+    output_dir: Path,
+    profile: str,
 ) -> list[Constraint]:
-    """Add custom constraints for this specific system.
+    profile_values = _profile_values(profile)
+    run_dir = os.environ.get("RUN_OUTPUT_DIR")
+    if run_dir is None:
+        run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        run_dir = str(output_dir / f"run_{run_timestamp}")
+        os.makedirs(run_dir, exist_ok=True)
+    bioemu_dir = Path(run_dir) / "bioemu_outputs"
 
-    This function is called during program construction. You can add
-    constraints that:
-    - Enforce specific residue conservation
-    - Add cross-protein interaction constraints
-    - Include custom scoring functions
-
-    Args:
-        gene_id_to_segment: Mapping from gene ID to its Segment object
-
-    Returns:
-        List of Constraint objects to add to the program
-
-    Examples:
-        # Conservation constraint for a specific residue
-        from proto_language.constraint import residue_constraint
-        constraints.append(Constraint(
-            inputs=[gene_id_to_segment['ORC1']],
-            function=residue_constraint,
-            function_config={'position': 100, 'allowed_residues': ['K', 'R']},
-        ))
-
-        # Cross-protein interaction constraint
-        constraints.append(Constraint(
-            inputs=[gene_id_to_segment['ORC1'], gene_id_to_segment['ORC2']],
-            function=interaction_constraint,
-            function_config={'min_contacts': 10},
-        ))
-    """
+    jobs = BIOEMU_JOBS[:1] if profile == "smoke" else BIOEMU_JOBS
     constraints = []
-
-    # See program additions below.
-
+    for label, gene_id, pdb_id, chain_id, residue_range, output_suffix in jobs:
+        constraints.append(
+            Constraint(
+                inputs=[component_segments[gene_id][0]],
+                function=structure_ensemble_rmsd_constraint,
+                function_config={
+                    "target_structure": str(DEFAULT_PDB_CACHE_DIR / f"{pdb_id}.pdb"),
+                    "target_chain_id": chain_id,
+                    "target_residue_range": residue_range,
+                    "proposal_residue_range": residue_range,
+                    "bioemu_config": {
+                        "num_samples": profile_values["bioemu_samples"][gene_id],
+                        "output_dir": str(bioemu_dir) + f"_{output_suffix}",
+                        "batch_size": profile_values["bioemu_batch_size"],
+                        "filter_samples": False,
+                        "timeout": BIOEMU_TIMEOUT_SECONDS,
+                    },
+                    "rmsd_aggregation": "min",
+                    "inflection_point_angstroms": 3.0,
+                    "sigmoid_slope": 3.0,
+                    "verbose": True,
+                },
+                label=label.lower().replace(" ", "_"),
+            )
+        )
     return constraints
 
 
-# =============================================================================
-# MAIN EXECUTION
-# =============================================================================
+def _protenix_constraints(
+    component_segments: dict[str, list[Segment]],
+    complexes: list[dict[str, Any]],
+    profile: str,
+) -> list[Constraint]:
+    profile_values = _profile_values(profile)
+    structure_config = {
+        "structure_tool": "protenix",
+        "protenix_config": profile_values["protenix_config"],
+    }
+    metric_constraints = [
+        ("structure_plddt", structure_plddt_constraint),
+        ("structure_ptm", structure_ptm_constraint),
+        ("structure_iptm", structure_iptm_constraint),
+        ("structure_pae", structure_pae_constraint),
+    ]
+    selected_complexes = complexes[:1] if profile == "smoke" else complexes
+
+    constraints = []
+    for complex_info in selected_complexes:
+        inputs = _complex_segments(complex_info, component_segments)
+        for metric_name, metric_fn in metric_constraints:
+            constraints.append(
+                Constraint(
+                    inputs=inputs,
+                    function=metric_fn,
+                    function_config=structure_config,
+                    label=f"{complex_info['complex_id']}_{metric_name}",
+                )
+            )
+    return constraints
 
 
-def main():
-    # =============================================================================
-    # Design the CREB DNA sequence.
-    # =============================================================================
+def create_b2ar_to_tf_pathway_program(creb_dna: str, profile: str = "full") -> tuple[Program, dict[str, list[Segment]]]:
+    """Build the local executable Proto program."""
+    config_path, output_dir, _json_path = _paths()
+    config = _load_config(config_path)
+    gene_ids = list(config["all_gene_ids"])
+    sequences = _load_wildtype_sequences(gene_ids)
+    complexes = _pathway_complexes(config["complexes"])
+    profile_values = _profile_values(profile)
 
-    # Note: Design this first, as it is separate from the other parts of the file,
-    # and Flashzoi has problems with GPU CUDA context corruption.
+    constructs, component_segments, protein_generators, protein_constraints = _build_protein_design(
+        gene_ids,
+        sequences,
+        complexes,
+        profile,
+    )
+    _add_static_constructs(constructs, component_segments, creb_dna)
 
-    creb_dna = generate_creb_dna_sequence()
-    assert len(creb_dna) == CREB_DNA_LENGTH
+    protein_optimizer = MCMCOptimizer(
+        constructs=constructs,
+        generators=protein_generators,
+        constraints=protein_constraints,
+        config=MCMCOptimizerConfig(
+            num_results=1,
+            proposals_per_result=1,
+            num_steps=profile_values["protein_num_steps"]
+            or len(protein_generators) * profile_values["protein_steps_per_generator"],
+            max_temperature=0.1,
+            min_temperature=0.01,
+            tracking_interval=1,
+            verbose=True,
+        ),
+        custom_logging=_protein_logger(gene_ids, component_segments),
+        clear_tool_cache=4 * 1024 * 1024 * 1024,
+    )
 
-    # Clean up the CUDA context just in case.
+    scoring_optimizer = RejectionSamplingOptimizer(
+        constructs=constructs,
+        generators=[],
+        constraints=[
+            *_bioemu_constraints(component_segments, output_dir, profile),
+            *_protenix_constraints(component_segments, complexes, profile),
+        ],
+        config=RejectionSamplingOptimizerConfig(
+            num_samples=1,
+            num_results=1,
+            proposal_source="existing_results",
+            verbose=True,
+        ),
+    )
+
+    program = Program(
+        optimizers=[protein_optimizer, scoring_optimizer],
+        num_results=1,
+        verbose=True,
+    )
+    return program, component_segments
+
+
+def _protein_logger(gene_ids: list[str], component_segments: dict[str, list[Segment]]):
+    design_segments = [(gene_id, component_segments[gene_id][0]) for gene_id in gene_ids]
+
+    def custom_logging(step: int, outputs: tuple[Segment, ...]) -> None:
+        del outputs
+        print(f"Protein design step {step}:")
+        for gene_id, segment in design_segments:
+            print(f"\t{gene_id}: {segment.result_sequences[0].sequence}")
+
+    return custom_logging
+
+
+def _json_construct(
+    construct_id: str,
+    label: str,
+    sequence_type: str,
+    sequence: str | None = None,
+    length: int | None = None,
+) -> dict[str, Any]:
+    segment: dict[str, Any] = {"id": construct_id, "label": label}
+    if sequence is None:
+        segment["length"] = length
+    else:
+        segment["sequence"] = sequence
+    return {
+        "id": f"{construct_id}_construct",
+        "type": sequence_type,
+        "label": label,
+        "segments": [segment],
+    }
+
+
+def _json_structure_constraint(
+    label: str,
+    key: str,
+    targets: list[str],
+    config: dict[str, Any],
+    weight: float = 1.0,
+) -> dict[str, Any]:
+    item: dict[str, Any] = {"key": key, "label": label, "targets": targets, "config": config}
+    if weight != 1.0:
+        item["weight"] = weight
+    return item
+
+
+def _json_bioemu_constraint(
+    label: str,
+    target: str,
+    pdb_id: str,
+    chain_id: str,
+    residue_range: tuple[int, int],
+    samples: int,
+) -> dict[str, Any]:
+    return {
+        "key": "structure-ensemble-rmsd",
+        "label": label,
+        "targets": [target],
+        "config": {
+            "target_structure": str(DEFAULT_PDB_CACHE_DIR / f"{pdb_id}.pdb"),
+            "target_chain_id": chain_id,
+            "target_residue_range": list(residue_range),
+            "proposal_residue_range": list(residue_range),
+            "bioemu_config": {
+                "num_samples": samples,
+                "batch_size": 1,
+                "filter_samples": False,
+                "timeout": BIOEMU_TIMEOUT_SECONDS,
+            },
+            "rmsd_aggregation": "min",
+            "inflection_point_angstroms": 3.0,
+            "sigmoid_slope": 3.0,
+            "verbose": True,
+        },
+    }
+
+
+def build_frontend_program_json(profile: str = "full") -> dict[str, Any]:
+    """Build client/API-compatible JSON for the complete pathway."""
+    config_path, _output_dir, _json_path = _paths()
+    config = _load_config(config_path)
+    gene_ids = list(config["all_gene_ids"])
+    sequences = _load_wildtype_sequences(gene_ids)
+    complexes = _pathway_complexes(config["complexes"])
+    for complex_info in complexes:
+        if complex_info["complex_id"] == "HOMOMER::CREB_dimer":
+            complex_info["gene_ids"].remove("CREB_TF_motif2")
+            del complex_info["stoichiometry"]["CREB_TF_motif2"]
+    max_stoich = _max_stoichiometry(complexes)
+    profile_values = _profile_values(profile)
+
+    segment_ids: dict[str, list[str]] = {}
+    constructs: list[dict[str, Any]] = []
+    for gene_id in gene_ids:
+        copy_count = max_stoich.get(gene_id, 1)
+        segment_ids[gene_id] = []
+        for idx in range(copy_count):
+            sid = _segment_id(gene_id, idx, copy_count)
+            segment_ids[gene_id].append(sid)
+            constructs.append(
+                _json_construct(
+                    sid,
+                    _copy_label(gene_id, idx, copy_count),
+                    "protein",
+                    sequence=sequences[gene_id] if idx == 0 else None,
+                    length=None if idx == 0 else len(sequences[gene_id]),
+                )
+            )
+
+    left_flank_len, right_flank_len = creb_flank_lengths()
+    creb_prompt = clean_dna(str(SeqIO.read(PROMPT_FNAME, "fasta").seq))
+    left_flank = clean_dna(str(SeqIO.read(LEFT_FLANK_FNAME, "fasta").seq))[-left_flank_len:]
+    right_flank = clean_dna(str(SeqIO.read(RIGHT_FLANK_FNAME, "fasta").seq))[:right_flank_len]
+
+    constructs.extend(
+        [
+            _json_construct("l_epinephrine", "L-epinephrine", "ligand", sequence=EPINEPHRINE_SMILES),
+            _json_construct("atp", "ATP", "ligand", sequence=ATP_SMILES),
+            _json_construct("creb_left_flank", "CREB left Borzoi flank", "dna", sequence=left_flank),
+            _json_construct("creb_dna", "CREB TF motif", "dna", length=CREB_MOTIF_LENGTH),
+            _json_construct("creb_right_flank", "CREB right Borzoi flank", "dna", sequence=right_flank),
+            _json_construct("crebbp_kix_1", "CREBBP_KIX copy 1", "protein", sequence=CREBBP_KIX_SEQUENCE),
+            _json_construct("crebbp_kix_2", "CREBBP_KIX copy 2", "protein", sequence=CREBBP_KIX_SEQUENCE),
+        ]
+    )
+    segment_ids.update(
+        {
+            "L_epinephrine": ["l_epinephrine"],
+            "ATP": ["atp"],
+            "CREBBP_KIX": ["crebbp_kix_1", "crebbp_kix_2"],
+            "CREB_TF_motif1": ["creb_dna"],
+        }
+    )
+
+    creb_stage = {
+        "generators": [
+            {
+                "key": "evo2",
+                "label": "CREB motif generator",
+                "targets": ["creb_dna"],
+                "config": {
+                    "prompts": [creb_prompt],
+                    "model_checkpoint": "evo2_7b",
+                    "top_k": 4,
+                    "top_p": 1.0,
+                    "temperature": 0.5,
+                    "force_prompt_threshold": 1,
+                    "stop_at_eos": False,
+                    "batched": True,
+                    "batch_size": 1 if profile == "smoke" else 10,
+                    "cached_generation": True,
+                    "prepend_prompt": False,
+                },
+            }
+        ],
+        "constraints": [
+            {
+                "key": "borzoi-track-activity",
+                "label": "Borzoi CREB track activity",
+                "targets": ["creb_left_flank", "creb_dna", "creb_right_flank"],
+                "config": {
+                    "organism": "human",
+                    "borzoi_output_tracks": creb_track_ids(),
+                    "direction": "maximize",
+                    "activity_threshold": 200.0,
+                    "batch_size": 1,
+                },
+            }
+        ],
+        "optimizer": {
+            "method": "rejection-sampling",
+            "config": {"num_samples": profile_values["creb_samples"], "num_results": 1, "verbose": True},
+        },
+    }
+
+    protein_generators = []
+    protein_constraints = []
+    esmfold_config: dict[str, Any] = {"structure_tool": "esmfold"}
+    if profile_values["esmfold_config"] is not None:
+        esmfold_config["esmfold_config"] = profile_values["esmfold_config"]
+
+    for gene_id in gene_ids:
+        primary_sid = segment_ids[gene_id][0]
+        if gene_id != "ADCY9":
+            protein_generators.append(
+                {
+                    "key": "esm2",
+                    "label": f"{gene_id} tied-copy ESM2 generator",
+                    "targets": segment_ids[gene_id],
+                    "config": {
+                        "model_checkpoint": profile_values["esm2_model"],
+                        "temperature": 0.3,
+                        "masking_strategy": MaskingStrategy(
+                            num_mutations=max(1, int(0.25 * len(sequences[gene_id])))
+                        ).model_dump(),
+                        "batch_size": 1,
+                    },
+                }
+            )
+        protein_constraints.extend(
+            [
+                _json_structure_constraint(
+                    f"{gene_id} ESMFold pLDDT", "structure-plddt", [primary_sid], esmfold_config
+                ),
+                _json_structure_constraint(f"{gene_id} ESMFold pTM", "structure-ptm", [primary_sid], esmfold_config),
+                {
+                    "key": "overall-protein-quality",
+                    "label": f"{gene_id} protein quality",
+                    "targets": [primary_sid],
+                    "threshold": 0.3,
+                    "config": {"protein_quality_config": _protein_quality_config()},
+                },
+            ]
+        )
+
+    protein_stage = {
+        "generators": protein_generators,
+        "constraints": protein_constraints,
+        "optimizer": {
+            "method": "mcmc",
+            "config": {
+                "num_results": 1,
+                "proposals_per_result": 1,
+                "num_steps": profile_values["protein_num_steps"]
+                or len(gene_ids) * profile_values["protein_steps_per_generator"],
+                "max_temperature": 0.1,
+                "min_temperature": 0.01,
+                "tracking_interval": 1,
+                "verbose": True,
+            },
+        },
+    }
+
+    scoring_constraints = [
+        _json_bioemu_constraint(
+            label,
+            segment_ids[gene_id][0],
+            pdb_id,
+            chain_id,
+            residue_range,
+            profile_values["bioemu_samples"][gene_id],
+        )
+        for label, gene_id, pdb_id, chain_id, residue_range, _ in BIOEMU_JOBS
+    ]
+    structure_config = {
+        "structure_tool": "protenix",
+        "protenix_config": profile_values["protenix_config"],
+    }
+    for complex_info in complexes:
+        targets = _complex_segment_ids(complex_info, segment_ids)
+        for metric_key in ("structure-plddt", "structure-ptm", "structure-iptm", "structure-pae"):
+            scoring_constraints.append(
+                _json_structure_constraint(
+                    f"{complex_info['complex_name']} {metric_key}",
+                    metric_key,
+                    targets,
+                    structure_config,
+                )
+            )
+
+    scoring_stage = {
+        "generators": [],
+        "constraints": scoring_constraints,
+        "optimizer": {
+            "method": "rejection-sampling",
+            "config": {"num_samples": 1, "num_results": 1, "proposal_source": "existing_results", "verbose": True},
+        },
+    }
+
+    return {
+        "name": "B2AR-to-TF pathway",
+        "description": "End-to-end human beta-2 adrenergic receptor signaling-pathway design, from ligand sensing at ADRB2 through Gs activation, adenylyl cyclase engagement, PKA holoenzyme assembly, and CREB-mediated transcriptional readout. The program includes epinephrine-bound ADRB2, the GNAS/GNB1/GNG2 heterotrimer, ADCY9 with ATP, a 2:2 PRKACA:PRKAR1A PKA holoenzyme, and a CREB1 dimer bound to a CRE-family regulatory DNA motif with two CREBBP KIX domains. Stage 1 designs the CREB target motif inside fixed Borzoi flanks with Evo2 and a Borzoi CREB-track activity objective. Stage 2 diversifies pathway proteins with tied-copy protein generators for stoichiometric assemblies while preserving ESMFold pLDDT/pTM and protein-quality constraints; the client JSON holds ADCY9 fixed to avoid the very large ESM2 diversification step. Stage 3 rescoring uses existing-results rejection sampling to rank the complete pathway candidate with BioEmu ensemble RMSD checks for GNAS and PRKAR1A conformational states plus Protenix v1 confidence metrics for the receptor, G-protein, cyclase, PKA, and CREB transcription-factor complexes. This checked-in JSON uses the smoke profile so it can render and compile as a system-design example; increase sample counts, BioEmu samples, and Protenix settings for a full design campaign.",
+        "version": "1.0",
+        "num_results": 1,
+        "verbose": True,
+        "constructs": constructs,
+        "optimization_stages": [creb_stage, protein_stage, scoring_stage],
+    }
+
+
+def write_frontend_program_json(path: Path, profile: str = "full") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(build_frontend_program_json(profile=profile), indent=2) + "\n")
+    print(f"Wrote client program JSON to {path}")
+
+
+def run_local(profile: str = "full") -> int:
+    creb_dna = generate_creb_dna_sequence(profile=profile)
     gc.collect()
     torch.cuda.empty_cache()
 
-    start = (CREB_DNA_LENGTH // 2) - 25
-    end = (CREB_DNA_LENGTH // 2) + 25
-    creb_dna_small = creb_dna[start:end]
-    creb_dna_small_revcomp = str(Seq(creb_dna_small).reverse_complement())
-
-    # =============================================================================
-    # Proceed with the regular protein design program.
-    # =============================================================================
-
-    # Paths
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_dir = os.path.dirname(script_dir)
-    config_path = os.path.join(
-        project_dir, "configs", "vi_signaling_pathways__b2ar_to_tf_pathway__b2ar_to_tf_pathway.json"
-    )
-    output_dir = os.path.join(project_dir, "outputs", "vi_signaling_pathways__b2ar_to_tf_pathway__b2ar_to_tf_pathway")
-
-    # Load configuration
-    config = load_config(config_path)
-
-    print("=" * 70)
-    print(f"Row: {config['pathway']} - {config['component']}")
-    print(f"Category: {config['category']}")
-    print(f"Genes: {config['all_gene_ids']}")
-    print(f"Complexes: {[c['complex_id'] for c in config['complexes']]}")
-    print("=" * 70)
-
-    # Create output directory
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Build and run program
-    gene_ids = config["all_gene_ids"]
-    n_steps = config.get("n_steps_per_generator", 3)
-    n_steps = 5
-
-    print(f"\nBuilding diversification program for {len(gene_ids)} genes...")
-    program, gene_id_to_segment = gene_ids_to_program(
-        gene_ids=gene_ids,
-        n_steps_per_generator=n_steps,
-        custom_constraints_fn=add_custom_constraints,
-    )
-
-    print(f"\nRunning program ({n_steps * len(gene_ids)} total MCMC steps)...")
+    program, component_segments = create_b2ar_to_tf_pathway_program(creb_dna, profile=profile)
     program.run()
 
-    # =============================================================================
-    # Score monomers based on BioEmu-predicted ensemble.
-    # =============================================================================
-
-    run_dir = os.environ.get("RUN_OUTPUT_DIR")
-    if run_dir is None:
-        # Fallback for local runs (not via SLURM)
-        run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        run_dir = os.path.join(output_dir, f"run_{run_timestamp}")
-        os.makedirs(run_dir, exist_ok=True)
-
-    bioemu_dir_prefix = str(os.path.join(run_dir, "bioemu_outputs"))
-
-    rmsd_score_gnas_inactive = Constraint(
-        inputs=[program.constructs[1].segments[0]],
-        function=structure_ensemble_rmsd_constraint,
-        function_config={
-            "target_structure": "examples/data/pdb_cache/6au6.pdb",
-            "target_chain_id": "A",
-            "target_residue_range": (85, 394),
-            "proposal_residue_range": (85, 394),
-            "bioemu_config": {
-                "num_samples": 3000,
-                "output_dir": bioemu_dir_prefix + "_gnas",
-                "batch_size": 100,
-            },
-            "rmsd_aggregation": "min",
-            "inflection_point_angstroms": 3.0,
-            "sigmoid_slope": 3.0,
-            "verbose": True,
-        },
-        label="ensemble_rmsd_gnas_inactive",
-    ).evaluate()[0]
-    rmsd_gnas_inactive = inverse_sigmoid_score(rmsd_score_gnas_inactive, 3.0, 3.0)
-
-    print(f"Min RMSD = {rmsd_gnas_inactive} against inactive Galpha-s (PDB 6AU6)")
-
-    rmsd_score_gnas_exchange = Constraint(
-        inputs=[program.constructs[1].segments[0]],
-        function=structure_ensemble_rmsd_constraint,
-        function_config={
-            "target_structure": "examples/data/pdb_cache/3sn6.pdb",
-            "target_chain_id": "A",
-            "target_residue_range": (85, 394),
-            "proposal_residue_range": (85, 394),
-            "bioemu_config": {
-                "num_samples": 3000,
-                "output_dir": bioemu_dir_prefix + "_gnas",
-                "batch_size": 100,
-            },
-            "rmsd_aggregation": "min",
-            "inflection_point_angstroms": 3.0,
-            "sigmoid_slope": 3.0,
-            "verbose": True,
-        },
-        label="ensemble_rmsd_gnas_exchange",
-    ).evaluate()[0]
-    rmsd_gnas_exchange = inverse_sigmoid_score(rmsd_score_gnas_exchange, 3.0, 3.0)
-
-    print(f"Min RMSD = {rmsd_gnas_exchange} against Galpha-s in exchange state (PDB 3SN6)")
-
-    rmsd_score_prkar1a_homodimer = Constraint(
-        inputs=[program.constructs[6].segments[0]],
-        function=structure_ensemble_rmsd_constraint,
-        function_config={
-            "target_structure": "examples/data/pdb_cache/1rl3.pdb",
-            "target_chain_id": "A",
-            "target_residue_range": (119, 379),
-            "proposal_residue_range": (119, 379),
-            "bioemu_config": {
-                "num_samples": 1000,
-                "output_dir": bioemu_dir_prefix + "_prkar1a",
-                "batch_size": 100,
-            },
-            "rmsd_aggregation": "min",
-            "inflection_point_angstroms": 3.0,
-            "sigmoid_slope": 3.0,
-            "verbose": True,
-        },
-        label="ensemble_rmsd_prkar1a_homodimer",
-    ).evaluate()[0]
-    rmsd_prkar1a_homodimer = inverse_sigmoid_score(rmsd_score_prkar1a_homodimer, 3.0, 3.0)
-
-    print(f"Min RMSD = {rmsd_prkar1a_homodimer} against homodimer PKA-R (PDB 1RL3)")
-
-    rmsd_score_prkar1a_tetramer = Constraint(
-        inputs=[program.constructs[6].segments[0]],
-        function=structure_ensemble_rmsd_constraint,
-        function_config={
-            "target_structure": "examples/data/pdb_cache/2qcs.pdb",
-            "target_chain_id": "B",
-            "target_residue_range": (119, 379),
-            "proposal_residue_range": (119, 379),
-            "bioemu_config": {
-                "num_samples": 1000,
-                "output_dir": bioemu_dir_prefix + "_prkar1a",
-                "batch_size": 100,
-            },
-            "rmsd_aggregation": "min",
-            "inflection_point_angstroms": 3.0,
-            "sigmoid_slope": 3.0,
-            "verbose": True,
-        },
-        label="ensemble_rmsd_prkar1a_tetramer",
-    ).evaluate()[0]
-    rmsd_prkar1a_tetramer = inverse_sigmoid_score(rmsd_score_prkar1a_tetramer, 3.0, 3.0)
-
-    print(f"Min RMSD = {rmsd_prkar1a_tetramer} against tetrameric PKA-R (PDB 2QCS)")
-
-    # =============================================================================
-    # Add DNA and ligands, then score with AF3.
-    # =============================================================================
-
-    # Add epinephrine to b2AR structure (index 0).
-    gene_ids.append("L_epinephrine")
-    config["complexes"][0]["gene_ids"].append("L_epinephrine")
-    config["complexes"][0]["stoichiometry"]["L_epinephrine"] = 1
-    program.constructs.append(
-        Construct(
-            [
-                Segment(
-                    sequence="CNC[C@@H](c1ccc(c(c1)O)O)O",
-                    sequence_type="ligand",
-                )
-            ]
-        )
-    )
-
-    # Add ATP to adenylyl cyclase structure (index 3).
-    gene_ids.append("ATP")
-    config["complexes"][3]["gene_ids"].append("ATP")
-    config["complexes"][3]["stoichiometry"]["ATP"] = 1
-    program.constructs.append(
-        Construct(
-            [
-                Segment(
-                    sequence="c1nc(c2c(n1)n(cn2)[C@H]3[C@@H]([C@@H]([C@H](O3)CO[P@@](=O)(O)O[P@](=O)(O)OP(=O)(O)O)O)O)N",
-                    sequence_type="ligand",
-                )
-            ]
-        )
-    )
-
-    # Add KIX domain of CREB binding protein (CBP) (index 4).
-    gene_ids.append("CREBBP_KIX")
-    config["complexes"][5]["gene_ids"].append("CREBBP_KIX")
-    config["complexes"][5]["stoichiometry"]["CREBBP_KIX"] = 2  # There are two CREBs, so 2 CBP KIXs.
-    program.constructs.append(
-        Construct(
-            [
-                Segment(
-                    sequence="GVRKGWHEHVTQDLRSHLVHKLVQAIFPTPDPAALKDRRMENLVAYAKKVEGDMYESANSRDEYYHLLAEKIYKIQKELE",
-                    sequence_type="protein",
-                )
-            ]
-        )
-    )
-
-    # Add (generated) DNA binding site of CREB (index 4).
-    gene_ids += ["CREB_TF_motif1", "CREB_TF_motif2"]
-    config["complexes"][5]["gene_ids"] += ["CREB_TF_motif1", "CREB_TF_motif2"]
-    config["complexes"][5]["stoichiometry"]["CREB_TF_motif1"] = 1
-    config["complexes"][5]["stoichiometry"]["CREB_TF_motif2"] = 1
-    program.constructs.append(
-        Construct(
-            [
-                Segment(
-                    sequence=creb_dna_small,
-                    sequence_type="dna",
-                )
-            ]
-        )
-    )
-    program.constructs.append(
-        Construct(
-            [
-                Segment(
-                    sequence=creb_dna_small_revcomp,
-                    sequence_type="dna",
-                )
-            ]
-        )
-    )
-
-    # Score complexes with AF3.
-    print(f"\nScoring {len(config['complexes'])} complexes with AlphaFold3...")
-    results = score_complexes_in_program_with_af3(
-        program=program,
-        gene_ids=gene_ids,
-        complexes=config["complexes"],
-        output_dir=output_dir,
-    )
-
-    print(f"\nDone! Results saved to: {output_dir}")
-
-    # Return exit code based on success
-    if results["summary"]["failed"] > 0:
-        print(f"WARNING: {results['summary']['failed']} complex(es) had errors")
-        return 1
+    print("\nFinal design sequences:")
+    for component_id, segments in component_segments.items():
+        for segment in segments:
+            if segment.sequence_type != "ligand":
+                print(f"\t{segment.label or component_id}: {segment.result_sequences[0].sequence}")
     return 0
+
+
+def main() -> int:
+    _config_path, _output_dir, json_path = _paths()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--profile", choices=["full", "smoke"], default="full")
+    parser.add_argument("--emit-json", type=Path, nargs="?", const=json_path)
+    parser.add_argument("--skip-run", action="store_true")
+    args = parser.parse_args()
+
+    if args.emit_json is not None:
+        write_frontend_program_json(args.emit_json, profile=args.profile)
+    if args.skip_run:
+        return 0
+    return run_local(profile=args.profile)
 
 
 if __name__ == "__main__":

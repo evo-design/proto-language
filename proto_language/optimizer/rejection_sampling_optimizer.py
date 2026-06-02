@@ -31,7 +31,7 @@ import copy
 import logging
 import math
 from collections.abc import Callable
-from typing import Any, final
+from typing import Any, Literal, final
 
 from pydantic import model_validator
 
@@ -90,16 +90,20 @@ def _proposal_filter_metadata(proposal: dict[str, Any]) -> tuple[str, str | None
 class RejectionSamplingOptimizerConfig(BaseOptimizerConfig):
     """Configuration object for RejectionSamplingOptimizer.
 
-    The Rejection Sampling optimizer generates many proposal sequences and keeps
-    only the best ``num_results`` by lowest energy score. It processes proposals
-    in internal batches and reports each proposal as the semantic iteration.
+    The Rejection Sampling optimizer generates or receives proposal sequences
+    and keeps only the best ``num_results`` by lowest energy score. It processes
+    generated proposals in internal batches and reports each proposal as the
+    semantic iteration.
 
     Attributes:
-        num_samples (int): Maximum number of samples to generate. Must be at
-            least ``num_results``.
+        num_samples (int): Maximum number of generated samples. In
+            ``existing_results`` mode, caps upstream candidates scored.
 
         num_results (int | None): Number of top sequences to keep and return (lowest
             energy scores). Overrides program-level ``num_results`` if set.
+
+        proposal_source (Literal["generated", "existing_results"]): Whether to
+            generate new proposals or score existing upstream results.
 
         proposal_batch_size (int | None): Number of proposal sequences to
             generate and evaluate per internal batch. If ``None``, inferred
@@ -125,16 +129,21 @@ class RejectionSamplingOptimizerConfig(BaseOptimizerConfig):
     num_samples: int = ConfigField(
         ge=1,
         title="Number of Samples",
-        description="Maximum proposal sequences to generate; may stop earlier when the energy threshold is met.",
+        description="Generated proposal count; in existing-results mode, candidate cap.",
     )
-
-    # Advanced parameters
     num_results: int | None = ConfigField(
         default=None,
         ge=1,
         title="Design Candidates",
         description="Number of top-scoring candidate designs to retain (lowest energy first). Overrides program count.",
     )
+    proposal_source: Literal["generated", "existing_results"] = ConfigField(
+        default="generated",
+        title="Proposal Source",
+        description="Use generated proposals, or rank existing upstream result candidates.",
+    )
+
+    # Advanced parameters
     proposal_batch_size: int | None = ConfigField(
         default=None,
         ge=1,
@@ -151,10 +160,9 @@ class RejectionSamplingOptimizerConfig(BaseOptimizerConfig):
     @model_validator(mode="after")
     def validate_params(self) -> "RejectionSamplingOptimizerConfig":
         """Validate parameter relationships."""
-        # num_results must not exceed num_samples (only validate when num_results is set)
         if self.num_results is not None and self.num_results > self.num_samples:
             raise ValueError(
-                f"num_results ({self.num_results}) cannot exceed num_samples ({self.num_samples}). Cannot keep more sequences than generated."
+                f"num_results ({self.num_results}) cannot exceed num_samples ({self.num_samples}). Cannot keep more sequences than scored."
             )
         return self
 
@@ -213,6 +221,8 @@ class RejectionSamplingOptimizer(Optimizer):
 
     # Class attribute required by OptimizerRegistry
     config_class = RejectionSamplingOptimizerConfig
+    _require_non_empty_generators = False
+    _allow_unpopulated_constraint_inputs_without_generators = True
     config: RejectionSamplingOptimizerConfig
 
     def __init__(
@@ -240,12 +250,15 @@ class RejectionSamplingOptimizer(Optimizer):
             ValueError: If any validation checks fail or num_results cannot be determined.
         """
         self.config = config
-        proposal_batch_size = self._resolve_proposal_batch_size(
-            generators=generators,
-            constraints=constraints,
-            num_samples=config.num_samples,
-            configured=config.proposal_batch_size,
-        )
+        if config.proposal_source == "generated":
+            proposal_batch_size = self._resolve_proposal_batch_size(
+                generators=generators,
+                constraints=constraints,
+                num_samples=config.num_samples,
+                configured=config.proposal_batch_size,
+            )
+        else:
+            proposal_batch_size = config.proposal_batch_size or config.num_samples
         self.config.proposal_batch_size = proposal_batch_size
 
         super().__init__(
@@ -307,6 +320,75 @@ class RejectionSamplingOptimizer(Optimizer):
                     discovered.append(value)
 
         return min(max(discovered, default=1), num_samples)
+
+    def _validate_optimizer(self) -> None:
+        """Validate rejection-sampling mode-specific generator requirements."""
+        super()._validate_optimizer()
+        if self.config.proposal_source == "generated" and not self.generators:
+            raise ValueError(
+                "RejectionSamplingOptimizer requires at least one generator when proposal_source is 'generated'."
+            )
+        if self.config.proposal_source == "existing_results" and self.generators:
+            raise ValueError(
+                "RejectionSamplingOptimizer with proposal_source='existing_results' scores existing sequences and does not accept generators."
+            )
+
+    def _initialize_sequence_pools(self) -> None:
+        """Initialize proposal pools, preserving all upstream candidates when requested."""
+        if self.config.proposal_source != "existing_results":
+            super()._initialize_sequence_pools()
+            return
+
+        assert self.num_results is not None  # noqa: S101 -- mypy type narrowing
+
+        sources: list[list[Sequence]] = []
+        for segment in self.segments:
+            source = segment.result_sequences or [segment.original_sequence]
+            sources.append(source)
+
+        source_len = len(sources[0])
+        for segment, source in zip(self.segments, sources, strict=True):
+            if len(source) != source_len:
+                raise RuntimeError(
+                    f"RejectionSamplingOptimizer handoff mismatch: segment '{segment.label or 'unlabeled'}' has "
+                    f"{len(source)} candidate(s), expected {source_len}."
+                )
+
+        candidate_count = min(source_len, self.config.num_samples)
+
+        if candidate_count < 1:
+            raise RuntimeError("RejectionSamplingOptimizer has no existing result candidates to score.")
+
+        optimizer_name = self.__class__.__name__
+        if source_len > candidate_count:
+            logger.info(
+                f"Handoff to {optimizer_name}: scoring the first {candidate_count}/{source_len} upstream candidates "
+                f"before retaining the top {self.num_results}."
+            )
+        elif source_len > self.num_results:
+            logger.info(
+                f"Handoff to {optimizer_name}: scoring all {source_len} upstream candidates before retaining "
+                f"the top {self.num_results}."
+            )
+        elif source_len < self.num_results:
+            logger.warning(
+                f"Handoff to {optimizer_name}: only {source_len}/{self.num_results} upstream candidates are "
+                "available; scoring will return fewer results."
+            )
+        else:
+            logger.info(f"Handoff to {optimizer_name}: scoring {source_len} upstream candidate(s).")
+
+        for segment, source in zip(self.segments, sources, strict=True):
+            selected = source[:candidate_count]
+            segment.proposal_sequences = [copy.deepcopy(seq) for seq in selected]
+            segment.result_sequences = [copy.deepcopy(seq) for seq in selected]
+
+        self.num_samples = candidate_count
+        self.num_steps = candidate_count
+        self.num_proposals = candidate_count
+        self.proposal_batch_size = candidate_count
+        self.config.proposal_batch_size = candidate_count
+        self.energy_scores = [float("inf")] * candidate_count
 
     def _insert_into_results(self, pos: int, proposal_idx: int, energy: float) -> None:
         """Insert a proposal into the sorted results at the given position."""
@@ -416,6 +498,25 @@ class RejectionSamplingOptimizer(Optimizer):
         assert self.num_results is not None  # noqa: S101 -- mypy type narrowing
         assert self._initial_state is not None  # noqa: S101 -- mypy type narrowing
 
+        if self.config.proposal_source == "existing_results":
+            candidate_count = len(self.segments[0].proposal_sequences) if self.segments else 0
+            if candidate_count == 0:
+                raise RuntimeError("RejectionSamplingOptimizer has no existing result candidates to score.")
+            n_filter = sum(1 for c in self.constraints if c.threshold is not None)
+            n_score = len(self.constraints) - n_filter
+            logger.info(
+                f"RejectionSamplingOptimizer: scoring {candidate_count} existing candidate(s), "
+                f"retaining up to {self.num_results}, {len(self.constraints)} constraints "
+                f"({n_filter} filter, {n_score} scoring)"
+            )
+            self._run_proposal_batch(batch_num=1, first_proposal_number=1, batch_size=candidate_count)
+            self.energy_scores = list(self._result_energies)
+            if len(self._result_energies) < self.num_results:
+                logger.warning(
+                    f"Rejection Sampling optimizer completed with only {len(self._result_energies)}/{self.num_results} valid proposals."
+                )
+            return
+
         # Deferred validation: num_results vs num_samples (num_results may have been set via Program)
         if self.num_results > self.num_samples:
             raise ValueError(
@@ -499,6 +600,7 @@ class RejectionSamplingOptimizer(Optimizer):
         filter_status, failed_filter = _proposal_filter_metadata(proposal)
         metadata: dict[str, Any] = {
             "type": "rejection-sampling",
+            "proposal_source": self.config.proposal_source,
             "iteration_kind": "proposal",
             "proposal_number": proposal_number,
             "proposal_idx": proposal_number - 1,

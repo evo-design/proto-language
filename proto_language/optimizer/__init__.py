@@ -7,13 +7,13 @@ from proto_language.optimizer.beam_search_optimizer import (
     BeamState,
 )
 from proto_language.optimizer.cycling_optimizer import CyclingOptimizer, CyclingOptimizerConfig
+
+# Optimizers
 from proto_language.optimizer.gradient_optimizer import (
     ConstraintWeightSchedule,
     GradientOptimizer,
     GradientOptimizerConfig,
 )
-
-# Optimizers
 from proto_language.optimizer.mcmc_optimizer import MCMCOptimizer, MCMCOptimizerConfig
 from proto_language.optimizer.optimizer_registry import OptimizerRegistry, OptimizerSpec, optimizer
 from proto_language.optimizer.rejection_sampling_optimizer import (

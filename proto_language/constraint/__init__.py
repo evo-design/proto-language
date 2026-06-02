@@ -70,12 +70,15 @@ from proto_language.constraint.sequence_alignment import gap_gini_constraint
 # Sequence annotation constraints
 from proto_language.constraint.sequence_annotation import (
     BorzoiChromatinAccessibilityMorseConfig,
+    BorzoiTrackActivityConfig,
+    BorzoiTrackInterval,
     EnformerChromatinAccessibilityMorseConfig,
     MalinoisActivityCellType,
     MalinoisActivityConfig,
     MalinoisActivityDirection,
     alphagenome_interval_track_constraint,
     borzoi_chromatin_accessibility_morse_constraint,
+    borzoi_track_activity_constraint,
     crispr_array_constraint,
     crispr_tracr_rna_constraint,
     enformer_chromatin_accessibility_morse_constraint,
@@ -161,6 +164,9 @@ __all__ = [
     # Sequence annotation
     "BorzoiChromatinAccessibilityMorseConfig",
     "borzoi_chromatin_accessibility_morse_constraint",
+    "BorzoiTrackActivityConfig",
+    "BorzoiTrackInterval",
+    "borzoi_track_activity_constraint",
     "EnformerChromatinAccessibilityMorseConfig",
     "enformer_chromatin_accessibility_morse_constraint",
     "MalinoisActivityCellType",
