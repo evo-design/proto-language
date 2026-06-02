@@ -23,7 +23,8 @@ conda activate gpro
 
 set -euo pipefail
 
-cd /home/brianhie/proto-language
+# Override PROTO_LANGUAGE_DIR to point at your checkout; defaults to ~/proto-language.
+cd "${PROTO_LANGUAGE_DIR:-$HOME/proto-language}"
 
 echo "Python: $(which python)"
 echo "Torch: $(python -c 'import torch; print(torch.__version__, "CUDA:", torch.cuda.is_available())')"

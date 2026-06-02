@@ -147,7 +147,7 @@ Required tests:
 6. **Multi-segment** — verify works with multiple constructs/segments
 7. **Filter constraints** — verify filter + scoring constraint interaction
 
-See the testing skill for complete test templates (including `_setup_components` helper pattern).
+See `TEMPLATES.md` for complete test templates (including the `_setup_components` helper pattern) and `notes/testing.md` for mocks, fixtures, and component coverage.
 
 ## Validation Checklist
 

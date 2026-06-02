@@ -180,7 +180,7 @@ Every generator needs these tests:
 For GPU generators, mark tests with `@pytest.mark.uses_gpu`.
 For CPU generators, no marker needed (auto-applied).
 
-See the testing skill for complete test templates.
+See `notes/testing.md` for mocks, fixtures, assertion patterns, and component coverage.
 
 ## Validation Checklist
 

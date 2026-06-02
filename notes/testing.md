@@ -45,7 +45,7 @@ Flag interactions:
 - `--cpu` skips `uses_gpu`.
 - `--gpu` skips auto-marked CPU tests, but does not by itself include slow or integration tests.
 - `--all` includes slow and integration tests.
-- `--slow` runs only tests marked `slow`; integration tests are still skipped unless you also pass `--integration` (then only slow tests that are also integration run). Use `--all` to run the full default + slow + integration set instead.
+- `--slow` runs only tests marked `slow`; slow tests that are also `integration` are still skipped unless you also pass `--integration` (with both flags, all slow tests run — slow-only and slow+integration alike, while non-slow tests stay skipped). Use `--all` to run the full default + slow + integration set instead.
 - `--skip-ci` skips `skip_ci` tests and sets `CUDA_VISIBLE_DEVICES=""`.
 
 CPU tests need no marker. Add only the markers that change selection or environment assumptions.

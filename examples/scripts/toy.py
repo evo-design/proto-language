@@ -1,14 +1,15 @@
 """Run the smallest end-to-end DNA optimization example.
 
 This script shows the canonical proto-language flow: define one variable DNA
-segment, assign a random nucleotide generator, add a GC-content constraint, run
-MCMC, and inspect the final joined sequence. The toy objective enriches a 20 bp
-synthetic DNA sequence to 80-90% GC content. It is intended as the minimal pattern
-for copying Program, Construct, Segment, Generator, Constraint, and Optimizer
-wiring.
+segment, assign a random nucleotide generator, add GC-content and homopolymer
+constraints, run MCMC, and inspect the final joined sequence. The toy objective
+drives a 100 bp synthetic DNA sequence to balanced 40-60% GC content with no long
+homopolymers. It mirrors ``examples/jsons/toy.json`` and the ``write-program``
+skill template, and is the minimal pattern for copying Program, Construct,
+Segment, Generator, Constraint, and Optimizer wiring.
 """
 
-from proto_language.constraint import gc_content_constraint
+from proto_language.constraint import gc_content_constraint, max_homopolymer_constraint
 from proto_language.core import (
     Constraint,
     Construct,
@@ -23,7 +24,7 @@ from proto_language.generator import (
 from proto_language.optimizer import MCMCOptimizer, MCMCOptimizerConfig
 
 # Construct Segment
-seq1 = Segment(length=20, sequence_type="dna")
+seq1 = Segment(length=100, sequence_type="dna")
 
 # Construct
 construct = Construct([seq1])
@@ -35,11 +36,16 @@ uniform_gen = RandomNucleotideGenerator(uniform_gen_config)
 # Assign
 uniform_gen.assign(seq1)
 
-# Contraint
+# Constraints
 gc_constraint = Constraint(
     inputs=[seq1],
     function=gc_content_constraint,
-    function_config={"min_gc": 80, "max_gc": 90},
+    function_config={"min_gc": 40, "max_gc": 60},
+)
+homopolymer_constraint = Constraint(
+    inputs=[seq1],
+    function=max_homopolymer_constraint,
+    function_config={"max_length": 5},
 )
 
 
@@ -52,16 +58,16 @@ def custom_logging(step: int, outputs: tuple[Segment]) -> None:
 # Optimizer config
 optimizer_config = MCMCOptimizerConfig(
     num_results=1,
-    proposals_per_result=20,
-    num_steps=10,
-    max_temperature=2.0,
+    proposals_per_result=1,
+    num_steps=100,
+    max_temperature=1.0,
 )
 
 # Optimizer
 optimizer = MCMCOptimizer(
     constructs=[construct],
     generators=[uniform_gen],
-    constraints=[gc_constraint],
+    constraints=[gc_constraint, homopolymer_constraint],
     config=optimizer_config,
     custom_logging=custom_logging,
 )

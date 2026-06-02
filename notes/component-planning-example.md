@@ -38,7 +38,7 @@ No multi-chain / oligomeric configuration beyond the intended 1:1 PD-L1:binder c
 
 ### Generator Integration Note
 
-This is not a fully registry-native two-generator pipeline inside `proto_language.language.generator`. Instead:
+This is not a fully registry-native two-generator pipeline inside `proto_language.generator`. Instead:
 
 - Stage 1 is a proto-tools structure-design step.
 - Stage 2 is a native proto-language generator step.
@@ -87,7 +87,7 @@ Requirement (b), binding, uses complex structure confidence from `structure-iptm
 Composed pipeline with an external backbone-design stage followed by native inverse folding and validation.
 
 - **Stage 1 — Backbone generation.** Run `proto-tools:rfdiffusion3-design`. Generate a broad pool of hotspot-conditioned binder backbones against PD-L1 Output: `binder_backbone_pool`. This is an external tool stage rather than a native proto-language optimizer stage.
-- **Stage 2 — Sequence generation on fixed backbones.** Use `TopKOptimizer` over `proteinmpnn`. Inputs: `binder_backbone_pool`. Purpose: sample many sequence candidates for the designed backbones and retain the best early-quality sequences. Cheap constraints active here: `protein-length`, `protein-diversity`, `balanced-aa`, `overall-protein-quality`.
+- **Stage 2 — Sequence generation on fixed backbones.** Use `RejectionSamplingOptimizer` over `proteinmpnn`. Inputs: `binder_backbone_pool`. Purpose: sample many sequence candidates for the designed backbones and retain the best early-quality sequences. Cheap constraints active here: `protein-length`, `protein-diversity`, `balanced-aa`, `overall-protein-quality`.
 - **Stage 3 — Optional iterative self-consistency refinement.** Use `CyclingOptimizer` with `proteinmpnn` if desired (pipeline `protein-hunter` conditioning parameter `structure_inputs`). Purpose: iteratively refine sequence/backbone self-consistency for surviving binders. This stage is optional; it improves monomer self-consistency but is not itself target-conditioned binder optimization.
 - **Stage 4 — Monomer validation.** Run a follow-on screening stage with `structure-plddt` using `esmfold` and `structure-plddt` using `boltz2` or `alphafold3`. Purpose: remove backbones/sequences that do not support a confident monomeric fold.
 - **Stage 5 — Complex binding validation.** Run complex scoring on (`target_segment`, `binder_segment`) using `structure-iptm` and `structure-pae`. Purpose: identify candidates predicted both to fold and to form a plausible complex with PD-L1.
@@ -105,7 +105,7 @@ The pipeline succeeds when Stage 7 yields 50 candidates. If fewer than 50 surviv
 ## 5. Optimization Stages
 
 - `rfdiffusion3-design` generates hotspot-conditioned binder backbones against PD-L1.
-- `TopKOptimizer` with `proteinmpnn` generates sequences on those backbones.
+- `RejectionSamplingOptimizer` with `proteinmpnn` generates sequences on those backbones.
 - Optional `CyclingOptimizer` improves sequence/structure self-consistency for the binder monomer.
 - Monomer fold screening is applied with `structure-plddt`.
 - Complex binding screening is applied with `structure-iptm` and `structure-pae`.
@@ -139,16 +139,16 @@ That limitation should be documented in the final report.
 Closest actual references in this codebase:
 
 - `protein_hunter.py`
-- `proto_language.language.generator.proteinmpnn_generator`
-- `proto_language.language.optimizer.topk_optimizer`
-- `proto_language.language.optimizer.cycling_optimizer`
-- `proto_language.language.constraint.protein_structure.structure_confidence_constraint`
-- `proto_language.language.constraint.sequence_annotation.mmseqs_similarity_constraint`
+- `proto_language.generator.proteinmpnn_generator`
+- `proto_language.optimizer.rejection_sampling_optimizer`
+- `proto_language.optimizer.cycling_optimizer`
+- `proto_language.constraint.protein_structure.structure_confidence_constraint`
+- `proto_language.constraint.sequence_annotation.mmseqs_similarity_constraint`
 
 What is reused:
 
 - native `proteinmpnn` inverse folding
-- native topk optimizer for broad sampling
+- native rejection-sampling optimizer for broad sampling
 - optional native cycling refinement
 - native structure-confidence constraints
 - native MMseqs novelty filter

@@ -273,11 +273,12 @@ stores the dict under `_constraints_metadata[label]["data"]`:
 ConstraintOutput(score=s, metadata={"my_metric": metric_value, "my_detail": {"sub_key": sub_value}})
 ```
 
-After evaluation, read it back via:
+After evaluation, read it back keyed by the constraint **label** — which defaults to the
+scoring function name (e.g. `gc_content_constraint`), not the registry key (`gc-content`):
 ```python
-segment.proposal_sequences[i]._constraints_metadata["<constraint_key>"]["data"]["my_metric"]
+segment.proposal_sequences[i]._constraints_metadata["<label>"]["data"]["my_metric"]
 # Or the computed .metadata view:
-segment.proposal_sequences[i].metadata["constraints"]["<constraint_key>"]["data"]["my_metric"]
+segment.proposal_sequences[i].metadata["constraints"]["<label>"]["data"]["my_metric"]
 ```
 
 Metadata keys may freely collide with infrastructure keys (`score`, `weight`, `weighted_score`) —
@@ -407,7 +408,7 @@ Every constraint needs these tests:
 4. **Metadata propagation** — verify metadata is set on sequences after evaluation
 5. **Edge cases** — empty sequences, boundary values
 
-See the testing skill for complete test templates.
+See `notes/testing.md` for mocks, fixtures, assertion patterns, and component coverage.
 
 ## Validation Checklist
 

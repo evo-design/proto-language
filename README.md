@@ -49,8 +49,8 @@ pip install -e "./proto-tools[dev]"
 
 Working programs ship under [`examples/`](examples/):
 
-- **[`examples/jsons/`](examples/jsons/)** — declarative JSON program definitions, consumed via `Program.from_json()`. The fastest way to run something end-to-end.
-- **[`examples/scripts/`](examples/scripts/)** — Python programs covering broader workloads.
+- **[`examples/scripts/`](examples/scripts/)** — runnable Python programs, from a fast end-to-end smoke test ([`toy.py`](examples/scripts/toy.py)) to broader workloads. The fastest way to run something end-to-end.
+- **[`examples/jsons/`](examples/jsons/)** — declarative JSON program definitions emitted by the client (the `optimization_stages` schema). These illustrate program shape; they are not loaded by a Python consumer.
 
 ## Architecture
 

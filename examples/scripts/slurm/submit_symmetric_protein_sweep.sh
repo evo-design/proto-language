@@ -15,7 +15,8 @@
 TOTAL_JOBS=3
 ARRAY_SPEC="${1:-0-$((TOTAL_JOBS-1))}"
 
-cd /home/brianhie/proto-language
+# Override PROTO_LANGUAGE_DIR to point at your checkout; defaults to ~/proto-language.
+cd "${PROTO_LANGUAGE_DIR:-$HOME/proto-language}"
 
 # Create log directory
 mkdir -p logs/slurm

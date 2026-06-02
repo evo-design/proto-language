@@ -45,7 +45,8 @@ STEPS=${N_STEPS[$STEP_IDX]}
 # Output directory
 OUTPUT_DIR="outputs/symmetric_protein_sweep"
 
-cd /home/brianhie/proto-language
+# Override PROTO_LANGUAGE_DIR to point at your checkout; defaults to ~/proto-language.
+cd "${PROTO_LANGUAGE_DIR:-$HOME/proto-language}"
 
 # Create necessary directories
 mkdir -p logs/slurm
