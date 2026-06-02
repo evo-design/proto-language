@@ -7,7 +7,7 @@ name = "proto-language"
 version = "0.0.0"
 description = "A high level programming language for generative biology"
 readme = "README.md"
-license = {text = "Apache-2.0"}
+license = {text = "MIT"}
 authors = [
     {name = "Proto Bio Team"}
 ]
