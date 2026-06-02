@@ -820,6 +820,7 @@
               "num_samples": 1,
               "batch_size": 1,
               "filter_samples": false,
+              "seed": 0,
               "timeout": 7200
             },
             "rmsd_aggregation": "min",
@@ -849,6 +850,7 @@
               "num_samples": 1,
               "batch_size": 1,
               "filter_samples": false,
+              "seed": 0,
               "timeout": 7200
             },
             "rmsd_aggregation": "min",
@@ -878,6 +880,7 @@
               "num_samples": 1,
               "batch_size": 1,
               "filter_samples": false,
+              "seed": 0,
               "timeout": 7200
             },
             "rmsd_aggregation": "min",
@@ -907,6 +910,7 @@
               "num_samples": 1,
               "batch_size": 1,
               "filter_samples": false,
+              "seed": 0,
               "timeout": 7200
             },
             "rmsd_aggregation": "min",
