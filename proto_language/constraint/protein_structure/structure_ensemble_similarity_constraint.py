@@ -206,6 +206,8 @@ def _extract_chain_from_pdb(pdb_text: str, chain_id: str) -> str:
         elif line.startswith("END"):
             extracted_lines.append(line)
             break
+        elif line.startswith("ANISOU"):
+            continue
         elif not line.startswith(("ATOM", "HETATM", "TER")):
             # Keep header lines
             extracted_lines.append(line)
@@ -241,6 +243,8 @@ def _extract_residue_range_from_pdb(
                 extracted_lines.append(line)
         elif line.startswith("END"):
             extracted_lines.append(line)
+        elif line.startswith("ANISOU"):
+            continue
         elif not line.startswith(("ATOM", "HETATM", "TER")):
             # Keep header lines
             extracted_lines.append(line)

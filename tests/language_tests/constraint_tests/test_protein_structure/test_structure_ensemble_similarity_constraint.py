@@ -1,12 +1,14 @@
 """Tests for structure ensemble similarity constraint."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from proto_tools import BioEmuConfig
+from proto_tools import BioEmuConfig, Structure
 
 from proto_language.constraint.protein_structure.structure_ensemble_similarity_constraint import (
     StructureEnsembleSimilarityConfig,
+    _prepare_target_structure,
     structure_ensemble_rmsd_constraint,
 )
 from proto_language.core import Sequence
@@ -29,6 +31,25 @@ END
 """
 
 MOCK_PDB_MULTICHAIN = MOCK_PDB.replace("END\n", "") + MOCK_PDB_CHAIN_B
+
+
+class TestTargetPreparation:
+    """Tests for target PDB extraction before RMSD scoring."""
+
+    def test_prepare_target_structure_drops_anisou_records(self):
+        """Subsetting 3SN6 should produce a valid PDB without orphaned ANISOU records."""
+        repo_root = Path(__file__).resolve().parents[4]
+        pdb_text = (repo_root / "examples/data/pdb_cache/3sn6.pdb").read_text()
+
+        prepared = _prepare_target_structure(
+            pdb_text,
+            residue_range=(85, 394),
+            chain_id="A",
+        )
+
+        assert "ANISOU" not in prepared
+        assert any(line.startswith("ATOM") for line in prepared.splitlines())
+        Structure(structure=prepared)
 
 
 class TestConfig:
