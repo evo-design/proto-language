@@ -389,9 +389,10 @@ def structure_tmscore_constraint(
         config (StructureTMScoreConfig): Constraint configuration controlling evaluation parameters.
 
     Note:
-        All TM-scores are normalized by the length of the **target** structure.
-        Metadata describes the predicted full input tuple/complex, not an
-        individual chain.
+        The two raw TM-scores are combined per ``config.tm_score_normalization``
+        (default: arithmetic mean of the proposal- and target-normalized scores);
+        the target is the reference structure. Metadata describes the predicted
+        full input tuple/complex, not an individual chain.
     """
     # Prepare target.
     target_pdb = _prepare_target_structure(config)

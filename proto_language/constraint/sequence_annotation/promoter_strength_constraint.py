@@ -46,8 +46,9 @@ class PromoterStrengthConfig(BaseConfig):
             scoring. Options:
             - "dG": Binding free energy in kcal/mol. More negative values indicate
               stronger RNAP binding. Range typically -5 to 2 kcal/mol. Use for
-              biophysical interpretation, with values < -2.0 indicating a likely
-              promoter.
+              biophysical interpretation: values below -1.5 begin to score as
+              promoters, and values below -3.0 are treated as strong promoters
+              (see the penalty thresholds in the Note).
             - "tx_rate": Predicted transcription initiation rate in arbitrary units.
               Higher values indicate stronger promoters. Range typically 0-30,000+.
               Use for relative promoter strength comparison.
@@ -74,6 +75,7 @@ class PromoterStrengthConfig(BaseConfig):
     context_length: int = ConfigField(
         title="Added Context Length",
         default=10,
+        ge=1,
         description="Number of 'A' nucleotides to add on each end when add_context=True",
     )
     threads: int = ConfigField(
@@ -117,7 +119,7 @@ def _dG_penalty(dG: float) -> float:
     label="Promoter Strength",
     config=PromoterStrengthConfig,
     description="Evaluate promoter strength using Salis Lab Promoter Calculator",
-    tools_called=["promoter_calculator"],
+    tools_called=["promoter-calculator"],
     category="sequence_annotation",
     supported_sequence_types=["dna"],
 )

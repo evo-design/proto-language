@@ -54,6 +54,7 @@ class EnformerChromatinAccessibilityMorseConfig(BaseConfig):
         high_window_reward_weight (float): Reward weight for larger raw signal in high windows.
         low_window_penalty_weight (float): Penalty weight for larger raw signal in gap windows.
         window_stat_transform (WindowStatTransform): Transform for amplitude and window terms.
+        device (str): CUDA device for Enformer inference.
         batch_size (int): Candidate sequences per Enformer model batch.
         trim_prefix_bp (int): Leading target bases ignored before scoring.
         enformer_output_tracks (list[int]): Enformer accessibility tracks to score.

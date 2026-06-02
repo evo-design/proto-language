@@ -175,3 +175,42 @@ class TestBoltzBindingStrengthConstraint:
             return_value=mock_monomer_output,
         ):
             _ = constraint.evaluate()
+
+    def test_missing_conditional_metrics_does_not_crash(self):
+        """Conditional complex_* metrics absent from a successful Boltz output must not KeyError (M4)."""
+        protein1 = Segment(sequence="MKTAYIAKQRQISFVK", sequence_type="protein")
+        protein2 = Segment(sequence="MVLSEGEWQLVLHVWAK", sequence_type="protein")
+        complex_list = [protein1, protein2]
+
+        sparse_structure = MockStructure(
+            structure_format="cif",
+            b_factor_type=BFactorType.PLDDT,
+            source="boltz2-prediction",
+            # Only the always-present metrics; the conditional complex_* metrics are absent.
+            metrics={
+                "confidence_score": 0.77,
+                "ptm": 0.89,
+                "iptm": 0.85,
+                "chains_ptm": [0.96, 0.95],
+                "pair_chains_iptm": [[0.96, 0.84], [0.82, 0.95]],
+            },
+        )
+        sparse_output = StructurePredictionOutput(
+            tool_id="boltz2-prediction",
+            execution_time=0.0,
+            success=True,
+            structures=[sparse_structure],
+            warnings=[],
+            metadata={},
+        )
+
+        constraint = ConstraintRegistry.create(key="boltz2-binding-strength", segments=complex_list, config_dict={})
+
+        with patch(
+            "proto_language.constraint.protein_structure.boltz_binding_strength_constraint.run_boltz2",
+            return_value=sparse_output,
+        ):
+            scores = constraint.evaluate()
+
+        assert len(scores) == 1
+        assert 0.0 <= scores[0] <= 1.0

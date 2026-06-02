@@ -1,5 +1,8 @@
 """tests/language_tests/constraint_tests/test_sequence_annotation/test_sigma70_promoter_constraint.py."""
 
+import pytest
+from pydantic import ValidationError
+
 from proto_language.constraint import sigma70_promoter_constraint
 from proto_language.constraint.sequence_annotation.sigma70_promoter_constraint import (
     Sigma70PromoterConfig,
@@ -112,3 +115,17 @@ class TestSigma70PromoterConstraint:
         sigma70_data = constraints["sigma70_promoter_constraint"]["data"]["sigma70"]
         assert "spacer_len" in sigma70_data
         assert sigma70_data["spacer_len"] == 17
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"consensus_35": "TTGAC"},  # 5 bp
+            {"consensus_10": "TATAATG"},  # 7 bp
+            {"probs_35": [0.5, 0.5, 0.5, 0.5, 0.5]},  # 5 values
+            {"probs_10": [0.5] * 7},  # 7 values
+        ],
+    )
+    def test_box_length_validation(self, kwargs):
+        """Consensus/probability vectors must be exactly 6 elements (else zip truncates silently)."""
+        with pytest.raises(ValidationError, match="must have exactly 6 elements"):
+            Sigma70PromoterConfig(**kwargs)

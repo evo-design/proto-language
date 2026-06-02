@@ -257,6 +257,24 @@ def test_splice_transformer_specificity_batches():
     assert len(call_input.target_seqs) == 2
 
 
+def test_specificity_enforces_4000bp_context():
+    """Specificity must reject contexts that are not exactly 4000 bp, like intron-boundary."""
+    left_flank = Sequence("A" * 200, sequence_type="dna")
+    intron_core = Sequence("A" * 600, sequence_type="dna")
+    right_flank = Sequence("A" * 200, sequence_type="dna")
+
+    config = SpliceTransformerSpecificityConfig(
+        left_context="A" * 100,  # too short (matched but != 4000 bp)
+        right_context="A" * 100,
+        splice_pos=[10],
+        tissue="BRAIN",
+        direction="max",
+    )
+
+    with pytest.raises(ValueError, match=f"must each be {SPLICE_TRANSFORMER_CONTEXT_LENGTH} bp"):
+        splice_transformer_specificity([(left_flank, intron_core, right_flank)], config)
+
+
 def test_splice_transformer_intron_boundary_batches():
     left_a = Sequence("A" * 200, sequence_type="dna")
     intron_a = Sequence("A" * 600, sequence_type="dna")

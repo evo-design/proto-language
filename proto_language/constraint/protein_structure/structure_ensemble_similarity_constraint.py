@@ -306,7 +306,7 @@ class StructureEnsembleSimilarityConfig(BaseConfig):
 
         inflection_point_angstroms (float):
             The RMSD value (in Angstroms) at which the sigmoid scoring function
-            returns 0.5. Lower values are stricter. Default: 2.0.
+            returns 0.5. Lower values are stricter. Default: 3.0.
 
         sigmoid_slope (float):
             Steepness of the sigmoid penalty curve. Higher values create a

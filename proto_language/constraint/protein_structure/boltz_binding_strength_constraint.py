@@ -107,12 +107,6 @@ class BoltzBindingStrengthConfig(BaseConfig):
             confidence_score in penalty calculation. Adds weight 0.10 to the metric
             combination. Recommended for overall quality assessment. Default: True.
 
-        on_error (Literal['penalize', 'raise']): How to handle Boltz prediction
-            errors or failures. Options:
-            - "penalize": Return penalty 1.0 (maximum) if prediction fails
-            - "raise": Raise exception and halt execution
-            Use "penalize" for robust pipelines, "raise" for debugging. Default: "penalize".
-
         return_component (Literal['total_penalty', 'iptm', 'ligand_iptm', 'protein_iptm', 'complex_iplddt', 'complex_plddt', 'complex_pde', 'complex_ipde', 'confidence_score', 'ptm']): Which component to return as the constraint
             score. Options:
             - "total_penalty": Weighted combination of all metrics (default)
@@ -122,8 +116,8 @@ class BoltzBindingStrengthConfig(BaseConfig):
 
         boltz2_config (Boltz2Config): Advanced Boltz2 configuration including MSA usage,
             recycling steps, sampling parameters, device settings, and verbosity.
-            The ``complexes`` field is set programmatically from input sequences.
-            Default: Boltz2Config().
+            The complexes to fold are derived from the input sequences and passed
+            via ``Boltz2Input`` (not configured here). Default: Boltz2Config().
 
     Note:
         **Metric interpretation:**
@@ -167,11 +161,6 @@ class BoltzBindingStrengthConfig(BaseConfig):
         default=True,
         title="Include Confidence Score",
         description="Whether to include confidence_score in penalty calculation (adds weight 0.10)",
-    )
-    on_error: Literal["penalize", "raise"] = ConfigField(
-        default="penalize",
-        title="Behavior on Error",
-        description="How to handle prediction errors: 'penalize' (return 1.0) or 'raise' (raise exception)",
     )
     return_component: Literal[
         "total_penalty",
@@ -302,18 +291,20 @@ def boltz_binding_strength_constraint(
         # Initialize penalties dictionary
         penalties_dict = {}
 
-        # Case-specific penalties
+        # Case-specific penalties. Conditional ``complex_*``/``*_iptm`` metrics are
+        # added only when present; a missing metric simply drops that term.
         m = structure.metrics
         if n_chains == 1:
             # Monomer penalties
             penalties_dict["ptm_penalty"] = get_penalty_for_metric(
                 metric_name="ptm", metric_value=m["ptm"], config=config
             )
-            penalties_dict["complex_plddt_penalty"] = get_penalty_for_metric(
-                metric_name="complex_plddt",
-                metric_value=m["complex_plddt"],
-                config=config,
-            )
+            if m.get("complex_plddt") is not None:
+                penalties_dict["complex_plddt_penalty"] = get_penalty_for_metric(
+                    metric_name="complex_plddt",
+                    metric_value=m["complex_plddt"],
+                    config=config,
+                )
             if m.get("complex_pde") is not None:
                 penalties_dict["complex_pde_penalty"] = get_penalty_for_metric(
                     metric_name="complex_pde",
@@ -322,27 +313,30 @@ def boltz_binding_strength_constraint(
                 )
 
         elif has_ligand:
-            penalties_dict["ligand_iptm_penalty"] = get_penalty_for_metric(
-                metric_name="ligand_iptm",
-                metric_value=m["ligand_iptm"],
-                config=config,
-            )
-            penalties_dict["complex_iplddt_penalty"] = get_penalty_for_metric(
-                metric_name="complex_iplddt",
-                metric_value=m["complex_iplddt"],
-                config=config,
-            )
+            if m.get("ligand_iptm") is not None:
+                penalties_dict["ligand_iptm_penalty"] = get_penalty_for_metric(
+                    metric_name="ligand_iptm",
+                    metric_value=m["ligand_iptm"],
+                    config=config,
+                )
+            if m.get("complex_iplddt") is not None:
+                penalties_dict["complex_iplddt_penalty"] = get_penalty_for_metric(
+                    metric_name="complex_iplddt",
+                    metric_value=m["complex_iplddt"],
+                    config=config,
+                )
             if m.get("complex_ipde") is not None:
                 penalties_dict["complex_ipde_penalty"] = get_penalty_for_metric(
                     metric_name="complex_ipde",
                     metric_value=m["complex_ipde"],
                     config=config,
                 )
-            penalties_dict["complex_plddt_penalty"] = get_penalty_for_metric(
-                metric_name="complex_plddt",
-                metric_value=m["complex_plddt"],
-                config=config,
-            )
+            if m.get("complex_plddt") is not None:
+                penalties_dict["complex_plddt_penalty"] = get_penalty_for_metric(
+                    metric_name="complex_plddt",
+                    metric_value=m["complex_plddt"],
+                    config=config,
+                )
 
         else:
             prot_iptm = m.get("protein_iptm")
@@ -365,22 +359,24 @@ def boltz_binding_strength_constraint(
                     metric_value=prot_iptm,
                     config=config,
                 )
-            penalties_dict["complex_iplddt_penalty"] = get_penalty_for_metric(
-                metric_name="complex_iplddt",
-                metric_value=m["complex_iplddt"],
-                config=config,
-            )
+            if m.get("complex_iplddt") is not None:
+                penalties_dict["complex_iplddt_penalty"] = get_penalty_for_metric(
+                    metric_name="complex_iplddt",
+                    metric_value=m["complex_iplddt"],
+                    config=config,
+                )
             if m.get("complex_ipde") is not None:
                 penalties_dict["complex_ipde_penalty"] = get_penalty_for_metric(
                     metric_name="complex_ipde",
                     metric_value=m["complex_ipde"],
                     config=config,
                 )
-            penalties_dict["complex_plddt_penalty"] = get_penalty_for_metric(
-                metric_name="complex_plddt",
-                metric_value=m["complex_plddt"],
-                config=config,
-            )
+            if m.get("complex_plddt") is not None:
+                penalties_dict["complex_plddt_penalty"] = get_penalty_for_metric(
+                    metric_name="complex_plddt",
+                    metric_value=m["complex_plddt"],
+                    config=config,
+                )
 
         if "confidence_score" in weights:
             penalties_dict["confidence_score_penalty"] = get_penalty_for_metric(
@@ -441,7 +437,7 @@ def get_penalty_for_metric(metric_name: str, metric_value: float, config: BoltzB
     tolerance = None
     if metric_name in config.desired_higher and metric_name in config.desired_lower:
         raise ValueError(
-            f"Metric {metric_name} has both desired_higher and tol_higher values. Please provide only one."
+            f"Metric {metric_name} has both desired_higher and desired_lower values. Please provide only one."
         )
     if metric_name in config.desired_higher:
         higher_is_better = True

@@ -85,8 +85,8 @@ def protein_repetitiveness_constraint(
 
         config (ProteinRepetitivenessConfig): Configuration object containing
             ``max_repetitiveness`` (maximum acceptable repetitiveness fraction,
-            default: 0.4) and ``min_repeat_length`` (minimum k-mer length to
-            consider, default: 3).
+            default: 0.1) and ``min_repeat_length`` (minimum k-mer length to
+            consider, default: 1).
 
     Returns:
         list[ConstraintOutput]: One result per sequence. A score of 0.0 indicates

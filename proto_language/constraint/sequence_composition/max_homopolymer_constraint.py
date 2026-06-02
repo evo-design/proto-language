@@ -81,9 +81,6 @@ def max_homopolymer_constraint(
               found in the sequence. For example, "ATCGAAAAAGTC" would have value 5
               (for the "AAAAA" run).
 
-    Raises:
-        ValueError: If the input list is empty.
-
     Examples:
         Avoiding long A/T runs for DNA synthesis:
 

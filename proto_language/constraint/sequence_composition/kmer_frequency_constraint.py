@@ -1,6 +1,5 @@
 """K-mer frequency constraint for evaluating sequence k-mer properties with arbitrary mer length."""
 
-import itertools
 from typing import Literal
 
 import numpy as np
@@ -35,16 +34,15 @@ class KmerFrequencyConfig(BaseConfig):
             - 3: Trinucleotides/codons (codon usage in coding sequences)
             - 4+: Longer motifs (tetranucleotide frequencies etc.)
 
-        scoring_mode (Literal['frequency', 'usage_deviation']): Scoring metric to
-            evaluate. Options:
-            - "frequency": Evaluates if raw k-mer frequencies (observed_count / total_kmers)
-              fall within a given [min_value, max_value] range. Use for direct frequency
-              constraints like "AT dinucleotides should be 5-10% of all dinucleotides".
-            - "usage_deviation": Evaluates observed/expected ratios where expected
-              is calculated using a zero-order Markov model (independent nucleotide
-              frequencies). A ratio of 1.0 means observed matches expected, >1.0
-              indicates overrepresentation, <1.0 indicates underrepresentation.
-              Use for detecting codon bias or sequence composition anomalies.
+        scoring_mode (Literal['frequency', 'usage_deviation']): Scoring metric. The
+            [min_value, max_value] band applies to every k-mer that occurs in the
+            sequence (a global composition band, not a single-k-mer target); for one
+            specific k-mer use specific_kmer_constraint instead. Options:
+            - "frequency": raw frequency (observed_count / total_kmers) of each
+              observed k-mer.
+            - "usage_deviation": observed/expected ratio under a zero-order Markov
+              model (1.0 = expected, >1.0 over-, <1.0 underrepresented); detects
+              codon bias.
             Default: "frequency".
 
         min_value (float): Minimum acceptable value (interpretation depends on
@@ -59,9 +57,9 @@ class KmerFrequencyConfig(BaseConfig):
             150% of expected).
 
     Note:
-        **Frequency mode** evaluates raw k-mer proportions. For DNA dinucleotides
-        with k=2, there are 16 possible k-mers (AA, AC, ..., TT). If a sequence
-        has 100 dinucleotides and 10 are CG, the CG frequency is 0.1 (10%).
+        **Frequency mode** evaluates raw k-mer proportions (10/100 CG dinucleotides
+        = 0.1). Only k-mers that occur in the sequence are scored; absent k-mers
+        are not penalized.
 
         **Usage deviation mode** compares observed to expected frequencies under
         a zero-order Markov model. Expected frequency = product of individual
@@ -69,8 +67,9 @@ class KmerFrequencyConfig(BaseConfig):
         the expected CG dinucleotide frequency is 0.4 x 0.6 = 0.24. If observed
         is 0.12, usage_deviation = 0.12/0.24 = 0.5 (underrepresented).
 
-        The constraint returns the maximum deviation across all k-mers as the penalty
-        score. To evaluate a single specific k-mer, use specific_kmer_constraint instead.
+        The penalty is the maximum deviation across observed k-mers. To evaluate a
+        single specific k-mer (including penalizing its absence), use
+        specific_kmer_constraint instead.
     """
 
     # Required parameters
@@ -135,9 +134,9 @@ def kmer_frequency_constraint(
        frequencies. A ratio of 1.0 indicates observed matches expected composition,
        >1.0 indicates overrepresentation, <1.0 indicates underrepresentation.
 
-    The constraint evaluates all possible k-mers of length k and returns the
-    maximum deviation as the penalty score. To target a single specific k-mer,
-    use specific_kmer_constraint instead.
+    The penalty is the maximum deviation from the [min_value, max_value] band across
+    observed k-mers; absent k-mers are not penalized. To target a single specific
+    k-mer (including penalizing its absence), use specific_kmer_constraint instead.
 
     Args:
         input_sequences (list[tuple[Sequence, ...]]): List of sequence tuples to evaluate.
@@ -151,28 +150,24 @@ def kmer_frequency_constraint(
 
     Returns:
         list[ConstraintOutput]: One result per sequence. A score of 0.0 indicates
-            all k-mer metrics are within the acceptable range [min_value, max_value].
-            Higher scores indicate the maximum deviation across all k-mers. The
+            every observed k-mer is within the acceptable range [min_value, max_value].
+            Higher scores indicate the maximum deviation across observed k-mers. The
             penalty scales linearly with deviation distance from the acceptable
-            range, capped at 1.0. ``metadata`` carries:
+            range, capped at 1.0. ``metadata`` carries (over *observed* k-mers only):
 
             **For frequency mode:**
 
-            - ``{k}mer_frequencies``: Dictionary mapping each k-mer to its frequency
-              (0.0-1.0). For example, ``2mer_frequencies`` for dinucleotides.
+            - ``{k}mer_frequencies``: Dictionary mapping each observed k-mer to its
+              frequency (0.0-1.0). For example, ``2mer_frequencies`` for dinucleotides.
 
             **For usage_deviation mode:**
 
-            - ``{k}mer_usage_deviations``: Dictionary mapping each k-mer to its
-              observed/expected ratio
+            - ``{k}mer_usage_deviations``: Dictionary mapping each observed k-mer to
+              its observed/expected ratio
 
-            **For sequences too short (<k length):**
+            **For sequences too short (<k length) or with no valid k-mers:**
 
             - ``{k}mer_data``: Empty dictionary
-
-    Raises:
-        ValueError: If the input list is empty, or if a sequence is not
-            DNA, RNA, or PROTEIN type.
 
     Examples:
         Analyzing codon usage (all trinucleotides):
@@ -205,13 +200,11 @@ def kmer_frequency_constraint(
         else:  # "protein"
             valid_bases = PROTEIN_AMINO_ACIDS
 
-        # Generate all possible k-mers
-        kmers = np.array(["".join(p) for p in itertools.product(valid_bases, repeat=config.k)])
+        valid_base_set = set(valid_bases)
 
-        kmer_index = {kmer: i for i, kmer in enumerate(kmers)}
-
-        # Extract k-mers from sequence
-        seq_arr = np.frombuffer(seq.sequence.encode("ascii"), dtype="S1").astype(str)
+        # Extract k-mers from the (uppercased) sequence
+        seq_str = seq.sequence.upper()
+        seq_arr = np.frombuffer(seq_str.encode("ascii"), dtype="S1").astype(str)
 
         # Create sliding windows for k-mers
         if config.k == 1:
@@ -222,79 +215,50 @@ def kmer_frequency_constraint(
             extracted_kmers = np.array(["".join(kmer) for kmer in kmer_chars])
 
         # Filter to only valid k-mers (all characters in valid_bases)
-        valid_mask = np.array([all(char in valid_bases for char in kmer) for kmer in extracted_kmers])
+        valid_mask = np.array([all(char in valid_base_set for char in kmer) for kmer in extracted_kmers])
         valid_kmers = extracted_kmers[valid_mask]
 
         if len(valid_kmers) == 0:
             results.append(ConstraintOutput(score=MAX_ENERGY, metadata={f"{config.k}mer_data": {}}))
             continue
 
-        # Count k-mer occurrences
+        # Score only observed k-mers, so a non-zero min_value does not saturate the
+        # score to the maximum penalty via the absent k-mers.
         uniq, counts = np.unique(valid_kmers, return_counts=True)
 
         if config.scoring_mode == "frequency":
-            # FREQUENCY MODE: Direct frequency evaluation
-            freqs = np.zeros(len(kmers), dtype=float)
+            # FREQUENCY MODE: Direct frequency evaluation over observed k-mers.
             total_count = counts.sum()
-
-            for kmer, count in zip(uniq, counts, strict=False):
-                if kmer in kmer_index:
-                    freqs[kmer_index[kmer]] = count / total_count
-
-            # Calculate deviations from acceptable range
-            below_mask = freqs < config.min_value
-            above_mask = freqs > config.max_value
-            deviations = np.zeros_like(freqs)
-
-            deviations[below_mask] = (config.min_value - freqs[below_mask]) / max(config.min_value, 1e-9)
-            deviations[above_mask] = (freqs[above_mask] - config.max_value) / max(config.max_value, 1e-9)
-            deviations = np.clip(deviations, MIN_ENERGY, MAX_ENERGY)
-
-            max_dev = deviations.max() if deviations.size > 0 else MAX_ENERGY
-            score = float(max_dev)
-
-            metadata = {f"{config.k}mer_frequencies": {kmers[i]: float(freqs[i]) for i in range(len(kmers))}}
-
+            values = counts / total_count
+            metadata = {f"{config.k}mer_frequencies": {str(km): float(v) for km, v in zip(uniq, values, strict=True)}}
         else:
-            # USAGE DEVIATION MODE: usage deviation evaluation
-            seq_length = len(seq)
+            # USAGE DEVIATION MODE: observed/expected ratio over observed k-mers.
+            seq_length = len(seq_str)
+            nucleotide_freqs = {nt: seq_str.count(nt) / seq_length for nt in valid_bases}
+            num_windows = seq_length - config.k + 1
 
-            # Calculate nucleotide frequencies
-            nucleotide_freqs = {nt: str(seq).count(nt) / seq_length for nt in valid_bases}
-
-            usage_deviations = np.zeros(len(kmers), dtype=float)
-
-            for i, kmer in enumerate(kmers):
-                # Count occurrences
-                kmer_count = sum(1 for km in valid_kmers if km == kmer)
-
-                # Calculate expected frequency using zero-order Markov model
+            values = np.zeros(len(uniq), dtype=float)
+            for i, kmer in enumerate(uniq):
+                # Expected occurrences under a zero-order Markov model.
                 expected_freq = 1.0
                 for nt in kmer:
-                    if nt in nucleotide_freqs:
-                        expected_freq *= nucleotide_freqs[nt]
-                    else:
-                        expected_freq = 0
-                        break
-
-                expected_occurrences = expected_freq * (seq_length - config.k + 1)
-                usage_deviations[i] = kmer_count / expected_occurrences if expected_occurrences > 0 else 0
-
-            # Calculate deviations from acceptable usage_deviation range
-            below_mask = usage_deviations < config.min_value
-            above_mask = usage_deviations > config.max_value
-            deviations = np.zeros_like(usage_deviations)
-
-            deviations[below_mask] = (config.min_value - usage_deviations[below_mask]) / max(config.min_value, 1e-9)
-            deviations[above_mask] = (usage_deviations[above_mask] - config.max_value) / max(config.max_value, 1e-9)
-            deviations = np.clip(deviations, MIN_ENERGY, MAX_ENERGY)
-
-            max_dev = deviations.max() if deviations.size > 0 else MAX_ENERGY
-            score = float(max_dev)
+                    expected_freq *= nucleotide_freqs.get(nt, 0.0)
+                expected_occurrences = expected_freq * num_windows
+                values[i] = counts[i] / expected_occurrences if expected_occurrences > 0 else 0.0
 
             metadata = {
-                f"{config.k}mer_usage_deviations": {kmers[i]: float(usage_deviations[i]) for i in range(len(kmers))}
+                f"{config.k}mer_usage_deviations": {str(km): float(v) for km, v in zip(uniq, values, strict=True)}
             }
+
+        # Deviation of each observed k-mer from the acceptable [min_value, max_value] band.
+        below_mask = values < config.min_value
+        above_mask = values > config.max_value
+        deviations = np.zeros_like(values)
+        deviations[below_mask] = (config.min_value - values[below_mask]) / max(config.min_value, 1e-9)
+        deviations[above_mask] = (values[above_mask] - config.max_value) / max(config.max_value, 1e-9)
+        deviations = np.clip(deviations, MIN_ENERGY, MAX_ENERGY)
+
+        score = float(deviations.max()) if deviations.size > 0 else MAX_ENERGY
 
         results.append(ConstraintOutput(score=score, metadata=metadata))
 

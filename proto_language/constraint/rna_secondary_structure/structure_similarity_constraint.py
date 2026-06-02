@@ -365,7 +365,8 @@ def rna_property_similarity_constraint(
     Returns 1 - similarity (so 0 is perfect match, 1 is worst).
 
     Args:
-        input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
+        input_sequences (list[Tuple[Sequence, ...]]): List of single-element tuples,
+            each holding one RNA proposal sequence to compare against the reference.
         config (RNAPropertySimilarityConfig): Constraint configuration controlling evaluation parameters.
 
     Returns:
@@ -503,9 +504,9 @@ def rna_motif_similarity_constraint(
                 score=1.0 - similarity,
                 metadata={
                     "rna_motif_similarity": similarity,
-                    "ref_motifs": list(ref_motifs),
-                    "cand_motifs": list(cand_motifs),
-                    "shared_motifs": list(ref_motifs & cand_motifs),
+                    "ref_motifs": sorted(ref_motifs),
+                    "cand_motifs": sorted(cand_motifs),
+                    "shared_motifs": sorted(ref_motifs & cand_motifs),
                     "structure": cand_structure,
                 },
             )

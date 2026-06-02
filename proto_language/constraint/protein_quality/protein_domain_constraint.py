@@ -106,7 +106,7 @@ class ProteinDomainConfig(BaseConfig):
     label="Protein Domain Match",
     config=ProteinDomainConfig,
     description="Evaluate whether sequences contains protein domains matching specified keywords",
-    tools_called=["pyhmmer-hmmsearch", "prodigal-prediction"],
+    tools_called=["pyhmmer-hmmscan", "prodigal-prediction"],
     category="protein_quality",
     supported_sequence_types=["dna", "protein"],
 )
@@ -135,7 +135,7 @@ def protein_domain_constraint(
             (path to HMM database), ``keywords`` (list of domain keywords to search),
             ``evalue_threshold`` (default: 0.005), ``query_coverage`` (default: None),
             ``match_all_keywords`` (default: False), and ``hmmscan_config``
-            (default: None).
+            (default: PyHmmerConfig()).
 
     Returns:
         list[ConstraintOutput]: One result per sequence. A score of 0.0 indicates
@@ -145,7 +145,8 @@ def protein_domain_constraint(
 
             **For DNA sequences:**
 
-            - ``prodigal_proteins``: DataFrame of predicted proteins from Prodigal
+            - ``prodigal_proteins``: List of dicts of predicted proteins from
+              Prodigal (or ``None`` if no ORFs were predicted)
             - ``prodigal_protein_count``: Integer count of predicted ORFs
             - ``domain_search_results``: List of domain search results for each
               predicted protein

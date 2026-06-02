@@ -65,7 +65,7 @@ def protein_diversity_constraint(
             Each tuple contains one protein sequence.
 
         config (ProteinDiversityConfig): Configuration object containing
-            ``min_diversity`` (minimum acceptable amino acid diversity, default: 0.5).
+            ``min_diversity`` (minimum acceptable amino acid diversity, default: 0.7).
 
     Returns:
         list[ConstraintOutput]: One result per sequence. A score of 0.0 indicates

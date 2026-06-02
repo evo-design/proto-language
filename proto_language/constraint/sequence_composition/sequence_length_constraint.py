@@ -137,8 +137,9 @@ def sequence_length_constraint(
             - ``length_target``: Integer target length
 
     Raises:
-        ValueError: If the input list is empty, or if configuration is
-            invalid (neither mode specified, both modes specified, or min > max).
+        ValueError: If the configuration is invalid (neither mode specified,
+            both modes specified, or min > max). Configuration is validated when
+            the config is constructed.
 
     Examples:
         Range mode (protein):

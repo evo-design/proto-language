@@ -80,7 +80,7 @@ class SeqMotifConfig(BaseConfig):
             whether to weight unwanted motifs more heavily in the final score. If True,
             unwanted motif penalties are given higher weight, making it harder to
             pass the constraint if unwanted motifs are present. Useful when avoiding
-            specific binding sites is critical. Default: False.
+            specific binding sites is critical. Default: True.
 
     Note:
         Motif names must match exactly with the names in the MEME file (case-sensitive).
@@ -165,7 +165,7 @@ def seq_motif_constraint(input_sequences: list[tuple[Sequence, ...]], config: Se
     or unwanted motifs (not_wanted).
 
     The scoring strategy penalizes sequences based on motif presence:
-    - **Unwanted motifs**: Strong matches (low E-values) result in high penalties,
+    - **Unwanted motifs**: Strong matches (low p-values) result in high penalties,
       encouraging sequences without these binding sites
     - **Wanted motifs**: Strong matches result in low penalties (rewards), while
       missing wanted motifs result in high penalties
@@ -191,12 +191,12 @@ def seq_motif_constraint(input_sequences: list[tuple[Sequence, ...]], config: Se
             - ``penalty``: Float overall penalty score (0.0-1.0)
             - ``wanted``: Set of wanted motif names
             - ``not_wanted``: Set of unwanted motif names
-            - ``found``: Dictionary mapping motif names to their best (lowest) E-values
+            - ``found``: Dictionary mapping motif names to their best (lowest) FIMO p-values
             - ``details``: Dictionary with per-motif scoring details including:
 
               - ``penalty``: Individual motif penalty
               - ``status``: "wanted_found", "wanted_missing", "unwanted", or "unwanted_absent"
-              - ``e_value``: E-value if motif was found
+              - ``p_value``: FIMO p-value if motif was found
 
             - ``aggregation_info``: Dictionary with aggregation statistics:
 
@@ -270,18 +270,24 @@ def seq_motif_constraint(input_sequences: list[tuple[Sequence, ...]], config: Se
             fimo_tsv = os.path.join(fimo_out, "fimo.tsv")
             if os.path.exists(fimo_tsv):
                 with open(fimo_tsv) as f:
+                    # Read the p-value column by header name to tolerate FIMO column-order changes.
+                    p_value_col = 7
                     for line in f:
                         if line.startswith("#"):
                             continue
                         parts = line.strip().split("\t")
-                        if not parts or parts[0] == "motif_id":
+                        if not parts:
                             continue
-                        if len(parts) < 8:
+                        if parts[0] == "motif_id":
+                            if "p-value" in parts:
+                                p_value_col = parts.index("p-value")
+                            continue
+                        if len(parts) <= p_value_col:
                             continue
                         motif_id = parts[0]
-                        e_val = float(parts[7])
-                        if motif_id not in found or e_val < found[motif_id]:
-                            found[motif_id] = e_val
+                        p_value = float(parts[p_value_col])
+                        if motif_id not in found or p_value < found[motif_id]:
+                            found[motif_id] = p_value
 
         # Scoring
         details = {}
@@ -289,10 +295,10 @@ def seq_motif_constraint(input_sequences: list[tuple[Sequence, ...]], config: Se
             if not found:
                 penalty = 0.0
             else:
-                # Calculate penalty based on strongest unwanted match
-                strongest_eval = min(found.values())
-                if strongest_eval > 0:
-                    log_penalty = -np.log10(strongest_eval) / 10.0
+                # Calculate penalty based on strongest match (lowest p-value)
+                strongest_pval = min(found.values())
+                if strongest_pval > 0:
+                    log_penalty = -np.log10(strongest_pval) / 10.0
                     penalty = min(1.0, config.scale * log_penalty)
                 else:
                     penalty = 1.0
@@ -321,13 +327,13 @@ def seq_motif_constraint(input_sequences: list[tuple[Sequence, ...]], config: Se
         unwanted_penalties = []
         wanted_penalties = []
 
-        # Penalize unwanted motifs (lower e-value = stronger match = higher penalty)
+        # Penalize unwanted motifs (lower p-value = stronger match = higher penalty)
         for motif in not_wanted_set:
             if motif in found:
-                e_val = found[motif]
-                if e_val > 0:
+                p_value = found[motif]
+                if p_value > 0:
                     # Using -log10 transform
-                    log_penalty = -np.log10(e_val)
+                    log_penalty = -np.log10(p_value)
                     penalty_val = min(1.0, config.scale * (log_penalty / 10.0))
                 else:
                     penalty_val = 1.0 * config.scale
@@ -335,24 +341,26 @@ def seq_motif_constraint(input_sequences: list[tuple[Sequence, ...]], config: Se
                 details[motif] = {
                     "penalty": penalty_val,
                     "status": "unwanted",
-                    "e_value": e_val,
+                    "p_value": p_value,
                 }
             else:
                 details[motif] = {"penalty": 0.0, "status": "unwanted_absent"}
 
-        # Reward wanted motifs (lower e-value = stronger match = lower penalty)
+        # Reward wanted motifs (lower p-value = stronger match = lower penalty)
         for motif in wanted_set:
             if motif not in found:
                 wanted_penalties.append(1.0 * config.scale)
                 details[motif] = {"penalty": 1.0 * config.scale, "status": "wanted_missing"}
             else:
-                e_val = found[motif]
-                penalty_val = min(1.0, config.scale * (1.0 / (1.0 + np.exp(-10 * (e_val - 0.1))))) if e_val > 0 else 0.0
+                p_value = found[motif]
+                penalty_val = (
+                    min(1.0, config.scale * (1.0 / (1.0 + np.exp(-10 * (p_value - 0.1))))) if p_value > 0 else 0.0
+                )
                 wanted_penalties.append(penalty_val)
                 details[motif] = {
                     "penalty": penalty_val,
                     "status": "wanted_found",
-                    "e_value": e_val,
+                    "p_value": p_value,
                 }
 
         # Aggregate penalties based on specified aggregation methods

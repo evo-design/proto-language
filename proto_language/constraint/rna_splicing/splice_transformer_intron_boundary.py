@@ -48,16 +48,16 @@ class SpliceTransformerIntronBoundaryConfig(BaseConfig):
         donor_pos (list[int]): Zero-indexed position(s) of expected donor
             splice site(s) within the input sequence. The donor site marks the 5'
             end of an intron (exon-intron boundary), typically at a "GT" dinucleotide.
-            SpliceTransformer predicts on the position immediately before the "GT".
+            SpliceTransformer scores the donor probability at the "GT" position.
             Can be a single integer (automatically converted to list) or list of
             integers for multiple donors.
 
         acceptor_pos (list[int]): Zero-indexed position(s) of expected
             acceptor splice site(s) within the input sequence. The acceptor site
             marks the 3' end of an intron (intron-exon boundary), typically at an
-            "AG" dinucleotide. SpliceTransformer predicts on the position immediately
-            after the "AG". Can be a single integer (automatically converted to list)
-            or list of integers for multiple acceptors.
+            "AG" dinucleotide. SpliceTransformer scores the acceptor probability at
+            the "AG" position. Can be a single integer (automatically converted to
+            list) or list of integers for multiple acceptors.
 
         splice_transformer_config (SpliceTransformerConfig): Advanced SpliceTransformer
             configuration including context length, device settings, and model
@@ -113,7 +113,7 @@ class SpliceTransformerIntronBoundaryConfig(BaseConfig):
     key="splice-transformer-intron-boundary",
     label="SpliceTransformer intron boundary score",
     config=SpliceTransformerIntronBoundaryConfig,
-    description="Score intron-boundary prediction with SpliceTransformer on three concatenated 1-kb segments.",
+    description="Score intron-boundary prediction with SpliceTransformer on three segments concatenated into one 1-kb target.",
     uses_gpu=True,
     tools_called=["splice-transformer-prediction"],
     category="rna_splicing",
@@ -150,7 +150,6 @@ def splice_transformer_intron_boundary(
             f"splice-transformer: left/right context must each be {SPLICE_TRANSFORMER_CONTEXT_LENGTH} bp; "
             f"got left={len(config.left_context)}, right={len(config.right_context)}"
         )
-    context_length = len(config.left_context)
 
     # Concatenate 3-part tuples into target sequences for batched inference.
     target_seqs = []
@@ -166,12 +165,11 @@ def splice_transformer_intron_boundary(
         left_contexts=[config.left_context] * len(target_seqs),
         right_contexts=[config.right_context] * len(target_seqs),
     )
-    splice_transformer_config = config.splice_transformer_config.model_copy(update={"context_length": context_length})
 
     output = np.array(
         run_splice_transformer(
             splice_transformer_input,
-            splice_transformer_config,
+            config.splice_transformer_config,
         ).prediction
     )
 

@@ -86,8 +86,7 @@ def gc_content_constraint(
             field carries ``gc_content``.
 
     Raises:
-        ValueError: If the input list is empty, if min_gc or max_gc are
-            outside the range [0, 100], or if a sequence is not DNA or RNA type.
+        ValueError: If min_gc or max_gc are outside the range [0, 100].
 
     Examples:
         Evaluating GC content constraint:

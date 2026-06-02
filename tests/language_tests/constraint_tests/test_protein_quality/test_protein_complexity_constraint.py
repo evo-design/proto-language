@@ -55,11 +55,13 @@ class TestProteinComplexityConstraint:
             assert scores[0] == pytest.approx(expected_score)
 
             # Check constraint-specific metadata fields
-            constraints = segment.proposal_sequences[0]._constraints_metadata
-            assert "low_complexity_fraction" in constraints["protein_complexity_constraint"]["data"]
-            assert constraints["protein_complexity_constraint"]["data"]["low_complexity_fraction"] == pytest.approx(
-                low_complexity_fraction
-            )
+            data = segment.proposal_sequences[0]._constraints_metadata["protein_complexity_constraint"]["data"]
+            assert "low_complexity_fraction" in data
+            assert data["low_complexity_fraction"] == pytest.approx(low_complexity_fraction)
+            # Report segmasker's exact count; drop the old hardcoded segmasker_* keys.
+            assert data["low_complexity_count"] == int(low_complexity_fraction * 16)
+            assert "segmasker_error" not in data
+            assert "segmasker_lowercase_count" not in data
 
     def test_segmasker_error_handling(self):
         """Test that segmasker failures propagate from the wrapped tool."""

@@ -90,18 +90,22 @@ class TestSeqMotifConstraint:
                 assert scores[0] == 0.0  # No wanted/unwanted -> penalty = 0.0
 
     def test_wanted_motif_found(self):
-        """Test scoring when wanted motif is found."""
+        """Wanted motif found: p-value parsed from the real FIMO column order surfaces as ``p_value`` (M9)."""
         segment = Segment(sequence="ATCGATCGATCG", sequence_type="dna")
         config = SeqMotifConfig(
             motifs_path="/mock/motifs.meme",
             meme_bin_path="/usr/bin",
             wanted=["motif1"],
+            exclusive=False,
         )
 
-        # Mock motif file and FIMO results
+        # Mock motif file and FIMO results, in the real FIMO column order:
+        # motif_id, motif_alt_id, sequence_name, start, stop, strand, score, p-value, q-value, matched_sequence
         motif_file_content = "MOTIF motif1"
-        fimo_results = "motif_id\tsequence_name\tp-value\tq-value\tstart\tstop\tstrand\tscore\tmotif_alt_id\tsequence\n"
-        fimo_results += "motif1\tquery\t1e-5\t0.001\t1\t10\t+\t10.0\n"
+        fimo_results = (
+            "motif_id\tmotif_alt_id\tsequence_name\tstart\tstop\tstrand\tscore\tp-value\tq-value\tmatched_sequence\n"
+        )
+        fimo_results += "motif1\t\tquery\t1\t10\t+\t10.0\t1e-5\t0.001\tATCGATCGAT\n"
 
         with (
             patch("builtins.open", mock_open(read_data=motif_file_content)),
@@ -128,8 +132,15 @@ class TestSeqMotifConstraint:
 
                 scores = constraint.evaluate()
                 assert len(scores) == 1
-                # Wanted motif found with good e-value -> low penalty
+                # Wanted motif found with good p-value -> low penalty.
                 assert 0.0 <= scores[0] <= 1.0
+
+                meta = segment.proposal_sequences[0]._constraints_metadata["seq_motif_constraint"]["data"][
+                    "motif_constraint"
+                ]
+                # Parser must read the p-value column (1e-5), not the score column (10.0).
+                assert meta["found"]["motif1"] == pytest.approx(1e-5)
+                assert meta["details"]["motif1"]["p_value"] == pytest.approx(1e-5)
 
     def test_constraint_specific_config_options(self):
         """Test constraint-specific config options (wanted, exclusive, aggregation)."""

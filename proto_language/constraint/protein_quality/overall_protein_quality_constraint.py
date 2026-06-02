@@ -411,8 +411,9 @@ def overall_protein_quality_constraint(
 
             **For DNA sequences:**
 
-            - ``prodigal_proteins``: DataFrame of predicted proteins from Prodigal,
-              containing columns for protein ID, sequence, length, etc.
+            - ``prodigal_proteins``: List of dicts of predicted proteins from
+              Prodigal, each with protein ID, sequence, length, etc. (or ``None``
+              if no ORFs were predicted)
             - ``prodigal_protein_count``: Integer count of predicted ORFs
             - ``predicted_protein_count``: Integer count of proteins (same as
               prodigal_protein_count)

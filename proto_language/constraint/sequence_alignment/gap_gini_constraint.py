@@ -14,7 +14,6 @@ a high Gini (>= 0.3) suggests concentrated gaps (truncation artifact).
 """
 
 import logging
-import re
 
 import numpy as np
 
@@ -53,6 +52,9 @@ def _gap_runs(seq: str) -> list[int]:
     for ind, char in enumerate(seq):
         if prev is None:
             prev = char
+            # Length-1 sequence: emit its single run now so it isn't dropped.
+            if ind == len(seq) - 1:
+                runs.append(run_len)
             continue
 
         if char == "-" and prev == "-":
@@ -121,15 +123,6 @@ def trim_alignment(al1: str, al2: str) -> tuple[str | None, str | None]:
         return None, None
 
     return al1, al2
-
-
-def _gap_gini_from_fasta(alignment_fasta: str) -> float:
-    """Compute gap Gini score from a FASTA-formatted pairwise alignment string."""
-    sequences = re.findall(r"^[^>].*?(?=(?:^>|\Z))", alignment_fasta, re.MULTILINE | re.DOTALL)
-    if len(sequences) != 2:
-        raise ValueError(f"Expected 2 sequences in pairwise alignment, got {len(sequences)}")
-    al1, al2 = [seq.replace("\n", "") for seq in sequences]
-    return gap_gini_single(al1, al2)
 
 
 # ============================================================================
@@ -254,9 +247,19 @@ def gap_gini_constraint(
         if config.trim_alignment:
             al1, al2 = trim_alignment(al1, al2)
             if al1 is None:
-                # No overlap after trimming, treat as 0.0 (no gaps)
+                # No co-aligned residues after trimming: a truncation artifact ->
+                # penalize (worst score), matching the protein sibling.
+                logger.warning(
+                    "gap-gini: no overlapping residues after trimming for pair (len %d, len %d); penalizing pair",
+                    len(query_str),
+                    len(ref_str),
+                )
                 results.append(
-                    ConstraintOutput(score=MIN_ENERGY, metadata={"gap_gini": 0.0}, metadata_recipient="Query Sequence")
+                    ConstraintOutput(
+                        score=MAX_ENERGY,
+                        metadata={"gap_gini": None, "gap_gini_error": "no overlapping residues after trimming"},
+                        metadata_recipient="Query Sequence",
+                    )
                 )
                 continue
 

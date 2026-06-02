@@ -24,7 +24,7 @@ class ProteinComplexityConfig(BaseConfig):
         max_low_complexity (float): Maximum acceptable fraction of low-complexity
             regions (0.0-1.0). Low-complexity regions contain repetitive or biased
             amino acid compositions. Typical values range from 0.1 (strict, allows
-            up to 20% low-complexity) to 0.3 (lenient, allows up to 30%). Default: 0.3.
+            up to 10% low-complexity) to 0.3 (lenient, allows up to 30%). Default: 0.2.
 
     """
 
@@ -70,7 +70,7 @@ def protein_complexity_constraint(
 
         config (ProteinComplexityConfig): Configuration object containing
             ``max_low_complexity`` (maximum acceptable low-complexity fraction,
-            default: 0.3).
+            default: 0.2).
 
     Returns:
         list[ConstraintOutput]: One result per sequence. A score of 0.0 indicates
@@ -81,24 +81,24 @@ def protein_complexity_constraint(
 
             - ``low_complexity_fraction``: Float fraction of sequence identified as
               low-complexity (0.0-1.0)
-            - ``segmasker_lowercase_count``: Integer count of positions masked as low-complexity
-            - ``segmasker_error``: Boolean indicating if segmasker execution failed
+            - ``low_complexity_count``: Integer count of positions masked as
+              low-complexity (from segmasker)
 
     Raises:
         AssertionError: If any sequence in the input list is not a protein sequence.
-        ValueError: If segmasker execution fails (e.g., segmasker not found in PATH,
+        RuntimeError: If segmasker execution fails (e.g., segmasker not found in PATH,
             invalid sequence format, or tool error).
 
     Examples:
         Evaluating protein complexity:
 
         >>> from proto_language.core import Sequence, SequenceType
-        >>> config = ProteinComplexityConfig(max_low_complexity=0.3)
+        >>> config = ProteinComplexityConfig(max_low_complexity=0.2)
         >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", "protein")
         >>> results = protein_complexity_constraint([(seq,)], config)
-        >>> print(results[0].score)  # 0.0 if low-complexity < 30%
+        >>> print(results[0].score)  # 0.0 if low-complexity <= 20%
         >>> print(results[0].metadata["low_complexity_fraction"])  # e.g., 0.15
-        >>> print(results[0].metadata["segmasker_lowercase_count"])  # e.g., 5
+        >>> print(results[0].metadata["low_complexity_count"])  # e.g., 5
     """
     segmasker_inputs = SegmaskerInput(sequences=[seq.sequence for (seq,) in input_sequences])
     segmasker_config = SegmaskerConfig()
@@ -106,7 +106,7 @@ def protein_complexity_constraint(
     result = run_segmasker(inputs=segmasker_inputs, config=segmasker_config)
 
     results = []
-    for (seq,), metrics in zip(input_sequences, result.results, strict=False):
+    for metrics in result.results:
         low_complexity_fraction = metrics.low_complexity_fraction
 
         if low_complexity_fraction <= config.max_low_complexity:
@@ -120,8 +120,7 @@ def protein_complexity_constraint(
                 score=score,
                 metadata={
                     "low_complexity_fraction": low_complexity_fraction,
-                    "segmasker_lowercase_count": int(low_complexity_fraction * len(seq)),
-                    "segmasker_error": False,
+                    "low_complexity_count": metrics.low_complexity_count,
                 },
             )
         )

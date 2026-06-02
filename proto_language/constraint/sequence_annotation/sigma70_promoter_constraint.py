@@ -3,10 +3,13 @@
 import math
 
 import numpy as np
+from pydantic import model_validator
 
 from proto_language.constraint.constraint_registry import constraint
 from proto_language.core import ConstraintOutput, Sequence
 from proto_language.utils.base import BaseConfig, ConfigField
+
+_PROMOTER_BOX_LENGTH = 6
 
 
 class Sigma70PromoterConfig(BaseConfig):
@@ -171,6 +174,19 @@ class Sigma70PromoterConfig(BaseConfig):
         default=20,
         description="Maximum acceptable spacer length in bp",
     )
+
+    @model_validator(mode="after")
+    def validate_box_lengths(self) -> "Sigma70PromoterConfig":
+        """Require 6-element consensus/probability vectors (else scoring ``zip`` truncates silently)."""
+        for name, value in (
+            ("consensus_35", self.consensus_35),
+            ("consensus_10", self.consensus_10),
+            ("probs_35", self.probs_35),
+            ("probs_10", self.probs_10),
+        ):
+            if len(value) != _PROMOTER_BOX_LENGTH:
+                raise ValueError(f"{name} must have exactly {_PROMOTER_BOX_LENGTH} elements, got {len(value)}")
+        return self
 
 
 @constraint(

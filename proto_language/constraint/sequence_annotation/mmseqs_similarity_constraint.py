@@ -169,18 +169,18 @@ def mmseqs_similarity_constraint(
             For DNA sequences, ORF prediction is performed automatically based on
             the configured predictor.
 
-        config (MMseqsSimilarityConfig): Configuration object containing ``min_similarity``
-            (minimum percent identity, default: 0.0), ``max_similarity`` (maximum
-            percent identity, default: 100.0), ``mmseqs_db`` (database path),
-            ``orf_predictor`` (default: "prodigal"), and optional tool configs
-            for MMseqs2, ORFipy, and Prodigal.
+        config (MMseqsSimilarityConfig): Configuration object containing the required
+            ``min_similarity`` and ``max_similarity`` (acceptable percent-identity band,
+            0-100) and ``mmseqs_db`` (database path), plus ``orf_predictor``
+            (default: "prodigal") and optional tool configs for MMseqs2, ORFipy,
+            and Prodigal.
         input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
 
     Returns:
         list[ConstraintOutput]: One result per sequence. Score 0.0 means all hits
             fall within [min_similarity, max_similarity]; higher scores indicate
             greater deviation. Score 1.0 (MAX_ENERGY) is returned if no ORFs are
-            found or MMseqs2 search fails. ``metadata`` carries:
+            found (DNA) or no database hits are found. ``metadata`` carries:
 
             **For DNA sequences (with Prodigal):**
 
@@ -209,13 +209,9 @@ def mmseqs_similarity_constraint(
             - ``total_orfs_with_hits``: Total hit count
             - ``similarity_compliance_rate``: Fraction of hits in range
 
-            **Error metadata (when MMseqs2 fails):**
-
-            - ``mmseqs_error``: Boolean True
-            - ``mmseqs_error_messages``: List of error message strings
-
     Raises:
         ValueError: If sequences are of mixed types (some DNA, some protein).
+        RuntimeError: If ORF prediction or the MMseqs2 search fails.
 
     Examples:
         Filtering for sequences with low similarity to existing proteins:

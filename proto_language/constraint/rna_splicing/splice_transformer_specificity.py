@@ -9,9 +9,12 @@ import logging
 from typing import Literal
 
 import numpy as np
+from proto_tools import CONTEXT_LENGTH as SPLICE_TRANSFORMER_CONTEXT_LENGTH
 from proto_tools import (
+    SPLICE_TISSUE_CHANNEL_INDEX,
     SpliceTransformerConfig,
     SpliceTransformerInput,
+    SpliceTransformerTissue,
     run_splice_transformer,
 )
 from pydantic import field_validator
@@ -21,46 +24,6 @@ from proto_language.core import ConstraintOutput, Sequence
 from proto_language.utils.base import BaseConfig, ConfigField
 
 logger = logging.getLogger(__name__)
-
-SpliceTransformerTissueName = Literal[
-    "AVERAGE",
-    "ADIPOSE_TISSUE",
-    "BLOOD",
-    "BLOOD_VESSEL",
-    "BRAIN",
-    "COLON",
-    "HEART",
-    "KIDNEY",
-    "LIVER",
-    "LUNG",
-    "MUSCLE",
-    "NERVE",
-    "SMALL_INTESTINE",
-    "SKIN",
-    "SPLEEN",
-    "STOMACH",
-]
-
-# SpliceTransformer prediction channels are:
-# [0: neither, 1: acceptor, 2: donor, 3+: tissue logits].
-SPLICE_TISSUE_CHANNEL_INDEX: dict[SpliceTransformerTissueName, int | None] = {
-    "AVERAGE": None,
-    "ADIPOSE_TISSUE": 3,
-    "BLOOD": 4,
-    "BLOOD_VESSEL": 5,
-    "BRAIN": 6,
-    "COLON": 7,
-    "HEART": 8,
-    "KIDNEY": 9,
-    "LIVER": 10,
-    "LUNG": 11,
-    "MUSCLE": 12,
-    "NERVE": 13,
-    "SMALL_INTESTINE": 14,
-    "SKIN": 15,
-    "SPLEEN": 16,
-    "STOMACH": 17,
-}
 
 
 class SpliceTransformerSpecificityConfig(BaseConfig):
@@ -92,7 +55,7 @@ class SpliceTransformerSpecificityConfig(BaseConfig):
             integer (automatically converted to list) or list of integers for
             multiple positions.
 
-        tissue (SpliceTransformerTissueName): Target tissue for specificity evaluation.
+        tissue (SpliceTransformerTissue): Target tissue for specificity evaluation.
             Options include "AVERAGE" (average across all tissues, default) or
             specific tissues like "BRAIN", "HEART", "LIVER", "MUSCLE", "STOMACH",
             etc. SpliceTransformer was trained on RNA-seq data from multiple human
@@ -125,7 +88,7 @@ class SpliceTransformerSpecificityConfig(BaseConfig):
         title="Splice Position(s)",
         description="0-indexed position(s) into input_sequence on which to compute the score",
     )
-    tissue: SpliceTransformerTissueName = ConfigField(
+    tissue: SpliceTransformerTissue = ConfigField(
         title="Tissue to Evaluate",
         default="AVERAGE",
         description="Tissue on which to define the score. By default, averages across all tissues.",
@@ -155,7 +118,7 @@ class SpliceTransformerSpecificityConfig(BaseConfig):
     key="splice-transformer-specificity",
     label="SpliceTransformer tissue specificity score",
     config=SpliceTransformerSpecificityConfig,
-    description="Score tissue-specific splicing with SpliceTransformer on three concatenated 1-kb segments.",
+    description="Score tissue-specific splicing with SpliceTransformer on three segments concatenated into one 1-kb target.",
     uses_gpu=True,
     tools_called=["splice-transformer-prediction"],
     category="rna_splicing",
@@ -186,11 +149,11 @@ def splice_transformer_specificity(
     if not input_sequences:
         return []
 
-    if len(config.left_context) != len(config.right_context):
+    if not (len(config.left_context) == len(config.right_context) == SPLICE_TRANSFORMER_CONTEXT_LENGTH):
         raise ValueError(
-            f"Left/right context lengths must match: {len(config.left_context)} != {len(config.right_context)}"
+            f"splice-transformer: left/right context must each be {SPLICE_TRANSFORMER_CONTEXT_LENGTH} bp; "
+            f"got left={len(config.left_context)}, right={len(config.right_context)}"
         )
-    context_length = len(config.left_context)
     tissue_channel_index = SPLICE_TISSUE_CHANNEL_INDEX[config.tissue]
 
     # Concatenate 3-part tuples into target sequences for batched inference.
@@ -207,12 +170,11 @@ def splice_transformer_specificity(
         left_contexts=[config.left_context] * len(target_seqs),
         right_contexts=[config.right_context] * len(target_seqs),
     )
-    splice_transformer_config = config.splice_transformer_config.model_copy(update={"context_length": context_length})
 
     output = np.array(
         run_splice_transformer(
             splice_transformer_input,
-            splice_transformer_config,
+            config.splice_transformer_config,
         ).prediction
     )
 

@@ -175,3 +175,31 @@ class TestGapGiniConstraint:
         config = GapGiniConfig(max_gap_gini=0.1)
         results = gap_gini_constraint(pairs, config)
         assert len(results) == 2
+
+    def test_no_overlap_after_trimming_penalizes(self, monkeypatch):
+        """No co-aligned residues after trimming must score MAX_ENERGY, not pass (M7)."""
+        import sys
+        from types import SimpleNamespace
+
+        gap_gini_module = sys.modules[gap_gini_constraint.__module__]
+
+        # Two aligned rows whose central 80% has no co-aligned residues, so
+        # trim_alignment returns (None, None).
+        fake_align_result = SimpleNamespace(msa=["A" + "-" * 18 + "A", "-" * 10 + "AAAAAAAAAA"])
+
+        monkeypatch.setattr(
+            "proto_tools.tools.sequence_alignment.mafft.run_mafft_align",
+            lambda *args, **kwargs: fake_align_result,
+        )
+        # Force the no-overlap branch deterministically.
+        monkeypatch.setattr(gap_gini_module, "trim_alignment", lambda al1, al2: (None, None))
+
+        query = Sequence("MVLSPADKTNVK", "protein")
+        ref = Sequence("MVLSPADKTNVK", "protein")
+        config = GapGiniConfig(max_gap_gini=0.1, trim_alignment=True)
+        results = gap_gini_constraint([(query, ref)], config)
+
+        assert len(results) == 1
+        assert results[0].score == 1.0
+        assert results[0].metadata["gap_gini"] is None
+        assert results[0].metadata["gap_gini_error"] == "no overlapping residues after trimming"
