@@ -175,12 +175,66 @@ class Generator(ABC):
                     f"Generator {self.__class__.__name__} cannot tie segments with different valid character sets."
                 )
 
+        self._hydrate_empty_tied_segments(normalized)
         self._assigned_segments = normalized
         logger.debug(
             "Generator.assign: %s -> segments=%s",
             self.__class__.__name__,
             [segment.label for segment in normalized],
         )
+
+    @staticmethod
+    def _hydrate_empty_tied_segments(segments: tuple[Segment, ...]) -> None:
+        """Copy populated tied sequence pools into length-only tied segments.
+
+        Tied generators only sample through the primary segment and then mirror
+        proposals. Before the first sample, optimizers can still snapshot or
+        reject back to each segment's existing result pool. A length-only tied
+        segment stores ``Sequence("")`` there, which can later become an empty
+        chain in multi-segment constraints. If any tied segment already has a
+        real sequence, use it to seed tied siblings whose pools are still empty.
+        """
+        if len(segments) < 2:
+            return
+
+        source = next(
+            (
+                segment
+                for segment in segments
+                if any(seq.sequence for seq in segment.result_sequences)
+                or any(seq.sequence for seq in segment.proposal_sequences)
+            ),
+            None,
+        )
+        if source is None:
+            return
+
+        source_results = (
+            source.result_sequences
+            if any(seq.sequence for seq in source.result_sequences)
+            else source.proposal_sequences
+        )
+        source_proposals = (
+            source.proposal_sequences
+            if any(seq.sequence for seq in source.proposal_sequences)
+            else source.result_sequences
+        )
+
+        for segment in segments:
+            hydrated_pools: list[str] = []
+            if not any(seq.sequence for seq in segment.result_sequences):
+                segment.result_sequences = [copy.deepcopy(seq) for seq in source_results]
+                hydrated_pools.append("result_sequences")
+            if not any(seq.sequence for seq in segment.proposal_sequences):
+                segment.proposal_sequences = [copy.deepcopy(seq) for seq in source_proposals]
+                hydrated_pools.append("proposal_sequences")
+            if hydrated_pools:
+                logger.warning(
+                    "Hydrated empty tied segment %r %s from tied source segment %r.",
+                    segment.label or "unlabeled",
+                    ", ".join(hydrated_pools),
+                    source.label or "unlabeled",
+                )
 
     def sample(self, *args: Any, **kwargs: Any) -> None:
         """Run ``_sample()``, warn on short autoregressive output, then mirror primary proposals to tied segments."""

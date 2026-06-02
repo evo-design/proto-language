@@ -128,6 +128,48 @@ class TestGeneratorBase:
         assert gen.segment is segments[0]
         assert gen.segments == tuple(segments)
 
+    def test_assign_hydrates_empty_tied_segment_pools(self, caplog):
+        """Length-only tied segments start from a populated tied sibling."""
+        gen = ConcreteMutationGenerator()
+        primary = Segment(sequence="MKKL", sequence_type="protein", label="primary")
+        tied = Segment(length=4, sequence_type="protein", label="tied")
+
+        p_get, p_key = _patch_registry(_mock_spec(supported_types=["protein"]))
+        with p_get, p_key, caplog.at_level(logging.WARNING, logger="proto_language.core.generator"):
+            gen.assign([primary, tied])
+
+        assert tied.result_sequences[0].sequence == "MKKL"
+        assert tied.proposal_sequences[0].sequence == "MKKL"
+        assert tied.result_sequences[0] is not primary.result_sequences[0]
+        assert tied.proposal_sequences[0] is not primary.proposal_sequences[0]
+        assert "Hydrated empty tied segment 'tied' result_sequences, proposal_sequences" in caplog.text
+
+    def test_assign_hydrates_empty_primary_from_tied_sibling(self):
+        """The sampling primary is populated if a later tied segment has the seed."""
+        gen = ConcreteMutationGenerator()
+        primary = Segment(length=4, sequence_type="protein", label="primary")
+        tied = Segment(sequence="MKKL", sequence_type="protein", label="tied")
+
+        p_get, p_key = _patch_registry(_mock_spec(supported_types=["protein"]))
+        with p_get, p_key:
+            gen.assign([primary, tied])
+
+        assert primary.result_sequences[0].sequence == "MKKL"
+        assert primary.proposal_sequences[0].sequence == "MKKL"
+
+    def test_assign_preserves_nonempty_tied_segment_pools(self):
+        """Assignment does not overwrite distinct non-empty tied starting pools."""
+        gen = ConcreteMutationGenerator()
+        primary = Segment(sequence="MKKL", sequence_type="protein", label="primary")
+        tied = Segment(sequence="MAAA", sequence_type="protein", label="tied")
+
+        p_get, p_key = _patch_registry(_mock_spec(supported_types=["protein"]))
+        with p_get, p_key:
+            gen.assign([primary, tied])
+
+        assert tied.result_sequences[0].sequence == "MAAA"
+        assert tied.proposal_sequences[0].sequence == "MAAA"
+
     def test_assign_multiple_segments_requires_tie_compatible_segments(self):
         """Tests that tied segments must describe the same value space."""
         gen = ConcreteMutationGenerator()
