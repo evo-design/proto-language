@@ -1,4 +1,4 @@
-# High-Level Design Language for Generative Biology
+# High-Level Programming Language for Generative Biology
 
 [![Checks](https://github.com/evo-design/proto-language/actions/workflows/checks.yml/badge.svg)](https://github.com/evo-design/proto-language/actions/workflows/checks.yml)
 [![Unit Tests](https://github.com/evo-design/proto-language/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/evo-design/proto-language/actions/workflows/unit-tests.yml)
