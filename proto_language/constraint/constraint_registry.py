@@ -176,8 +176,12 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             Callable[[Callable[..., Any]], Callable[..., Any]]: Decorator that registers the function.
 
         Raises:
-            ValueError: If the decorated function returns ``list[GradientConstraintOutput]``
-                and ``backward`` is also provided.
+            ValueError: If ``key`` is already registered (duplicate); if
+                ``supported_sequence_types`` is empty; if the decorated function
+                returns ``list[GradientConstraintOutput]`` and ``backward`` is also
+                provided; or if ``backward_config`` is given without a backward
+                callable (neither ``backward`` nor a ``list[GradientConstraintOutput]``
+                return).
 
         Examples:
             Scoring function (single segment, default label):

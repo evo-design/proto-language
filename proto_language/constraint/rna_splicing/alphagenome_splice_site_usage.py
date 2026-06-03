@@ -1,7 +1,8 @@
-"""Accepts three segments (left_flank, intron_core, right_flank), concatenates.
+"""Score splice-site usage with AlphaGenome from three concatenated segments.
 
-them into a target sequence, integrates the target into a genomic context
-via cassette insertion, and scores splice-site usage with AlphaGenome.
+Accepts three segments (left_flank, intron_core, right_flank), concatenates them
+into a target sequence, integrates the target into a genomic context via cassette
+insertion, and scores splice-site usage with AlphaGenome.
 """
 
 import logging
@@ -149,7 +150,7 @@ class AlphaGenomeSpliceSiteUsageConfig(BaseConfig):
         model_version (str): AlphaGenome model version.
         organism (Literal['human', 'mouse']): Organism for AlphaGenome prediction.
         prediction_timeout (int): Timeout (seconds) for each prediction call.
-        device (str): PyTorch device string for model inference (e.g. 'cpu', 'cuda').
+        device (str): Device for AlphaGenome (JAX) inference (e.g. 'cpu', 'cuda').
     """
 
     # Cassette and genomic context fields

@@ -34,7 +34,7 @@ class AlphaGenomeIntervalTrackConfig(BaseConfig):
         model_version (str): AlphaGenome model version.
         organism (Literal['human', 'mouse']): Organism for AlphaGenome prediction.
         prediction_timeout (int): Timeout (seconds) for each prediction call.
-        device (str): PyTorch device string for model inference (e.g. 'cpu', 'cuda').
+        device (str): Device for AlphaGenome (JAX) inference (e.g. 'cpu', 'cuda').
     """
 
     intervals: list[tuple[int, int]] = ConfigField(

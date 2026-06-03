@@ -1386,6 +1386,60 @@ class TestFastaExport:
             assert ">construct_0_promoter_result0" in content
 
 
+class TestUnlabeledConstructFallback:
+    """Unlabeled constructs get a uniform ``construct_{i}`` name across all tables and FASTA."""
+
+    @pytest.fixture
+    def unlabeled_results(self):
+        """Results whose single construct has ``label=None``."""
+        return {
+            "results": [
+                {
+                    "result_idx": 0,
+                    "energy_score": 0.5,
+                    "constructs": [
+                        {
+                            "label": None,
+                            "type": "dna",
+                            "segments": [
+                                {
+                                    "label": "promoter",
+                                    "sequence": "ATCGATCG",
+                                    "constraints": {
+                                        "gc_content_constraint": {
+                                            "score": 0.1,
+                                            "weight": 1.0,
+                                            "weighted_score": 0.1,
+                                            "data": {"gc_content": 50.0},
+                                        },
+                                    },
+                                    "generators": {},
+                                    "metadata": {},
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        }
+
+    def test_flatten_sequences_fallback(self, unlabeled_results):
+        rows = flatten_sequences(unlabeled_results)
+        assert all(row["construct"] == "construct_0" for row in rows)
+
+    def test_flatten_constraints_fallback(self, unlabeled_results):
+        rows = flatten_constraints(unlabeled_results)
+        assert all(row["construct"] == "construct_0" for row in rows)
+
+    def test_flatten_constructs_fallback(self, unlabeled_results):
+        rows = flatten_constructs(unlabeled_results)
+        assert all(row["construct"] == "construct_0" for row in rows)
+
+    def test_to_fasta_fallback(self, unlabeled_results):
+        result = to_fasta(unlabeled_results)
+        assert ">construct_0_promoter_result0" in result
+
+
 # =============================================================================
 # Improvement 4: Segment boundaries in construct export
 # =============================================================================

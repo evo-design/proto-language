@@ -470,6 +470,6 @@ class CyclingOptimizer(Optimizer):
         logger.info(f"  energy:  {self._format_energy_summary()}")
         num_accepted = self._proposal_outcomes.count("accepted")
         logger.info(f"  accepted {num_accepted}/{self.num_proposals} proposals")
-        logger.debug(f"  original_seq[0]: {self.target_segment.result_sequences[0].sequence}")
+        logger.debug(f"  result_seq[0]: {self.target_segment.result_sequences[0].sequence}")
         if self.custom_logging:
             self.custom_logging(step, self.segments)

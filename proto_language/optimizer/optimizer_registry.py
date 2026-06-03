@@ -1,7 +1,4 @@
-"""Provides a decorator-based API for registering optimizer classes with metadata and.
-
-JSON schema export for tooling.
-"""
+"""Decorator-based API for registering optimizer classes with metadata and JSON schema export for tooling."""
 
 from collections.abc import Callable
 from typing import TYPE_CHECKING, ClassVar, Literal
@@ -211,5 +208,5 @@ class OptimizerRegistry(BaseRegistry[OptimizerSpec]):
         return doc
 
 
-# Alias for simpler decorator syntax: @optimizer(...) instead of @optimizer(...)
+# Alias for simpler decorator syntax: @optimizer(...) instead of @OptimizerRegistry.register(...)
 optimizer = OptimizerRegistry.register

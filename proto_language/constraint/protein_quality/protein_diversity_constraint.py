@@ -26,8 +26,10 @@ class ProteinDiversityConfig(BaseConfig):
             enforce more diverse amino acid usage. Default: 0.7.
 
     Note:
-        A diversity score of 1.0 means all 20 standard amino acids are present,
-        while 0.0 means only one amino acid type is used (homopolymer).
+        A diversity score of 1.0 means all 20 standard amino acids are present.
+        The minimum for a non-empty sequence is 0.05 (1/20), reached by a
+        homopolymer (only one amino acid type); a score of 0.0 is unreachable
+        since empty sequences are rejected.
     """
 
     min_diversity: float = ConfigField(
@@ -93,10 +95,10 @@ def protein_diversity_constraint(
         >>> config = ProteinDiversityConfig(min_diversity=0.5)
         >>> seq = Sequence("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSF", "protein")
         >>> results = protein_diversity_constraint([(seq,)], config)
-        >>> print(results[0].score)  # 0.0 if diversity >= 0.5
-        >>> print(results[0].metadata["aa_diversity_score"])  # e.g., 0.65
-        >>> print(results[0].metadata["unique_amino_acid_count"])  # e.g., 13
-        >>> print(results[0].metadata["unique_amino_acids"])  # e.g., ['A', 'D', 'E', 'F', ...]
+        >>> print(results[0].score)  # 0.0 (diversity 0.85 >= 0.5)
+        >>> print(results[0].metadata["aa_diversity_score"])  # 0.85
+        >>> print(results[0].metadata["unique_amino_acid_count"])  # 17
+        >>> print(results[0].metadata["unique_amino_acids"])  # ['A', 'D', 'E', 'F', ...]
     """
     # Extract sequence strings from tuples
     seq_strings = [seq.sequence for (seq,) in input_sequences]

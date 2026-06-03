@@ -168,7 +168,11 @@ class Sequence:
         return self._valid_chars
 
     def ordered_vocab(self) -> list[str]:
-        """Canonical alphabet for the sequence's type, intersected with ``valid_chars``; raises for ligands."""
+        """Canonical alphabet for the sequence's type, filtered to ``valid_chars``.
+
+        Canonical order is preserved; any custom ``valid_chars`` outside the canonical
+        alphabet are appended alphabetically. Raises ``ValueError`` for ligands.
+        """
         if self._sequence_type == "ligand":
             raise ValueError("Sequence is a ligand; no fixed vocab.")
         canonical = {"dna": DNA_NUCLEOTIDES, "rna": RNA_NUCLEOTIDES, "protein": PROTEIN_AMINO_ACIDS}[

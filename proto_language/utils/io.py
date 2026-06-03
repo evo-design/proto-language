@@ -1,8 +1,8 @@
 """Reading and writing sequence/result files.
 
-Writing: build_results() + flatten_*() + to_csv/tsv/json/xlsx/fasta build five
-canonical tables, with row-shaped nested metadata written as ``assets/*.csv``
-sidecars whose parent cell holds the sidecar path.
+Writing: build_results() + flatten_*() + to_csv/tsv/json/xlsx/fasta build four
+canonical tables plus a FASTA file, with row-shaped nested metadata written as
+``assets/*.csv`` sidecars whose parent cell holds the sidecar path.
 
 - sequences:    One row per (result_idx, construct, segment)
 - constraints:  One row per (result_idx, construct, segment, constraint)
@@ -365,14 +365,14 @@ def flatten_sequences(
     for result_entry in results.get("results", []):
         if result_indices is not None and result_entry["result_idx"] not in result_indices:
             continue
-        for construct in result_entry["constructs"]:
+        for ci, construct in enumerate(result_entry["constructs"]):
             for segment in construct["segments"]:
                 if segments is not None and segment["label"] not in segments:
                     continue
                 row = {
                     "result_idx": result_entry["result_idx"],
                     "energy_score": result_entry["energy_score"],
-                    "construct": construct["label"],
+                    "construct": construct.get("label") or f"construct_{ci}",
                     "sequence_type": construct["type"],
                     "segment": segment["label"],
                     "sequence": segment["sequence"],
@@ -413,7 +413,7 @@ def flatten_constraints(
     for result_entry in results.get("results", []):
         if result_indices is not None and result_entry["result_idx"] not in result_indices:
             continue
-        for construct in result_entry["constructs"]:
+        for ci, construct in enumerate(result_entry["constructs"]):
             for segment in construct["segments"]:
                 if segments is not None and segment["label"] not in segments:
                     continue
@@ -423,7 +423,7 @@ def flatten_constraints(
                     row = {
                         "result_idx": result_entry["result_idx"],
                         "energy_score": result_entry["energy_score"],
-                        "construct": construct["label"],
+                        "construct": construct.get("label") or f"construct_{ci}",
                         "sequence_type": construct["type"],
                         "segment": segment["label"],
                         "constraint": label,
@@ -465,11 +465,11 @@ def flatten_constructs(
     for result_entry in results.get("results", []):
         if result_indices is not None and result_entry["result_idx"] not in result_indices:
             continue
-        for construct in result_entry["constructs"]:
+        for ci, construct in enumerate(result_entry["constructs"]):
             row = {
                 "result_idx": result_entry["result_idx"],
                 "energy_score": result_entry["energy_score"],
-                "construct": construct["label"],
+                "construct": construct.get("label") or f"construct_{ci}",
                 "sequence_type": construct["type"],
                 "full_sequence": "".join(s["sequence"] for s in construct["segments"]),
             }
@@ -872,12 +872,12 @@ def to_fasta(
     for result_entry in results.get("results", []):
         if result_indices is not None and result_entry["result_idx"] not in result_indices:
             continue
-        for construct in result_entry["constructs"]:
+        for ci, construct in enumerate(result_entry["constructs"]):
             for segment in construct["segments"]:
                 if segments is not None and segment["label"] not in segments:
                     continue
                 header = header_format.format(
-                    construct=construct["label"],
+                    construct=construct.get("label") or f"construct_{ci}",
                     segment=segment["label"],
                     result_idx=result_entry["result_idx"],
                     energy_score=result_entry["energy_score"],

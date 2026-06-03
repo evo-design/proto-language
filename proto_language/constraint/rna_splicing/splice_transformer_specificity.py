@@ -48,8 +48,9 @@ class SpliceTransformerSpecificityConfig(BaseConfig):
             This flanking sequence provides downstream genomic context. Should be
             the genomic sequence immediately 3' of the target sequence.
 
-        splice_pos (list[int]): Zero-indexed position(s) within the input
-            sequence to evaluate for tissue-specific splicing. These positions
+        splice_pos (list[int]): Zero-indexed position(s) within the concatenated
+            target sequence (left_flank + intron_core + right_flank) to evaluate
+            for tissue-specific splicing. These positions
             typically correspond to splice sites (donor or acceptor) where you
             want to assess or control tissue-specific usage. Can be a single
             integer (automatically converted to list) or list of integers for
@@ -86,7 +87,7 @@ class SpliceTransformerSpecificityConfig(BaseConfig):
     )
     splice_pos: list[int] = ConfigField(
         title="Splice Position(s)",
-        description="0-indexed position(s) into input_sequence on which to compute the score",
+        description="0-indexed position(s) into the concatenated target sequence on which to compute the score",
     )
     tissue: SpliceTransformerTissue = ConfigField(
         title="Tissue to Evaluate",

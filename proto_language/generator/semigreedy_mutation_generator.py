@@ -128,10 +128,9 @@ class SemigreedyMutationGenerator(Generator):
     * ``"entropy"``: positions with higher Shannon entropy in the PSSM are more
       likely, targeting the most uncertain residues.
     * ``"plddt"``: positions are weighted by ``(1 - pLDDT)`` read from the
-      canonical ``proposal.structure.per_residue_plddt`` property, so
-      structurally uncertain residues are mutated more frequently. Requires
-      each proposal to have a ``Structure`` whose ``b_factor_type`` is
-      ``PLDDT`` or ``NORMALIZED_PLDDT``.
+      canonical ``proposal.structure.per_residue_plddt`` property when a
+      ``Structure`` with pLDDT B-factors is present, so structurally uncertain
+      residues are mutated more frequently; otherwise it falls back to uniform.
 
     ``frozen_positions`` hard-excludes listed indices from selection (deterministic
     counterpart to ``sequence_bias``); whatever residue is there stays. Implements
@@ -219,8 +218,10 @@ class SemigreedyMutationGenerator(Generator):
         Raises:
             RuntimeError: If called before ``assign()`` or if a proposal has no logits when
                 ``clear_logits=False``.
-            ValueError: If logits have the wrong shape or ``plddt`` weighting is
-                requested but the proposal has no per-residue pLDDT on its structure.
+            ValueError: If logits have the wrong shape, or if ``plddt`` weighting is
+                requested and the proposal's per-residue pLDDT length does not match the
+                sequence length. A missing structure or missing per-residue pLDDT does
+                not raise; it falls back to uniform position weighting.
         """
         self._validate_generator()
         vocab = list(PROTEIN_AMINO_ACIDS)

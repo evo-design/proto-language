@@ -187,7 +187,8 @@ class ESM2Generator(Generator):
 
     Example:
         >>> from proto_language.generator import ESM2Generator, ESM2GeneratorConfig
-        >>> from proto_language.core import Segment, SequenceType
+        >>> from proto_language.core import Segment
+        >>> from proto_tools.transforms.masking import MaskingStrategy
         >>> config = ESM2GeneratorConfig(
         ...     temperature=1.0,
         ...     masking_strategy=MaskingStrategy(num_mutations=5),

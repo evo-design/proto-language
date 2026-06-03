@@ -225,7 +225,7 @@ def build_sequence_logit_bias_matrix_from_sequence(
 ) -> np.ndarray | None:
     """Build an additive logit-bias matrix from a ``Sequence``.
 
-    Sibling to ``build_sequence_logit_bias_matrix`` for constraint backwards
+    Sibling to ``build_sequence_logit_bias_matrix`` for constraint callers
     that only see ``Sequence`` instances rather than a ``Segment``.
 
     Args:

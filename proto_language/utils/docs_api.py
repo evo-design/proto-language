@@ -410,18 +410,22 @@ def list_categories(kind: ComponentKind) -> list[str]:
 
 
 class CompatibilityReport(BaseModel):
-    """Components that can be paired with a target component.
-
-    The target's ``kind`` and ``key`` are the input; the other two registries
-    are partitioned into ``compatible`` (paired successfully under the spec
-    rules) and ``incompatible`` (paired but ruled out, with a short reason).
-    """
+    """Registry keys compatible with a target component under the spec rules."""
 
     kind: ComponentKind = Field(description="Target component's kind.")
     key: str = Field(description="Target component's registry key.")
-    compatible_constraints: list[str] = Field(default_factory=list)
-    compatible_generators: list[str] = Field(default_factory=list)
-    compatible_optimizers: list[str] = Field(default_factory=list)
+    compatible_constraints: list[str] = Field(
+        default_factory=list,
+        description="Compatible constraint keys (populated only when the target is an optimizer).",
+    )
+    compatible_generators: list[str] = Field(
+        default_factory=list,
+        description="Compatible generator keys (populated only when the target is an optimizer).",
+    )
+    compatible_optimizers: list[str] = Field(
+        default_factory=list,
+        description="Compatible optimizer keys (populated only when the target is a constraint or generator).",
+    )
 
 
 def _compatible_for_optimizer(key: str) -> CompatibilityReport:

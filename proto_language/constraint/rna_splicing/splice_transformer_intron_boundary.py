@@ -46,14 +46,16 @@ class SpliceTransformerIntronBoundaryConfig(BaseConfig):
             genomic sequence immediately 3' of the target sequence.
 
         donor_pos (list[int]): Zero-indexed position(s) of expected donor
-            splice site(s) within the input sequence. The donor site marks the 5'
+            splice site(s) within the concatenated target sequence (left_flank +
+            intron_core + right_flank). The donor site marks the 5'
             end of an intron (exon-intron boundary), typically at a "GT" dinucleotide.
             SpliceTransformer scores the donor probability at the "GT" position.
             Can be a single integer (automatically converted to list) or list of
             integers for multiple donors.
 
         acceptor_pos (list[int]): Zero-indexed position(s) of expected
-            acceptor splice site(s) within the input sequence. The acceptor site
+            acceptor splice site(s) within the concatenated target sequence
+            (left_flank + intron_core + right_flank). The acceptor site
             marks the 3' end of an intron (intron-exon boundary), typically at an
             "AG" dinucleotide. SpliceTransformer scores the acceptor probability at
             the "AG" position. Can be a single integer (automatically converted to
@@ -65,7 +67,8 @@ class SpliceTransformerIntronBoundaryConfig(BaseConfig):
 
     Note:
         SpliceTransformer requires sequences of specific lengths:
-        - Target sequence (input_sequence): Must be exactly 1000 bp
+        - Concatenated target (left_flank + intron_core + right_flank): Must be
+          exactly 1000 bp
         - Left context: Must be exactly 4000 bp
         - Right context: Must be exactly 4000 bp
         - Total sequence analyzed: 9000 bp (4000 + 1000 + 4000)
@@ -86,11 +89,11 @@ class SpliceTransformerIntronBoundaryConfig(BaseConfig):
     )
     donor_pos: list[int] = ConfigField(
         title="Donor Position(s)",
-        description="0-indexed position(s) into input_sequence of expected donor",
+        description="0-indexed position(s) into the concatenated target sequence of expected donor",
     )
     acceptor_pos: list[int] = ConfigField(
         title="Acceptor Position(s)",
-        description="0-indexed position(s) into input_sequence of expected acceptor",
+        description="0-indexed position(s) into the concatenated target sequence of expected acceptor",
     )
 
     @field_validator("donor_pos", "acceptor_pos", mode="before")

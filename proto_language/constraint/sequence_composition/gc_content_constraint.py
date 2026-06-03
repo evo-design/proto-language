@@ -6,10 +6,7 @@ from proto_language.constraint.constraint_registry import constraint
 from proto_language.core import ConstraintOutput, Sequence
 from proto_language.utils import (
     MAX_ENERGY,
-    MAX_GC_CONTENT,
-    MIN_GC_CONTENT,
     calculate_percentage_range_deviation,
-    validate_range,
 )
 from proto_language.utils.base import BaseConfig, ConfigField
 
@@ -85,9 +82,6 @@ def gc_content_constraint(
             penalties scaling linearly with the deviation distance. The ``metadata``
             field carries ``gc_content``.
 
-    Raises:
-        ValueError: If min_gc or max_gc are outside the range [0, 100].
-
     Examples:
         Evaluating GC content constraint:
 
@@ -96,9 +90,6 @@ def gc_content_constraint(
         >>> result = gc_content_constraint([(seq,)], config=cfg)
         >>> print(result[0].score)  # 0.0 (50% GC content is within acceptable range)
     """
-    validate_range(config.min_gc, MIN_GC_CONTENT, MAX_GC_CONTENT, "min_gc")
-    validate_range(config.max_gc, MIN_GC_CONTENT, MAX_GC_CONTENT, "max_gc")
-
     results = []
 
     for (seq,) in input_sequences:

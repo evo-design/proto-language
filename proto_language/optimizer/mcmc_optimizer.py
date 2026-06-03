@@ -253,7 +253,7 @@ class MCMCOptimizer(Optimizer):
         1. Maintains `num_results` independent trajectories in `result_sequences`
         2. Creates `proposal_sequences` by replicating each result sequence `proposals_per_result` times
         3. Generates proposals (mutates `proposal_sequences` in-place)
-        4. For each trajectory, independently apply MH acceptance and select the best accepted proposal
+        4. For each trajectory, independently select the best proposal by energy, then apply a single Metropolis-Hastings accept/reject
 
         Note:
             - Each trajectory (result index) is independent with no cross-trajectory mixing.
@@ -440,8 +440,10 @@ class MCMCOptimizer(Optimizer):
     def _build_temperature_schedule(config: MCMCOptimizerConfig) -> Schedule:
         """Build a temperature schedule mapping MCMC step to temperature.
 
-        Shifts indices so step=1 is exactly ``max_temperature`` and
-        step=num_steps is exactly ``min_temperature``.
+        For ``num_steps > 1``, shifts indices so step=1 is exactly
+        ``max_temperature`` and step=num_steps is exactly ``min_temperature``.
+        When ``num_steps <= 1`` the schedule degenerates to a constant
+        ``max_temperature`` (the ``min_temperature`` endpoint is never reached).
         """
         base = SCHEDULES[config.temperature_schedule](config.max_temperature, config.min_temperature)
         n = config.num_steps

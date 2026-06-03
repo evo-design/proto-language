@@ -81,14 +81,14 @@ class ProteinQualitySubConfig(BaseConfig):
             constraint. When True, analyzes the sequence for repeated k-mer
             patterns and penalizes sequences with excessive repetition. Checks
             k-mers of sizes from ``repetitiveness_min_repeat_length`` up to
-            ``repetitiveness_min_repeat_length + 7``. Default: False.
+            ``repetitiveness_min_repeat_length + 6``. Default: False.
         repetitiveness_max_repetitiveness (float): Maximum allowed fraction of
             sequence covered by repeated k-mers. Valid range: 0.0-1.0. Lower values
             enforce stricter anti-repetition requirements. Default: 0.1.
             Advanced parameter.
         repetitiveness_min_repeat_length (int): Smallest k-mer size to consider
             as a potential repeat. The analysis examines k-mers from this size
-            up to this size + 7. Must be >= 1. Lower values detect shorter repeats
+            up to this size + 6. Must be >= 1. Lower values detect shorter repeats
             but are more computationally intensive. Default: 1. Advanced parameter.
         enable_diversity (bool): Toggle to include amino acid diversity constraint.
             When True, requires the sequence to contain a minimum fraction of the
@@ -166,7 +166,7 @@ class ProteinQualitySubConfig(BaseConfig):
         default=1,
         ge=1,
         title="Minimum Repeat Length",
-        description="Smallest k-mer size to treat as a repeat (analyzes up to +7 beyond this).",
+        description="Smallest k-mer size to treat as a repeat (analyzes up to +6 beyond this).",
     )
 
     enable_diversity: bool = ConfigField(
@@ -383,7 +383,7 @@ def overall_protein_quality_constraint(
             - ``repetitiveness_max_repetitiveness`` (float): Maximum allowed fraction
               of sequence covered by repeated k-mers (0.0-1.0, default: 0.1).
             - ``repetitiveness_min_repeat_length`` (int): Smallest k-mer size to
-              treat as a repeat, analyzes up to +7 beyond this (default: 1).
+              treat as a repeat, analyzes up to +6 beyond this (default: 1).
 
             **Diversity constraint (optional):**
             - ``enable_diversity`` (bool): Toggle for amino acid diversity constraint.

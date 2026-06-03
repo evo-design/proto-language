@@ -96,6 +96,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
         Registration:
         >>> @generator(
         ...     key="random-nucleotide",
+        ...     label="Random Nucleotide",
         ...     config=RandomNucleotideGeneratorConfig,
         ...     description="Random nucleotide mutations",
         ...     uses_gpu=False,

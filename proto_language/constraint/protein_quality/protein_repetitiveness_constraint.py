@@ -34,7 +34,7 @@ class ProteinRepetitivenessConfig(BaseConfig):
             Must be a positive integer. Smaller values detect most typical sequence
             repeats like "ATATATATA" or "MLKVMLKV", while longer values (5-7) detect larger
             structural repeats or large motif duplications. The algorithm checks k-mers
-            from this length up to ``min_repeat_length + 7`` to find the most
+            from this length up to ``min_repeat_length + 6`` to find the most
             repetitive pattern. Default: 1.
     """
 
@@ -51,7 +51,7 @@ class ProteinRepetitivenessConfig(BaseConfig):
         title="Min Repeat Length",
         default=1,
         ge=1,
-        description="Smallest k-mer length treated as a repeat; the scan continues up to this length plus 7.",
+        description="Smallest k-mer length treated as a repeat; the scan continues up to this length plus 6.",
         examples=[1, 3],
     )
 
