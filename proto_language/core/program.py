@@ -413,7 +413,9 @@ class Program:
                     if not structure_inputs:
                         raise ValueError(
                             f"Stage {stage_idx} inverse folding generator {generator.__class__.__name__} "
-                            f"requires structure_inputs on its config, or wrap the stage in a CyclingOptimizer."
+                            f"requires structure_inputs on its config, or wrap the stage in a CyclingOptimizer "
+                            f"(or, if it generates its own structures rather than consuming them, it should not "
+                            f"declare input_type=STRUCTURE)."
                         )
 
                 # Only the primary is consumed by ``_sample()``; tied segments are mirrored from it.
