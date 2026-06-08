@@ -1534,6 +1534,10 @@ def _mpnn_constraint(seg: Segment, structure_pdb: str, label: str = "mpnn") -> C
             "temperature": 0.7,
             "score_mode": "nll",
             "seed": 7,
+            # STE off so a short uniform-init descent is observable: with STE,
+            # forward = argmax(softmax(uniform)) stays poly-A across a few small
+            # steps and loss is bit-identical despite valid gradients.
+            "use_ste": False,
         },
         label=label,
     )
