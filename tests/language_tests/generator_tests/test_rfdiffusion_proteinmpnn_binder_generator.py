@@ -197,19 +197,30 @@ class TestRFdiffusionProteinMPNNBinderGeneratorSample:
         assert segment.proposal_sequences[0].sequence != "AGSVL"
         assert len(segment.proposal_sequences[0].sequence) == 5
 
-    def test_hotspots_forwarded_to_rfdiffusion(self, monkeypatch, sample_pdb_content: str) -> None:
+    def test_hotspots_forwarded_and_center_origin(self, monkeypatch, sample_pdb_content: str) -> None:
         captured: dict[str, Any] = {}
         _patch_tools(monkeypatch, captured, output_chain_ids=["A", "B"], base_pdb=sample_pdb_content)
         gen = RFdiffusionProteinMPNNBinderGenerator(
-            RFdiffusionProteinMPNNBinderGeneratorConfig(
-                target_structure=sample_pdb_content, hotspots=["A3", "A5"], infer_ori_strategy="hotspots"
-            )
+            RFdiffusionProteinMPNNBinderGeneratorConfig(target_structure=sample_pdb_content, hotspots=["A3", "A5"])
         )
         gen.assign(_binder_segment(length=5))
         gen.sample()
         spec = captured["rfd_inputs"].design_specs[0]
         assert spec.select_hotspots == "A3,A5"
+        # Origin strategy is derived from hotspots, not configured: hotspots -> centered on epitope.
         assert spec.infer_ori_strategy == "hotspots"
+
+    def test_no_hotspots_leaves_origin_unset(self, monkeypatch, sample_pdb_content: str) -> None:
+        captured: dict[str, Any] = {}
+        _patch_tools(monkeypatch, captured, output_chain_ids=["A", "B"], base_pdb=sample_pdb_content)
+        gen = RFdiffusionProteinMPNNBinderGenerator(
+            RFdiffusionProteinMPNNBinderGeneratorConfig(target_structure=sample_pdb_content)
+        )
+        gen.assign(_binder_segment(length=5))
+        gen.sample()
+        spec = captured["rfd_inputs"].design_specs[0]
+        assert spec.select_hotspots is None
+        assert spec.infer_ori_strategy is None
 
     def test_num_proposals_drives_backbone_count(self, monkeypatch, sample_pdb_content: str) -> None:
         captured: dict[str, Any] = {}

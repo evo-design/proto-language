@@ -98,8 +98,7 @@ def main() -> None:
         RFdiffusionProteinMPNNBinderGeneratorConfig(
             target_structure=target_structure,
             target_chains=[args.target_chain],
-            hotspots=hotspots,
-            infer_ori_strategy="hotspots" if hotspots else None,
+            hotspots=hotspots,  # also centers RFdiffusion3's generation origin on the epitope
             rfdiffusion3_config=RFdiffusion3Config(device=args.device),
             proteinmpnn_config=ProteinMPNNSampleConfig(
                 num_sequences_per_structure=args.sequences_per_backbone,

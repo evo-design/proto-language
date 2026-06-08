@@ -29,7 +29,7 @@ Examples:
 
 import re
 from math import ceil
-from typing import Any, Literal, final
+from typing import Any, final
 
 from proto_tools import (
     InverseFoldingInput,
@@ -73,8 +73,7 @@ class RFdiffusionProteinMPNNBinderGeneratorConfig(BaseConfig):
         hotspots (list[str] | None): Target epitope residues the binder should contact,
             as ``"<chain><resnum>"`` tokens (e.g. ``["A37", "A39"]``). ``None`` leaves the
             interface unrestricted. Each hotspot's chain must appear in ``target_chains``.
-        infer_ori_strategy (Literal["com", "hotspots"] | None): RFdiffusion3 origin
-            placement; pass ``"hotspots"`` to center generation on the hotspots.
+            When given, RFdiffusion3's generation origin is centered on them.
         rfdiffusion3_config (RFdiffusion3Config): Advanced RFdiffusion3 backbone-generation
             settings (``n_batches`` and ``seed`` are managed by the generator).
         proteinmpnn_config (ProteinMPNNSampleConfig): Advanced ProteinMPNN sequence-design
@@ -95,11 +94,6 @@ class RFdiffusionProteinMPNNBinderGeneratorConfig(BaseConfig):
         default=None,
         title="Hotspots",
         description="Target hotspot residues as '<chain><resnum>' (e.g. ['A37', 'A39']).",
-    )
-    infer_ori_strategy: Literal["com", "hotspots"] | None = ConfigField(
-        default=None,
-        title="Origin Strategy",
-        description="RFdiffusion3 origin placement: 'com' or 'hotspots' (use with hotspots).",
     )
     rfdiffusion3_config: RFdiffusion3Config = ConfigField(
         default_factory=RFdiffusion3Config,
@@ -206,7 +200,6 @@ class RFdiffusionProteinMPNNBinderGenerator(Generator):
         self.target_structure = config.target_structure
         self.target_chains = config.target_chains
         self.hotspots = config.hotspots
-        self.infer_ori_strategy = config.infer_ori_strategy
         self.rfdiffusion3_config = config.rfdiffusion3_config
         self.proteinmpnn_config = config.proteinmpnn_config
 
@@ -254,7 +247,9 @@ class RFdiffusionProteinMPNNBinderGenerator(Generator):
                         input_structure=self.target_structure,
                         contig=contig,
                         select_hotspots=",".join(self.hotspots) if self.hotspots else None,
-                        infer_ori_strategy=self.infer_ori_strategy,
+                        # RFdiffusion3 centers the origin on the input COM by default; for
+                        # hotspot-directed binder design, center it on the epitope instead.
+                        infer_ori_strategy="hotspots" if self.hotspots else None,
                     )
                 ]
             ),
