@@ -128,8 +128,8 @@ def protein_nearest_neighbor_gap_gini_constraint(
         return outputs
 
     mmseqs_result = run_mmseqs2_search_proteins(
-        Mmseqs2SearchProteinsInput(query_sequences=proteins, mmseqs_db=config.mmseqs_db),
-        config.mmseqs_config,
+        Mmseqs2SearchProteinsInput(query_sequences=proteins),
+        config.mmseqs_config.model_copy(update={"mmseqs_db": config.mmseqs_db}),
     )
 
     reference_sequences = load_fasta(config.reference_fasta)

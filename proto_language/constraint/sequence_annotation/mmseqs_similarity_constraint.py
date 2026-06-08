@@ -297,12 +297,8 @@ def mmseqs_similarity_constraint(
     protein_to_seq_idx = [seq_idx for seq_idx, _ in protein_data]
 
     # Run MMseqs search
-    mmseqs_config = config.mmseqs_config
-
-    mmseqs_input = Mmseqs2SearchProteinsInput(
-        query_sequences=protein_sequences,
-        mmseqs_db=config.mmseqs_db,
-    )
+    mmseqs_input = Mmseqs2SearchProteinsInput(query_sequences=protein_sequences)
+    mmseqs_config = config.mmseqs_config.model_copy(update={"mmseqs_db": config.mmseqs_db})
     mmseqs_result = run_mmseqs2_search_proteins(mmseqs_input, mmseqs_config)
 
     # Aggregate hits by input sequence
