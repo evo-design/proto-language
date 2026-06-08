@@ -83,6 +83,109 @@ def _strip_duplicate_lead(docstring: str, description: str) -> str:
     return docstring
 
 
+def _tool_summary(key: str) -> dict[str, Any]:
+    """One-line summary of a proto-tools key: label, category, short description.
+
+    Falls back to ``{"key": key, "error": ...}`` when proto-tools can't resolve
+    the key so one bad key in ``tools_called`` doesn't sink the call.
+    """
+    from proto_tools import ToolRegistry  # lazy: keeps `--help` cheap and decouples import order.
+
+    try:
+        spec = ToolRegistry.get(key)
+    except Exception as e:
+        return {"key": key, "error": f"{type(e).__name__}: {e}"}
+    return {
+        "key": spec.key,
+        "label": spec.label,
+        "category": getattr(spec, "category", "") or "",
+        "description": spec.description,
+    }
+
+
+def _tool_doc_payload(key: str) -> dict[str, Any]:
+    """Return the proto-tools docs entry for ``key`` as a JSON-friendly dict."""
+    from proto_tools import ToolRegistry
+
+    try:
+        entry = ToolRegistry.get_tool_docs(key)
+    except Exception as e:
+        return {"key": key, "error": f"{type(e).__name__}: {e}"}
+    if entry is None:
+        return {"key": key, "error": "no README entry"}
+    payload: dict[str, Any] = json.loads(entry.model_dump_json())
+    return payload
+
+
+def _render_tool_section(tool_keys: list[str], full_keys: set[str]) -> None:
+    """Print the trailing "Tools" section: summaries by default, full README for ``full_keys``.
+
+    Header surfaces a shared category when all listed tools share one (the
+    runtime-dispatched structure-predictor pattern), so readers see "8
+    interchangeable structure_prediction predictors" instead of guessing why one
+    constraint lists eight tools.
+    """
+    if not tool_keys:
+        return
+
+    summaries = [_tool_summary(k) for k in tool_keys]
+    categories = {s["category"] for s in summaries if "error" not in s and s["category"]}
+    shared = next(iter(categories)) if len(categories) == 1 and len(tool_keys) > 1 else None
+
+    print()
+    header = f"### Tools ({len(tool_keys)})"
+    if shared:
+        header = f"### Tools ({len(tool_keys)}, all `{shared}`)"
+    print(header)
+    print()
+
+    for s in summaries:
+        if "error" in s:
+            print(f"  {s['key']:30s}  ⚠ {s['error']}")
+            continue
+        cat_str = f"  [{s['category']}]" if s["category"] and not shared else ""
+        print(f"  {s['key']:30s}  {s['label']}{cat_str}")
+        if s.get("description"):
+            print(f"  {'':30s}  {s['description']}")
+
+    if full_keys:
+        for key in tool_keys:
+            if key in full_keys:
+                _render_full_tool_docs(key)
+    elif len(tool_keys) > 1:
+        print()
+        print("  (use `--with-tool=<key>` for one tool's full docs, or `--with-tools-full` for all)")
+
+
+def _render_full_tool_docs(key: str) -> None:
+    """Append a full ``proto-tools docs <key>``-style block after the summary table."""
+    from proto_tools import ToolRegistry
+
+    print()
+    try:
+        entry = ToolRegistry.get_tool_docs(key)
+    except Exception as e:
+        print(f"### Tool docs unavailable for `{key}`: {type(e).__name__}: {e}")
+        return
+    if entry is None:
+        print(f"### Tool docs unavailable for `{key}`: no README entry")
+        return
+    print(f"## Tool: {entry.label} (`{entry.key}`)\n")
+    print(entry.intro)
+    if entry.applications:
+        print("\n### Applications\n")
+        print(entry.applications)
+    if entry.usage_tips:
+        print("\n### Usage Tips\n")
+        print(entry.usage_tips)
+    if entry.toolkit_notes:
+        print("\n### Toolkit Notes\n")
+        print(entry.toolkit_notes)
+    if entry.license:
+        print("\n### License\n")
+        print(_dump_json(entry.license))
+
+
 def _spec_summary(spec: BaseSpec) -> str:
     """One-line text summary of a spec for list-style output."""
     gpu = " (GPU)" if spec.uses_gpu else ""
@@ -184,8 +287,18 @@ def _cmd_docs(args: argparse.Namespace) -> int:
     """``proto-language <kind> docs <name>``."""
     registry = _KIND_TO_REGISTRY[args.kind]
     doc = registry.get_docs(args.name)
+    tool_keys: list[str] = []
+    if not getattr(args, "no_tools", False):
+        tool_keys = list(getattr(doc.spec_metadata, "tools_called", []) or [])
+    explicit_full = set(getattr(args, "with_tool", None) or [])
+    full_keys: set[str] = set(tool_keys) if getattr(args, "with_tools_full", False) else explicit_full
     if args.json:
-        print(_dump_json(doc))
+        payload: dict[str, Any] = json.loads(doc.model_dump_json())
+        if tool_keys:
+            payload["tool_summaries"] = [_tool_summary(k) for k in tool_keys]
+        if full_keys:
+            payload["tool_docs"] = [_tool_doc_payload(k) for k in tool_keys if k in full_keys]
+        print(_dump_json(payload))
         return 0
 
     print(f"## {doc.label}  (`{doc.key}`, {doc.kind})")
@@ -225,6 +338,8 @@ def _cmd_docs(args: argparse.Namespace) -> int:
             print(f"  {'':24s}  title: {f.title}")
         if f.description:
             print(f"  {'':24s}  {f.description}")
+
+    _render_tool_section(tool_keys, full_keys)
     return 0
 
 
@@ -349,6 +464,23 @@ def _add_kind_subparsers(sub: argparse._SubParsersAction[argparse.ArgumentParser
     p_docs = kverbs.add_parser("docs", help=f"Full docs for one {kind} (docstring + config).")
     p_docs.add_argument("name", help=f"{kind.capitalize()} identifier (registry key or class/function name).")
     p_docs.add_argument("--json", action="store_true")
+    p_docs.add_argument(
+        "--with-tool",
+        action="append",
+        metavar="KEY",
+        help="Inline full `proto-tools docs <KEY>` for the given tool. Repeatable.",
+    )
+    tools_group = p_docs.add_mutually_exclusive_group()
+    tools_group.add_argument(
+        "--with-tools-full",
+        action="store_true",
+        help="Inline full `proto-tools docs` for every key in tools_called.",
+    )
+    tools_group.add_argument(
+        "--no-tools",
+        action="store_true",
+        help="Suppress the default per-tool summary section.",
+    )
     p_docs.set_defaults(func=_cmd_docs, kind=kind)
 
     p_cfg = kverbs.add_parser("config", help=f"Config-model docs for one {kind}.")

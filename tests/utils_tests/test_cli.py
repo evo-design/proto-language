@@ -135,6 +135,56 @@ def test_docs_unknown_returns_exit_2(capsys: pytest.CaptureFixture[str]) -> None
     assert "Unknown constraint" in err
 
 
+def test_docs_default_includes_tool_summaries(capsys: pytest.CaptureFixture[str]) -> None:
+    """``docs <constraint>`` appends a per-tool summary section by default for tool-backed constraints."""
+    code, out, _ = _run(capsys, "constraint", "docs", "mpnn-perplexity")
+    assert code == 0
+    assert "### Tools (1)" in out
+    assert "proteinmpnn-gradient" in out
+    assert "[inverse_folding]" in out
+
+
+def test_docs_default_groups_shared_category(capsys: pytest.CaptureFixture[str]) -> None:
+    """When every tool shares a category the header surfaces it once."""
+    code, out, _ = _run(capsys, "constraint", "docs", "structure-plddt")
+    assert code == 0
+    assert "### Tools (8, all `structure_prediction`)" in out
+    # Per-tool category brackets are omitted when the shared header already names it.
+    assert "[structure_prediction]" not in out
+
+
+def test_docs_no_tools_suppresses_section(capsys: pytest.CaptureFixture[str]) -> None:
+    """``--no-tools`` drops the per-tool summary section entirely."""
+    code, out, _ = _run(capsys, "constraint", "docs", "mpnn-perplexity", "--no-tools")
+    assert code == 0
+    assert "### Tools" not in out
+
+
+def test_docs_with_tool_inlines_one_full_section(capsys: pytest.CaptureFixture[str]) -> None:
+    """``--with-tool=<key>`` inlines the README only for the named tool."""
+    code, out, _ = _run(capsys, "constraint", "docs", "structure-plddt", "--with-tool=alphafold2-prediction")
+    assert code == 0
+    assert out.count("## Tool:") == 1
+    assert "## Tool: AlphaFold2 Structure Prediction (`alphafold2-prediction`)" in out
+
+
+def test_docs_with_tools_full_inlines_all(capsys: pytest.CaptureFixture[str]) -> None:
+    """``--with-tools-full`` inlines a README block per tool key."""
+    code, out, _ = _run(capsys, "constraint", "docs", "structure-plddt", "--with-tools-full")
+    assert code == 0
+    assert out.count("## Tool:") == 8
+
+
+def test_docs_json_envelope_carries_tool_summaries(capsys: pytest.CaptureFixture[str]) -> None:
+    """JSON mode adds ``tool_summaries`` by default and ``tool_docs`` only for full-doc keys."""
+    code, out, _ = _run(capsys, "constraint", "docs", "structure-plddt", "--json", "--with-tool=alphafold2-prediction")
+    assert code == 0
+    payload = json.loads(out)
+    assert len(payload["tool_summaries"]) == 8
+    assert {s["category"] for s in payload["tool_summaries"]} == {"structure_prediction"}
+    assert [t["key"] for t in payload["tool_docs"]] == ["alphafold2-prediction"]
+
+
 # ----------------------------------------------------------------------------
 # config + schema
 # ----------------------------------------------------------------------------
