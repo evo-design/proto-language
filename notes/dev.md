@@ -76,6 +76,30 @@ git worktree add -b my-feature ../proto-tools-my-feature
 
 Edits inside a submodule worktree do not auto-update the parent's submodule pointer; commit the pointer update in the parent separately.
 
+## Logging and the tool spinner
+
+`proto_language/utils/logging_config.py` centralizes logging: `setup_logging()`
+installs a console handler (stdout, print-like via `SelectiveLevelFormatter`) and
+an optional timestamped file handler under `logs/`. Use `get_logger(__name__)` in
+framework code; never `print()`.
+
+The console handler is **bar-aware**. proto-tools tools render an animated
+spinner/progress bar while they run (structure predictors, pLMs, etc.); a plain
+`StreamHandler` would print log lines straight onto that line and corrupt the
+frame. `_BarAwareStreamHandler` routes through `tqdm.write` whenever a tool bar is
+active (`proto_tools.utils.progress.has_active_progress_bar`) and otherwise behaves
+exactly like a normal handler, so there is no change outside an active spinner.
+
+The spinner **renderer is reused from proto-tools**, not reimplemented:
+`proto_language/utils/spinner.py` re-exports `progress_bar`, `set_substatus`, and
+`has_active_progress_bar` from `proto_tools.utils.progress` (the module is named
+`spinner` to avoid colliding with the `progress` scheduling helper;
+`status_indicator` is left out because proto-tools treats it as an internal
+fallback). The language layer currently **does not drive the spinner** — the tools
+own the status channel, so we don't add `set_substatus`/`update_status` calls in
+optimizer or `Program` loops. The re-exports exist for future use; for now the only
+integration is keeping our logging a good citizen around the tools' spinner.
+
 ## Export Chain Validator
 
 `.github/scripts/validate_exports.py` runs AST-based checks on `__init__.py` files in both repos to catch missing or stale exports before they surface as runtime `ImportError`s. The script is stdlib-only and never executes the target modules.

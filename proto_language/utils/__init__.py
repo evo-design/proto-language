@@ -68,6 +68,11 @@ from proto_language.utils.serialization import (
     is_plain_int,
     make_json_safe,
 )
+from proto_language.utils.spinner import (
+    has_active_progress_bar,
+    progress_bar,
+    set_substatus,
+)
 
 __all__ = [
     # Scoring math
@@ -131,4 +136,8 @@ __all__ = [
     "cosine_anneal",
     "exponential_decay",
     "quadratic_decay",
+    # Spinner / progress (reused from proto-tools)
+    "progress_bar",
+    "set_substatus",
+    "has_active_progress_bar",
 ]

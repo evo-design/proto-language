@@ -1,7 +1,11 @@
 """Centralized logging setup with file and console handlers.
 
 Provides automatic log directory management, suppression of noisy third-party
-loggers, and integration with Python's warnings system.
+loggers, and integration with Python's warnings system. The console handler is
+bar-aware: while a proto-tools tool spinner is active it routes log lines through
+``tqdm.write`` so they don't corrupt the animated bar (see
+:class:`_BarAwareStreamHandler`). Spinner/progress helpers themselves are reused
+from proto-tools and re-exported by ``proto_language.utils.spinner``.
 """
 
 import logging
@@ -38,6 +42,47 @@ class SelectiveLevelFormatter(logging.Formatter):
             return result
         # For DEBUG and INFO: just the message
         return record.getMessage()
+
+
+class _BarAwareStreamHandler(logging.StreamHandler):  # type: ignore[type-arg]
+    r"""StreamHandler that routes through ``tqdm.write`` when a proto-tools spinner is active.
+
+    When a proto-tools tool is repainting a spinner/progress bar on the same
+    terminal line, a plain ``StreamHandler.emit`` writes the log line directly
+    and collides with the animated frame (ghost frames, stranded text). Routing
+    through ``tqdm.write`` clears the bar, writes the message, then redraws the
+    bar so ``proto_language`` logs and the tools' spinner coexist cleanly. When
+    no progress bar is active it falls back to normal stream output, so there is
+    no behavior change outside an active tool spinner. The language layer does
+    not drive the spinner itself; this only keeps our logging a good citizen
+    around the spinner the tools own.
+    """
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Write the record via ``tqdm.write`` when a progress bar is active, else normally.
+
+        Args:
+            record (logging.LogRecord): The log record to emit.
+        """
+        # Lazy import: ``progress`` pulls in tqdm, and this module is imported
+        # very early during package init.
+        from proto_tools.utils.progress import has_active_progress_bar
+
+        if has_active_progress_bar():
+            try:
+                from tqdm import tqdm
+
+                # tqdm.write's default end="\n" matches StreamHandler's default
+                # terminator; a customized handler.terminator would not be honored
+                # on this path. tqdm clears the bar when self.stream is the live
+                # stdout/stderr; if stdout was swapped after construction it
+                # degrades to a plain write (no crash, bar just isn't cleared).
+                tqdm.write(self.format(record), file=self.stream)
+                return
+            except Exception:
+                self.handleError(record)
+                return
+        super().emit(record)
 
 
 def _parse_log_level(level: int | str) -> int:
@@ -141,7 +186,9 @@ def setup_logging(
     # Console handler (stdout for print-like behavior, works in Jupyter)
     console_handler = None
     if log_to_console:
-        console_handler = logging.StreamHandler(sys.stdout)
+        # Bar-aware so proto_language logs route through tqdm.write while a
+        # proto-tools tool spinner is active, instead of corrupting its frame.
+        console_handler = _BarAwareStreamHandler(sys.stdout)
         console_handler.setLevel(console_level or level)
         console_handler.setFormatter(console_formatter)
         root_logger.addHandler(console_handler)
