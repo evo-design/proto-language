@@ -1,11 +1,9 @@
-"""Sequence motif constraint for scoring DNA sequences against motifs using MEME."""
+"""Sequence motif constraint for scoring DNA sequences against motifs using MEME FIMO."""
 
-import os
-import subprocess
-import tempfile
 from typing import Any, Literal
 
 import numpy as np
+from proto_tools import MEMEFimoScanConfig, MEMEFimoScanInput, run_meme_fimo_scan
 from pydantic import field_validator
 
 from proto_language.constraint.constraint_registry import constraint
@@ -29,10 +27,11 @@ class SeqMotifConfig(BaseConfig):
             Suite tools. Example: "/data/motifs/jaspar_vertebrates.meme" or
             "~/databases/tf_motifs.meme".
 
-        meme_bin_path (str): Path to directory containing MEME Suite binaries. Must
-            include the ``fimo`` executable. The directory should contain the full
-            MEME Suite installation. Example: "/usr/local/meme/bin" or
-            "/opt/meme-5.5.0/bin". Install MEME Suite from https://meme-suite.org/
+        fimo_config (MEMEFimoScanConfig): FIMO scan configuration — the p-value
+            ``threshold`` (default 1e-4) and ``both_strands`` (default True). Defaults
+            reproduce FIMO's standard nucleotide behavior; tighten ``threshold`` for
+            stricter motif calls. The scan runs via the managed ``meme-fimo-scan``
+            tool, so no local MEME Suite installation is required.
 
         wanted (list[str] | None): Motifs that should be present in
             sequences. Options:
@@ -92,9 +91,10 @@ class SeqMotifConfig(BaseConfig):
         title="Path to MEME format motif file",
         description="Path to MEME format motif file (.meme) containing PWMs.",
     )
-    meme_bin_path: str = ConfigField(
-        title="Path to MEME Suite binaries",
-        description="Path to directory containing MEME Suite binaries (must include fimo).",
+    fimo_config: MEMEFimoScanConfig = ConfigField(
+        title="FIMO Scan Config",
+        default_factory=MEMEFimoScanConfig,
+        description="FIMO scan parameters (p-value threshold, both-strands); defaults match FIMO's nucleotide behavior.",
     )
     wanted: list[str] | None = ConfigField(
         title="Wanted Motifs",
@@ -151,8 +151,8 @@ class SeqMotifConfig(BaseConfig):
     key="seq-motif",
     label="Sequence Motif Match",
     config=SeqMotifConfig,
-    description="Score DNA sequences against motifs using MEME",
-    tools_called=[],
+    description="Score DNA sequences against motifs using MEME FIMO",
+    tools_called=["meme-fimo-scan"],
     category="sequence_annotation",
     supported_sequence_types=["dna"],
 )
@@ -178,7 +178,7 @@ def seq_motif_constraint(input_sequences: list[tuple[Sequence, ...]], config: Se
             sequences (50+ bp recommended).
 
         config (SeqMotifConfig): Configuration object containing ``motifs_path``
-            (MEME motif file), ``meme_bin_path`` (MEME Suite binary directory),
+            (MEME motif file), ``fimo_config`` (FIMO scan parameters),
             ``wanted`` (default: None), ``not_wanted`` (default: None), ``aggregation``
             (default: "smart"), and other scoring parameters.
         input_sequences (list[Tuple[Sequence, ...]]): Mapping of segment IDs to their current sequences.
@@ -213,7 +213,6 @@ def seq_motif_constraint(input_sequences: list[tuple[Sequence, ...]], config: Se
         >>> promoter_seq = Sequence("ATCGGCGGGATCGTAATATAGCATGC", "dna")
         >>> config = SeqMotifConfig(
         ...     motifs_path="/data/jaspar_vertebrates.meme",
-        ...     meme_bin_path="/usr/local/meme/bin",
         ...     wanted=["SP1", "lacI"],
         ...     aggregation="average",
         ... )
@@ -246,48 +245,20 @@ def seq_motif_constraint(input_sequences: list[tuple[Sequence, ...]], config: Se
         elif not_wanted_set and not wanted_set:
             wanted_set = set(motif_names) - not_wanted_set
 
+    # One FIMO call for the whole batch; scan.results[i] holds the matches for input sequence i.
+    sequences = [seq_obj.sequence.upper().replace(" ", "").replace("\n", "") for (seq_obj,) in input_sequences]
+    scan = run_meme_fimo_scan(
+        MEMEFimoScanInput(sequences=sequences, motifs=config.motifs_path),
+        config.fimo_config,
+    )
+
     results: list[ConstraintOutput] = []
-
-    for (seq_obj,) in input_sequences:
-        seq = seq_obj.sequence.upper().replace(" ", "").replace("\n", "")
-
-        # Run MEME with FIMO
+    for seq_result in scan.results:
+        # Best (lowest) p-value per motif in this sequence.
         found: dict[str, float] = {}
-        with tempfile.TemporaryDirectory() as tmpdir:
-            fasta_path = os.path.join(tmpdir, "seq.fa")
-            with open(fasta_path, "w") as f:
-                f.write(">query\n" + seq + "\n")
-
-            fimo_out = os.path.join(tmpdir, "fimo_out")
-            fimo_bin = os.path.join(config.meme_bin_path, "fimo")
-            subprocess.run(  # noqa: S603
-                [fimo_bin, "--oc", fimo_out, config.motifs_path, fasta_path],
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-
-            fimo_tsv = os.path.join(fimo_out, "fimo.tsv")
-            if os.path.exists(fimo_tsv):
-                with open(fimo_tsv) as f:
-                    # Read the p-value column by header name to tolerate FIMO column-order changes.
-                    p_value_col = 7
-                    for line in f:
-                        if line.startswith("#"):
-                            continue
-                        parts = line.strip().split("\t")
-                        if not parts:
-                            continue
-                        if parts[0] == "motif_id":
-                            if "p-value" in parts:
-                                p_value_col = parts.index("p-value")
-                            continue
-                        if len(parts) <= p_value_col:
-                            continue
-                        motif_id = parts[0]
-                        p_value = float(parts[p_value_col])
-                        if motif_id not in found or p_value < found[motif_id]:
-                            found[motif_id] = p_value
+        for match in seq_result.matches:
+            if match.motif_id not in found or match.pvalue < found[match.motif_id]:
+                found[match.motif_id] = match.pvalue
 
         # Scoring
         details = {}

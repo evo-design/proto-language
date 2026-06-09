@@ -1,182 +1,114 @@
-"""Tests cover:.
+"""Tests for the sequence motif constraint.
 
-1. Configuration validation
-2. Wanted/unwanted motif logic
-3. Aggregation strategies
-4. Exclusive mode
-5. Registry integration
-6. Metadata propagation
-
-Note: Actual MEME/FIMO execution is mocked to avoid dependencies.
+Covers config validation, wanted/unwanted motif logic, aggregation, exclusive mode,
+and metadata propagation. The ``meme-fimo-scan`` tool call is mocked (no MEME install
+or GPU needed); the real FIMO parity is covered in the proto-tools tool's own tests.
 """
 
-from unittest.mock import Mock, mock_open, patch
+from types import SimpleNamespace
+from unittest.mock import mock_open, patch
 
 import pytest
 
 from proto_language.constraint import seq_motif_constraint
-from proto_language.constraint.sequence_annotation.seq_motif_constraint import (
-    SeqMotifConfig,
-)
-from proto_language.core import Constraint, Segment
+from proto_language.constraint.sequence_annotation.seq_motif_constraint import SeqMotifConfig
+from proto_language.core import Constraint, Segment, Sequence
+
+_MODULE = "proto_language.constraint.sequence_annotation.seq_motif_constraint"
+
+
+def _scan(*per_sequence: list[tuple]) -> SimpleNamespace:
+    """Fake ``run_meme_fimo_scan``: each arg is one input sequence's ``(motif_id, pvalue)`` matches."""
+    results = [
+        SimpleNamespace(matches=[SimpleNamespace(motif_id=mid, pvalue=pv) for mid, pv in seq_matches])
+        for seq_matches in per_sequence
+    ]
+    return SimpleNamespace(results=results)
 
 
 class TestSeqMotifConstraint:
-    """Tests for Sequence Motif constraint."""
+    """Tests for the Sequence Motif constraint."""
 
-    def test_config_required_fields(self):
-        """Test that required config fields must be provided (constraint-specific validation)."""
-        # motifs_path is required
-        with pytest.raises(Exception):  # Pydantic ValidationError
-            SeqMotifConfig(meme_bin_path="/usr/bin")
-
-        # meme_bin_path is required
-        with pytest.raises(Exception):  # Pydantic ValidationError
-            SeqMotifConfig(motifs_path="/path/to/motifs.meme")
+    def test_motifs_path_is_required(self):
+        """motifs_path is the only required field; fimo_config defaults are supplied."""
+        with pytest.raises(Exception):  # Pydantic ValidationError — motifs_path missing
+            SeqMotifConfig()
+        # fimo_config defaults to FIMO's standard behavior without being passed.
+        config = SeqMotifConfig(motifs_path="/path/to/motifs.meme")
+        assert config.fimo_config.threshold == pytest.approx(1e-4)
+        assert config.fimo_config.both_strands is True
 
     def test_invalid_percentile(self):
-        """Test that invalid percentile values raise errors (constraint-specific validation)."""
-        with pytest.raises(Exception):  # Pydantic ValidationError
-            SeqMotifConfig(
-                motifs_path="/path/to/motifs.meme",
-                meme_bin_path="/usr/bin",
-                percentile_value=150.0,  # > 100
-            )
-
-        with pytest.raises(Exception):  # Pydantic ValidationError
-            SeqMotifConfig(
-                motifs_path="/path/to/motifs.meme",
-                meme_bin_path="/usr/bin",
-                percentile_value=-10.0,  # < 0
-            )
+        """Out-of-range percentile values are rejected (constraint-specific validation)."""
+        with pytest.raises(Exception):
+            SeqMotifConfig(motifs_path="/path/to/motifs.meme", percentile_value=150.0)
+        with pytest.raises(Exception):
+            SeqMotifConfig(motifs_path="/path/to/motifs.meme", percentile_value=-10.0)
 
     def test_no_motifs_wanted_or_unwanted(self):
-        """Test scoring when no wanted/unwanted motifs specified."""
+        """No wanted/unwanted motifs and no matches -> zero penalty."""
         segment = Segment(sequence="ATCGATCGATCG", sequence_type="dna")
-        config = SeqMotifConfig(
-            motifs_path="/mock/motifs.meme",
-            meme_bin_path="/usr/bin",
-        )
-
-        # Mock motif file reading
-        motif_file_content = "MOTIF motif1\nMOTIF motif2"
+        config = SeqMotifConfig(motifs_path="/mock/motifs.meme")
 
         with (
-            patch("builtins.open", mock_open(read_data=motif_file_content)),
-            patch("proto_language.constraint.sequence_annotation.seq_motif_constraint.subprocess.run") as _,
-            patch(
-                "proto_language.constraint.sequence_annotation.seq_motif_constraint.tempfile.TemporaryDirectory"
-            ) as mock_temp,
+            patch("builtins.open", mock_open(read_data="MOTIF motif1\nMOTIF motif2")),
+            patch(f"{_MODULE}.run_meme_fimo_scan", return_value=_scan([])),
         ):
-            # Setup mock temp directory
-            mock_temp_dir = "/mock/test_temp"
-            mock_temp_inst = Mock()
-            mock_temp_inst.__enter__ = Mock(return_value=mock_temp_dir)
-            mock_temp_inst.__exit__ = Mock(return_value=False)
-            mock_temp.return_value = mock_temp_inst
+            constraint = Constraint(inputs=[segment], function=seq_motif_constraint, function_config=config)
+            scores = constraint.evaluate()
 
-            # Mock FIMO output (no hits)
-            with patch("os.path.exists") as mock_exists:
-                mock_exists.return_value = False
-
-                constraint = Constraint(
-                    inputs=[segment],
-                    function=seq_motif_constraint,
-                    function_config=config,
-                )
-
-                scores = constraint.evaluate()
-                assert len(scores) == 1
-                assert scores[0] == 0.0  # No wanted/unwanted -> penalty = 0.0
+        assert scores == [0.0]
 
     def test_wanted_motif_found(self):
-        """Wanted motif found: p-value parsed from the real FIMO column order surfaces as ``p_value`` (M9)."""
+        """A found wanted motif surfaces its p-value in metadata and scores in range."""
         segment = Segment(sequence="ATCGATCGATCG", sequence_type="dna")
-        config = SeqMotifConfig(
-            motifs_path="/mock/motifs.meme",
-            meme_bin_path="/usr/bin",
-            wanted=["motif1"],
-            exclusive=False,
-        )
-
-        # Mock motif file and FIMO results, in the real FIMO column order:
-        # motif_id, motif_alt_id, sequence_name, start, stop, strand, score, p-value, q-value, matched_sequence
-        motif_file_content = "MOTIF motif1"
-        fimo_results = (
-            "motif_id\tmotif_alt_id\tsequence_name\tstart\tstop\tstrand\tscore\tp-value\tq-value\tmatched_sequence\n"
-        )
-        fimo_results += "motif1\t\tquery\t1\t10\t+\t10.0\t1e-5\t0.001\tATCGATCGAT\n"
+        config = SeqMotifConfig(motifs_path="/mock/motifs.meme", wanted=["motif1"], exclusive=False)
 
         with (
-            patch("builtins.open", mock_open(read_data=motif_file_content)),
-            patch("proto_language.constraint.sequence_annotation.seq_motif_constraint.subprocess.run") as _,
-            patch(
-                "proto_language.constraint.sequence_annotation.seq_motif_constraint.tempfile.TemporaryDirectory"
-            ) as mock_temp,
+            patch("builtins.open", mock_open(read_data="MOTIF motif1")),
+            patch(f"{_MODULE}.run_meme_fimo_scan", return_value=_scan([("motif1", 1e-5)])),
         ):
-            mock_temp_dir = "/mock/test_temp"
-            mock_temp_inst = Mock()
-            mock_temp_inst.__enter__ = Mock(return_value=mock_temp_dir)
-            mock_temp_inst.__exit__ = Mock(return_value=False)
-            mock_temp.return_value = mock_temp_inst
+            constraint = Constraint(inputs=[segment], function=seq_motif_constraint, function_config=config)
+            scores = constraint.evaluate()
 
-            # Mock FIMO output file
-            with patch("os.path.exists") as mock_exists, patch("builtins.open", mock_open(read_data=fimo_results)):
-                mock_exists.return_value = True
+        assert len(scores) == 1
+        assert 0.0 <= scores[0] <= 1.0
+        meta = segment.proposal_sequences[0]._constraints_metadata["seq_motif_constraint"]["data"]["motif_constraint"]
+        assert meta["found"]["motif1"] == pytest.approx(1e-5)
+        assert meta["details"]["motif1"]["p_value"] == pytest.approx(1e-5)
+        assert meta["wanted"] == ["motif1"]
+        assert isinstance(meta["not_wanted"], list)
 
-                constraint = Constraint(
-                    inputs=[segment],
-                    function=seq_motif_constraint,
-                    function_config=config,
-                )
+    def test_per_sequence_results_and_lowest_pvalue(self):
+        """Each input sequence gets its own result (1:1); lowest p-value per motif is kept."""
+        seqs = [
+            (Sequence("ATCGATCGATCG", "dna"),),
+            (Sequence("GGGGCCCCATAT", "dna"),),
+            (Sequence("TTTTAAAACGCG", "dna"),),
+        ]
+        config = SeqMotifConfig(motifs_path="/mock/motifs.meme", not_wanted=["m0", "m1", "m2"], exclusive=False)
+        scan = _scan(
+            [("m0", 1e-6)],  # sequence 0
+            [("m1", 1e-3), ("m1", 1e-8)],  # sequence 1: lowest p-value wins
+            [],  # sequence 2: no matches
+        )
 
-                scores = constraint.evaluate()
-                assert len(scores) == 1
-                # Wanted motif found with good p-value -> low penalty.
-                assert 0.0 <= scores[0] <= 1.0
+        with (
+            patch("builtins.open", mock_open(read_data="MOTIF m0\nMOTIF m1\nMOTIF m2")),
+            patch(f"{_MODULE}.run_meme_fimo_scan", return_value=scan),
+        ):
+            results = seq_motif_constraint(seqs, config)
 
-                meta = segment.proposal_sequences[0]._constraints_metadata["seq_motif_constraint"]["data"][
-                    "motif_constraint"
-                ]
-                # Parser must read the p-value column (1e-5), not the score column (10.0).
-                assert meta["found"]["motif1"] == pytest.approx(1e-5)
-                assert meta["details"]["motif1"]["p_value"] == pytest.approx(1e-5)
-                # Motif name collections are stored as sorted lists for deterministic serialization.
-                assert meta["wanted"] == ["motif1"]
-                assert isinstance(meta["not_wanted"], list)
+        assert len(results) == 3
+        found = [r.metadata["motif_constraint"]["found"] for r in results]
+        assert found[0] == {"m0": pytest.approx(1e-6)}
+        assert found[1] == {"m1": pytest.approx(1e-8)}
+        assert found[2] == {}
 
     def test_constraint_specific_config_options(self):
-        """Test constraint-specific config options (wanted, exclusive, aggregation)."""
-        # Test 'all' keyword for wanted motifs
-        config_all = SeqMotifConfig(
-            motifs_path="/mock/motifs.meme",
-            meme_bin_path="/usr/bin",
-            wanted="all",
-        )
-        assert config_all.wanted == ["all"]
-
-        # Test 'none' keyword for wanted motifs
-        config_none = SeqMotifConfig(
-            motifs_path="/mock/motifs.meme",
-            meme_bin_path="/usr/bin",
-            wanted="none",
-        )
-        assert config_none.wanted == ["none"]
-
-        # Test exclusive mode
-        config_exclusive = SeqMotifConfig(
-            motifs_path="/mock/motifs.meme",
-            meme_bin_path="/usr/bin",
-            wanted=["motif1"],
-            exclusive=True,
-        )
-        assert config_exclusive.exclusive
-
-        # Test different aggregation strategies
+        """Constraint-specific config knobs validate and store correctly."""
+        assert SeqMotifConfig(motifs_path="/mock/motifs.meme", wanted="all").wanted == ["all"]
+        assert SeqMotifConfig(motifs_path="/mock/motifs.meme", wanted="none").wanted == ["none"]
+        assert SeqMotifConfig(motifs_path="/mock/motifs.meme", wanted=["motif1"], exclusive=True).exclusive
         for agg in ["smart", "average", "max", "percentile"]:
-            config = SeqMotifConfig(
-                motifs_path="/mock/motifs.meme",
-                meme_bin_path="/usr/bin",
-                aggregation=agg,
-            )
-            assert config.aggregation == agg
+            assert SeqMotifConfig(motifs_path="/mock/motifs.meme", aggregation=agg).aggregation == agg
