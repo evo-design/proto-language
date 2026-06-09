@@ -20,9 +20,7 @@ import subprocess
 from pathlib import Path
 
 import requests
-from proto_tools.tools.sequence_alignment.colabfold_search.colabfold_search import (
-    ColabfoldSearchConfig,
-)
+from proto_tools import Mmseqs2HomologySearchConfig
 from proto_tools.tools.structure_prediction.alphafold3 import (
     AlphaFold3Config,
     AlphaFold3Input,
@@ -214,7 +212,7 @@ def cofold_proposal(
         name=f"cas9_grna_{proposal_idx}",
         seeds=seeds,
         use_msa=use_msa,
-        colabfold_search_config=ColabfoldSearchConfig(search_mode="local"),
+        msa_search_config=Mmseqs2HomologySearchConfig(search_mode="local"),
         output_dir=str(proposal_dir),
         verbose=verbose,
     )

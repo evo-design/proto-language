@@ -163,8 +163,8 @@ def structure_filter(
     from proto_tools import (
         AlphaFold3Config,
         AlphaFold3Input,
-        ColabfoldSearchConfig,
         Complex,
+        Mmseqs2HomologySearchConfig,
         run_alphafold3,
     )
 
@@ -241,7 +241,7 @@ def structure_filter(
                     name=af3_name,
                     output_dir=proposal_dir,
                     use_msa=True,
-                    colabfold_search_config=ColabfoldSearchConfig(search_mode="local"),
+                    msa_search_config=Mmseqs2HomologySearchConfig(search_mode="local"),
                 ),
             )
         except Exception as e:

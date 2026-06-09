@@ -386,7 +386,7 @@ def score_single_complex_with_af3(
 
     af3_tool_config = {
         'use_msa': True,
-        'colabfold_search_config': {'search_mode': 'local'},
+        'msa_search_config': {'search_mode': 'local'},
         'output_dir': af3_dir,
         'verbose': True,
     }

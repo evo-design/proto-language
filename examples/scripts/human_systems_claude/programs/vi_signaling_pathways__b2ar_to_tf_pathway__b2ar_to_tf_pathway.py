@@ -75,7 +75,6 @@ BIOEMU_JOBS = (
 )
 BIOEMU_TIMEOUT_SECONDS = 2 * 60 * 60
 BIOEMU_CACHE_DIR = Path(os.environ.get("BIOEMU_CACHE_DIR", "/tmp/proto_bioemu_cache"))
-COLABFOLD_MSA_DB_DIR = "/common_datasets/alphafold3/databases/colabfold"
 ALPHAFOLD3_MODEL_DIR = "/common_datasets/alphafold3/models/af3_weights"
 ALPHAFOLD3_SIF_PATH = "/common_datasets/alphafold3/models/alphafold3/alphafold3_latest.sif"
 PROTEIN_QUALITY_THRESHOLD = 0.15
@@ -143,9 +142,8 @@ def _alphafold3_config(smoke: bool = False) -> dict[str, Any]:
     config: dict[str, Any] = {
         "name": "b2ar_to_tf_pathway_af3",
         "use_msa": True,
-        "colabfold_search_config": {
+        "msa_search_config": {
             "search_mode": "local",
-            "msa_db_dir": COLABFOLD_MSA_DB_DIR,
             "timeout": timeout,
         },
         "seed": 0,
