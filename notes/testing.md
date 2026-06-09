@@ -36,7 +36,6 @@ Current GitHub workflows:
 | `@pytest.mark.slow` | Test takes long enough to disrupt default feedback | Skipped by default; included by `--all`; selected alone by `--slow` |
 | `@pytest.mark.integration` | Test requires external tools/services such as MAFFT | Skipped by default; included by `--integration` or `--all` |
 | `@pytest.mark.skip_ci` | Test is not valid in GitHub Actions or local CI simulation | Skipped when `GITHUB_ACTIONS=true` or `--skip-ci` |
-| `@pytest.mark.only_chimera` | Test only runs on Chimera (`SLURM_CLUSTER_NAME=arc-slurm`) | Skipped everywhere else |
 | `@pytest.mark.asyncio` | Optional explicit marker for async tests | `asyncio_mode=auto` is enabled, so async tests do not normally need it |
 | *(no marker)* | Fast CPU test | Auto-marked `uses_cpu` by `conftest.py` |
 

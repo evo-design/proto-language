@@ -1,11 +1,13 @@
 """Tests for structure prediction similarity constraints."""
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import NamedTuple
 from unittest.mock import patch
 
 import pytest
 from proto_tools import AlphaFold3Config, Boltz2Config, Chai1Config
+from proto_tools.utils.standalone_helpers_source.standalone_helpers import resolve_weights_dir
 
 from proto_language.constraint import (
     structure_rmsd_constraint,
@@ -23,6 +25,24 @@ TOP7_SEQ = "MGDIQVQVNIDDNGKNFDYTYTVTTESELQKVLNELMDYIKKQGAKRVRISITARTKKEAEKFAAILI
 UNCONFIDENT_SEQ = "EASGTYPGREACGGHEASGTYPGREACGGHEASGTYPGREACGGH"
 ROP_SEQ = "MTKQEKTALNMARFIRSQTLTLLEKLNELDADEQADICESLHDHADELYRSCLARFGDDGENL"
 EPSILON = 0.05
+
+
+def _alphafold3_weights_skip_reason() -> str | None:
+    """Return a skip reason if AlphaFold3 weights aren't resolvable on this host, else None.
+
+    AlphaFold3 weights are gated under DeepMind's ToU and must be obtained
+    separately. Mirrors the same gate proto-tools uses in
+    ``tests/structure_prediction_tests/test_af3.py``.
+    """
+    weights_dir = resolve_weights_dir("alphafold3")
+    if weights_dir is None:
+        return (
+            "AlphaFold3 weights dir could not be resolved "
+            "(set PROTO_ALPHAFOLD3_WEIGHTS_DIR or PROTO_MODEL_CACHE/PROTO_HOME)"
+        )
+    if not any(Path(weights_dir).glob("*.bin*")):
+        return f"AlphaFold3 weights dir resolved to {weights_dir} but contains no .bin* files"
+    return None
 
 
 def _seeded_tool_config(structure_tool: str) -> dict:
@@ -364,7 +384,7 @@ class TestESMFoldTMscoreConstraint:
 class TestSlowStructurePredictorSimilarityConstraint:
     """Tests for AlphaFold3/Chai1/Boltz RMSD and TMScore constraints."""
 
-    @pytest.mark.only_chimera
+    @pytest.mark.skipif(_alphafold3_weights_skip_reason() is not None, reason=_alphafold3_weights_skip_reason() or "")
     def test_perfect_match_af3(self):
         assert _perfect_match("rmsd", "alphafold3") < EPSILON
 
@@ -374,7 +394,7 @@ class TestSlowStructurePredictorSimilarityConstraint:
     def test_perfect_match_boltz(self):
         assert _perfect_match("tmscore", "boltz2") < EPSILON
 
-    @pytest.mark.only_chimera
+    @pytest.mark.skipif(_alphafold3_weights_skip_reason() is not None, reason=_alphafold3_weights_skip_reason() or "")
     def test_imperfect_match(self):
         assert _imperfect_match("tmscore", "alphafold3") > 0.0
 
@@ -382,7 +402,6 @@ class TestSlowStructurePredictorSimilarityConstraint:
         reason="AF3 multichain (homodimer) RMSD self-match is not deterministic even with a pinned seed "
         "(~0.25 RMSD); needs chain-correspondence-aware comparison. Tracked in #1563."
     )
-    @pytest.mark.only_chimera
     def test_multichain(self):
         """Test multichain comparison."""
         config = StructureRMSDConfig(

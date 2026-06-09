@@ -14,11 +14,6 @@ import pytest
 from proto_language import setup_logging
 
 
-def is_on_chimera() -> bool:
-    """Check if running on the Chimera (arc-slurm) cluster."""
-    return os.environ.get("SLURM_CLUSTER_NAME") == "arc-slurm"
-
-
 # Fixture to patch GeneratorRegistry for mock generators
 @pytest.fixture(autouse=True)
 def mock_generator_registry(monkeypatch):
@@ -209,13 +204,6 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if "skip_ci" in item.keywords:
                 item.add_marker(skip_ci)
-
-    # Skip only_chimera tests when not on Chimera cluster
-    if not is_on_chimera():
-        skip_not_chimera = pytest.mark.skip(reason="Test requires Chimera cluster (SLURM_CLUSTER_NAME != 'arc-slurm')")
-        for item in items:
-            if "only_chimera" in item.keywords:
-                item.add_marker(skip_not_chimera)
 
     # Skip GPU tests when --cpu-only is specified
     if config.getoption("--cpu-only"):
