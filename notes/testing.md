@@ -4,16 +4,16 @@ Long-form testing reference for `proto-language`: commands, markers, placement, 
 
 ## Commands
 
-Use `--cpu` for normal local and CI-equivalent runs. Plain `pytest` skips slow and integration tests, but it does not skip tests marked `uses_gpu`.
+Use `--cpu-only` for normal local and CI-equivalent runs. Plain `pytest` skips slow and integration tests, but it does not skip tests marked `uses_gpu`.
 
 ```bash
-pytest --cpu -x                                   # fast CPU-focused feedback
-pytest tests/language_tests/generator_tests --cpu -x
-pytest -k "test_name" --cpu -x
-pytest --cpu --skip-ci                           # additionally skip skip_ci and hide CUDA
-pytest --integration --cpu -v                    # external-tool tests, CPU only
-pytest --gpu -k "esm2" -x                         # GPU-marked tests only, still respects slow/integration gates
-pytest --gpu --slow -k "beam_search" -x           # slow GPU subset
+pytest --cpu-only -x                              # fast CPU-focused feedback
+pytest tests/language_tests/generator_tests --cpu-only -x
+pytest -k "test_name" --cpu-only -x
+pytest --cpu-only --skip-ci                       # additionally skip skip_ci and hide CUDA
+pytest --integration --cpu-only -v                # external-tool tests, CPU only
+pytest --gpu-only -k "esm2" -x                    # GPU-marked tests only, still respects slow/integration gates
+pytest --gpu-only --slow -k "beam_search" -x      # slow GPU subset
 
 ruff check proto_language tests
 ruff format --check
@@ -23,8 +23,8 @@ python .github/scripts/validate_exports.py --verbose
 
 Current GitHub workflows:
 
-- `unit-tests.yml`: non-draft PRs and `main`, runs `pytest --cpu -q --override-ini="log_cli=false" --cov --cov-report=term-missing`.
-- `integration-tests.yml`: scheduled/manual, installs MAFFT and runs `pytest --integration --cpu -v`.
+- `unit-tests.yml`: non-draft PRs and `main`, runs `pytest --cpu-only -q --override-ini="log_cli=false" --cov --cov-report=term-missing`.
+- `integration-tests.yml`: scheduled/manual, installs MAFFT and runs `pytest --integration --cpu-only -v`.
 - `checks.yml`: non-draft PRs, runs `ruff check`, `ruff format --check`, `mypy proto_language/`, and export validation.
 - `submodule-check.yml`: non-draft PRs, verifies `proto-tools` points at the latest `main`.
 
@@ -32,7 +32,7 @@ Current GitHub workflows:
 
 | Marker | When to use | Selection behavior |
 |---|---|---|
-| `@pytest.mark.uses_gpu` | Test requires CUDA/model GPU execution | Included by default unless also slow/integration; skipped by `--cpu`; selected by `--gpu` |
+| `@pytest.mark.uses_gpu` | Test requires CUDA/model GPU execution | Included by default unless also slow/integration; skipped by `--cpu-only`; selected by `--gpu-only` |
 | `@pytest.mark.slow` | Test takes long enough to disrupt default feedback | Skipped by default; included by `--all`; selected alone by `--slow` |
 | `@pytest.mark.integration` | Test requires external tools/services such as MAFFT | Skipped by default; included by `--integration` or `--all` |
 | `@pytest.mark.skip_ci` | Test is not valid in GitHub Actions or local CI simulation | Skipped when `GITHUB_ACTIONS=true` or `--skip-ci` |
@@ -42,8 +42,8 @@ Current GitHub workflows:
 
 Flag interactions:
 
-- `--cpu` skips `uses_gpu`.
-- `--gpu` skips auto-marked CPU tests, but does not by itself include slow or integration tests.
+- `--cpu-only` skips `uses_gpu`.
+- `--gpu-only` skips auto-marked CPU tests, but does not by itself include slow or integration tests.
 - `--all` includes slow and integration tests.
 - `--slow` runs only tests marked `slow`; slow tests that are also `integration` are still skipped unless you also pass `--integration` (with both flags, all slow tests run — slow-only and slow+integration alike, while non-slow tests stay skipped). Use `--all` to run the full default + slow + integration set instead.
 - `--skip-ci` skips `skip_ci` tests and sets `CUDA_VISIBLE_DEVICES=""`.
@@ -200,10 +200,10 @@ Optimizers should usually cover:
 ## Bug-Fixing Workflow
 
 1. Write or identify a failing test that reproduces the bug.
-2. Verify the failure with a narrow command, for example `pytest -k "test_name" --cpu -x`.
+2. Verify the failure with a narrow command, for example `pytest -k "test_name" --cpu-only -x`.
 3. Fix the source.
 4. Rerun the narrow test.
-5. Run the relevant directory with `--cpu -x`.
+5. Run the relevant directory with `--cpu-only -x`.
 6. Run `ruff check` on touched source/tests, and `mypy proto_language/` if the change touches typed framework code.
 
 ## Checklist
@@ -215,6 +215,6 @@ Optimizers should usually cover:
 - [ ] Constraint tests assert score, metadata, and sequence-type behavior.
 - [ ] Generator tests assert assignment, proposal mutation, and batch/proposal behavior.
 - [ ] Optimizer tests assert validation, run loop, filtering, and history where relevant.
-- [ ] Narrow tests pass with `pytest ... --cpu -x`.
+- [ ] Narrow tests pass with `pytest ... --cpu-only -x`.
 - [ ] `ruff check proto_language tests` and `ruff format --check` pass for relevant files.
 - [ ] `mypy proto_language/` passes when typed source changed.

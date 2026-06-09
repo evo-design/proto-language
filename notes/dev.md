@@ -8,9 +8,9 @@ Dev workflow for `proto-language` contributors: commands, initial setup, submodu
 ruff check proto_language tests        # lint (mirrors checks.yml lint job)
 ruff format --check                    # formatting (mirrors checks.yml lint job)
 mypy proto_language/                   # types (mirrors checks.yml mypy job)
-pytest --cpu                           # CPU unit tests (mirrors unit-tests.yml)
-pytest --cpu --skip-ci                 # additionally skip skip_ci tests, hide CUDA
-pytest --integration --cpu -v          # external-tool tests (mirrors integration-tests.yml)
+pytest --cpu-only                      # CPU unit tests (mirrors unit-tests.yml)
+pytest --cpu-only --skip-ci            # additionally skip skip_ci tests, hide CUDA
+pytest --integration --cpu-only -v     # external-tool tests (mirrors integration-tests.yml)
 python .github/scripts/validate_exports.py --verbose  # export-chain consistency
 ```
 
@@ -92,10 +92,10 @@ Exit code is `0` on pass, `1` on errors. The script's module docstring is the ca
 
 | Workflow | Trigger | What it runs |
 |---|---|---|
-| `unit-tests.yml` | non-draft PR + push to `main` | `pytest --cpu -q --override-ini="log_cli=false" --cov --cov-report=term-missing` |
+| `unit-tests.yml` | non-draft PR + push to `main` | `pytest --cpu-only -q --override-ini="log_cli=false" --cov --cov-report=term-missing` |
 | `checks.yml` | non-draft PR + push to `main` | Three parallel jobs: `ruff check` + `ruff format --check`; `mypy proto_language/`; `python .github/scripts/validate_exports.py --verbose` |
 | `submodule-check.yml` | non-draft PR | Fails when the pinned `proto-tools` SHA differs from `evo-design/proto-tools@main`; fix with `git submodule update --remote proto-tools` and commit |
-| `integration-tests.yml` | scheduled (daily 06:00 UTC) + `workflow_dispatch` | Install MAFFT; `pytest --integration --cpu -v`. **Not** PR-triggered |
+| `integration-tests.yml` | scheduled (daily 06:00 UTC) + `workflow_dispatch` | Install MAFFT; `pytest --integration --cpu-only -v`. **Not** PR-triggered |
 | `claude.yml` | `@claude` in issue/PR/review comment | Code review or scoped question response |
 
 See `notes/testing.md` for the test-side details (markers, fixtures, mocks) that these workflows exercise.

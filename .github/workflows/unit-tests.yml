@@ -34,4 +34,4 @@ jobs:
       run: |
         uv pip install --system -e ".[dev]"
         uv pip install --system -e ./proto-tools
-    - run: pytest --cpu -q --override-ini="log_cli=false" --cov --cov-report=term-missing
+    - run: pytest --cpu-only -q --override-ini="log_cli=false" --cov --cov-report=term-missing

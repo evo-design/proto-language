@@ -66,13 +66,13 @@ def mock_generator_registry(monkeypatch):
 def pytest_addoption(parser):
     """Add custom command line options to pytest."""
     parser.addoption(
-        "--cpu",
+        "--cpu-only",
         action="store_true",
         default=False,
         help="Run only CPU tests, skip GPU tests",
     )
     parser.addoption(
-        "--gpu",
+        "--gpu-only",
         action="store_true",
         default=False,
         help="Run only GPU tests, skip CPU tests",
@@ -217,16 +217,16 @@ def pytest_collection_modifyitems(config, items):
             if "only_chimera" in item.keywords:
                 item.add_marker(skip_not_chimera)
 
-    # Skip GPU tests when --cpu is specified
-    if config.getoption("--cpu"):
-        skip_gpu = pytest.mark.skip(reason="--cpu specified")
+    # Skip GPU tests when --cpu-only is specified
+    if config.getoption("--cpu-only"):
+        skip_gpu = pytest.mark.skip(reason="--cpu-only specified")
         for item in items:
             if "uses_gpu" in item.keywords:
                 item.add_marker(skip_gpu)
 
-    # Skip CPU tests when --gpu is specified
-    elif config.getoption("--gpu"):
-        skip_cpu = pytest.mark.skip(reason="--gpu specified")
+    # Skip CPU tests when --gpu-only is specified
+    elif config.getoption("--gpu-only"):
+        skip_cpu = pytest.mark.skip(reason="--gpu-only specified")
         for item in items:
             if "uses_cpu" in item.keywords and "uses_gpu" not in item.keywords:
                 item.add_marker(skip_cpu)

@@ -198,7 +198,7 @@ Copy this and check off as you go:
 - [ ] No batching loop in generator (tool handles batching)
 - [ ] Export chain updated: `generator/__init__.py` (class + config)
 - [ ] Tests cover: init, assign, sample, batch, type validation, config validation
-- [ ] Tests pass: `pytest tests/language_tests/generator_tests/ --cpu -x`
+- [ ] Tests pass: `pytest tests/language_tests/generator_tests/ --cpu-only -x`
 - [ ] Lint passes: `ruff check proto_language/generator/`
 - [ ] Type check passes: `mypy proto_language/generator/`
 

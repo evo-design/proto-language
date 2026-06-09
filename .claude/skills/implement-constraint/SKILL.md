@@ -424,7 +424,7 @@ Copy this and check off as you go:
 - [ ] Export chain updated at all 3 levels (category `__init__`, constraint `__init__`, `__all__`)
 - [ ] UI visibility rules for conditionally relevant fields live in client overlays, not in `ConfigField`
 - [ ] Tests cover: parametrized scoring, wrong type, invalid config, metadata, edge cases
-- [ ] Tests pass: `pytest tests/language_tests/constraint_tests/ --cpu -x`
+- [ ] Tests pass: `pytest tests/language_tests/constraint_tests/ --cpu-only -x`
 - [ ] Lint passes: `ruff check proto_language/constraint/`
 - [ ] Type check passes: `mypy proto_language/constraint/`
 
