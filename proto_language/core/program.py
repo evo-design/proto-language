@@ -181,8 +181,7 @@ class Program:
             from proto_tools.tools.tool_registry import ToolRegistry
             from proto_tools.utils.tool_pool import ToolPool
 
-            # A local ToolPool bypasses _try_dispatch, so skip it when external dispatch is
-            # configured — via the cloud SDK or a deployment that sets _dispatch_configured.
+            # A local ToolPool bypasses _try_dispatch, so skip it when external dispatch is configured.
             has_backend = is_api_backend_enabled() or getattr(ToolRegistry, "_dispatch_configured", False)
             if has_backend:
                 logger.debug("External dispatch configured; GPU tools will route via _try_dispatch.")
@@ -277,9 +276,8 @@ class Program:
 
         reference_constructs = self.optimizers[0].constructs
 
-        # 2. Validate construct identity across optimizers
-        # All optimizers must reference the exact same construct objects so results
-        # from one stage automatically propagate to subsequent stages.
+        # 2. Validate construct identity: all optimizers must share the same construct
+        # objects so each stage's results propagate to the next.
         for i, optimizer in enumerate(self.optimizers[1:], start=1):
             if len(optimizer.constructs) != len(reference_constructs):
                 raise ValueError(

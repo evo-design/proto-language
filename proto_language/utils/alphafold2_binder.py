@@ -53,10 +53,8 @@ AF2_BINDER_TOOL_LOSS_ALIASES: dict[str, str] = {
 AF2_BINDER_CANONICAL_LOSS_ALIASES: dict[str, str] = {
     tool_key: canonical_key for canonical_key, tool_key in AF2_BINDER_TOOL_LOSS_ALIASES.items()
 }
-# ColabDesign normalizes AF2 binder PAE/iPAE losses by 31.0, matching its
-# predicted-aligned-error head's max_error_bin. Keep this tool-specific scale
-# separate from the generic predictor PAE normalization constant of 31.75
-# Angstroms used in structure_confidence_constraint.py.
+# ColabDesign's AF2 binder PAE/iPAE scale (max_error_bin); distinct from the
+# generic predictor's 31.75 Angstrom constant in structure_confidence_constraint.py.
 AF2_BINDER_PAE_MAXIMUM: float = 31.0
 AF2_BINDER_TOOL_OBJECTIVE_KEYS: frozenset[str] = frozenset(
     {
@@ -76,9 +74,7 @@ AF2_BINDER_TOOL_OBJECTIVE_KEYS: frozenset[str] = frozenset(
 )
 AF2_BINDER_CONFIDENCE_LOSS_BY_METRIC: dict[str, str | None] = {
     "avg_plddt": "plddt",
-    # The AF2 model reports global pTM as a metric, but ColabDesign does not expose
-    # a separate pTM loss key here. Forward structure-ptm therefore runs a
-    # metric-only prediction with empty loss_weights and reads ``ptm`` directly.
+    # No ColabDesign pTM loss key; ptm comes from a metric-only prediction (empty loss_weights).
     "ptm": None,
     "iptm": "iptm",
     "avg_pae": "pae",

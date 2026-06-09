@@ -261,8 +261,7 @@ def _cmd_list(args: argparse.Namespace) -> int:
             print(_spec_summary(spec))
         if not specs and args.category:
             cats = list_categories(k)
-            # Match the normalization _filter_specs applies (spaces->underscores, lowercase)
-            # so the suggestion is consistent with what the filter would have accepted.
+            # Mirror _filter_specs's normalization (spaces->underscores, lowercase).
             wanted = args.category.replace(" ", "_").lower()
             hits = [c for c in cats if wanted in c.lower()]
             if hits:

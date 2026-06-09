@@ -366,8 +366,7 @@ def _check_protein_domains_batch(
     Returns:
         list[dict[str, Any]]: List of dictionaries with analysis results including hits and keywords found.
     """
-    # Create PyHMMER config with direct sequence input (no temporary files needed)
-    # Create input and config for PyHMMER hmmscan
+    # Build PyHMMER hmmscan input directly from sequences (no temp files).
     hmmscan_input = PyHmmscanInput(sequences=protein_sequences, hmm_db=hmm_db)
 
     # Use provided config or default

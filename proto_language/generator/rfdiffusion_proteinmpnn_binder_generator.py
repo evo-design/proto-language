@@ -232,9 +232,8 @@ class RFdiffusionProteinMPNNBinderGenerator(Generator):
 
         contig = self._build_contig(binder_len)
 
-        # Backbone count: one ProteinMPNN run per backbone, num_sequences_per_structure
-        # sequences each. n_batches is chosen so RFdiffusion3 fans out enough backbones
-        # while respecting the user's diffusion_batch_size (GPU parallelism).
+        # One ProteinMPNN run per backbone (num_sequences_per_structure seqs each);
+        # n_batches fans out enough backbones within diffusion_batch_size.
         seqs_per_backbone = self.proteinmpnn_config.num_sequences_per_structure
         num_backbones = ceil(num_proposals / seqs_per_backbone)
         n_batches = ceil(num_backbones / self.rfdiffusion3_config.diffusion_batch_size)

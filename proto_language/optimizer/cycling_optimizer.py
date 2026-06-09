@@ -57,9 +57,8 @@ logger = logging.getLogger(__name__)
 # Predefined Pipelines
 # =============================================================================
 
-# AlphaFold2 is intentionally excluded — deterministic in our codepath
-# (use_msa=False, dropout=False) would break cycling diversity. See
-# proto-tools/notes/seeding.md.
+# AlphaFold2 excluded: deterministic in our codepath (use_msa=False, dropout=False)
+# would break cycling diversity. See proto-tools/notes/seeding.md.
 CyclingStructureTool = Literal["boltz2", "chai1", "alphafold3"]
 
 

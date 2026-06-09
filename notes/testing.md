@@ -27,6 +27,7 @@ Current GitHub workflows:
 - `integration-tests.yml`: scheduled/manual, installs MAFFT and runs `pytest --integration --cpu-only -v`.
 - `checks.yml`: non-draft PRs, runs `ruff check`, `ruff format --check`, `mypy proto_language/`, and export validation.
 - `submodule-check.yml`: non-draft PRs, verifies `proto-tools` points at the latest `main`.
+- `claude.yml`: responds to `@claude` mentions in issue/PR/review comments (code review or scoped Q&A); not a test workflow.
 
 ## Markers and Flags
 
@@ -83,7 +84,7 @@ tests/
 Naming:
 
 - File: `test_{component_name}.py`.
-- Class: `Test{ComponentName}` for component suites. This repo uses test classes; the proto-tools submodule has different conventions.
+- Class: `Test{ComponentName}` for component suites. This repo uses test classes; the proto-tools submodule uses flat functions and its own conventions — see `proto-tools/notes/testing.md`.
 - Method/function: `test_{behavior}`.
 
 Put broad framework behavior in the nearest existing core test file. Put component-specific behavior beside neighboring component tests.

@@ -9,10 +9,14 @@ repo instructions, notes, tests, and CI.
 ## References
 
 - `README.md`: user-facing overview, setup, core model, and examples.
-- `notes/dev.md`, `notes/testing.md`, `notes/batching.md`,
-  `notes/error-handling.md`, `notes/filesystem.md`:
-  team-shared references for setup, CI, tests, runtime
-  behavior, and file layout.
+- `notes/README.md`: index of the developer/agent/advanced-user notes (start here).
+  - `notes/dev.md`: dev workflow — setup, submodule sync, worktrees, export validation, CI.
+  - `notes/batching.md`: batching across pools, generators, constraints, scorers, backends.
+  - `notes/error-handling.md`: raise vs. worst-score contracts in evaluate/sample/run.
+  - `notes/filesystem.md`: where files live and where runtime artifacts are written.
+  - `notes/testing.md`: markers, fixtures, placement, mocks, and component coverage.
+  - `notes/biological-design-loop.md`, `notes/planning-quick-reference.md`,
+    `notes/component-planning-example.md`: design-planning guidance and a worked example.
 - `examples/scripts/` and `examples/jsons/`: example starter programs.
 
 ## Development Setup

@@ -301,9 +301,7 @@ def mmseqs_similarity_constraint(
     mmseqs_config = config.mmseqs_config.model_copy(update={"mmseqs_db": config.mmseqs_db})
     mmseqs_result = run_mmseqs2_search_proteins(mmseqs_input, mmseqs_config)
 
-    # Aggregate hits by input sequence
-    # seq_hits[seq_idx] = list of all hits for that input sequence
-    # orfs_with_hits[seq_idx] = set of ORF (protein) indices that produced >= 1 hit
+    # Aggregate hits per input sequence: all hits, plus the ORFs that hit.
     seq_hits: dict[int, list[dict[str, Any]]] = {i: [] for i in range(len(sequences))}
     orfs_with_hits: dict[int, set[int]] = {i: set() for i in range(len(sequences))}
 

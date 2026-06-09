@@ -24,10 +24,7 @@ from pydantic import PrivateAttr, field_validator, model_validator
 from proto_language.utils.base import BaseConfig, ConfigField
 
 # Canonical confidence-metric names → tool-native aliases tried as fallbacks
-# (e.g. Boltz2's ``complex_plddt``, ESMFold2's ``plddt``), so scoring code stays
-# agnostic to each predictor's native metric naming. ``avg_pae`` has no alias:
-# every predictor emits it directly, and ``complex_pde`` is a distance error, not
-# an aligned error.
+# (e.g. Boltz2's ``complex_plddt``), so scoring stays agnostic to native naming.
 _METRIC_ALIASES: dict[str, tuple[str, ...]] = {
     "avg_plddt": ("complex_plddt", "plddt"),
 }

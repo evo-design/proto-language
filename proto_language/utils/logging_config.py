@@ -72,11 +72,7 @@ class _BarAwareStreamHandler(logging.StreamHandler):  # type: ignore[type-arg]
             try:
                 from tqdm import tqdm
 
-                # tqdm.write's default end="\n" matches StreamHandler's default
-                # terminator; a customized handler.terminator would not be honored
-                # on this path. tqdm clears the bar when self.stream is the live
-                # stdout/stderr; if stdout was swapped after construction it
-                # degrades to a plain write (no crash, bar just isn't cleared).
+                # Route through tqdm.write so logs don't corrupt an active bar.
                 tqdm.write(self.format(record), file=self.stream)
                 return
             except Exception:

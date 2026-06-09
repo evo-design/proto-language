@@ -119,14 +119,6 @@ Useful public helpers:
 
 ## Persistent Storage
 
-`proto-language` has no storage-specific environment variables of its own. Model weights, tool environments, micromamba, and package caches are owned by the `proto-tools` submodule and inherited by language generators/constraints that call tools.
+Persistent storage — model weights, tool environments, micromamba, databases, and package caches — is handled in the tools layer of the larger proto framework. The `proto-tools` submodule owns the `PROTO_*` environment variables that control these locations, and language generators/constraints inherit them through the tool calls they make.
 
-| Variable | Owned by | What it controls |
-|---|---|---|
-| `PROTO_HOME` | proto-tools | Top-level root, default `~/.proto/`; contains model cache, tool envs, package caches, micromamba |
-| `PROTO_MODEL_CACHE` | proto-tools | Override only model-weight storage; safe for shared team caches |
-| `PROTO_{TOOL_NAME}_WEIGHTS_DIR` | proto-tools | Per-tool weight override |
-| `UV_CACHE_DIR` / `PIP_CACHE_DIR` | proto-tools | Optional package-cache overrides; default under `PROTO_HOME` |
-| `HF_TOKEN` | proto-tools / HuggingFace | Auth for gated model downloads |
-
-Full reference: `proto-tools/notes/storage.md`. Set these in the shell or job environment; `proto-language` picks them up through proto-tools calls.
+Full reference (all `PROTO_*` variables, storage modes, shared-team weights, databases): `proto-tools/notes/storage.md`. Set these in the shell or job environment; `proto-language` picks them up through proto-tools calls.

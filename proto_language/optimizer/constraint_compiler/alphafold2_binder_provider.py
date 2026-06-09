@@ -71,9 +71,8 @@ from proto_language.utils.alphafold2_binder import (
 
 logger = logging.getLogger(__name__)
 
-# Compiler-private mapping from public biological constraints to AF2 binder
-# objective keys. Keeping this table in the compiler package avoids adding
-# backend execution details to the public constraint functions.
+# Compiler-private mapping from public constraints to AF2 binder objective keys;
+# kept here to keep backend details out of the public constraint functions.
 AF2_BINDER_STRUCTURE_LOSS_BY_FUNCTION = {
     structure_plddt_constraint: "plddt",
     structure_iptm_constraint: "iptm",

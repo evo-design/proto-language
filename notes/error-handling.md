@@ -89,4 +89,4 @@ See `proto-tools/notes/error-handling.md` for the full tool-side contract.
 | `proto_language/core/optimizer.py` | Filter-then-score, energy invariants, filter penalties |
 | `proto_language/core/generator.py` | Generator assignment and proposal validation |
 | `proto_language/utils/serialization.py` | `format_pydantic_error()` |
-| `proto_language/utils/__init__.py` | `MAX_ENERGY`, `MIN_ENERGY` constants |
+| `proto_language/utils/scoring.py` | `MAX_ENERGY`, `MIN_ENERGY` constants (re-exported from `proto_language.utils`) |
