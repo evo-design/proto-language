@@ -163,8 +163,8 @@ class MockAutoregressiveGeneratorNoKVCache(Generator):
             proposal.sequence = sequence
 
 
-class MockAutoregressiveGeneratorOldSignature(Generator):
-    """Mock with the pre-#1457 _sample signature (no max_new_tokens / old_kv_cache)."""
+class MockAutoregressiveGeneratorMissingSampleParams(Generator):
+    """Mock whose _sample() omits the required max_new_tokens / old_kv_cache parameters."""
 
     input_type = GeneratorInputType.PROMPT
 
@@ -452,7 +452,7 @@ class TestBeamSearchOptimizer:
     def test_generator_with_incompatible_sample_signature_fails(self):
         """_sample() missing max_new_tokens/old_kv_cache is rejected at construct time."""
         segment = Segment(length=100, sequence_type="dna")
-        generator = MockAutoregressiveGeneratorOldSignature()
+        generator = MockAutoregressiveGeneratorMissingSampleParams()
         generator._assigned_segments = (segment,)
         constraint = Constraint(
             inputs=[segment],

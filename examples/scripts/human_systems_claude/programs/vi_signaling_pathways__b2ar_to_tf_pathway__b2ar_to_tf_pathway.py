@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""B2AR-to-TF pathway design and client JSON export."""
+"""B2AR-to-TF pathway design and program JSON export."""
 
 from __future__ import annotations
 
@@ -596,8 +596,8 @@ def _json_bioemu_constraint(
     }
 
 
-def build_frontend_program_json(profile: str = "full") -> dict[str, Any]:
-    """Build client/API-compatible JSON for the complete pathway."""
+def build_program_json(profile: str = "full") -> dict[str, Any]:
+    """Build the declarative program JSON for the complete pathway."""
     config_path, _output_dir, _json_path = _paths()
     config = _load_config(config_path)
     gene_ids = list(config["all_gene_ids"])
@@ -800,7 +800,7 @@ def build_frontend_program_json(profile: str = "full") -> dict[str, Any]:
         "CRE-family regulatory DNA motif with two CREBBP KIX domains. Stage 1 designs the CREB target motif "
         "inside fixed Borzoi flanks with Evo2 and a Borzoi CREB-track activity objective. Stage 2 diversifies "
         "non-ADCY9 pathway proteins with tied-copy protein generators for stoichiometric assemblies while "
-        "preserving ESMFold pLDDT/pTM and protein-quality constraints; the client JSON holds ADCY9 fixed to "
+        "preserving ESMFold pLDDT/pTM and protein-quality constraints; this program holds ADCY9 fixed to "
         "avoid the very large ESM2 diversification step. Stage 3 rescoring uses existing-results rejection "
         "sampling to rank the complete pathway candidate with BioEmu ensemble RMSD checks for GNAS and PRKAR1A "
         "conformational states plus Protenix v1 confidence metrics for the receptor, G-protein, cyclase, PKA, "
@@ -828,10 +828,10 @@ def build_frontend_program_json(profile: str = "full") -> dict[str, Any]:
     }
 
 
-def write_frontend_program_json(path: Path, profile: str = "full") -> None:
+def write_program_json(path: Path, profile: str = "full") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(build_frontend_program_json(profile=profile), indent=2) + "\n")
-    print(f"Wrote client program JSON to {path}")
+    path.write_text(json.dumps(build_program_json(profile=profile), indent=2) + "\n")
+    print(f"Wrote program JSON to {path}")
 
 
 def _run_output_dir(output_dir: Path, profile: str) -> Path:
@@ -992,7 +992,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.emit_json is not None:
-        write_frontend_program_json(args.emit_json, profile=args.profile)
+        write_program_json(args.emit_json, profile=args.profile)
     if args.skip_run:
         return 0
     return run_local(profile=args.profile)

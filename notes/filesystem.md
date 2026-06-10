@@ -57,7 +57,7 @@ tests/
 └── README.md                           short marker reference
 ```
 
-`tests/conftest.py` is the source of truth for custom pytest flags, automatic CPU marking, `skip_ci` behavior, and test logging. The `toy_json` fixture parses `examples/jsons/toy.json` as a dict (it is not loaded into a `Program`), so tests can assert against the client schema.
+`tests/conftest.py` is the source of truth for custom pytest flags, automatic CPU marking, `skip_ci` behavior, and test logging. The `toy_json` fixture parses `examples/jsons/toy.json` as a dict (it is not loaded into a `Program`), so tests can assert against the `optimization_stages` schema.
 
 See `notes/testing.md` for the long-form testing guide.
 
@@ -71,7 +71,7 @@ examples/
 ├── bindcraft/   Binder-design example programs and assets
 ├── germinal/    Antibody/VHH generation pipeline content
 ├── data/        Immutable reference assets used by examples
-├── jsons/       Declarative client-emitted program definitions (optimization_stages schema)
+├── jsons/       Declarative JSON program definitions (optimization_stages schema)
 └── scripts/     Larger Python workloads and generated program collections
 ```
 

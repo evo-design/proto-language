@@ -177,14 +177,13 @@ class Program:
         if compute is None:
             from contextlib import nullcontext
 
-            from proto_tools.cloud import is_api_backend_enabled
             from proto_tools.tools.tool_registry import ToolRegistry
             from proto_tools.utils.tool_pool import ToolPool
 
-            # A local ToolPool bypasses _try_dispatch, so skip it when external dispatch is configured.
-            has_backend = is_api_backend_enabled() or getattr(ToolRegistry, "_dispatch_configured", False)
+            # A local ToolPool bypasses cloud dispatch, so skip it when external dispatch is configured.
+            has_backend = getattr(ToolRegistry, "_dispatch_configured", False)
             if has_backend:
-                logger.debug("External dispatch configured; GPU tools will route via _try_dispatch.")
+                logger.debug("External dispatch configured; GPU tools will route to the hosted service.")
                 compute = nullcontext()
             else:
                 # Symmetric across GPU and CPU-only hosts.

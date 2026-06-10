@@ -108,7 +108,7 @@ class GeneratorRegistry(BaseRegistry[GeneratorSpec]):
         ...         super().__init__()
         ...         # Implementation
 
-        API/Client Usage:
+        API Usage:
         >>> # List all available generators
         >>> generators = GeneratorRegistry.list_all()
         >>>

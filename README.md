@@ -60,7 +60,7 @@ Some generators and constraints load gated models (for example ESM3, AlphaGenome
 Working programs are provided under [`examples/`](examples/):
 
 - **[`examples/scripts/`](examples/scripts/)** — runnable Python programs, ranging from a minimal end-to-end example ([`toy.py`](examples/scripts/toy.py)) to broader workloads.
-- **[`examples/jsons/`](examples/jsons/)** — declarative JSON program definitions emitted by the client (the `optimization_stages` schema). These illustrate program structure and are not loaded by a Python consumer.
+- **[`examples/jsons/`](examples/jsons/)** — declarative JSON program definitions (the `optimization_stages` schema). These illustrate program structure and are not loaded by a Python consumer.
 
 ## Architecture
 

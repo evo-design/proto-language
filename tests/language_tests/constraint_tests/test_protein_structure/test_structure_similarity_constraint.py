@@ -400,7 +400,7 @@ class TestSlowStructurePredictorSimilarityConstraint:
 
     @pytest.mark.skip(
         reason="AF3 multichain (homodimer) RMSD self-match is not deterministic even with a pinned seed "
-        "(~0.25 RMSD); needs chain-correspondence-aware comparison. Tracked in #1563."
+        "(~0.25 RMSD); needs chain-correspondence-aware comparison."
     )
     def test_multichain(self):
         """Test multichain comparison."""

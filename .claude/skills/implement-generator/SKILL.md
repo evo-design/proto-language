@@ -67,7 +67,7 @@ class Generator(ABC):
 
 ## Input Kinds
 
-Each generator declares its `input_type` via a classvar. The client reads this from `GeneratorRegistry` to render the right input UI. The Program-build validator (`Program._validate_generator_inputs` in `core/program.py`) walks stages in order and verifies the input is satisfiable; failures raise at `Program.__init__` time.
+Each generator declares its `input_type` via a classvar. The Program-build validator (`Program._validate_generator_inputs` in `core/program.py`) walks stages in order and verifies the input is satisfiable; failures raise at `Program.__init__` time.
 
 | `input_type` | Category | Runtime input source |
 |---|---|---|
@@ -90,7 +90,7 @@ For complete config class and generator class templates, use the `Read` tool to 
 - **Templates**: `.claude/skills/implement-generator/TEMPLATES.md`
 
 Summary of the workflow:
-1. **Config class** — inherit `BaseConfig`, use presentation-agnostic `ConfigField`, declare model params
+1. **Config class** — inherit `BaseConfig`, use `ConfigField`, declare model params
 2. **Generator class** — `@generator` decorator, `@final`, implement `__init__`, `assign`, `sample`
 3. **Export chain** — add to `generator/__init__.py`
 4. **Tests** — init, assign, sample, batch, type validation, config validation
@@ -186,7 +186,7 @@ See `notes/testing.md` for mocks, fixtures, assertion patterns, and component co
 
 Copy this and check off as you go:
 
-- [ ] Config class inherits `BaseConfig` with presentation-agnostic `ConfigField`
+- [ ] Config class inherits `BaseConfig` with `ConfigField`
 - [ ] `@generator` decorator with unique kebab-case key (category is auto-derived from input_type)
 - [ ] `@final` decorator on class
 - [ ] `input_type` classvar set to the right `GeneratorInputType` value

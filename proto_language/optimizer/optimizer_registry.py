@@ -85,7 +85,7 @@ class OptimizerRegistry(BaseRegistry[OptimizerSpec]):
         ...         )
         ...         # Implementation
 
-        API/Client Usage:
+        API Usage:
         >>> # List all available optimizers
         >>> optimizers = OptimizerRegistry.list_all()
         >>>

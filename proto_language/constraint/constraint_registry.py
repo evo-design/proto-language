@@ -105,7 +105,7 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
         ...         ConstraintOutput(score=calculate_penalty(seq_tuple[0], config)) for seq_tuple in input_sequences
         ...     ]
 
-        API/Client Usage:
+        API Usage:
         >>> # List all available constraints
         >>> constraints = ConstraintRegistry.list_all()
         >>>

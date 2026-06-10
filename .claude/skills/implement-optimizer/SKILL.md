@@ -88,7 +88,7 @@ For complete config class and optimizer class templates, use the `Read` tool to 
 - **Templates**: `.claude/skills/implement-optimizer/TEMPLATES.md`
 
 Summary of the workflow:
-1. **Config class** — inherit `BaseOptimizerConfig`, use presentation-agnostic `ConfigField`, declare `num_steps`/`num_results`
+1. **Config class** — inherit `BaseOptimizerConfig`, use `ConfigField`, declare `num_steps`/`num_results`
 2. **Optimizer class** — `@optimizer` decorator, `@final`, implement `__init__` and `run`
 3. **`_update_results`** — implement your selection logic (greedy, MCMC, etc.)
 
@@ -109,7 +109,7 @@ Summary of the workflow:
 
 If your optimizer operates on one segment (BeamSearch, Cycling, Gradient), both wirings are required and must match:
 
-1. Set `targets_single_segment=True` in the `@optimizer(...)` decorator — this is the discoverable hint the client / dispatcher reads.
+1. Set `targets_single_segment=True` in the `@optimizer(...)` decorator — this is the discoverable hint the dispatcher reads.
 2. Add `target_segment: Segment` as the first `__init__` parameter, before `constructs`, then call `self._validate_target_segment(target_segment)` from `__init__` (see `proto_language/core/optimizer.py`).
 
 Mismatched wirings (decorator says single-segment but `__init__` doesn't take `target_segment`, or vice versa) surface at instantiation, not registry time.
@@ -153,7 +153,7 @@ See `TEMPLATES.md` for complete test templates (including the `_setup_components
 
 Copy this and check off as you go:
 
-- [ ] Config class inherits `BaseOptimizerConfig` with presentation-agnostic `ConfigField`
+- [ ] Config class inherits `BaseOptimizerConfig` with `ConfigField`
 - [ ] `@optimizer` decorator with unique kebab-case key
 - [ ] `@final` decorator on class
 - [ ] `__init__` stores `self.config = config`, then calls `super().__init__()` with unpacked config and `seed=config.seed`

@@ -18,7 +18,7 @@ derived from the same ``Structure`` (one source → two artifacts), exactly as t
 ``examples/germinal`` and ``examples/bindcraft`` programs do.
 
 This example calls RFdiffusion3, ProteinMPNN, and a structure predictor (Boltz2), so it
-requires GPU/cloud access to actually run; it is illustrative and is not executed in CI.
+requires GPU access to actually run; it is illustrative and is not executed in CI.
 
 Example:
     PYTHONPATH=$PWD/proto-tools:$PWD python examples/scripts/binder_design_rfdiffusion_proteinmpnn.py \

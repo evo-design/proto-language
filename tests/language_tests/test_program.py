@@ -1291,9 +1291,8 @@ class TestProgramCompute:
     """Tests for Program.compute parameter and _enter_compute() context manager."""
 
     @patch("proto_tools.utils.tool_pool.ToolPool")
-    @patch("proto_tools.cloud.is_api_backend_enabled", return_value=False)
-    def test_compute_nullcontext_when_dispatch_configured(self, _mock_enabled, mock_pool_cls):
-        """_dispatch_configured set + cloud SDK off → nullcontext, not ToolPool (regression #1530/M13)."""
+    def test_compute_nullcontext_when_dispatch_configured(self, mock_pool_cls):
+        """_dispatch_configured set → nullcontext, not ToolPool."""
         from proto_tools.tools.tool_registry import ToolRegistry
 
         ToolRegistry._dispatch_configured = True

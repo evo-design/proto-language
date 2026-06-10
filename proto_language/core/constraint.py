@@ -224,7 +224,7 @@ class Constraint:
         >>> constraint.supports_discrete  # True
         >>> constraint.supports_gradient  # True
 
-    API/Client Usage (Registry for discovery):
+    API Usage (Registry for discovery):
         >>> constraint = ConstraintRegistry.create(
         ...     key="gc-content", segments=[dna_segment], config_dict={"min_gc": 40, "max_gc": 60}
         ... )

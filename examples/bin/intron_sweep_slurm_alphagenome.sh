@@ -20,6 +20,7 @@ else
     REPO_ROOT="$(cd "$(dirname "$SCRIPT_PATH")/../.." && pwd)"
 fi
 cd "$REPO_ROOT"
+# Site-specific SLURM scratch layout; adjust the candidates for your cluster.
 SCRATCH_ROOT_CANDIDATE_1="/scratch/users/${USER}/${USER}/proto-language"
 SCRATCH_ROOT_CANDIDATE_2="/scratch/users/${USER}/proto-language"
 if [[ -d "$(dirname "$SCRATCH_ROOT_CANDIDATE_1")" ]]; then
