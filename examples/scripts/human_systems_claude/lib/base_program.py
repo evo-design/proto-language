@@ -9,6 +9,7 @@ This module provides shared functionality for:
 
 import json
 import os
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
@@ -17,7 +18,7 @@ import pymol
 
 pymol.finish_launching(['pymol', '-qc'])
 from Bio import SeqIO
-from proto_tools.tools.masked_models.masking import MaskingStrategy
+from proto_tools.transforms.masking import MaskingStrategy
 from pymol import cmd
 
 from proto_language.constraint import (
@@ -165,7 +166,9 @@ def gene_ids_to_program(
     n_steps_per_generator: int = 20,
     genes_tsv: str = DEFAULT_HUMAN_GENES_TSV,
     genes_fasta: str = DEFAULT_HUMAN_GENES_FASTA,
-    custom_constraints_fn: callable | None = None,
+    custom_constraints_fn: Callable[
+        [dict[str, Segment]], list[Constraint]
+    ] | None = None,
 ) -> tuple[Program, dict[str, Segment]]:
     """
     Create a diversification program for a list of gene IDs.
@@ -270,7 +273,6 @@ def gene_ids_to_program(
         constraints.append(structure_rmsd)
 
         protein_quality_config = {
-            'quality_threshold': 0.,
             'enable_length': False,
             'enable_complexity': True,
             'complexity_max_low_complexity': 0.2,
@@ -309,7 +311,7 @@ def gene_ids_to_program(
         num_steps=len(generators) * n_steps_per_generator,
         max_temperature=0.1,
         min_temperature=0.01,
-        track_step_size=1,
+        tracking_interval=1,
         verbose=True,
     )
 
@@ -398,7 +400,7 @@ def score_single_complex_with_af3(
             function=structure_plddt_constraint,
             function_config={
                 'structure_tool': 'alphafold3',
-                'tool_config': af3_tool_config,
+                'alphafold3_config': af3_tool_config,
             },
             label='af3_plddt',
         ).evaluate()[0]
@@ -408,7 +410,7 @@ def score_single_complex_with_af3(
             function=structure_ptm_constraint,
             function_config={
                 'structure_tool': 'alphafold3',
-                'tool_config': af3_tool_config,
+                'alphafold3_config': af3_tool_config,
             },
             label='af3_ptm',
         ).evaluate()[0]
@@ -418,7 +420,7 @@ def score_single_complex_with_af3(
             function=structure_iptm_constraint,
             function_config={
                 'structure_tool': 'alphafold3',
-                'tool_config': af3_tool_config,
+                'alphafold3_config': af3_tool_config,
             },
             label='af3_iptm',
         ).evaluate()[0]
@@ -428,7 +430,7 @@ def score_single_complex_with_af3(
             function=structure_pae_constraint,
             function_config={
                 'structure_tool': 'alphafold3',
-                'tool_config': af3_tool_config,
+                'alphafold3_config': af3_tool_config,
             },
             label='af3_pae',
         ).evaluate()[0] * 31.75  # Max PAE is 31.75 Angstroms
@@ -470,7 +472,7 @@ def score_single_complex_with_af3(
                 function_config={
                     'target_structure': experimental_pdb_content,
                     'structure_tool': 'alphafold3',
-                    'tool_config': af3_tool_config,
+                    'alphafold3_config': af3_tool_config,
                     'plddt_threshold': 50.,  # Filter low pLDDT regions.
                     'tm_score_normalization': 'max',
                 },
@@ -483,7 +485,7 @@ def score_single_complex_with_af3(
                 function_config={
                     'target_structure': experimental_pdb_content,
                     'structure_tool': 'alphafold3',
-                    'tool_config': af3_tool_config,
+                    'alphafold3_config': af3_tool_config,
                     'inflection_point_angstroms': INFLECTION_POINT_ANGSTROMS,
                     'sigmoid_slope': SIGMOID_SLOPE,
                 },

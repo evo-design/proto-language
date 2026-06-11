@@ -128,6 +128,10 @@ echo ""
 # Create outputs directory
 mkdir -p "$COMPLEX_PROGRAMS_DIR/outputs"
 
+# Create SLURM log directory (job_template writes --output to logs/slurm/;
+# sbatch does not create parent dirs and the job fails if it is missing)
+mkdir -p "$PROTO_LANGUAGE_ROOT/logs/slurm"
+
 # Show what will be submitted
 echo "Jobs to submit:"
 python3 -c "
