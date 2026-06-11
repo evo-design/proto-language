@@ -143,6 +143,7 @@ exclude = [
     "*.egg-info",
     "proto-tools",
     "examples",
+    "guides",
 ]
 
 [tool.ruff.lint]
@@ -184,6 +185,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "proto_language/cli.py" = ["T201"]      # CLI entry point: print() is the right way to emit to stdout
 "proto_language/__main__.py" = ["T201"] # python -m proto_language entry point
+"scripts/run_guide_notebooks.py" = ["T201", "S603"] # dev runner: print() to stdout; subprocess args are controlled, not user input
 "tests/**/*.py" = [
     "S101",     # assert is the whole point of tests
     "S105",     # hardcoded password strings ok in test fixtures

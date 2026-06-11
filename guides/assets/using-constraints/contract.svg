@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 200" role="img" aria-label="A constraint maps a batch of sequences through a scoring function to a score between 0.0 (perfect) and 1.0 (worst)">
+  <defs>
+    <linearGradient id="scoreScale" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0"   stop-color="#2e7d32" />
+      <stop offset="0.5" stop-color="#f9a825" />
+      <stop offset="1"   stop-color="#c62828" />
+    </linearGradient>
+  </defs>
+  <style>
+    .chip       { fill: #ffffff; stroke: #768b8e; stroke-width: 1.3; }
+    .fn         { fill: #e2e9ea; stroke: #046e7a; stroke-width: 1.6; }
+    .title      { fill: #046e7a; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; font-weight: 700; }
+    .label      { fill: #344649; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; font-weight: 600; }
+    .sub        { fill: #506467; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; }
+    .muted      { fill: #768b8e; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 9.5px; }
+    .good       { fill: #2e7d32; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; font-weight: 700; }
+    .bad        { fill: #c62828; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; font-weight: 700; }
+    .caption    { fill: #475569; font-family: ui-serif, Georgia, serif; font-style: italic; font-size: 11px; }
+    .arrow      { stroke: #506467; stroke-width: 1.4; fill: none; }
+    .arrowhead  { fill: #506467; }
+    .tick       { stroke: #ffffff; stroke-width: 1.2; }
+    @media (prefers-color-scheme: dark) {
+      .chip   { fill: #0f1716; stroke: #506467; }
+      .fn     { fill: #1d2c2f; stroke: #2f8f99; }
+      .title  { fill: #4bb3bd; }
+      .label  { fill: #cbd5d4; }
+      .sub    { fill: #9eb4b2; }
+      .muted  { fill: #768b8e; }
+      .caption{ fill: #9eb4b2; }
+      .arrow  { stroke: #9eb4b2; }
+      .arrowhead { fill: #9eb4b2; }
+    }
+  </style>
+
+  <!-- Input: a batch of sequences -->
+  <rect x="20"  y="56" width="116" height="48" rx="6" class="chip" />
+  <rect x="26"  y="50" width="116" height="48" rx="6" class="chip" />
+  <rect x="32"  y="44" width="116" height="48" rx="6" class="chip" />
+  <text x="90"  y="64" text-anchor="middle" class="label">sequences</text>
+  <text x="90"  y="80" text-anchor="middle" class="sub">ATGCAATTGC...</text>
+
+  <!-- Arrow to function -->
+  <path d="M152 68 L186 68" class="arrow" />
+  <polygon points="192,68 184,64 184,72" class="arrowhead" />
+
+  <!-- Scoring function -->
+  <rect x="192" y="44" width="150" height="48" rx="7" class="fn" />
+  <text x="267" y="64" text-anchor="middle" class="title">constraint(...)</text>
+  <text x="267" y="80" text-anchor="middle" class="sub">scoring function</text>
+
+  <!-- Arrow to scores -->
+  <path d="M346 68 L372 68" class="arrow" />
+  <polygon points="378,68 370,64 370,72" class="arrowhead" />
+
+  <!-- Scores: one per input sequence (one-to-one with the batch) -->
+  <rect x="380" y="56" width="116" height="48" rx="6" class="chip" />
+  <rect x="386" y="50" width="116" height="48" rx="6" class="chip" />
+  <rect x="392" y="44" width="116" height="48" rx="6" class="chip" />
+  <text x="450" y="64" text-anchor="middle" class="label">scores</text>
+  <text x="450" y="80" text-anchor="middle" class="sub">one per sequence</text>
+
+  <!-- Score scale -->
+  <rect x="92" y="132" width="336" height="16" rx="8" fill="url(#scoreScale)" />
+  <line x1="92"  y1="130" x2="92"  y2="150" class="tick" />
+  <line x1="428" y1="130" x2="428" y2="150" class="tick" />
+  <text x="92"  y="166" text-anchor="middle" class="good">0.0</text>
+  <text x="92"  y="178" text-anchor="middle" class="muted">perfect</text>
+  <text x="428" y="166" text-anchor="middle" class="bad">1.0</text>
+  <text x="428" y="178" text-anchor="middle" class="muted">worst</text>
+
+  <!-- Optimizer direction -->
+  <path d="M300 140 L120 140" class="arrow" />
+  <polygon points="112,140 122,135 122,145" class="arrowhead" />
+  <text x="260" y="126" text-anchor="middle" class="caption">optimizers drive the scores toward 0</text>
+</svg>

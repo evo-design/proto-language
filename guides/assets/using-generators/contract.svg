@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 190" role="img" aria-label="A generator reads a segment's proposal sequences and rewrites them in place each optimization step, changing a few positions">
+  <style>
+    .lbl     { fill: #768b8e; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 9.5px; }
+    .cell    { fill: #ffffff; stroke: #768b8e; stroke-width: 1.1; }
+    .res     { fill: #344649; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; font-weight: 600; }
+    .cellhi  { fill: #046e7a; stroke: #046e7a; stroke-width: 1.1; }
+    .reshi   { fill: #ffffff; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; font-weight: 700; }
+    .fn      { fill: #046e7a; }
+    .fntext  { fill: #ffffff; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; font-weight: 700; }
+    .fnsub   { fill: #bfe2e7; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; }
+    .muted   { fill: #768b8e; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 9.5px; }
+    .caption { fill: #475569; font-family: ui-serif, Georgia, serif; font-style: italic; font-size: 11px; }
+    .arrow   { stroke: #506467; stroke-width: 1.4; fill: none; }
+    .arrowhead { fill: #506467; }
+    @media (prefers-color-scheme: dark) {
+      .lbl     { fill: #768b8e; }
+      .cell    { fill: #0f1716; stroke: #506467; }
+      .res     { fill: #cbd5d4; }
+      .cellhi  { fill: #2f8f99; stroke: #2f8f99; }
+      .fn      { fill: #2f8f99; }
+      .muted   { fill: #768b8e; }
+      .caption { fill: #9eb4b2; }
+      .arrow   { stroke: #9eb4b2; }
+      .arrowhead { fill: #9eb4b2; }
+    }
+  </style>
+
+  <!-- Input: a segment's proposal sequence -->
+  <text x="24" y="52" class="lbl">proposal_sequences</text>
+  <g>
+    <rect x="24"  y="60" width="18" height="26" class="cell" /><text x="33"  y="78" text-anchor="middle" class="res">M</text>
+    <rect x="42"  y="60" width="18" height="26" class="cell" /><text x="51"  y="78" text-anchor="middle" class="res">K</text>
+    <rect x="60"  y="60" width="18" height="26" class="cell" /><text x="69"  y="78" text-anchor="middle" class="res">T</text>
+    <rect x="78"  y="60" width="18" height="26" class="cell" /><text x="87"  y="78" text-anchor="middle" class="res">A</text>
+    <rect x="96"  y="60" width="18" height="26" class="cell" /><text x="105" y="78" text-anchor="middle" class="res">Y</text>
+    <rect x="114" y="60" width="18" height="26" class="cell" /><text x="123" y="78" text-anchor="middle" class="res">I</text>
+    <rect x="132" y="60" width="18" height="26" class="cell" /><text x="141" y="78" text-anchor="middle" class="res">A</text>
+    <rect x="150" y="60" width="18" height="26" class="cell" /><text x="159" y="78" text-anchor="middle" class="res">K</text>
+  </g>
+
+  <!-- Arrow into the generator -->
+  <path d="M174 73 L204 73" class="arrow" />
+  <polygon points="210,73 202,69 202,77" class="arrowhead" />
+
+  <!-- Generator -->
+  <rect x="212" y="51" width="120" height="44" rx="8" class="fn" />
+  <text x="272" y="71" text-anchor="middle" class="fntext">generator</text>
+  <text x="272" y="86" text-anchor="middle" class="fnsub">.sample()</text>
+
+  <!-- Arrow out -->
+  <path d="M336 73 L366 73" class="arrow" />
+  <polygon points="372,73 364,69 364,77" class="arrowhead" />
+
+  <!-- Output: same sequence, two positions rewritten -->
+  <text x="374" y="52" class="lbl">proposal_sequences</text>
+  <g>
+    <rect x="374" y="60" width="18" height="26" class="cell" /><text x="383" y="78" text-anchor="middle" class="res">M</text>
+    <rect x="392" y="60" width="18" height="26" class="cell" /><text x="401" y="78" text-anchor="middle" class="res">K</text>
+    <rect x="410" y="60" width="18" height="26" class="cellhi" /><text x="419" y="78" text-anchor="middle" class="reshi">G</text>
+    <rect x="428" y="60" width="18" height="26" class="cell" /><text x="437" y="78" text-anchor="middle" class="res">A</text>
+    <rect x="446" y="60" width="18" height="26" class="cell" /><text x="455" y="78" text-anchor="middle" class="res">Y</text>
+    <rect x="464" y="60" width="18" height="26" class="cellhi" /><text x="473" y="78" text-anchor="middle" class="reshi">V</text>
+    <rect x="482" y="60" width="18" height="26" class="cell" /><text x="491" y="78" text-anchor="middle" class="res">A</text>
+    <rect x="500" y="60" width="18" height="26" class="cell" /><text x="509" y="78" text-anchor="middle" class="res">K</text>
+  </g>
+
+  <!-- Legend -->
+  <rect x="374" y="100" width="12" height="12" rx="2" class="cellhi" />
+  <text x="392" y="110" class="muted">rewritten position</text>
+
+  <!-- Caption -->
+  <text x="260" y="150" text-anchor="middle" class="caption">Once per optimizer step, the generator rewrites the segment's proposal sequences in place.</text>
+</svg>

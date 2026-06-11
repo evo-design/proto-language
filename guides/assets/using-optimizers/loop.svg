@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 200" role="img" aria-label="An optimizer loop: a generator proposes sequences, constraints score them, the optimizer keeps the best, and the cycle repeats each step before returning result sequences">
+  <style>
+    .box    { fill: #ffffff; stroke: #768b8e; stroke-width: 1.3; }
+    .opt    { fill: #046e7a; stroke: #046e7a; stroke-width: 1.3; }
+    .title  { fill: #344649; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; font-weight: 700; }
+    .titlew { fill: #ffffff; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; font-weight: 700; }
+    .sub    { fill: #506467; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; }
+    .subw   { fill: #bfe2e7; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; }
+    .muted  { fill: #768b8e; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; }
+    .result { fill: #eaf5ea; stroke: #2e7d32; stroke-width: 1.4; }
+    .restxt { fill: #2e7d32; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; font-weight: 700; }
+    .arrow  { stroke: #506467; stroke-width: 1.5; fill: none; }
+    .arrowhead { fill: #506467; }
+    @media (prefers-color-scheme: dark) {
+      .box    { fill: #0f1716; stroke: #506467; }
+      .opt    { fill: #2f8f99; stroke: #2f8f99; }
+      .title  { fill: #cbd5d4; }
+      .sub    { fill: #9eb4b2; }
+      .muted  { fill: #9eb4b2; }
+      .result { fill: #15241a; stroke: #3f9a45; }
+      .restxt { fill: #6cc36f; }
+      .arrow  { stroke: #9eb4b2; }
+      .arrowhead { fill: #9eb4b2; }
+    }
+  </style>
+
+  <!-- Loop-back arc (above), select -> propose -->
+  <path d="M430 64 C 430 26, 90 26, 90 62" class="arrow" />
+  <polygon points="90,68 86,59 94,59" class="arrowhead" />
+  <text x="260" y="22" text-anchor="middle" class="muted">repeat each optimization step</text>
+
+  <!-- propose -->
+  <rect x="24" y="64" width="132" height="46" rx="8" class="box" />
+  <text x="90" y="86" text-anchor="middle" class="title">propose</text>
+  <text x="90" y="100" text-anchor="middle" class="sub">generator</text>
+
+  <path d="M156 87 L190 87" class="arrow" />
+  <polygon points="196,87 188,83 188,91" class="arrowhead" />
+
+  <!-- score -->
+  <rect x="194" y="64" width="132" height="46" rx="8" class="box" />
+  <text x="260" y="86" text-anchor="middle" class="title">score</text>
+  <text x="260" y="100" text-anchor="middle" class="sub">constraints</text>
+
+  <path d="M326 87 L360 87" class="arrow" />
+  <polygon points="366,87 358,83 358,91" class="arrowhead" />
+
+  <!-- select (the optimizer's choice) -->
+  <rect x="364" y="64" width="132" height="46" rx="8" class="opt" />
+  <text x="430" y="86" text-anchor="middle" class="titlew">select</text>
+  <text x="430" y="100" text-anchor="middle" class="subw">keep the best</text>
+
+  <!-- exit to results -->
+  <path d="M430 110 L430 144" class="arrow" />
+  <polygon points="430,150 426,142 434,142" class="arrowhead" />
+  <text x="442" y="132" class="muted">after num_steps</text>
+
+  <!-- result -->
+  <rect x="312" y="152" width="120" height="38" rx="7" class="result" />
+  <text x="372" y="175" text-anchor="middle" class="restxt">result sequences</text>
+</svg>
