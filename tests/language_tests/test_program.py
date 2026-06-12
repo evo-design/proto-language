@@ -1292,16 +1292,16 @@ class TestProgramCompute:
 
     @patch("proto_tools.utils.tool_pool.ToolPool")
     def test_compute_nullcontext_when_dispatch_configured(self, mock_pool_cls):
-        """_dispatch_configured set → nullcontext, not ToolPool."""
+        """Configured dispatch backend -> nullcontext, not ToolPool."""
         from proto_tools.tools.tool_registry import ToolRegistry
 
-        ToolRegistry._dispatch_configured = True
+        ToolRegistry.configure_dispatch_backend(lambda key, inputs, config: None)
         try:
             program = _create_simple_program(compute=None)
             assert isinstance(program.compute, nullcontext)
             mock_pool_cls.assert_not_called()
         finally:
-            del ToolRegistry._dispatch_configured
+            ToolRegistry.clear_dispatch_backend()
 
     @patch("proto_tools.utils.tool_pool._active_pool")
     def test_run_enters_compute_context(self, mock_active_pool):

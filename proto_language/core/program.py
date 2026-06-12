@@ -159,7 +159,7 @@ class Program:
                      for all optimizers.
             compute (ToolPool | None): Context manager for tool execution. If None,
                 auto-detects: nullcontext when external dispatch is configured (cloud SDK
-                backend or a deployment that sets _dispatch_configured), else ToolPool()
+                backend or a deployment dispatch backend), else ToolPool()
                 (symmetric across GPU and CPU-only hosts).
             seed (int | None): Random seed for fully reproducible optimization. When set,
                 derives unique optimizer config seeds, overriding optimizer-level
@@ -181,7 +181,7 @@ class Program:
             from proto_tools.utils.tool_pool import ToolPool
 
             # A local ToolPool bypasses cloud dispatch, so skip it when external dispatch is configured.
-            has_backend = getattr(ToolRegistry, "_dispatch_configured", False)
+            has_backend = ToolRegistry.dispatch_backend_configured()
             if has_backend:
                 logger.debug("External dispatch configured; GPU tools will route to the hosted service.")
                 compute = nullcontext()
