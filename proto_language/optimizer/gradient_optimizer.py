@@ -406,7 +406,7 @@ class GradientOptimizerConfig(BaseOptimizerConfig):
     key="gradient",
     label="Gradient Optimizer",
     config=GradientOptimizerConfig,
-    description="Gradient-based sequence optimization via differentiable constraints",
+    description="Continuous, differentiable optimization: represents the sequence as per-position residue logits and descends them with SGD or Adam using gradients backpropagated through differentiable constraints, annealing from a soft probabilistic sequence to a hard discrete one.",
     compatible_generators=["position-weight"],
     required_constraint_mode="gradient",
     targets_single_segment=True,

@@ -237,7 +237,7 @@ class CyclingOptimizerConfig(BaseOptimizerConfig):
     key="cycling",
     label="Cycling Optimizer",
     config=CyclingOptimizerConfig,
-    description="Iterative optimizer that cycles between a conditioning function and generator",
+    description="Alternates a conditioning step with a generation step each cycle to drive feedback loops such as Protein Hunter (structure prediction -> inverse folding), keeping proposals that pass the filter constraints.",
     targets_single_segment=True,
 )
 @final

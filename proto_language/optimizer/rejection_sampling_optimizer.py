@@ -172,7 +172,7 @@ class RejectionSamplingOptimizerConfig(BaseOptimizerConfig):
     key="rejection-sampling",
     label="Rejection Sampling Optimizer",
     config=RejectionSamplingOptimizerConfig,
-    description="Optimizer that runs sampling rounds and keeps the best constructs by energy score",
+    description="Draws many independent candidates from the generators, scores each against the constraints, and keeps the lowest-energy designs. Stateless and fully parallel, with no iterative refinement between samples.",
 )
 @final
 class RejectionSamplingOptimizer(Optimizer):
