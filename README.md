@@ -5,8 +5,6 @@
 [![Checks](https://github.com/evo-design/proto-language/actions/workflows/checks.yml/badge.svg)](https://github.com/evo-design/proto-language/actions/workflows/checks.yml)
 [![Unit Tests](https://github.com/evo-design/proto-language/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/evo-design/proto-language/actions/workflows/unit-tests.yml)
 [![Integration Tests](https://github.com/evo-design/proto-language/actions/workflows/integration-tests.yml/badge.svg)](https://github.com/evo-design/proto-language/actions/workflows/integration-tests.yml)
-[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/evs3Unkegv)
-
 proto-language is a constraint-based optimization framework for designing biological sequences (DNA, RNA, and proteins). A design is specified as a set of constraints, and the framework runs a propose–score–refine loop to search for sequences that satisfy them, drawing on more than 60 computational-biology and biological-AI tools to score candidate sequences.
 
 It is built on the [proto-tools](https://github.com/evo-design/proto-tools) execution layer, so that each computationally intensive tool (structure predictors, protein language models, inverse folding, sequence and structure aligners, gene annotation, and others) runs in its own automatically managed, isolated environment. No manual conda setup is required; the package is installed with pip.
