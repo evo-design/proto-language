@@ -20,7 +20,7 @@ from proto_tools import (
     run_tmalign,
     run_usalign,
 )
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 
 from proto_language.constraint.constraint_registry import constraint
 from proto_language.constraint.protein_structure.structure_constraint_config import (
@@ -113,6 +113,22 @@ class StructureSimilarityConfig(StructureBasedConstraintConfig):
         default=None,
         description="Target structure: a Structure object, file path (.pdb/.cif), or raw PDB/CIF content string.",
     )
+
+    @field_validator("target_structure", mode="before")
+    @classmethod
+    def _coerce_empty_structure_stub(cls, v: object) -> object:
+        """Coerce an empty structure widget stub to None.
+
+        The client emits a dict with only optional Structure fields
+        (e.g. ``{"b_factor_type": "unspecified", "metrics": {}}``) when a
+        structure input widget is toggled on but left unfilled. That dict fails
+        validation as Structure (missing required ``structure`` field), str, and
+        None. Treat any dict lacking a non-empty ``structure`` key as None so
+        the field behaves as if it was never set.
+        """
+        if isinstance(v, dict) and not v.get("structure"):
+            return None
+        return v
 
     min_target_plddt: float = ConfigField(
         title="Min Target pLDDT",
