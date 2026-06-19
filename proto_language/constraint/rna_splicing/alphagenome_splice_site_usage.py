@@ -181,6 +181,16 @@ class AlphaGenomeSpliceSiteUsageConfig(BaseConfig):
         default="max",
         description="'max' returns 1-mean(SSU); 'min' returns mean(SSU).",
     )
+    peak_search_radius: int = ConfigField(
+        title="Peak Search Radius",
+        default=0,
+        ge=0,
+        description=(
+            "Score each splice position as the maximum usage within +/- this many positions "
+            "(robust to the off-by-one between the requested index and the model's reported "
+            "donor/acceptor peak). 0 scores exactly at the requested index."
+        ),
+    )
     strand: Literal["positive", "negative", "all"] = ConfigField(
         title="Track Strand",
         default="positive",
@@ -339,7 +349,19 @@ def alphagenome_splice_site_usage(
             strand=config.strand,
         )
 
-        raw_usage = float(selected_matrix[absolute_splice_pos, :].mean())
+        radius = config.peak_search_radius
+        if radius > 0:
+            # Per splice position, take the max site-usage within +/- radius (mean over
+            # tracks), then average across positions -- robust to the donor off-by-one.
+            n_rows = selected_matrix.shape[0]
+            per_track_mean = selected_matrix.mean(axis=1)
+            site_usages = [
+                float(per_track_mean[max(0, pos - radius) : min(n_rows, pos + radius + 1)].max())
+                for pos in absolute_splice_pos
+            ]
+            raw_usage = float(np.mean(site_usages))
+        else:
+            raw_usage = float(selected_matrix[absolute_splice_pos, :].mean())
         raw_usage = float(np.clip(raw_usage, 0.0, 1.0))
         score = float(1.0 - raw_usage) if config.direction == "max" else raw_usage
 

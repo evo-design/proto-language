@@ -1,11 +1,12 @@
 """Evaluate intron boundary prediction with SpliceTransformer.
 
 Accepts three segments (left_flank, intron_core, right_flank), concatenates
-them into a single 1-kb target sequence, and scores donor/acceptor splice
-sites.
+them, windows the result to the fixed SpliceTransformer target length centred
+on the donor/acceptor sites, and scores donor/acceptor splice sites.
 """
 
 import logging
+from typing import Literal
 
 import numpy as np
 from proto_tools import CONTEXT_LENGTH as SPLICE_TRANSFORMER_CONTEXT_LENGTH
@@ -18,6 +19,11 @@ from proto_tools import (
 from pydantic import field_validator
 
 from proto_language.constraint.constraint_registry import constraint
+from proto_language.constraint.rna_splicing.splice_transformer_target import (
+    apply_target_window,
+    remap_positions,
+    splice_target_window_start,
+)
 from proto_language.core import ConstraintOutput, Sequence
 from proto_language.utils.base import BaseConfig, ConfigField
 
@@ -67,8 +73,10 @@ class SpliceTransformerIntronBoundaryConfig(BaseConfig):
 
     Note:
         SpliceTransformer requires sequences of specific lengths:
-        - Concatenated target (left_flank + intron_core + right_flank): Must be
-          exactly 1000 bp
+        - Concatenated target (left_flank + intron_core + right_flank): scored
+          over a 1000 bp window. If the concatenation is longer, it is windowed
+          to 1000 bp centred on the donor/acceptor positions and the positions
+          are remapped into that window.
         - Left context: Must be exactly 4000 bp
         - Right context: Must be exactly 4000 bp
         - Total sequence analyzed: 9000 bp (4000 + 1000 + 4000)
@@ -103,6 +111,29 @@ class SpliceTransformerIntronBoundaryConfig(BaseConfig):
         if isinstance(v, int):
             return [v]
         return v
+
+    reduction: Literal["mean", "min"] = ConfigField(
+        title="Donor/Acceptor Reduction",
+        default="mean",
+        description=(
+            "How to combine donor and acceptor probabilities into the boundary score. "
+            "'mean' rewards the average of the two sites; 'min' rewards the weaker site, "
+            "forcing both the donor and the acceptor to be strong for a spliceable intron."
+        ),
+    )
+    peak_search_radius: int = ConfigField(
+        title="Peak Search Radius",
+        default=0,
+        ge=0,
+        description=(
+            "Score each donor/acceptor as the maximum probability within +/- this many "
+            "positions of the requested index. SpliceTransformer (SpliceAI convention) "
+            "labels the donor at the last exonic base, one position upstream of the GT, so "
+            "a small radius (e.g. 2) makes scoring robust to that off-by-one without "
+            "catching spurious signal (splice-site peaks are sharp and isolated). 0 scores "
+            "exactly at the requested index."
+        ),
+    )
 
     # Optional parameter
     splice_transformer_config: SpliceTransformerConfig = ConfigField(
@@ -163,6 +194,13 @@ def splice_transformer_intron_boundary(
     if len(target_lengths) != 1:
         raise ValueError("SpliceTransformer intron-boundary scoring requires equal-length target sequences in a batch.")
 
+    # Window the concatenated target down to the fixed SpliceTransformer target
+    # length, centred on the donor/acceptor sites, and remap the positions.
+    window_start = splice_target_window_start(target_lengths.pop(), config.donor_pos, config.acceptor_pos)
+    target_seqs = apply_target_window(target_seqs, window_start)
+    donor_pos = remap_positions(config.donor_pos, window_start)
+    acceptor_pos = remap_positions(config.acceptor_pos, window_start)
+
     splice_transformer_input = SpliceTransformerInput(
         target_seqs=target_seqs,
         left_contexts=[config.left_context] * len(target_seqs),
@@ -188,13 +226,35 @@ def splice_transformer_intron_boundary(
                 f"SpliceTransformer output length mismatch: {output.shape[1]} != {len(target_seqs[batch_idx])}."
             )
 
-        donor_prob = float(output[batch_idx, config.donor_pos, SpliceTransformerType.DONOR.value].mean())
-        acceptor_prob = float(output[batch_idx, config.acceptor_pos, SpliceTransformerType.ACCEPTOR.value].mean())
-        score = 1.0 - ((donor_prob + acceptor_prob) / 2.0)
+        radius = config.peak_search_radius
+        seq_len = output.shape[1]
+
+        def _peak_prob(positions: list[int], channel: int) -> float:
+            # Score each requested site as the max probability within +/- radius
+            # (robust to the SpliceAI donor off-by-one), then average across sites.
+            site_probs = []
+            for pos in positions:
+                lo = max(0, pos - radius)
+                hi = min(seq_len, pos + radius + 1)
+                site_probs.append(float(output[batch_idx, lo:hi, channel].max()))
+            return sum(site_probs) / len(site_probs)
+
+        donor_prob = _peak_prob(donor_pos, SpliceTransformerType.DONOR.value)
+        acceptor_prob = _peak_prob(acceptor_pos, SpliceTransformerType.ACCEPTOR.value)
+        if config.reduction == "min":
+            # Reward the weaker of the two sites so a strong acceptor cannot mask a dead donor.
+            combined_prob = min(donor_prob, acceptor_prob)
+        else:
+            combined_prob = (donor_prob + acceptor_prob) / 2.0
+        score = 1.0 - combined_prob
 
         metadata = {
             "donor_pos": config.donor_pos,
             "acceptor_pos": config.acceptor_pos,
+            "windowed_donor_pos": donor_pos,
+            "windowed_acceptor_pos": acceptor_pos,
+            "target_window_start": window_start,
+            "reduction": config.reduction,
             "donor_score": 1.0 - donor_prob,
             "acceptor_score": 1.0 - acceptor_prob,
             "total_splice_score": score,
