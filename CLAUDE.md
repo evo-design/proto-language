@@ -1,6 +1,6 @@
 ## Project Overview
 
-`proto-language` is the Proto Bio constraint-based optimization framework for
+`proto-language` is the Proto constraint-based optimization framework for
 designing biological sequences. Core abstractions are `Sequence`, `Segment`,
 `Construct`, `Generator`, `Constraint`, `Optimizer`, and `Program`. The
 `proto-tools/` submodule supplies bioinformatics tool wrappers and has its own

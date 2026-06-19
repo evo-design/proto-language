@@ -1,6 +1,6 @@
 # 🧬 Proto Language 🧪
 
-![Proto Language](https://proto-bio.github.io/proto-assets/default/hero.png)
+![Proto Language](https://evo-design.github.io/proto-assets/default/hero.png)
 
 [![Checks](https://github.com/evo-design/proto-language/actions/workflows/checks.yml/badge.svg)](https://github.com/evo-design/proto-language/actions/workflows/checks.yml)
 [![Unit Tests](https://github.com/evo-design/proto-language/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/evo-design/proto-language/actions/workflows/unit-tests.yml)
@@ -12,7 +12,7 @@ It is built on the [proto-tools](https://github.com/evo-design/proto-tools) exec
 ## Related Repositories
 
 - [`proto-tools`](https://github.com/evo-design/proto-tools) — tool execution layer (included as a submodule for development)
-- [`proto-client`](https://github.com/evo-design/proto-client) — Python SDK for Proto Bio APIs
+- [`proto-client`](https://github.com/evo-design/proto-client) — Python SDK for Evo Design APIs
 
 ## Setup 🚧
 
