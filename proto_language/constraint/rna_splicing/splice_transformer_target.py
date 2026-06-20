@@ -79,7 +79,7 @@ def splice_target_window_start(target_length: int, *position_lists: list[int]) -
             SPLICE_TRANSFORMER_TARGET_LENGTH,
             start,
         )
-    return start
+    return int(start)
 
 
 def apply_target_window(target_seqs: list[str], start: int) -> list[str]:
