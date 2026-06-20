@@ -19,6 +19,7 @@ from proto_language.constraint import (
     PuffinPromoterActivityConfig,
     PyRosettaInterfaceConfig,
     StructureBasedConstraintConfig,
+    TargetScanSiteConfig,
     ablang_perplexity_constraint,
     ablang_perplexity_gradient_backward,
     alphagenome_interval_track_constraint,
@@ -31,6 +32,7 @@ from proto_language.constraint import (
     constraint,
     crispr_array_constraint,
     crispr_tracr_rna_constraint,
+    dinucleotide_composition_constraint,
     enformer_chromatin_accessibility_morse_constraint,
     esm2_perplexity_constraint,
     esm2_perplexity_gradient_backward,
@@ -86,6 +88,7 @@ from proto_language.constraint import (
     structure_rmsd_constraint,
     structure_termini_distance_constraint,
     structure_tmscore_constraint,
+    targetscan_site_constraint,
 )
 from proto_language.core import (
     BaseConfig,
@@ -187,6 +190,7 @@ __all__ = [
     "max_homopolymer_constraint",
     "kmer_frequency_constraint",
     "specific_kmer_constraint",
+    "dinucleotide_composition_constraint",
     # Protein structure constraints
     "AlphaFold2BinderStructureConfig",
     "StructureBasedConstraintConfig",
@@ -240,6 +244,8 @@ __all__ = [
     "malinois_activity_constraint",
     "MiRNASpecificityConfig",
     "mirna_specificity_constraint",
+    "TargetScanSiteConfig",
+    "targetscan_site_constraint",
     "PuffinPromoterActivityConfig",
     "puffin_promoter_activity_constraint",
     "alphagenome_interval_track_constraint",

@@ -34,8 +34,8 @@ class PyRosettaInterfaceConfig(BaseConfig):
     Attributes:
         target_chains (list[str]): Target-side chains in the attached complex structure.
         binder_chain (str): Binder chain in the attached complex structure.
-        metric (str): PyRosetta interface metric to score.
-        direction (Literal['higher', 'lower']): Whether larger or smaller metric values are better.
+        metric (_MetricName): PyRosetta interface metric to score.
+        direction (_Direction): Whether larger or smaller metric values are better.
         desired_value (float): Metric value treated as a satisfied objective.
         tolerance (float): Distance from desired value at which score reaches 1.
         pyrosetta_config (PyRosettaInterfaceAnalyzerConfig): PyRosetta runtime settings.

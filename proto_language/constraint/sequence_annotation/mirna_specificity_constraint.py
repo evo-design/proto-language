@@ -139,14 +139,11 @@ def mirna_specificity_constraint(
         return []
 
     target_sequences = [sequence.sequence.replace("T", "U") for (sequence,) in input_sequences]
-    output = run_miranda_scan(
-        MirandaInput(
-            target_sequences=target_sequences,
-            mirna_queries=config.mirna_queries,
-            mirna_ids=config.mirna_ids,
-        ),
-        config.miranda_config,
+    # miRanda queries/ids live on MirandaConfig (target sequences are the only MirandaInput field).
+    miranda_config = config.miranda_config.model_copy(
+        update={"mirna_queries": config.mirna_queries, "mirna_ids": config.mirna_ids}
     )
+    output = run_miranda_scan(MirandaInput(target_sequences=target_sequences), miranda_config)
 
     weight_ids = config.mirna_ids or [f"seq_{idx}" for idx in range(len(config.mirna_queries))]
     mirna_weights = dict(zip(weight_ids, config.mirna_weights or [], strict=False))

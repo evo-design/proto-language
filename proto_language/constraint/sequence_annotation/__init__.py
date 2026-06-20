@@ -42,6 +42,10 @@ from proto_language.constraint.sequence_annotation.seq_motif_constraint import s
 from proto_language.constraint.sequence_annotation.sigma70_promoter_constraint import (
     sigma70_promoter_constraint,
 )
+from proto_language.constraint.sequence_annotation.targetscan_site_constraint import (
+    TargetScanSiteConfig,
+    targetscan_site_constraint,
+)
 from proto_language.constraint.sequence_annotation.tracr_rna_constraint import crispr_tracr_rna_constraint
 
 __all__ = [
@@ -61,6 +65,8 @@ __all__ = [
     "malinois_activity_constraint",
     "MiRNASpecificityConfig",
     "mirna_specificity_constraint",
+    "TargetScanSiteConfig",
+    "targetscan_site_constraint",
     "mmseqs_similarity_constraint",
     "PuffinPromoterActivityConfig",
     "puffin_promoter_activity_constraint",

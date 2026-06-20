@@ -82,6 +82,7 @@ from proto_language.constraint.sequence_annotation import (
     MalinoisActivityDirection,
     MiRNASpecificityConfig,
     PuffinPromoterActivityConfig,
+    TargetScanSiteConfig,
     alphagenome_interval_track_constraint,
     borzoi_chromatin_accessibility_morse_constraint,
     borzoi_track_activity_constraint,
@@ -96,10 +97,12 @@ from proto_language.constraint.sequence_annotation import (
     puffin_promoter_activity_constraint,
     seq_motif_constraint,
     sigma70_promoter_constraint,
+    targetscan_site_constraint,
 )
 
 # Sequence composition constraints
 from proto_language.constraint.sequence_composition import (
+    dinucleotide_composition_constraint,
     gc_content_constraint,
     kmer_frequency_constraint,
     max_homopolymer_constraint,
@@ -132,6 +135,7 @@ __all__ = [
     "max_homopolymer_constraint",
     "kmer_frequency_constraint",
     "specific_kmer_constraint",
+    "dinucleotide_composition_constraint",
     # Protein structure
     "AlphaFold2BinderStructureConfig",
     "StructureBasedConstraintConfig",
@@ -185,6 +189,8 @@ __all__ = [
     "malinois_activity_constraint",
     "MiRNASpecificityConfig",
     "mirna_specificity_constraint",
+    "TargetScanSiteConfig",
+    "targetscan_site_constraint",
     "PuffinPromoterActivityConfig",
     "puffin_promoter_activity_constraint",
     "crispr_array_constraint",

@@ -69,6 +69,17 @@ class AlphaGenomeIntervalTrackConfig(BaseConfig):
         default="RNA_SEQ",
         description="AlphaGenome output type to score.",
     )
+    track_name_keywords: list[str] | None = ConfigField(
+        title="Track Name Keywords",
+        default=None,
+        description=(
+            "Optional keywords selecting individual tracks within the requested output by per-track "
+            "metadata. Bundled outputs such as CHIP_HISTONE return one track per assay (H3K4me1, "
+            "H3K27ac, H3K4me3, ...); set e.g. ['H3K4me1'] to score only that mark instead of the "
+            "mean over all histone tracks. A track matches if any keyword (case-insensitive) appears "
+            "in any of its metadata fields. None aggregates over all tracks."
+        ),
+    )
     direction: Literal["maximize", "minimize"] = ConfigField(
         title="Direction",
         default="maximize",
@@ -145,6 +156,14 @@ class AlphaGenomeIntervalTrackConfig(BaseConfig):
         if not normalized:
             raise ValueError("ontology_terms cannot be empty.")
         return normalized
+
+    @field_validator("track_name_keywords")
+    @classmethod
+    def _normalize_track_keywords(cls, keywords: list[str] | None) -> list[str] | None:
+        if keywords is None:
+            return None
+        normalized = [keyword.strip() for keyword in keywords if keyword and keyword.strip()]
+        return normalized or None
 
     @field_validator("intervals")
     @classmethod
@@ -284,6 +303,74 @@ def _extract_track_matrix(
     return matrix
 
 
+def _extract_track_payload(result_payload: dict[str, Any], requested_output: str) -> dict[str, Any]:
+    """Return the serialized TrackData payload (``{"values":..., "metadata":...}``) for an output."""
+    predictions = result_payload.get("predictions")
+    if not isinstance(predictions, dict):
+        raise ValueError("AlphaGenome result payload missing 'predictions' dictionary.")
+    requested_key = _normalize_output_key(requested_output)
+    for key, value in predictions.items():
+        if _normalize_output_key(key) == requested_key:
+            return value if isinstance(value, dict) else {"values": value}
+    raise ValueError(f"AlphaGenome prediction payload missing requested output '{requested_output}'.")
+
+
+def _extract_track_metadata_records(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return per-track metadata records from a serialized TrackData payload, if present."""
+    metadata = payload.get("metadata")
+    if isinstance(metadata, list):
+        return [row for row in metadata if isinstance(row, dict)]
+    if isinstance(metadata, dict):
+        records = metadata.get("records")
+        if isinstance(records, list):
+            return [row for row in records if isinstance(row, dict)]
+    return []
+
+
+def _matrix_from_payload(payload: dict[str, Any]) -> np.ndarray:
+    """Parse the [bins x tracks] value matrix from a serialized TrackData payload."""
+    arr = _safe_numeric_array(payload.get("values"))
+    if arr is None:
+        arrays: list[np.ndarray] = []
+        _collect_value_arrays(payload, arrays)
+        if not arrays:
+            raise ValueError("Unable to extract numeric 'values' for track-keyword selection.")
+        arr = max(arrays, key=lambda a: (a.shape[0], a.size))
+    if arr.ndim == 1:
+        arr = arr[:, np.newaxis]
+    elif arr.ndim > 2:
+        arr = arr.reshape(arr.shape[0], -1)
+    return arr
+
+
+def _select_track_columns_by_keywords(
+    metadata_records: list[dict[str, Any]],
+    num_columns: int,
+    keywords: list[str],
+) -> list[int]:
+    """Return column indices whose per-track metadata matches any keyword (case-insensitive).
+
+    Raises:
+        ValueError: If no per-track metadata is available, or no track matches the keywords.
+    """
+    if not metadata_records:
+        raise ValueError(
+            "track_name_keywords requires per-track AlphaGenome metadata, but the payload "
+            "exposed none; cannot select individual tracks (e.g. a single histone mark)."
+        )
+    lowered = [keyword.lower() for keyword in keywords]
+    selected: list[int] = []
+    for idx in range(num_columns):
+        if idx >= len(metadata_records):
+            break
+        haystack = " ".join(str(value) for value in metadata_records[idx].values()).lower()
+        if any(keyword in haystack for keyword in lowered):
+            selected.append(idx)
+    if not selected:
+        raise ValueError(f"No AlphaGenome tracks matched track_name_keywords={keywords}.")
+    return selected
+
+
 @constraint(
     key="alphagenome-interval-track",
     label="AlphaGenome Interval Track",
@@ -333,7 +420,17 @@ def alphagenome_interval_track_constraint(
         signals: list[float] = []
         for composed_sequence, target_offset, output in zip(composed_sequences, target_offsets, outs, strict=True):
             sequence_length = len(composed_sequence)
-            matrix = _extract_track_matrix(output.result, config.requested_output)
+            if config.track_name_keywords:
+                # Select individual tracks (e.g. one histone mark) by per-track metadata, then
+                # average over just those columns instead of all tracks in the bundled output.
+                payload = _extract_track_payload(output.result, config.requested_output)
+                matrix = _matrix_from_payload(payload)
+                columns = _select_track_columns_by_keywords(
+                    _extract_track_metadata_records(payload), matrix.shape[1], config.track_name_keywords
+                )
+                matrix = matrix[:, columns]
+            else:
+                matrix = _extract_track_matrix(output.result, config.requested_output)
             shifted = [(start + target_offset, end + target_offset) for start, end in config.intervals]
             interval_values: list[np.ndarray] = []
             for interval in shifted:
@@ -386,6 +483,7 @@ def alphagenome_interval_track_constraint(
                     "ontology_terms": config.ontology_terms,
                     "contrastive_ontology_terms": config.contrastive_ontology_terms,
                     "requested_output": config.requested_output,
+                    "track_name_keywords": config.track_name_keywords,
                     "direction": config.direction,
                     "interval_mean_signal": mean_signal,
                     "contrastive_mean_signal": contrastive_signal,
