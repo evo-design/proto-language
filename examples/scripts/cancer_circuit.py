@@ -409,7 +409,7 @@ def build_binder_stage(args: argparse.Namespace) -> tuple[Program, Segment]:
 
     # 48 candidates per round, keep top 8; repeat for --rounds rounds (default 15 -> 720
     # total). Chained rejection-sampling stages share the construct by identity, so each
-    # round reseeds from the running survivors. 
+    # round reseeds from the running survivors.
     retained = min(8, args.candidates_per_round)
     optimizers: list[Optimizer] = []
     for round_idx in range(args.rounds):
@@ -511,7 +511,7 @@ def build_enhancer_stage(
     enhancer_marks = [
         ("CHIP_HISTONE", ["H3K4me1"], "maximize", 4.0),
         ("CHIP_HISTONE", ["H3K27ac"], "maximize", 4.0),
-        ("CHIP_HISTONE", ["H3K4me3"], "minimize", 1.0),  
+        ("CHIP_HISTONE", ["H3K4me3"], "minimize", 1.0),
         ("ATAC", None, "maximize", 3.0),
         ("DNASE", None, "maximize", 1.0),
         ("CAGE", None, "minimize", 2.0),
@@ -822,7 +822,7 @@ def build_utr_stage(
                     "mirna_queries": [query],
                     "mirna_ids": [mid],
                     "direction": "maximize",
-                    "repression_threshold": 1.0,  
+                    "repression_threshold": 1.0,
                     "include_6mer": False,
                 },
                 weight=0.5 * driver_weight,
@@ -885,8 +885,8 @@ def build_utr_stage(
     # Low-weight (total 0.15) AlphaGenome RNA-seq A549-vs-lung contrastive prior, averaged
     # across genomic contexts AND the optimized upstream circuit elements: the 3'UTR is scored
     # with the full designed cassette (enhancer + promoter + HSV-TK exon1 + intron + exon2)
-    # placed immediately 5' of it inside each host locus. When auto-chained (--stage all) 
-    # these are the actual enhancer/promoter/intron champions from the preceding stages; 
+    # placed immediately 5' of it inside each host locus. When auto-chained (--stage all)
+    # these are the actual enhancer/promoter/intron champions from the preceding stages;
     # otherwise stand-ins.
     exon1, exon2 = _load_hsvtk(args)
     ch = champions or {}
