@@ -145,6 +145,7 @@ class AlphaGenomeSpliceSiteUsageConfig(BaseConfig):
         cassette_right_context (str): Right flanking context for the cassette.
         ontology_terms (list[str]): AlphaGenome ontology term(s) to score.
         splice_pos (list[int]): 0-indexed position(s) in the concatenated target to evaluate.
+        peak_search_radius (int): Max-usage search window (+/- positions) around each splice site; 0 = exact index.
         direction (Literal['max', 'min']): Optimization direction ('max' or 'min').
         strand (Literal['positive', 'negative', 'all']): Track strand subset to aggregate over.
         model_version (str): AlphaGenome model version.
@@ -180,6 +181,12 @@ class AlphaGenomeSpliceSiteUsageConfig(BaseConfig):
         title="Optimization Direction",
         default="max",
         description="'max' returns 1-mean(SSU); 'min' returns mean(SSU).",
+    )
+    peak_search_radius: int = ConfigField(
+        title="Peak Search Radius",
+        default=0,
+        ge=0,
+        description="Score each splice position as the max usage within +/- this many positions; 0 = exact index.",
     )
     strand: Literal["positive", "negative", "all"] = ConfigField(
         title="Track Strand",
@@ -339,7 +346,19 @@ def alphagenome_splice_site_usage(
             strand=config.strand,
         )
 
-        raw_usage = float(selected_matrix[absolute_splice_pos, :].mean())
+        radius = config.peak_search_radius
+        if radius > 0:
+            # Per splice position, take the max site-usage within +/- radius (mean over
+            # tracks), then average across positions -- robust to the donor off-by-one.
+            n_rows = selected_matrix.shape[0]
+            per_track_mean = selected_matrix.mean(axis=1)
+            site_usages = [
+                float(per_track_mean[max(0, pos - radius) : min(n_rows, pos + radius + 1)].max())
+                for pos in absolute_splice_pos
+            ]
+            raw_usage = float(np.mean(site_usages))
+        else:
+            raw_usage = float(selected_matrix[absolute_splice_pos, :].mean())
         raw_usage = float(np.clip(raw_usage, 0.0, 1.0))
         score = float(1.0 - raw_usage) if config.direction == "max" else raw_usage
 

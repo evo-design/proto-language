@@ -23,6 +23,10 @@ from proto_language.constraint.sequence_annotation.malinois_activity_constraint 
     MalinoisActivityDirection,
     malinois_activity_constraint,
 )
+from proto_language.constraint.sequence_annotation.mirna_specificity_constraint import (
+    MiRNASpecificityConfig,
+    mirna_specificity_constraint,
+)
 from proto_language.constraint.sequence_annotation.mmseqs_similarity_constraint import (
     mmseqs_similarity_constraint,
 )
@@ -30,9 +34,17 @@ from proto_language.constraint.sequence_annotation.orf_length_constraint import 
 from proto_language.constraint.sequence_annotation.promoter_strength_constraint import (
     promoter_strength_constraint,
 )
+from proto_language.constraint.sequence_annotation.puffin_promoter_activity_constraint import (
+    PuffinPromoterActivityConfig,
+    puffin_promoter_activity_constraint,
+)
 from proto_language.constraint.sequence_annotation.seq_motif_constraint import seq_motif_constraint
 from proto_language.constraint.sequence_annotation.sigma70_promoter_constraint import (
     sigma70_promoter_constraint,
+)
+from proto_language.constraint.sequence_annotation.targetscan_site_constraint import (
+    TargetScanSiteConfig,
+    targetscan_site_constraint,
 )
 from proto_language.constraint.sequence_annotation.tracr_rna_constraint import crispr_tracr_rna_constraint
 
@@ -51,7 +63,13 @@ __all__ = [
     "MalinoisActivityConfig",
     "MalinoisActivityDirection",
     "malinois_activity_constraint",
+    "MiRNASpecificityConfig",
+    "mirna_specificity_constraint",
+    "TargetScanSiteConfig",
+    "targetscan_site_constraint",
     "mmseqs_similarity_constraint",
+    "PuffinPromoterActivityConfig",
+    "puffin_promoter_activity_constraint",
     "sigma70_promoter_constraint",
     "seq_motif_constraint",
     "promoter_strength_constraint",

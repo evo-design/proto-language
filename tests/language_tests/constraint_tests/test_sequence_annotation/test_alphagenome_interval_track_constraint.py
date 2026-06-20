@@ -239,7 +239,106 @@ def test_interval_track_interval_out_of_bounds_errors():
             function=alphagenome_interval_track_constraint,
             function_config=cfg,
         )
-        with pytest.raises(ValueError, match="exceeds sequence length"):
+        with pytest.raises(ValueError, match="exceeds target segment length"):
+            constraint.evaluate()
+
+
+class _DummyHistoneOutput:
+    """AlphaGenome output with a CHIP_HISTONE TrackData carrying per-track metadata."""
+
+    def __init__(self, matrix: np.ndarray, records: list[dict] | None):
+        payload: dict = {"values": matrix.tolist()}
+        if records is not None:
+            payload["metadata"] = {"records": records}
+        self.result = {"predictions": {"chip_histone": payload}}
+
+
+_HISTONE_RECORDS = [
+    {"name": "ENCODE H3K4me1 A549", "histone_mark": "H3K4me1", "strand": "."},
+    {"name": "ENCODE H3K27ac A549", "histone_mark": "H3K27ac", "strand": "."},
+    {"name": "ENCODE H3K4me3 A549", "histone_mark": "H3K4me3", "strand": "."},
+]
+
+
+def _histone_matrix() -> np.ndarray:
+    # 10 bins x 3 histone tracks; each track has a distinct constant signal.
+    return np.column_stack([np.full(10, 2.0), np.full(10, 8.0), np.full(10, 5.0)])
+
+
+def test_interval_track_selects_single_histone_mark():
+    """track_name_keywords should score only the matching histone-mark column."""
+    segment = Segment(sequence="A" * TEST_SEQUENCE_LENGTH, sequence_type="dna")
+    cfg = AlphaGenomeIntervalTrackConfig(
+        intervals=[(0, TEST_SEQUENCE_LENGTH)],
+        ontology_terms=["EFO:0001086"],
+        requested_output="CHIP_HISTONE",
+        track_name_keywords=["H3K27ac"],  # second column == 8.0
+        direction="minimize",
+        minimize_threshold_value=10.0,
+    )
+    with patch(
+        "proto_language.constraint.sequence_annotation.alphagenome_interval_track_constraint.run_alphagenome_predict_sequences",
+        return_value=_DummyAlphaGenomePredictBatchOutput([_DummyHistoneOutput(_histone_matrix(), _HISTONE_RECORDS)]),
+    ):
+        constraint = Constraint(inputs=[segment], function=alphagenome_interval_track_constraint, function_config=cfg)
+        scores = constraint.evaluate()
+    # Only the H3K27ac column (8.0) is scored -> 8.0 / 10.0.
+    assert scores[0] == pytest.approx(0.8)
+
+
+def test_interval_track_keyword_averages_matching_tracks():
+    """Multiple keywords should average over all matching columns only."""
+    segment = Segment(sequence="A" * TEST_SEQUENCE_LENGTH, sequence_type="dna")
+    cfg = AlphaGenomeIntervalTrackConfig(
+        intervals=[(0, TEST_SEQUENCE_LENGTH)],
+        ontology_terms=["EFO:0001086"],
+        requested_output="CHIP_HISTONE",
+        track_name_keywords=["H3K4me1", "H3K4me3"],  # columns 2.0 and 5.0 -> mean 3.5
+        direction="minimize",
+        minimize_threshold_value=10.0,
+    )
+    with patch(
+        "proto_language.constraint.sequence_annotation.alphagenome_interval_track_constraint.run_alphagenome_predict_sequences",
+        return_value=_DummyAlphaGenomePredictBatchOutput([_DummyHistoneOutput(_histone_matrix(), _HISTONE_RECORDS)]),
+    ):
+        constraint = Constraint(inputs=[segment], function=alphagenome_interval_track_constraint, function_config=cfg)
+        scores = constraint.evaluate()
+    assert scores[0] == pytest.approx(0.35)  # mean(2.0, 5.0) / 10.0
+
+
+def test_interval_track_keyword_no_match_raises():
+    """A keyword matching no track should fail loudly."""
+    segment = Segment(sequence="A" * TEST_SEQUENCE_LENGTH, sequence_type="dna")
+    cfg = AlphaGenomeIntervalTrackConfig(
+        intervals=[(0, TEST_SEQUENCE_LENGTH)],
+        ontology_terms=["EFO:0001086"],
+        requested_output="CHIP_HISTONE",
+        track_name_keywords=["H3K9me3"],
+    )
+    with patch(
+        "proto_language.constraint.sequence_annotation.alphagenome_interval_track_constraint.run_alphagenome_predict_sequences",
+        return_value=_DummyAlphaGenomePredictBatchOutput([_DummyHistoneOutput(_histone_matrix(), _HISTONE_RECORDS)]),
+    ):
+        constraint = Constraint(inputs=[segment], function=alphagenome_interval_track_constraint, function_config=cfg)
+        with pytest.raises(ValueError, match="No AlphaGenome tracks matched"):
+            constraint.evaluate()
+
+
+def test_interval_track_keyword_without_metadata_raises():
+    """Requesting track keywords without per-track metadata should fail loudly."""
+    segment = Segment(sequence="A" * TEST_SEQUENCE_LENGTH, sequence_type="dna")
+    cfg = AlphaGenomeIntervalTrackConfig(
+        intervals=[(0, TEST_SEQUENCE_LENGTH)],
+        ontology_terms=["EFO:0001086"],
+        requested_output="CHIP_HISTONE",
+        track_name_keywords=["H3K4me1"],
+    )
+    with patch(
+        "proto_language.constraint.sequence_annotation.alphagenome_interval_track_constraint.run_alphagenome_predict_sequences",
+        return_value=_DummyAlphaGenomePredictBatchOutput([_DummyHistoneOutput(_histone_matrix(), records=None)]),
+    ):
+        constraint = Constraint(inputs=[segment], function=alphagenome_interval_track_constraint, function_config=cfg)
+        with pytest.raises(ValueError, match="requires per-track AlphaGenome metadata"):
             constraint.evaluate()
 
 

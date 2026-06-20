@@ -10,6 +10,10 @@ from proto_language.constraint.protein_structure.protein_globularity_constraint 
 from proto_language.constraint.protein_structure.protein_symmetry_ring_constraint import (
     protein_symmetry_ring_constraint,
 )
+from proto_language.constraint.protein_structure.pyrosetta_interface_constraint import (
+    PyRosettaInterfaceConfig,
+    pyrosetta_interface_constraint,
+)
 from proto_language.constraint.protein_structure.structure_confidence_constraint import (
     structure_composite_constraint,
     structure_ipae_constraint,
@@ -64,4 +68,6 @@ __all__ = [
     "protein_symmetry_ring_constraint",
     "protein_globularity_constraint",
     "boltz_binding_strength_constraint",
+    "PyRosettaInterfaceConfig",
+    "pyrosetta_interface_constraint",
 ]

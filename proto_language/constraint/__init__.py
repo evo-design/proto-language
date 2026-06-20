@@ -25,11 +25,13 @@ from proto_language.constraint.protein_quality import (
 # Protein structure constraints
 from proto_language.constraint.protein_structure import (
     AlphaFold2BinderStructureConfig,
+    PyRosettaInterfaceConfig,
     StructureBasedConstraintConfig,
     boltz_binding_strength_constraint,
     gyration_radius_constraint,
     protein_globularity_constraint,
     protein_symmetry_ring_constraint,
+    pyrosetta_interface_constraint,
     structure_beta_strand_constraint,
     structure_composite_constraint,
     structure_contact_constraint,
@@ -59,6 +61,8 @@ from proto_language.constraint.rna_secondary_structure import (
 
 # RNA splicing constraints
 from proto_language.constraint.rna_splicing import (
+    AlphaGenomeSpliceJunctionConfig,
+    alphagenome_splice_junction_constraint,
     alphagenome_splice_site_usage,
     splice_transformer_intron_boundary,
     splice_transformer_specificity,
@@ -76,6 +80,9 @@ from proto_language.constraint.sequence_annotation import (
     MalinoisActivityCellType,
     MalinoisActivityConfig,
     MalinoisActivityDirection,
+    MiRNASpecificityConfig,
+    PuffinPromoterActivityConfig,
+    TargetScanSiteConfig,
     alphagenome_interval_track_constraint,
     borzoi_chromatin_accessibility_morse_constraint,
     borzoi_track_activity_constraint,
@@ -84,14 +91,18 @@ from proto_language.constraint.sequence_annotation import (
     enformer_chromatin_accessibility_morse_constraint,
     longest_orf_length_constraint,
     malinois_activity_constraint,
+    mirna_specificity_constraint,
     mmseqs_similarity_constraint,
     promoter_strength_constraint,
+    puffin_promoter_activity_constraint,
     seq_motif_constraint,
     sigma70_promoter_constraint,
+    targetscan_site_constraint,
 )
 
 # Sequence composition constraints
 from proto_language.constraint.sequence_composition import (
+    dinucleotide_composition_constraint,
     gc_content_constraint,
     kmer_frequency_constraint,
     max_homopolymer_constraint,
@@ -124,9 +135,11 @@ __all__ = [
     "max_homopolymer_constraint",
     "kmer_frequency_constraint",
     "specific_kmer_constraint",
+    "dinucleotide_composition_constraint",
     # Protein structure
     "AlphaFold2BinderStructureConfig",
     "StructureBasedConstraintConfig",
+    "PyRosettaInterfaceConfig",
     "gyration_radius_constraint",
     "structure_rmsd_constraint",
     "structure_tmscore_constraint",
@@ -148,6 +161,7 @@ __all__ = [
     "protein_symmetry_ring_constraint",
     "protein_globularity_constraint",
     "boltz_binding_strength_constraint",
+    "pyrosetta_interface_constraint",
     # Protein quality
     "protein_length_constraint",
     "protein_complexity_constraint",
@@ -173,6 +187,12 @@ __all__ = [
     "MalinoisActivityConfig",
     "MalinoisActivityDirection",
     "malinois_activity_constraint",
+    "MiRNASpecificityConfig",
+    "mirna_specificity_constraint",
+    "TargetScanSiteConfig",
+    "targetscan_site_constraint",
+    "PuffinPromoterActivityConfig",
+    "puffin_promoter_activity_constraint",
     "crispr_array_constraint",
     "crispr_tracr_rna_constraint",
     "longest_orf_length_constraint",
@@ -197,6 +217,8 @@ __all__ = [
     "mpnn_perplexity_constraint",
     "mpnn_perplexity_gradient_backward",
     # RNA splicing
+    "AlphaGenomeSpliceJunctionConfig",
+    "alphagenome_splice_junction_constraint",
     "alphagenome_splice_site_usage",
     "splice_transformer_intron_boundary",
     "splice_transformer_specificity",

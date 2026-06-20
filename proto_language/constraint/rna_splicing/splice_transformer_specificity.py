@@ -1,8 +1,8 @@
 """Evaluate tissue-specific splicing with SpliceTransformer.
 
 Accepts three segments (left_flank, intron_core, right_flank), concatenates
-them into a single 1-kb target sequence, and scores tissue-specific splice
-site usage.
+them, windows the result to the fixed SpliceTransformer target length centred
+on the requested splice positions, and scores tissue-specific splice site usage.
 """
 
 import logging
@@ -20,6 +20,11 @@ from proto_tools import (
 from pydantic import field_validator
 
 from proto_language.constraint.constraint_registry import constraint
+from proto_language.constraint.rna_splicing.splice_transformer_target import (
+    apply_target_window,
+    remap_positions,
+    splice_target_window_start,
+)
 from proto_language.core import ConstraintOutput, Sequence
 from proto_language.utils.base import BaseConfig, ConfigField
 
@@ -166,6 +171,12 @@ def splice_transformer_specificity(
     if len(target_lengths) != 1:
         raise ValueError("SpliceTransformer specificity requires equal-length target sequences in a batch.")
 
+    # Window the concatenated target down to the fixed SpliceTransformer target
+    # length, centred on the requested splice positions, and remap them.
+    window_start = splice_target_window_start(target_lengths.pop(), config.splice_pos)
+    target_seqs = apply_target_window(target_seqs, window_start)
+    splice_pos = remap_positions(config.splice_pos, window_start)
+
     splice_transformer_input = SpliceTransformerInput(
         target_seqs=target_seqs,
         left_contexts=[config.left_context] * len(target_seqs),
@@ -192,9 +203,9 @@ def splice_transformer_specificity(
             )
 
         if tissue_channel_index is None:
-            raw_score = float(output[batch_idx, config.splice_pos, 3:].mean())
+            raw_score = float(output[batch_idx, splice_pos, 3:].mean())
         else:
-            raw_score = float(output[batch_idx, config.splice_pos, tissue_channel_index].mean())
+            raw_score = float(output[batch_idx, splice_pos, tissue_channel_index].mean())
 
         if config.direction == "max":
             score = 1.0 - raw_score
@@ -208,6 +219,8 @@ def splice_transformer_specificity(
         metadata = {
             f"specificity_direction_{config.tissue}": config.direction,
             f"specificity_score_{config.tissue}": score,
+            "windowed_splice_pos": splice_pos,
+            "target_window_start": window_start,
         }
         results.append(ConstraintOutput(score=score, metadata=metadata))
 
