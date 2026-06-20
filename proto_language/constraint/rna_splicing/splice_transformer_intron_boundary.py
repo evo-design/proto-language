@@ -238,8 +238,10 @@ def splice_transformer_intron_boundary(
             # this iteration's values (avoids late-binding of the loop variables).
             site_probs = []
             for pos in positions:
-                lo = max(0, pos - radius)
-                hi = min(seq_len, pos + radius + 1)
+                # Support Python-style negative indexing (e.g. -1 = last position).
+                abs_pos = pos if pos >= 0 else seq_len + pos
+                lo = max(0, abs_pos - radius)
+                hi = max(lo + 1, min(seq_len, abs_pos + radius + 1))  # always a non-empty window
                 site_probs.append(float(output[batch_idx, lo:hi, channel].max()))
             return sum(site_probs) / len(site_probs)
 
