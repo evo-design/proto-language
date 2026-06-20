@@ -13,8 +13,8 @@ from pydantic import field_validator
 
 from proto_language.constraint.constraint_registry import constraint
 from proto_language.constraint.rna_splicing.alphagenome_splice_site_usage import (
-    _extract_track_metadata_records,
     _extract_track_matrix,
+    _extract_track_metadata_records,
     _integrate_cassette_into_context,
     _normalize_output_key,
     _select_track_columns,
@@ -63,7 +63,6 @@ def _best_junction_row_index(
     requested junction is to search metadata for the pair of numeric fields that
     best matches the requested donor and acceptor positions.
     """
-
     donor_tokens = ("donor", "donor_pos", "donor_position", "donor_index", "five_prime", "5p")
     acceptor_tokens = ("acceptor", "acceptor_pos", "acceptor_position", "acceptor_index", "three_prime", "3p")
     paired_fallback_keys = (("start", "end"), ("left", "right"), ("upstream", "downstream"))
@@ -82,7 +81,9 @@ def _best_junction_row_index(
 
         candidate_pairs: list[tuple[float, float]] = []
 
-        donor_candidates = [value for key, value in numeric_fields.items() if any(token in key for token in donor_tokens)]
+        donor_candidates = [
+            value for key, value in numeric_fields.items() if any(token in key for token in donor_tokens)
+        ]
         acceptor_candidates = [
             value for key, value in numeric_fields.items() if any(token in key for token in acceptor_tokens)
         ]

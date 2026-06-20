@@ -229,9 +229,13 @@ def splice_transformer_intron_boundary(
         radius = config.peak_search_radius
         seq_len = output.shape[1]
 
-        def _peak_prob(positions: list[int], channel: int) -> float:
+        def _peak_prob(
+            positions: list[int], channel: int, radius: int = radius, seq_len: int = seq_len, batch_idx: int = batch_idx
+        ) -> float:
             # Score each requested site as the max probability within +/- radius
             # (robust to the SpliceAI donor off-by-one), then average across sites.
+            # radius/seq_len/batch_idx are bound as defaults so the closure captures
+            # this iteration's values (avoids late-binding of the loop variables).
             site_probs = []
             for pos in positions:
                 lo = max(0, pos - radius)

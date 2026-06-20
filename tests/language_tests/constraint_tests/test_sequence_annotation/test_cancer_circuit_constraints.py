@@ -250,7 +250,7 @@ def test_alphagenome_splice_junction_scores_requested_pair(monkeypatch):
     monkeypatch.setitem(
         alphagenome_splice_junction_constraint.__globals__,
         "AlphaGenomePredictSequencesConfig",
-        lambda **kwargs: SimpleNamespace(**kwargs),
+        SimpleNamespace,
     )
 
     def fake_run_alphagenome_predict_sequences(tool_input, tool_config):
@@ -309,7 +309,7 @@ def test_alphagenome_splice_junction_scores_metadata_row_for_compact_output(monk
     monkeypatch.setitem(
         alphagenome_splice_junction_constraint.__globals__,
         "AlphaGenomePredictSequencesConfig",
-        lambda **kwargs: SimpleNamespace(**kwargs),
+        SimpleNamespace,
     )
 
     def fake_run_alphagenome_predict_sequences(tool_input, tool_config):
@@ -430,9 +430,13 @@ def test_splice_transformer_boundary_min_reduction_penalizes_dead_donor(monkeypa
     right = Sequence("A" * h2, "dna")
     triple = [(left, core, right)]
 
-    base = dict(left_context="A" * 4000, right_context="T" * 4000, donor_pos=donor, acceptor_pos=acceptor)
-    (mean_out,) = splice_transformer_intron_boundary(triple, SpliceTransformerIntronBoundaryConfig(**base, reduction="mean"))
-    (min_out,) = splice_transformer_intron_boundary(triple, SpliceTransformerIntronBoundaryConfig(**base, reduction="min"))
+    base = {"left_context": "A" * 4000, "right_context": "T" * 4000, "donor_pos": donor, "acceptor_pos": acceptor}
+    (mean_out,) = splice_transformer_intron_boundary(
+        triple, SpliceTransformerIntronBoundaryConfig(**base, reduction="mean")
+    )
+    (min_out,) = splice_transformer_intron_boundary(
+        triple, SpliceTransformerIntronBoundaryConfig(**base, reduction="min")
+    )
 
     # mean banks half the reward from the acceptor alone; min refuses to.
     assert mean_out.score == pytest.approx(0.5)
@@ -460,10 +464,20 @@ def test_splice_transformer_boundary_peak_search_radius_catches_off_by_one(monke
         fake_run_splice_transformer,
     )
     triple = [(Sequence("C" * h1, "dna"), Sequence("G" * intron_len, "dna"), Sequence("A" * h2, "dna"))]
-    base = dict(left_context="A" * 4000, right_context="T" * 4000, donor_pos=donor, acceptor_pos=acceptor, reduction="min")
+    base = {
+        "left_context": "A" * 4000,
+        "right_context": "T" * 4000,
+        "donor_pos": donor,
+        "acceptor_pos": acceptor,
+        "reduction": "min",
+    }
 
-    (r0,) = splice_transformer_intron_boundary(triple, SpliceTransformerIntronBoundaryConfig(**base, peak_search_radius=0))
-    (r2,) = splice_transformer_intron_boundary(triple, SpliceTransformerIntronBoundaryConfig(**base, peak_search_radius=2))
+    (r0,) = splice_transformer_intron_boundary(
+        triple, SpliceTransformerIntronBoundaryConfig(**base, peak_search_radius=0)
+    )
+    (r2,) = splice_transformer_intron_boundary(
+        triple, SpliceTransformerIntronBoundaryConfig(**base, peak_search_radius=2)
+    )
 
     # radius 0 misses the off-by-one donor (dead); radius 2 catches it.
     assert r0.metadata["donor_score"] == pytest.approx(1.0)

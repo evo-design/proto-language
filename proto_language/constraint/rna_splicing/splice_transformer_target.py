@@ -53,7 +53,7 @@ def splice_target_window_start(target_length: int, *position_lists: list[int]) -
         return 0
 
     lo, hi = min(positions), max(positions)
-    if not (0 <= lo and hi < target_length):
+    if not (lo >= 0 and hi < target_length):
         raise ValueError(
             f"Splice positions must lie within the target sequence [0, {target_length}); got [{lo}, {hi}]."
         )

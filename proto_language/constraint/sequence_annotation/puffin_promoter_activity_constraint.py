@@ -168,7 +168,9 @@ def puffin_promoter_activity_constraint(
         if matrix.ndim != 2 or matrix.shape[1] != len(TRACK_NAMES):
             raise ValueError(f"Unexpected Puffin prediction shape: {matrix.shape}.")
         if matrix.shape[0] != len(target_sequence):
-            raise ValueError(f"Puffin output length {matrix.shape[0]} does not match target length {len(target_sequence)}.")
+            raise ValueError(
+                f"Puffin output length {matrix.shape[0]} does not match target length {len(target_sequence)}."
+            )
 
         start, end = config.score_interval or (0, len(target_sequence))
         values = matrix[start:end, :][:, track_indices]
@@ -187,11 +189,7 @@ def puffin_promoter_activity_constraint(
         total_weight = config.activity_weight + config.sharpness_weight
         score = min(
             MAX_ENERGY,
-            (
-                config.activity_weight * activity_score
-                + config.sharpness_weight * sharpness_score
-            )
-            / total_weight,
+            (config.activity_weight * activity_score + config.sharpness_weight * sharpness_score) / total_weight,
         )
 
         results.append(

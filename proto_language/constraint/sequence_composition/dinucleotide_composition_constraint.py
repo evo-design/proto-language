@@ -172,7 +172,9 @@ def dinucleotide_composition_constraint(
         observed = _observed_frequencies(seq.sequence)
         if not observed:
             results.append(
-                ConstraintOutput(score=MAX_ENERGY, metadata={"dinucleotide_distance": 1.0, "dinucleotide_frequencies": None})
+                ConstraintOutput(
+                    score=MAX_ENERGY, metadata={"dinucleotide_distance": 1.0, "dinucleotide_frequencies": None}
+                )
             )
             continue
 

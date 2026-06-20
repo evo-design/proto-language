@@ -208,8 +208,6 @@ def _window_to_rows(
     return row_start, row_end
 
 
-
-
 def _compose_context_sequence(sequence: str, config: AlphaGenomeIntervalTrackConfig) -> tuple[str, int]:
     target_length = len(sequence)
     if target_length > config.context_length:
@@ -241,6 +239,7 @@ def _compose_context_sequence(sequence: str, config: AlphaGenomeIntervalTrackCon
             f"Composed AlphaGenome context length {len(context_sequence)} != requested {config.context_length}."
         )
     return context_sequence, left_len
+
 
 def _safe_numeric_array(value: Any) -> np.ndarray | None:
     try:
