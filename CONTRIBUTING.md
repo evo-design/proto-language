@@ -21,6 +21,22 @@ The proto-tools editable installation must be run **last**: it replaces the git-
 
 Persistent data (model weights, tool environments) lives under `PROTO_HOME` (defaults to `~/.proto/`), inherited from proto-tools. See the [README](README.md) for storage and gated-model setup.
 
+### Troubleshooting: `proto_tools` import fails after install
+
+If `import proto_tools` fails (e.g. `cannot import name 'ProdigalConfig' from 'proto_tools' (unknown location)`, or `proto_tools.__file__` is `None`), the environment likely has a **stale, partial `proto_tools` directory** in `site-packages` left over from an install attempt made before the submodule was checked out. Because it lacks a top-level `__init__.py`, Python treats it as a namespace package that silently shadows the editable install — and plain `pip uninstall proto_tools` does **not** remove it (those files are untracked). Reinstalling repeatedly will not fix it.
+
+Recover by deleting the stale directory, then reinstalling:
+
+```bash
+SITE=$(python -c "import site; print(site.getsitepackages()[0])")
+pip uninstall -y proto_tools
+rm -rf "$SITE"/proto_tools "$SITE"/proto_tools-*.dist-info "$SITE"/__editable__*proto_tools*
+pip install -e "./proto-tools[dev]"
+python -c "import proto_tools; print(proto_tools.__file__)"   # should point at proto-tools/proto_tools/__init__.py
+```
+
+To avoid this in the first place, always run `git submodule update --init --recursive` **before** any `pip install`.
+
 ## Using with coding agents
 
 Conventions are documented in [`CLAUDE.md`](CLAUDE.md) (symlinked as [`AGENTS.md`](AGENTS.md) and [`GEMINI.md`](GEMINI.md)); long-form references are in [`notes/`](notes/), including [`notes/biological-design-loop.md`](notes/biological-design-loop.md) for guidance on the biological design loop.
