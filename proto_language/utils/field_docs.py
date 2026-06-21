@@ -23,12 +23,12 @@ logger = logging.getLogger(__name__)
 def field_docs_from_docstrings(model_class: type[BaseModel]) -> dict[str, str]:
     """Map each field of ``model_class`` to its full docstring description.
 
-    Walks the MRO most-derived first and parses each class's *own* Google-style
-    docstring (``cls.__doc__``, which is never inherited for classes) for
-    ``Attributes:`` entries. The first description seen for a field wins, so a
-    subclass that re-documents an inherited field with richer text overrides the
-    parent. Fields inherited from a base (whose docs live only in that base's
-    docstring) are still picked up further up the MRO.
+    Walks the MRO most-derived first and parses each class's own Google-style
+    ``Attributes:`` section, but only trusts a class's text for the fields it
+    actually declares (those in its own ``__annotations__``). So an inherited
+    field resolves to its defining model's description rather than a subclass's
+    "Inherited from X" re-mention, while a subclass that redefines a field
+    (declaring it anew) still overrides the parent's text.
 
     Args:
         model_class (type[BaseModel]): A Pydantic model whose docstrings document
@@ -43,6 +43,9 @@ def field_docs_from_docstrings(model_class: type[BaseModel]) -> dict[str, str]:
         own_doc = cls.__doc__
         if not own_doc:
             continue
+        # Fields declared in this class's own body (never inherited), so an
+        # inherited field's text comes from its defining class, not a re-mention.
+        own_fields = cls.__dict__.get("__annotations__", {})
         try:
             parsed = parse_docstring(inspect.cleandoc(own_doc), style=DocstringStyle.GOOGLE)
         except Exception:
@@ -50,7 +53,7 @@ def field_docs_from_docstrings(model_class: type[BaseModel]) -> dict[str, str]:
             continue
         for param in parsed.params:
             name = param.arg_name
-            if name.startswith("*") or not param.description:
+            if name.startswith("*") or not param.description or name not in own_fields:
                 continue
             field_docs.setdefault(name, param.description.strip())
     return {name: doc for name, doc in field_docs.items() if name in model_class.model_fields}
