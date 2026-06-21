@@ -1,4 +1,4 @@
-# 🧬 Proto Language 🧪
+# Proto Language
 
 ![Proto Language](https://proto-bio.github.io/proto-assets/default/hero.png)
 
@@ -12,9 +12,9 @@ Welcome! This repository contains the open-source implementation of `proto-langu
 
 Proto-language is open source under an MIT license. Contributions are welcome!
 
-## Setup 🚧
+## Setup
 
-### Step 1: Install the package 🐍
+### Step 1: Install the package
 
 The package requires Python 3.10 or later and pip:
 
@@ -30,7 +30,7 @@ System tools that standalone tool environments require in order to build (git, c
 > [!NOTE]
 > Contributors should instead use the editable installation described in [CONTRIBUTING.md](CONTRIBUTING.md#development-setup).
 
-### Step 2: Configure storage (optional) 🗂️
+### Step 2: Configure storage (optional)
 
 All persistent data (model weights, tool environments, micromamba) is stored under `PROTO_HOME`, which defaults to `~/.proto/` and is inherited from proto-tools.
 
@@ -43,7 +43,7 @@ export PROTO_HOME=/path/to/your/proto_home
 
 To override only the model-weights location, set `export PROTO_MODEL_CACHE=/path/to/shared/weights`. See [`notes/filesystem.md`](notes/filesystem.md) for all options.
 
-### Step 3: Gated model access (optional) 🔑
+### Step 3: Gated model access (optional)
 
 Some generators and constraints load gated models (for example ESM3, AlphaGenome, and AlphaFold3) that require accepting a license and authenticating with HuggingFace. Set `HF_TOKEN` in the environment after accepting each model's terms. See [`proto-tools/README.md`](https://github.com/evo-design/proto-tools#step-3-gated-model-access-optional-) for the full procedure and the list of gated models.
 
