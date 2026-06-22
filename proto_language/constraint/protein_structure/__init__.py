@@ -1,9 +1,47 @@
 """Protein structure constraints (confidence, similarity, symmetry, globularity, gyration radius)."""
 
+from proto_language.constraint.protein_structure.af3_chain_pair_prot_dna_iptm_constraint import (
+    AF3ChainPairProtDNAIPTMConfig,
+    af3_chain_pair_prot_dna_iptm_constraint,
+)
+from proto_language.constraint.protein_structure.af3_offtarget_iptm_specificity_constraint import (
+    AF3OffTargetIPTMSpecificityConfig,
+    af3_offtarget_iptm_specificity_constraint,
+)
 from proto_language.constraint.protein_structure.boltz_binding_strength_constraint import (
     boltz_binding_strength_constraint,
 )
+from proto_language.constraint.protein_structure.consensus_specificity_constraint import (
+    ConsensusSpecificityConfig,
+    consensus_operator_specificity_constraint,
+)
+from proto_language.constraint.protein_structure.dbp_design_metrics_constraint import (
+    DBPDesignMetricsConfig,
+    dbp_design_metrics_constraint,
+)
+from proto_language.constraint.protein_structure.dna_base_contact_quality_constraint import (
+    DNABaseContactQualityConfig,
+    dna_base_contact_quality_constraint,
+)
+from proto_language.constraint.protein_structure.dna_motif_contact_constraint import (
+    DNAMotifContactCountConfig,
+    dna_motif_contact_count_constraint,
+)
+from proto_language.constraint.protein_structure.dna_motif_specificity_constraint import (
+    DeepPBSMotifSpecificityConfig,
+    NAMPNNMotifSpecificityConfig,
+    deeppbs_motif_specificity_constraint,
+    na_mpnn_motif_specificity_constraint,
+)
+from proto_language.constraint.protein_structure.dna_phosphate_contact_constraint import (
+    DNAPhosphateContactConfig,
+    dna_phosphate_contact_constraint,
+)
 from proto_language.constraint.protein_structure.gyration_radius_constraint import gyration_radius_constraint
+from proto_language.constraint.protein_structure.ipsae_constraint import (
+    ProteinDNAIpsaeConfig,
+    protein_dna_ipsae_constraint,
+)
 from proto_language.constraint.protein_structure.protein_globularity_constraint import (
     protein_globularity_constraint,
 )
@@ -70,4 +108,24 @@ __all__ = [
     "boltz_binding_strength_constraint",
     "PyRosettaInterfaceConfig",
     "pyrosetta_interface_constraint",
+    "AF3ChainPairProtDNAIPTMConfig",
+    "af3_chain_pair_prot_dna_iptm_constraint",
+    "AF3OffTargetIPTMSpecificityConfig",
+    "af3_offtarget_iptm_specificity_constraint",
+    "DNABaseContactQualityConfig",
+    "dna_base_contact_quality_constraint",
+    "DNAMotifContactCountConfig",
+    "dna_motif_contact_count_constraint",
+    "DNAPhosphateContactConfig",
+    "dna_phosphate_contact_constraint",
+    "ConsensusSpecificityConfig",
+    "consensus_operator_specificity_constraint",
+    "NAMPNNMotifSpecificityConfig",
+    "na_mpnn_motif_specificity_constraint",
+    "DeepPBSMotifSpecificityConfig",
+    "deeppbs_motif_specificity_constraint",
+    "DBPDesignMetricsConfig",
+    "dbp_design_metrics_constraint",
+    "ProteinDNAIpsaeConfig",
+    "protein_dna_ipsae_constraint",
 ]

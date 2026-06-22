@@ -30,6 +30,10 @@ from proto_language.constraint.sequence_annotation.mirna_specificity_constraint 
 from proto_language.constraint.sequence_annotation.mmseqs_similarity_constraint import (
     mmseqs_similarity_constraint,
 )
+from proto_language.constraint.sequence_annotation.operator_site_constraint import (
+    OperatorSiteConfig,
+    operator_site_constraint,
+)
 from proto_language.constraint.sequence_annotation.orf_length_constraint import longest_orf_length_constraint
 from proto_language.constraint.sequence_annotation.promoter_strength_constraint import (
     promoter_strength_constraint,
@@ -65,6 +69,8 @@ __all__ = [
     "malinois_activity_constraint",
     "MiRNASpecificityConfig",
     "mirna_specificity_constraint",
+    "OperatorSiteConfig",
+    "operator_site_constraint",
     "TargetScanSiteConfig",
     "targetscan_site_constraint",
     "mmseqs_similarity_constraint",
