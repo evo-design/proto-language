@@ -8,7 +8,7 @@
 
 Welcome! This repository contains the open-source implementation of `proto-language`, a Python package for designing biological sequences (DNA, RNA, and proteins) through constraint-based optimization. A design is specified as a set of constraints, and the framework runs a propose–score–refine loop to search for sequences that satisfy them, drawing on a large suite of computational biology and biological AI tools to score candidates.
 
-`proto-language` is built on top of the [proto-tools](https://github.com/evo-design/proto-tools) execution layer, so each computationally intensive tool (structure predictors, protein language models, inverse folding, sequence and structure aligners, gene annotation, and more) runs in its own automatically managed, isolated environment.
+`proto-language` is built on top of the [proto-tools](https://github.com/evo-design/proto-tools) execution layer, so each computationally intensive tool (structure predictors, protein language models, inverse folding, sequence and structure aligners, gene annotation, and more) runs in its own automatically managed, isolated environment. Programs can run locally or as hosted optimization runs through the [proto-client](https://github.com/evo-design/proto-client) Python SDK. 
 
 Proto-language is open source under an MIT license. Contributions are welcome!
 
