@@ -147,9 +147,12 @@ module = [
     # Visualization / other
     "pymol.*",
     "vortex.*",
-    # Submodule (proto-tools)
-    "proto_tools.*",
 ]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["proto_tools.*"]
+follow_imports = "skip"
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]
