@@ -4,7 +4,8 @@
 
 [![Checks](https://github.com/evo-design/proto-language/actions/workflows/checks.yml/badge.svg)](https://github.com/evo-design/proto-language/actions/workflows/checks.yml)
 [![Unit Tests](https://github.com/evo-design/proto-language/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/evo-design/proto-language/actions/workflows/unit-tests.yml)
-[![Integration Tests](https://github.com/evo-design/proto-language/actions/workflows/integration-tests.yml/badge.svg)](https://github.com/evo-design/proto-language/actions/workflows/integration-tests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/evo-design/proto-language/blob/main/LICENSE)
+[![Docs](https://img.shields.io/badge/docs-proto.evodesign.org-blue)](https://proto.evodesign.org/docs/language/introduction)
 
 Welcome! This repository contains the open-source implementation of `proto-language`, a Python package for designing biological sequences (DNA, RNA, and proteins) through constraint-based optimization. A design is specified as a set of constraints, and the framework runs a propose–score–refine loop to search for sequences that satisfy them, drawing on a large suite of computational biology and biological AI tools to score candidates.
 
