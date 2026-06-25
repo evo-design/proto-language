@@ -128,6 +128,7 @@ from proto_language.constraint.sequence_composition import (
     gc_content_constraint,
     kmer_frequency_constraint,
     max_homopolymer_constraint,
+    melting_temperature_constraint,
     sequence_length_constraint,
     specific_kmer_constraint,
 )
@@ -158,6 +159,7 @@ __all__ = [
     "kmer_frequency_constraint",
     "specific_kmer_constraint",
     "dinucleotide_composition_constraint",
+    "melting_temperature_constraint",
     # Protein structure
     "AlphaFold2BinderStructureConfig",
     "StructureBasedConstraintConfig",

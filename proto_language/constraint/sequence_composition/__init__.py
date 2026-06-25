@@ -1,4 +1,4 @@
-"""Sequence composition constraints (GC content, k-mer frequency, homopolymer, length)."""
+"""Sequence composition constraints (GC content, k-mer frequency, homopolymer, length, melting temperature)."""
 
 from proto_language.constraint.sequence_composition.dinucleotide_composition_constraint import (
     dinucleotide_composition_constraint,
@@ -11,6 +11,9 @@ from proto_language.constraint.sequence_composition.max_homopolymer_constraint i
 from proto_language.constraint.sequence_composition.sequence_length_constraint import (
     sequence_length_constraint,
 )
+from proto_language.constraint.sequence_composition.melting_temperature_constraint import (
+    melting_temperature_constraint,
+)
 from proto_language.constraint.sequence_composition.specific_kmer_constraint import (
     specific_kmer_constraint,
 )
@@ -22,4 +25,5 @@ __all__ = [
     "kmer_frequency_constraint",
     "specific_kmer_constraint",
     "dinucleotide_composition_constraint",
+    "melting_temperature_constraint",
 ]
