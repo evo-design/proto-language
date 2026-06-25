@@ -128,3 +128,45 @@ def test_requires_mutable_candidates_after_fixed_positions(monkeypatch: pytest.M
 
     with pytest.raises(ValueError, match="only 0 mutable positions"):
         generator.sample()
+
+
+def test_crossover_positions_match_mutable_positions(temp_pdb_file):
+    """GA crossover can reuse the MPNN mutation generator's mutable residue scope."""
+    generator = MPNNMutationGenerator(
+        MPNNMutationGeneratorConfig(
+            structure_inputs=InverseFoldingStructureInput(
+                structure=temp_pdb_file,
+                chains_to_redesign=["A"],
+                fixed_positions={"A": [4]},
+            ),
+            output_chain_id="A",
+            mutable_positions={"A": [2, 4]},
+            num_mutations=1,
+            device="cpu",
+        )
+    )
+    segment = Segment(sequence="AGSVL", sequence_type="protein")
+    generator.assign(segment)
+
+    assert generator.crossover_position_indices(segment) == {1}
+
+
+def test_scoring_pdb_sanitizer_selects_single_altloc_and_preserves_ligand_context():
+    pdb = """\
+ATOM      1  N   SER A   1       0.000   0.000   0.000  0.50  0.00           N
+ATOM      2  CA  SER A   1       1.000   0.000   0.000  0.50  0.00           C
+ATOM      3  C   SER A   1       1.000   1.000   0.000  0.50  0.00           C
+ATOM      4  O   SER A   1       1.000   1.000   1.000  0.50  0.00           O
+ATOM      5  CB ASER A   1       1.000  -1.000   0.000  0.50  0.00           C
+ATOM      6  CB BSER A   1       1.100  -1.100   0.000  0.50  0.00           C
+HETATM    7 ZN    ZN A 100       2.000   2.000   2.000  0.50  0.00          ZN
+END
+"""
+
+    sanitized = MPNNMutationGenerator._sanitize_pdb_for_scoring(pdb, {"A"})
+    lines = sanitized.splitlines()
+
+    assert all("BSER" not in line for line in lines)
+    assert all(line[16] == " " for line in lines if line.startswith("ATOM"))
+    assert all(line[54:60] == "  1.00" for line in lines if line.startswith(("ATOM", "HETATM")))
+    assert [line[21] for line in lines if line.startswith("HETATM")] == ["B"]

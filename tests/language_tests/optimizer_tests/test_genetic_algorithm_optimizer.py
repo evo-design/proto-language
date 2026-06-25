@@ -138,6 +138,7 @@ def test_genetic_algorithm_uses_configured_esm2_mutation_generator(monkeypatch) 
             population_size=4,
             offspring_per_generation=2,
             num_results=1,
+            initialize_with_mutation_generators=True,
             seed=123,
         ),
     )
@@ -145,6 +146,44 @@ def test_genetic_algorithm_uses_configured_esm2_mutation_generator(monkeypatch) 
     Program(optimizers=[optimizer], num_results=1, compute=nullcontext()).run()
 
     assert calls == [["CCCC", "CCCC", "CCCC", "CCCC"], ["AAAA", "AAAA"]]
+    assert segment.result_sequences[0].sequence == "AAAA"
+
+
+def test_genetic_algorithm_mutates_offspring_only_by_default(monkeypatch) -> None:
+    calls = []
+
+    def fake_esm2_sample(self: ESM2Generator) -> None:
+        calls.append([sequence.sequence for sequence in self.segment.proposal_sequences])
+        for sequence in self.segment.proposal_sequences:
+            sequence.sequence = "A" * len(sequence.sequence)
+
+    monkeypatch.setattr(ESM2Generator, "_sample", fake_esm2_sample)
+
+    segment = Segment(sequence="CCCC", sequence_type="protein", label="protein")
+    generator = ESM2Generator(ESM2GeneratorConfig())
+    generator.assign(segment)
+    optimizer = GeneticAlgorithmOptimizer(
+        constructs=[Construct([segment], label="construct")],
+        generators=[generator],
+        constraints=[
+            Constraint(
+                inputs=[segment],
+                function=target_a_constraint,
+                function_config=TargetAConfig(),
+            )
+        ],
+        config=GeneticAlgorithmOptimizerConfig(
+            num_generations=1,
+            population_size=4,
+            offspring_per_generation=2,
+            num_results=1,
+            seed=123,
+        ),
+    )
+
+    Program(optimizers=[optimizer], num_results=1, compute=nullcontext()).run()
+
+    assert calls == [["CCCC", "CCCC"]]
     assert segment.result_sequences[0].sequence == "AAAA"
 
 
@@ -192,3 +231,47 @@ def test_genetic_algorithm_does_not_crossover_fixed_segments(monkeypatch) -> Non
 
     assert offspring[0][0].sequence == "AAAA"
     assert offspring[1][0].sequence == "CCCC"
+
+
+def test_genetic_algorithm_restricts_crossover_to_generator_positions(monkeypatch) -> None:
+    def noop_esm2_sample(self: ESM2Generator) -> None:
+        return None
+
+    monkeypatch.setattr(ESM2Generator, "_sample", noop_esm2_sample)
+
+    segment = Segment(sequence="AAAAAA", sequence_type="protein", label="protein")
+    generator = ESM2Generator(ESM2GeneratorConfig())
+    generator.assign(segment)
+    generator.crossover_position_indices = lambda _segment: {2, 3}  # type: ignore[attr-defined]
+
+    optimizer = GeneticAlgorithmOptimizer(
+        constructs=[Construct([segment], label="construct")],
+        generators=[generator],
+        constraints=[
+            Constraint(
+                inputs=[segment],
+                function=target_a_constraint,
+                function_config=TargetAConfig(),
+            )
+        ],
+        config=GeneticAlgorithmOptimizerConfig(
+            num_generations=1,
+            population_size=2,
+            offspring_per_generation=1,
+            num_results=1,
+            crossover_rate=1.0,
+            crossover_strategy="uniform",
+            seed=123,
+        ),
+    )
+
+    assert optimizer._crossover_positions_by_segment()[id(segment)] == {2, 3}
+
+    child = optimizer._crossover_copy(
+        Sequence("AAAAAA", "protein"),
+        Sequence("CCCCCC", "protein"),
+        mutable_indices={2, 3},
+    )
+
+    assert child.sequence[:2] == "AA"
+    assert child.sequence[4:] == "AA"

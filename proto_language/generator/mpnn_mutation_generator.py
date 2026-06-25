@@ -19,7 +19,7 @@ from proto_tools import (
 from proto_tools.entities.structures import ResidueSelection
 from pydantic import field_validator
 
-from proto_language.core import Generator, GeneratorInputType
+from proto_language.core import Generator, GeneratorInputType, Segment
 from proto_language.core.sequence import PROTEIN_AMINO_ACIDS
 from proto_language.generator.generator_registry import generator
 from proto_language.utils.base import BaseConfig, ConfigField
@@ -254,6 +254,27 @@ class MPNNMutationGenerator(Generator):
             )
         return output_chain_id
 
+    def crossover_position_indices(self, segment: Segment) -> set[int] | None:
+        """Return zero-based sequence positions that GA crossover may modify.
+
+        GeneticAlgorithmOptimizer treats this as an optional mutation-generator
+        contract. When MPNN mutation is configured with mutable/fixed residues,
+        crossover should respect the same mutability boundary; this mirrors
+        dEVA's segment crossover over variable residues while keeping the API
+        general for other mutation generators.
+        """
+        if not any(segment is assigned_segment for assigned_segment in self.segments) or self.structure_inputs is None:
+            return None
+
+        mutable_sets = []
+        for struct_input in self.structure_inputs:
+            output_chain_id = self._resolve_output_chain(struct_input)
+            mutable_sets.append(set(self._mutable_sequence_indices(output_chain_id, struct_input)))
+
+        if not mutable_sets:
+            return None
+        return set.intersection(*mutable_sets)
+
     def _build_scoring_sequence(
         self,
         *,
@@ -315,7 +336,7 @@ class MPNNMutationGenerator(Generator):
     ) -> tuple[np.ndarray, list[str], dict[str, Any]]:
         pair = SequenceStructurePair(
             sequence=full_sequence,
-            structure=struct_input.structure,
+            structure=self._structure_for_scoring(struct_input.structure),
             fixed_positions=fixed_positions,
         )
         if self.model == "ligandmpnn":
@@ -348,6 +369,79 @@ class MPNNMutationGenerator(Generator):
             raise ValueError(f"{self.model} scoring did not return logits and vocab.")
         metadata = score.model_dump(exclude={"logits", "vocab"}) if hasattr(score, "model_dump") else {}
         return np.asarray(logits, dtype=np.float64), list(vocab), metadata
+
+    def _structure_for_scoring(self, structure: Structure) -> Structure:
+        """Normalize PDB records that inverse-folding scorers commonly drop.
+
+        dEVA's 2VVB scaffold contains alternate conformers with partial
+        occupancy. LigandMPNN sampling handles the full chain, but the scoring
+        path drops those residues unless a single conformer is selected and
+        occupancies are normalized.
+        """
+        if structure.structure_format not in (None, "pdb"):
+            return structure
+
+        sanitized = self._sanitize_pdb_for_scoring(structure.structure_pdb, set(structure.get_chain_ids()))
+        if sanitized == structure.structure_pdb:
+            return structure
+        return Structure(
+            structure=sanitized,
+            structure_format="pdb",
+            b_factor_type=structure.b_factor_type,
+            source=structure.source,
+            metrics=structure.metrics,
+        )
+
+    @staticmethod
+    def _sanitize_pdb_for_scoring(pdb: str, polymer_chain_ids: set[str]) -> str:
+        selected_altlocs: dict[tuple[str, str, str], str] = {}
+        lines = pdb.splitlines()
+        for line in lines:
+            if not line.startswith(("ATOM  ", "HETATM")) or len(line) < 27:
+                continue
+            altloc = line[16]
+            if altloc == " ":
+                continue
+            key = (line[:6], line[21], line[22:27])
+            if altloc == "A" or key not in selected_altlocs:
+                selected_altlocs[key] = altloc
+
+        ligand_chain_id = MPNNMutationGenerator._unused_pdb_chain_id(polymer_chain_ids)
+        sanitized_lines = []
+        changed = False
+        for line in lines:
+            sanitized_line = line
+            if sanitized_line.startswith(("ATOM  ", "HETATM")) and len(sanitized_line) >= 60:
+                altloc = sanitized_line[16]
+                if altloc != " ":
+                    key = (sanitized_line[:6], sanitized_line[21], sanitized_line[22:27])
+                    if selected_altlocs.get(key) != altloc:
+                        changed = True
+                        continue
+                    sanitized_line = f"{sanitized_line[:16]} {sanitized_line[17:]}"
+                    changed = True
+                if sanitized_line[54:60] != "  1.00":
+                    sanitized_line = f"{sanitized_line[:54]}  1.00{sanitized_line[60:]}"
+                    changed = True
+                if (
+                    sanitized_line.startswith("HETATM")
+                    and sanitized_line[21] in polymer_chain_ids
+                    and ligand_chain_id is not None
+                ):
+                    sanitized_line = f"{sanitized_line[:21]}{ligand_chain_id}{sanitized_line[22:]}"
+                    changed = True
+            sanitized_lines.append(sanitized_line)
+
+        if not changed:
+            return pdb
+        return "\n".join(sanitized_lines) + ("\n" if pdb.endswith("\n") else "")
+
+    @staticmethod
+    def _unused_pdb_chain_id(used_chain_ids: set[str]) -> str | None:
+        for chain_id in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789":
+            if chain_id not in used_chain_ids:
+                return chain_id
+        return None
 
     def _slice_chain_logits(
         self,
@@ -397,6 +491,24 @@ class MPNNMutationGenerator(Generator):
         struct_input: InverseFoldingStructureInput,
         vocab_index: dict[str, int],
     ) -> list[int]:
+        candidates = [
+            idx
+            for idx in self._mutable_sequence_indices(output_chain_id, struct_input)
+            if sequence[idx] in vocab_index and sequence[idx] not in self.excluded_amino_acids
+        ]
+
+        if len(candidates) < self.num_mutations:
+            raise ValueError(
+                f"MPNN mutation requested {self.num_mutations} mutations but only {len(candidates)} mutable "
+                f"positions are available on chain {output_chain_id!r}."
+            )
+        return candidates
+
+    def _mutable_sequence_indices(
+        self,
+        output_chain_id: str,
+        struct_input: InverseFoldingStructureInput,
+    ) -> list[int]:
         if self.mutable_positions is not None:
             positions = set(self.mutable_positions.chains.get(output_chain_id, []))
         else:
@@ -405,24 +517,23 @@ class MPNNMutationGenerator(Generator):
         if struct_input.fixed_positions is not None:
             positions -= set(struct_input.fixed_positions.chains.get(output_chain_id, []))
 
-        position_to_index = {
-            position: idx
-            for idx, position in enumerate(struct_input.structure.get_chain_positions(output_chain_id))
-        }
-        candidates = []
+        position_to_index = self._chain_position_to_index(output_chain_id, struct_input)
+        indices = []
         for position in sorted(positions):
             if position not in position_to_index:
                 raise ValueError(f"Position {output_chain_id}{position} is not present in the structure.")
-            idx = position_to_index[position]
-            if sequence[idx] in vocab_index and sequence[idx] not in self.excluded_amino_acids:
-                candidates.append(idx)
+            indices.append(position_to_index[position])
+        return indices
 
-        if len(candidates) < self.num_mutations:
-            raise ValueError(
-                f"MPNN mutation requested {self.num_mutations} mutations but only {len(candidates)} mutable "
-                f"positions are available on chain {output_chain_id!r}."
-            )
-        return candidates
+    @staticmethod
+    def _chain_position_to_index(
+        output_chain_id: str,
+        struct_input: InverseFoldingStructureInput,
+    ) -> dict[int, int]:
+        return {
+            position: idx
+            for idx, position in enumerate(struct_input.structure.get_chain_positions(output_chain_id))
+        }
 
     def _select_positions(
         self,

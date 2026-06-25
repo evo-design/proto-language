@@ -58,7 +58,7 @@ class GeneticAlgorithmOptimizerConfig(BaseOptimizerConfig):
         title="Crossover Rate",
         description="Probability that an offspring recombines two parents instead of copying one parent.",
     )
-    crossover_strategy: Literal["single_point", "uniform"] = ConfigField(
+    crossover_strategy: Literal["single_point", "two_point", "uniform"] = ConfigField(
         default="single_point",
         title="Crossover Strategy",
         description="Crossover operator used for equal-length parent sequences.",
@@ -83,6 +83,11 @@ class GeneticAlgorithmOptimizerConfig(BaseOptimizerConfig):
         default=False,
         title="Refine Offspring With Generators",
         description="If true, run configured non-mutation generators on each offspring batch after crossover and mutation.",
+    )
+    initialize_with_mutation_generators: bool = ConfigField(
+        default=False,
+        title="Initialize With Mutation Generators",
+        description="If true, run starting-sequence mutation generators when creating the initial population.",
     )
 
     @model_validator(mode="after")
@@ -190,9 +195,8 @@ class GeneticAlgorithmOptimizer(Optimizer):
             source = segment.result_sequences or [segment.original_sequence]
             segment.proposal_sequences = [copy.deepcopy(source[i % len(source)]) for i in range(self.population_size)]
 
-        if self.generators:
-            for generator in self.generators:
-                generator.sample()
+        for generator in self._initialization_generators():
+            generator.sample()
 
         self._score_current_proposals()
         self._population_energies = list(self.energy_scores)
@@ -223,12 +227,17 @@ class GeneticAlgorithmOptimizer(Optimizer):
     ) -> list[list[Sequence]]:
         offspring_by_segment: list[list[Sequence]] = [[] for _ in self.segments]
         variable_segment_ids = self._variable_segment_ids()
+        crossover_positions = self._crossover_positions_by_segment()
         for _ in range(self.offspring_per_generation):
             p1 = self._select_parent(parent_energies)
             p2 = self._select_parent(parent_energies)
             for seg_idx, segment in enumerate(self.segments):
                 if id(segment) in variable_segment_ids:
-                    child = self._crossover_copy(parent_sequences[seg_idx][p1], parent_sequences[seg_idx][p2])
+                    child = self._crossover_copy(
+                        parent_sequences[seg_idx][p1],
+                        parent_sequences[seg_idx][p2],
+                        mutable_indices=crossover_positions.get(id(segment)),
+                    )
                 else:
                     child = copy.deepcopy(parent_sequences[seg_idx][p1])
                 child._metadata.setdefault("genetic_algorithm", {})
@@ -254,22 +263,59 @@ class GeneticAlgorithmOptimizer(Optimizer):
         weights = [(worst - energy + 1e-8) if math.isfinite(energy) else 1e-12 for energy in energies]
         return self._rng.choices(range(len(energies)), weights=weights, k=1)[0]
 
-    def _crossover_copy(self, parent_a: Sequence, parent_b: Sequence) -> Sequence:
+    def _crossover_copy(
+        self,
+        parent_a: Sequence,
+        parent_b: Sequence,
+        mutable_indices: set[int] | None = None,
+    ) -> Sequence:
         child = copy.deepcopy(parent_a)
         seq_a = parent_a.sequence
         seq_b = parent_b.sequence
         if parent_a.sequence_type == "ligand" or len(seq_a) != len(seq_b) or len(seq_a) < 2:
             return child
+        if mutable_indices is not None:
+            mutable_indices = {idx for idx in mutable_indices if 0 <= idx < len(seq_a)}
+            if not mutable_indices:
+                return child
         if self._rng.random() >= self.config.crossover_rate:
             return child
         if self.config.crossover_strategy == "uniform":
-            child.sequence = "".join(a if self._rng.random() < 0.5 else b for a, b in zip(seq_a, seq_b, strict=True))
+            child.sequence = "".join(
+                self._crossover_residue(i, a, b, mutable_indices)
+                for i, (a, b) in enumerate(zip(seq_a, seq_b, strict=True))
+            )
+        elif self.config.crossover_strategy == "two_point":
+            left = self._rng.randint(0, len(seq_a) - 2)
+            right = self._rng.randint(left + 1, len(seq_a))
+            child.sequence = "".join(
+                b if left <= i < right and self._can_crossover_index(i, mutable_indices) else a
+                for i, (a, b) in enumerate(zip(seq_a, seq_b, strict=True))
+            )
         else:
             point = self._rng.randint(1, len(seq_a) - 1)
-            child.sequence = seq_a[:point] + seq_b[point:]
+            child.sequence = "".join(
+                b if i >= point and self._can_crossover_index(i, mutable_indices) else a
+                for i, (a, b) in enumerate(zip(seq_a, seq_b, strict=True))
+            )
         child.structure = None
         child.logits = None
         return child
+
+    def _crossover_residue(
+        self,
+        idx: int,
+        residue_a: str,
+        residue_b: str,
+        mutable_indices: set[int] | None,
+    ) -> str:
+        if self._can_crossover_index(idx, mutable_indices) and self._rng.random() >= 0.5:
+            return residue_b
+        return residue_a
+
+    @staticmethod
+    def _can_crossover_index(idx: int, mutable_indices: set[int] | None) -> bool:
+        return mutable_indices is None or idx in mutable_indices
 
     def _mutate_offspring(self, offspring_by_segment: list[list[Sequence]]) -> list[list[Sequence]]:
         mutation_generators = self._mutation_generators()
@@ -296,11 +342,36 @@ class GeneticAlgorithmOptimizer(Optimizer):
     def _mutation_generators(self) -> list[Generator]:
         return [generator for generator in self.generators if generator.input_type == GeneratorInputType.STARTING_SEQUENCE]
 
+    def _initialization_generators(self) -> list[Generator]:
+        if self.config.initialize_with_mutation_generators:
+            return list(self.generators)
+        return [generator for generator in self.generators if generator.input_type != GeneratorInputType.STARTING_SEQUENCE]
+
     def _refinement_generators(self) -> list[Generator]:
         return [generator for generator in self.generators if generator.input_type != GeneratorInputType.STARTING_SEQUENCE]
 
     def _variable_segment_ids(self) -> set[int]:
         return {id(segment) for generator in self.generators for segment in generator.segments}
+
+    def _crossover_positions_by_segment(self) -> dict[int, set[int] | None]:
+        positions_by_segment: dict[int, set[int] | None] = {}
+        for generator in self.generators:
+            provider = getattr(generator, "crossover_position_indices", None)
+            for segment in generator.segments:
+                segment_id = id(segment)
+                positions_by_segment.setdefault(segment_id, None)
+                if not callable(provider):
+                    continue
+                generator_positions = provider(segment)
+                if generator_positions is None:
+                    continue
+                current = positions_by_segment[segment_id]
+                positions_by_segment[segment_id] = (
+                    set(generator_positions)
+                    if current is None
+                    else current.intersection(generator_positions)
+                )
+        return positions_by_segment
 
     def _select_next_population(
         self,

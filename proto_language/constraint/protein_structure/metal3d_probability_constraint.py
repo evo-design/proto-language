@@ -6,6 +6,7 @@ from proto_tools import (
     Metal3DPredictionConfig,
     Metal3DPredictionInput,
     Metal3DStructureInput,
+    Structure,
     run_metal3d_prediction,
 )
 from proto_tools.entities.structures import ResidueSelection
@@ -68,7 +69,11 @@ def metal3d_probability_constraint(
             inputs=[
                 Metal3DStructureInput(
                     structure=structure,
-                    candidate_residues=config.candidate_residues,
+                    candidate_residues=_candidate_residues_for_structure(
+                        config.candidate_residues,
+                        structure,
+                        config.structure_preparation,
+                    ),
                 )
                 for structure in prepared_structures
             ]
@@ -92,3 +97,34 @@ def metal3d_probability_constraint(
         structures = (result.annotated_structure,) + (None,) * (len(seq_tuple) - 1)
         results.append(ConstraintOutput(score=score, metadata=metadata, structures=structures))
     return results
+
+
+def _candidate_residues_for_structure(
+    candidate_residues: ResidueSelection | None,
+    structure: Structure,
+    preparation_config: StructurePreparationConfig,
+) -> ResidueSelection | None:
+    if candidate_residues is None:
+        return None
+
+    available_chains = set(structure.get_chain_ids())
+    if set(candidate_residues.chains).issubset(available_chains):
+        return candidate_residues
+
+    source_chain_ids = preparation_config.chain_ids
+    prepared_chain_ids = structure.get_chain_ids()
+    if source_chain_ids is None or len(source_chain_ids) != len(prepared_chain_ids):
+        return candidate_residues
+
+    chain_map = dict(zip(source_chain_ids, prepared_chain_ids, strict=True))
+    if not set(candidate_residues.chains).issubset(chain_map):
+        return candidate_residues
+
+    remapped = ResidueSelection(
+        chains={
+            chain_map[chain_id]: positions
+            for chain_id, positions in candidate_residues.chains.items()
+        }
+    )
+    remapped.validate_against(structure, label="candidate_residues")
+    return remapped
