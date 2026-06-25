@@ -1,6 +1,6 @@
 {
   "name": "metal3d_fampnn_ga",
-  "description": "Compact enzyme-design example based on the dEVA Metal3D workflow. The program starts from the zinc-binding 2VVB scaffold, uses FAMPNN to seed a sequence-dependent population, then runs a generic genetic algorithm with ESM2 offspring mutation. Each proposal is threaded onto the scaffold, sidechain-packed with FAMPNN, and scored by Metal3D-Cat at the configured pocket residues.",
+  "description": "Compact enzyme-design example based on the dEVA Metal3D workflow. The program starts from the zinc-binding 2VVB scaffold, uses LigandMPNN to seed a structure-conditioned population, then runs a generic genetic algorithm with MPNN-guided offspring mutation. Each proposal is threaded onto the scaffold, sidechain-packed with FAMPNN, and scored by Metal3D-Cat at the configured pocket residues.",
   "version": "1.0",
   "num_results": 2,
   "constructs": [
@@ -21,8 +21,8 @@
     {
       "generators": [
         {
-          "key": "fampnn",
-          "label": "FAMPNN scaffold-conditioned sequence design",
+          "key": "ligandmpnn",
+          "label": "LigandMPNN scaffold-conditioned sequence design",
           "targets": ["enzyme_chain"],
           "config": {
             "structure_inputs": [
@@ -31,42 +31,34 @@
                 "chains_to_redesign": ["X"]
               }
             ],
-            "output_chain_id": "X",
-            "model_variant": "0.3",
             "temperature": 0.1,
+            "excluded_amino_acids": ["C"],
             "batch_size": 4,
-            "num_steps": 25,
-            "seq_only": false,
-            "repack_last": true,
-            "psce_threshold": 0.3,
-            "scn_diffusion_steps": 25,
-            "scn_step_scale": 1.5,
             "device": "cuda",
             "verbose": false
           }
         },
         {
-          "key": "esm2",
-          "label": "ESM2 offspring mutation",
+          "key": "mpnn-mutation",
+          "label": "LigandMPNN offspring mutation",
           "targets": [
             "enzyme_chain"
           ],
           "config": {
-            "model_checkpoint": "esm2_t33_650M_UR50D",
-            "masking_strategy": {
-              "method": "random",
-              "mask_fraction": 0.02,
-              "temperature": 1.0
-            },
-            "sampling_method": "single_pass",
-            "temperature": 1.0,
-            "top_p": 1.0,
-            "num_steps": 20,
-            "schedule": "cosine",
-            "strategy": "random",
-            "temperature_annealing": true,
+            "model": "ligandmpnn",
+            "structure_inputs": [
+              {
+                "structure": "https://raw.githubusercontent.com/gelnesr/dEVA/main/inputs/2VVB.pdb",
+                "chains_to_redesign": ["X"]
+              }
+            ],
+            "output_chain_id": "X",
+            "num_mutations": 4,
+            "excluded_amino_acids": ["C"],
+            "replacement_strategy": "sample",
+            "replacement_temperature": 1.0,
             "device": "cuda",
-            "batch_size": 8
+            "verbose": false
           }
         }
       ],
