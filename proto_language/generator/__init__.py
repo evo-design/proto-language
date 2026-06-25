@@ -8,6 +8,7 @@ from proto_language.generator.esm3_generator import ESM3Generator, ESM3Generator
 from proto_language.generator.evo1_generator import Evo1Generator, Evo1GeneratorConfig
 from proto_language.generator.evo2_generator import Evo2Generator, Evo2GeneratorConfig
 from proto_language.generator.freebindcraft_generator import FreeBindCraftGenerator, FreeBindCraftGeneratorConfig
+from proto_language.generator.fampnn_generator import FAMPNNGenerator, FAMPNNGeneratorConfig
 from proto_language.generator.generator_registry import GeneratorRegistry, GeneratorSpec, generator
 from proto_language.generator.ligandmpnn_generator import LigandMPNNGenerator, LigandMPNNGeneratorConfig
 from proto_language.generator.msa_generator import MSAGenerator, MSAGeneratorConfig
@@ -65,6 +66,8 @@ __all__ = [
     "ProGen2Generator",
     "ProGen2GeneratorConfig",
     # Inverse folding generators
+    "FAMPNNGenerator",
+    "FAMPNNGeneratorConfig",
     "LigandMPNNGenerator",
     "LigandMPNNGeneratorConfig",
     "ProteinMPNNGenerator",
