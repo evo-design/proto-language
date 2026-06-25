@@ -2,39 +2,23 @@
 
 from contextlib import nullcontext
 
-import pytest
 from pydantic import BaseModel
 
 from proto_language.core import (
     Constraint,
     ConstraintOutput,
     Construct,
-    Generator,
-    GeneratorInputType,
     Program,
     Segment,
     Sequence,
 )
 from proto_language.generator import ESM2Generator, ESM2GeneratorConfig
-from proto_language.generator.random_nucleotide_generator import RandomNucleotideGenerator
 from proto_language.generator.random_protein_generator import RandomProteinGenerator
 from proto_language.optimizer import GeneticAlgorithmOptimizer, GeneticAlgorithmOptimizerConfig
 
 
 class TargetAConfig(BaseModel):
     """Dummy config for a deterministic test constraint."""
-
-
-class MockInverseFoldingGenerator(Generator):
-    """Non-mutation generator used to test GA role validation."""
-
-    input_type = GeneratorInputType.STRUCTURE
-
-    def __init__(self) -> None:
-        super().__init__()
-
-    def _sample(self) -> None:
-        self._validate_generator()
 
 
 def target_a_constraint(
@@ -50,7 +34,7 @@ def target_a_constraint(
     return results
 
 
-def test_genetic_algorithm_runs_without_generators_and_keeps_best_candidates() -> None:
+def test_genetic_algorithm_without_generators_keeps_sequences_constant() -> None:
     segment = Segment(sequence="CCCCCCCCCCCC", sequence_type="dna", label="dna")
     construct = Construct([segment], label="construct")
     constraint = Constraint(
@@ -67,8 +51,6 @@ def test_genetic_algorithm_runs_without_generators_and_keeps_best_candidates() -
             population_size=8,
             offspring_per_generation=8,
             num_results=2,
-            initial_mutation_rate=1.0,
-            mutation_rate=0.5,
             crossover_rate=0.8,
             seed=123,
             tracking_interval=1,
@@ -79,8 +61,9 @@ def test_genetic_algorithm_runs_without_generators_and_keeps_best_candidates() -
     Program(optimizers=[optimizer], num_results=2, compute=nullcontext()).run()
 
     assert len(segment.result_sequences) == 2
+    assert {sequence.sequence for sequence in segment.result_sequences} == {"CCCCCCCCCCCC"}
     assert optimizer.energy_scores == sorted(optimizer.energy_scores)
-    assert optimizer.energy_scores[0] < 1.0
+    assert optimizer.energy_scores == [1.0, 1.0]
     assert optimizer.history[-1]["optimizer"]["type"] == "genetic-algorithm"
     assert optimizer.history[-1]["optimizer"]["generation"] == 3
 
@@ -111,8 +94,6 @@ def test_generational_replacement_backfills_when_offspring_are_few() -> None:
             population_size=6,
             offspring_per_generation=1,
             num_results=2,
-            initial_mutation_rate=0.5,
-            mutation_rate=0.5,
             replacement="generational",
             elite_fraction=0.0,
             seed=123,
@@ -125,44 +106,6 @@ def test_generational_replacement_backfills_when_offspring_are_few() -> None:
     assert len(optimizer._population_energies) == 6
 
 
-def test_genetic_algorithm_delegates_fallback_mutation_to_uniform_generator(monkeypatch) -> None:
-    calls = []
-
-    def fake_sample(self: RandomNucleotideGenerator) -> None:
-        calls.append([sequence.sequence for sequence in self.segment.proposal_sequences])
-        for sequence in self.segment.proposal_sequences:
-            sequence.sequence = "A" * len(sequence.sequence)
-
-    monkeypatch.setattr(RandomNucleotideGenerator, "_sample", fake_sample)
-
-    segment = Segment(sequence="CCCC", sequence_type="dna", label="dna")
-    construct = Construct([segment], label="construct")
-    constraint = Constraint(
-        inputs=[segment],
-        function=target_a_constraint,
-        function_config=TargetAConfig(),
-    )
-    optimizer = GeneticAlgorithmOptimizer(
-        constructs=[construct],
-        generators=[],
-        constraints=[constraint],
-        config=GeneticAlgorithmOptimizerConfig(
-            num_generations=1,
-            population_size=4,
-            offspring_per_generation=2,
-            num_results=1,
-            initial_mutation_rate=0.0,
-            mutation_rate=1.0,
-            seed=123,
-        ),
-    )
-
-    Program(optimizers=[optimizer], num_results=1, compute=nullcontext()).run()
-
-    assert calls == [["CCCC", "CCCC"]]
-    assert segment.result_sequences[0].sequence == "AAAA"
-
-
 def test_genetic_algorithm_uses_configured_esm2_mutation_generator(monkeypatch) -> None:
     calls = []
 
@@ -171,11 +114,11 @@ def test_genetic_algorithm_uses_configured_esm2_mutation_generator(monkeypatch) 
         for sequence in self.segment.proposal_sequences:
             sequence.sequence = "A" * len(sequence.sequence)
 
-    def fail_random_fallback(self: RandomProteinGenerator) -> None:
-        raise AssertionError(f"Unexpected random fallback mutation via {self.__class__.__name__}")
+    def fail_random_protein_mutation(self: RandomProteinGenerator) -> None:
+        raise AssertionError(f"Unexpected random protein mutation via {self.__class__.__name__}")
 
     monkeypatch.setattr(ESM2Generator, "_sample", fake_esm2_sample)
-    monkeypatch.setattr(RandomProteinGenerator, "_sample", fail_random_fallback)
+    monkeypatch.setattr(RandomProteinGenerator, "_sample", fail_random_protein_mutation)
 
     segment = Segment(sequence="CCCC", sequence_type="protein", label="protein")
     generator = ESM2Generator(ESM2GeneratorConfig())
@@ -195,8 +138,6 @@ def test_genetic_algorithm_uses_configured_esm2_mutation_generator(monkeypatch) 
             population_size=4,
             offspring_per_generation=2,
             num_results=1,
-            initial_mutation_rate=0.0,
-            mutation_rate=1.0,
             seed=123,
         ),
     )
@@ -207,27 +148,47 @@ def test_genetic_algorithm_uses_configured_esm2_mutation_generator(monkeypatch) 
     assert segment.result_sequences[0].sequence == "AAAA"
 
 
-def test_genetic_algorithm_rejects_hidden_random_fallback_with_non_mutation_generator() -> None:
-    segment = Segment(sequence="CCCC", sequence_type="protein", label="protein")
-    generator = MockInverseFoldingGenerator()
-    generator.assign(segment)
-    construct = Construct([segment], label="construct")
-    constraint = Constraint(
-        inputs=[segment],
-        function=target_a_constraint,
-        function_config=TargetAConfig(),
+def test_genetic_algorithm_does_not_crossover_fixed_segments(monkeypatch) -> None:
+    def fake_esm2_sample(self: ESM2Generator) -> None:
+        for sequence in self.segment.proposal_sequences:
+            sequence.sequence = "AAAA"
+
+    monkeypatch.setattr(ESM2Generator, "_sample", fake_esm2_sample)
+
+    variable = Segment(sequence="CCCC", sequence_type="protein", label="variable")
+    fixed = Segment(sequence="CCCC", sequence_type="protein", label="fixed_context")
+    generator = ESM2Generator(ESM2GeneratorConfig())
+    generator.assign(variable)
+    optimizer = GeneticAlgorithmOptimizer(
+        constructs=[Construct([variable, fixed], label="construct")],
+        generators=[generator],
+        constraints=[
+            Constraint(
+                inputs=[variable],
+                function=target_a_constraint,
+                function_config=TargetAConfig(),
+            )
+        ],
+        config=GeneticAlgorithmOptimizerConfig(
+            num_generations=1,
+            population_size=2,
+            offspring_per_generation=1,
+            num_results=1,
+            crossover_rate=1.0,
+            seed=123,
+        ),
+    )
+    parent_choices = iter([0, 1])
+    optimizer._select_parent = lambda _energies: next(parent_choices)  # type: ignore[method-assign]
+
+    offspring = optimizer._make_offspring(
+        parent_sequences=[
+            [Sequence("CCCC", "protein"), Sequence("GGGG", "protein")],
+            [Sequence("CCCC", "protein"), Sequence("GGGG", "protein")],
+        ],
+        parent_energies=[0.0, 0.0],
+        generation=1,
     )
 
-    with pytest.raises(ValueError, match="non-mutation generator targets without a mutation generator"):
-        GeneticAlgorithmOptimizer(
-            constructs=[construct],
-            generators=[generator],
-            constraints=[constraint],
-            config=GeneticAlgorithmOptimizerConfig(
-                num_generations=1,
-                population_size=4,
-                offspring_per_generation=2,
-                num_results=1,
-                mutation_rate=0.1,
-            ),
-        )
+    assert offspring[0][0].sequence == "AAAA"
+    assert offspring[1][0].sequence == "CCCC"

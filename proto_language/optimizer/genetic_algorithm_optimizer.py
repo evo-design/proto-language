@@ -9,18 +9,9 @@ from collections.abc import Callable
 from typing import Any, Literal, final
 
 import numpy as np
-from proto_tools.transforms.masking import MaskingStrategy
 from pydantic import model_validator
 
-from proto_language.core import Constraint, Construct, Generator, GeneratorInputType, Optimizer, Segment, Sequence
-from proto_language.generator.random_nucleotide_generator import (
-    RandomNucleotideGenerator,
-    RandomNucleotideGeneratorConfig,
-)
-from proto_language.generator.random_protein_generator import (
-    RandomProteinGenerator,
-    RandomProteinGeneratorConfig,
-)
+from proto_language.core import Constraint, Construct, Generator, GeneratorInputType, Optimizer, Sequence
 from proto_language.optimizer.optimizer_registry import optimizer
 from proto_language.utils.base import BaseOptimizerConfig, ConfigField
 
@@ -59,20 +50,6 @@ class GeneticAlgorithmOptimizerConfig(BaseOptimizerConfig):
         le=1.0,
         title="Elite Fraction",
         description="Fraction of the best parents copied into the next generation before selecting children.",
-    )
-    mutation_rate: float = ConfigField(
-        default=0.02,
-        ge=0.0,
-        le=1.0,
-        title="Mutation Rate",
-        description="Fallback random mutation fraction for offspring segments that do not have a configured mutation generator.",
-    )
-    initial_mutation_rate: float | None = ConfigField(
-        default=None,
-        ge=0.0,
-        le=1.0,
-        title="Initial Mutation Rate",
-        description="Optional fallback random mutation fraction used to diversify copied starting populations.",
     )
     crossover_rate: float = ConfigField(
         default=0.8,
@@ -169,32 +146,6 @@ class GeneticAlgorithmOptimizer(Optimizer):
             )
         super()._resolve_num_results(num_results)
 
-    def _validate_optimizer(self) -> None:
-        """Validate base optimizer invariants plus GA-specific generator roles."""
-        super()._validate_optimizer()
-        self._validate_generator_roles()
-
-    def _validate_generator_roles(self) -> None:
-        mutation_segment_ids = {id(segment) for generator in self._mutation_generators() for segment in generator.segments}
-        uncovered_non_mutation = [
-            segment.label or "unlabeled"
-            for generator in self._refinement_generators()
-            for segment in generator.segments
-            if id(segment) not in mutation_segment_ids
-        ]
-        if (
-            uncovered_non_mutation
-            and self.config.mutation_rate > 0.0
-            and not self.config.refine_offspring_with_generators
-        ):
-            labels = ", ".join(sorted(set(uncovered_non_mutation)))
-            raise ValueError(
-                "GeneticAlgorithmOptimizer has non-mutation generator targets without a mutation generator: "
-                f"{labels}. Add a starting-sequence mutation generator such as esm2, random-protein, "
-                "or random-nucleotide for those segments; set refine_offspring_with_generators=True to run "
-                "the non-mutation generators on offspring; or set mutation_rate=0 for crossover-only offspring."
-            )
-
     def run(self) -> None:
         """Run the genetic algorithm optimization loop."""
         self._prepare_run()
@@ -242,16 +193,6 @@ class GeneticAlgorithmOptimizer(Optimizer):
         if self.generators:
             for generator in self.generators:
                 generator.sample()
-        else:
-            rate = self.config.initial_mutation_rate
-            if rate is None:
-                rate = max(self.config.mutation_rate, 1.0 / max(self.segments[0].sequence_length, 1))
-            for segment in self.segments:
-                segment.proposal_sequences[1:] = self._mutate_sequence_batch(
-                    segment,
-                    segment.proposal_sequences[1:],
-                    rate,
-                )
 
         self._score_current_proposals()
         self._population_energies = list(self.energy_scores)
@@ -281,11 +222,15 @@ class GeneticAlgorithmOptimizer(Optimizer):
         generation: int,
     ) -> list[list[Sequence]]:
         offspring_by_segment: list[list[Sequence]] = [[] for _ in self.segments]
+        variable_segment_ids = self._variable_segment_ids()
         for _ in range(self.offspring_per_generation):
             p1 = self._select_parent(parent_energies)
             p2 = self._select_parent(parent_energies)
-            for seg_idx, _segment in enumerate(self.segments):
-                child = self._crossover_copy(parent_sequences[seg_idx][p1], parent_sequences[seg_idx][p2])
+            for seg_idx, segment in enumerate(self.segments):
+                if id(segment) in variable_segment_ids:
+                    child = self._crossover_copy(parent_sequences[seg_idx][p1], parent_sequences[seg_idx][p2])
+                else:
+                    child = copy.deepcopy(parent_sequences[seg_idx][p1])
                 child._metadata.setdefault("genetic_algorithm", {})
                 child._metadata["genetic_algorithm"].update(
                     {"generation": generation, "parents": [p1, p2], "optimizer": "genetic-algorithm"}
@@ -326,43 +271,10 @@ class GeneticAlgorithmOptimizer(Optimizer):
         child.logits = None
         return child
 
-    def _mutate_sequence_batch(
-        self,
-        segment: Segment,
-        sequences: list[Sequence],
-        mutation_rate: float,
-    ) -> list[Sequence]:
-        mutated = [copy.deepcopy(sequence) for sequence in sequences]
-        if segment.is_ligand or mutation_rate <= 0.0 or not mutated:
-            return mutated
-
-        mutation_segment = Segment(
-            length=segment.sequence_length,
-            sequence_type=segment.sequence_type,
-            valid_chars=segment.valid_chars,
-            label=segment.label,
-        )
-        mutation_segment.proposal_sequences = mutated
-        mutation_segment.result_sequences = [copy.deepcopy(sequence) for sequence in mutated]
-
-        generator = self._uniform_mutation_generator(segment, mutation_rate)
-        generator.assign(mutation_segment)
-        generator._set_program_seed(self._rng.randint(0, 2**31 - 1))
-        generator.sample()
-        return [copy.deepcopy(sequence) for sequence in mutation_segment.proposal_sequences]
-
     def _mutate_offspring(self, offspring_by_segment: list[list[Sequence]]) -> list[list[Sequence]]:
         mutation_generators = self._mutation_generators()
         if mutation_generators:
             return self._run_generators_on_population(mutation_generators, offspring_by_segment)
-
-        if not self.generators:
-            for seg_idx, segment in enumerate(self.segments):
-                offspring_by_segment[seg_idx] = self._mutate_sequence_batch(
-                    segment,
-                    offspring_by_segment[seg_idx],
-                    self.config.mutation_rate,
-                )
         return offspring_by_segment
 
     def _run_generators_on_population(
@@ -387,18 +299,8 @@ class GeneticAlgorithmOptimizer(Optimizer):
     def _refinement_generators(self) -> list[Generator]:
         return [generator for generator in self.generators if generator.input_type != GeneratorInputType.STARTING_SEQUENCE]
 
-    @staticmethod
-    def _uniform_mutation_generator(segment: Segment, mutation_rate: float) -> Generator:
-        masking_strategy = MaskingStrategy(method="random", mask_fraction=mutation_rate)
-        if segment.sequence_type == "protein":
-            return RandomProteinGenerator(
-                RandomProteinGeneratorConfig(masking_strategy=masking_strategy),
-            )
-        if segment.sequence_type in {"dna", "rna"}:
-            return RandomNucleotideGenerator(
-                RandomNucleotideGeneratorConfig(masking_strategy=masking_strategy),
-            )
-        raise ValueError(f"GeneticAlgorithmOptimizer cannot mutate sequence type {segment.sequence_type!r}.")
+    def _variable_segment_ids(self) -> set[int]:
+        return {id(segment) for generator in self.generators for segment in generator.segments}
 
     def _select_next_population(
         self,

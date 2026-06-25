@@ -133,8 +133,6 @@
           "population_size": 8,
           "offspring_per_generation": 8,
           "elite_fraction": 0.25,
-          "mutation_rate": 0.0,
-          "initial_mutation_rate": 0.0,
           "crossover_rate": 0.75,
           "crossover_strategy": "uniform",
           "parent_selection": "tournament",
