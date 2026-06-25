@@ -12,7 +12,7 @@ import numpy as np
 from proto_tools.transforms.masking import MaskingStrategy
 from pydantic import model_validator
 
-from proto_language.core import Constraint, Construct, Generator, Optimizer, Segment, Sequence
+from proto_language.core import Constraint, Construct, Generator, GeneratorInputType, Optimizer, Segment, Sequence
 from proto_language.generator.random_nucleotide_generator import (
     RandomNucleotideGenerator,
     RandomNucleotideGeneratorConfig,
@@ -65,14 +65,14 @@ class GeneticAlgorithmOptimizerConfig(BaseOptimizerConfig):
         ge=0.0,
         le=1.0,
         title="Mutation Rate",
-        description="Fraction of positions to mutate in each offspring via the uniform mutation generators.",
+        description="Fallback random mutation fraction for offspring segments that do not have a configured mutation generator.",
     )
     initial_mutation_rate: float | None = ConfigField(
         default=None,
         ge=0.0,
         le=1.0,
         title="Initial Mutation Rate",
-        description="Optional mutation fraction used to diversify a copied starting population.",
+        description="Optional fallback random mutation fraction used to diversify copied starting populations.",
     )
     crossover_rate: float = ConfigField(
         default=0.8,
@@ -105,7 +105,7 @@ class GeneticAlgorithmOptimizerConfig(BaseOptimizerConfig):
     refine_offspring_with_generators: bool = ConfigField(
         default=False,
         title="Refine Offspring With Generators",
-        description="If true, run configured generators on each offspring batch after crossover and mutation.",
+        description="If true, run configured non-mutation generators on each offspring batch after crossover and mutation.",
     )
 
     @model_validator(mode="after")
@@ -197,7 +197,7 @@ class GeneticAlgorithmOptimizer(Optimizer):
             offspring = self._make_offspring(parent_sequences, parent_energies, generation)
             self._set_proposal_population(offspring)
             if self.config.refine_offspring_with_generators:
-                for generator in self.generators:
+                for generator in self._refinement_generators():
                     generator.sample()
             self._score_current_proposals()
             child_sequences = self._copy_current_population()
@@ -265,13 +265,7 @@ class GeneticAlgorithmOptimizer(Optimizer):
                     {"generation": generation, "parents": [p1, p2], "optimizer": "genetic-algorithm"}
                 )
                 offspring_by_segment[seg_idx].append(child)
-        for seg_idx, segment in enumerate(self.segments):
-            offspring_by_segment[seg_idx] = self._mutate_sequence_batch(
-                segment,
-                offspring_by_segment[seg_idx],
-                self.config.mutation_rate,
-            )
-        return offspring_by_segment
+        return self._mutate_offspring(offspring_by_segment)
 
     def _select_parent(self, energies: list[float]) -> int:
         if self.config.parent_selection == "tournament":
@@ -330,6 +324,45 @@ class GeneticAlgorithmOptimizer(Optimizer):
         generator._set_program_seed(self._rng.randint(0, 2**31 - 1))
         generator.sample()
         return [copy.deepcopy(sequence) for sequence in mutation_segment.proposal_sequences]
+
+    def _mutate_offspring(self, offspring_by_segment: list[list[Sequence]]) -> list[list[Sequence]]:
+        mutation_generators = self._mutation_generators()
+        covered_segment_ids: set[int] = set()
+        if mutation_generators:
+            offspring_by_segment = self._run_generators_on_population(mutation_generators, offspring_by_segment)
+            covered_segment_ids = {id(segment) for generator in mutation_generators for segment in generator.segments}
+
+        for seg_idx, segment in enumerate(self.segments):
+            if id(segment) in covered_segment_ids:
+                continue
+            offspring_by_segment[seg_idx] = self._mutate_sequence_batch(
+                segment,
+                offspring_by_segment[seg_idx],
+                self.config.mutation_rate,
+            )
+        return offspring_by_segment
+
+    def _run_generators_on_population(
+        self,
+        generators: list[Generator],
+        population: list[list[Sequence]],
+    ) -> list[list[Sequence]]:
+        original_population = self._copy_current_population()
+        original_num_proposals = self.num_proposals
+        try:
+            self._set_proposal_population(population)
+            for generator in generators:
+                generator.sample()
+            return self._copy_current_population()
+        finally:
+            self._set_proposal_population(original_population)
+            self.num_proposals = original_num_proposals
+
+    def _mutation_generators(self) -> list[Generator]:
+        return [generator for generator in self.generators if generator.input_type == GeneratorInputType.STARTING_SEQUENCE]
+
+    def _refinement_generators(self) -> list[Generator]:
+        return [generator for generator in self.generators if generator.input_type != GeneratorInputType.STARTING_SEQUENCE]
 
     @staticmethod
     def _uniform_mutation_generator(segment: Segment, mutation_rate: float) -> Generator:

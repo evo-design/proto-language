@@ -5,7 +5,9 @@ from contextlib import nullcontext
 from pydantic import BaseModel
 
 from proto_language.core import Constraint, ConstraintOutput, Construct, Program, Segment, Sequence
+from proto_language.generator import ESM2Generator, ESM2GeneratorConfig
 from proto_language.generator.random_nucleotide_generator import RandomNucleotideGenerator
+from proto_language.generator.random_protein_generator import RandomProteinGenerator
 from proto_language.optimizer import GeneticAlgorithmOptimizer, GeneticAlgorithmOptimizerConfig
 
 
@@ -101,7 +103,7 @@ def test_generational_replacement_backfills_when_offspring_are_few() -> None:
     assert len(optimizer._population_energies) == 6
 
 
-def test_genetic_algorithm_delegates_mutation_to_uniform_generator(monkeypatch) -> None:
+def test_genetic_algorithm_delegates_fallback_mutation_to_uniform_generator(monkeypatch) -> None:
     calls = []
 
     def fake_sample(self: RandomNucleotideGenerator) -> None:
@@ -136,4 +138,48 @@ def test_genetic_algorithm_delegates_mutation_to_uniform_generator(monkeypatch) 
     Program(optimizers=[optimizer], num_results=1, compute=nullcontext()).run()
 
     assert calls == [["CCCC", "CCCC"]]
+    assert segment.result_sequences[0].sequence == "AAAA"
+
+
+def test_genetic_algorithm_uses_configured_esm2_mutation_generator(monkeypatch) -> None:
+    calls = []
+
+    def fake_esm2_sample(self: ESM2Generator) -> None:
+        calls.append([sequence.sequence for sequence in self.segment.proposal_sequences])
+        for sequence in self.segment.proposal_sequences:
+            sequence.sequence = "A" * len(sequence.sequence)
+
+    def fail_random_fallback(self: RandomProteinGenerator) -> None:
+        raise AssertionError(f"Unexpected random fallback mutation via {self.__class__.__name__}")
+
+    monkeypatch.setattr(ESM2Generator, "_sample", fake_esm2_sample)
+    monkeypatch.setattr(RandomProteinGenerator, "_sample", fail_random_fallback)
+
+    segment = Segment(sequence="CCCC", sequence_type="protein", label="protein")
+    generator = ESM2Generator(ESM2GeneratorConfig())
+    generator.assign(segment)
+    construct = Construct([segment], label="construct")
+    constraint = Constraint(
+        inputs=[segment],
+        function=target_a_constraint,
+        function_config=TargetAConfig(),
+    )
+    optimizer = GeneticAlgorithmOptimizer(
+        constructs=[construct],
+        generators=[generator],
+        constraints=[constraint],
+        config=GeneticAlgorithmOptimizerConfig(
+            num_generations=1,
+            population_size=4,
+            offspring_per_generation=2,
+            num_results=1,
+            initial_mutation_rate=0.0,
+            mutation_rate=1.0,
+            seed=123,
+        ),
+    )
+
+    Program(optimizers=[optimizer], num_results=1, compute=nullcontext()).run()
+
+    assert calls == [["CCCC", "CCCC", "CCCC", "CCCC"], ["AAAA", "AAAA"]]
     assert segment.result_sequences[0].sequence == "AAAA"
