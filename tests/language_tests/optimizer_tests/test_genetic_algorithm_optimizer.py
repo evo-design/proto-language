@@ -2,9 +2,19 @@
 
 from contextlib import nullcontext
 
+import pytest
 from pydantic import BaseModel
 
-from proto_language.core import Constraint, ConstraintOutput, Construct, Program, Segment, Sequence
+from proto_language.core import (
+    Constraint,
+    ConstraintOutput,
+    Construct,
+    Generator,
+    GeneratorInputType,
+    Program,
+    Segment,
+    Sequence,
+)
 from proto_language.generator import ESM2Generator, ESM2GeneratorConfig
 from proto_language.generator.random_nucleotide_generator import RandomNucleotideGenerator
 from proto_language.generator.random_protein_generator import RandomProteinGenerator
@@ -13,6 +23,18 @@ from proto_language.optimizer import GeneticAlgorithmOptimizer, GeneticAlgorithm
 
 class TargetAConfig(BaseModel):
     """Dummy config for a deterministic test constraint."""
+
+
+class MockInverseFoldingGenerator(Generator):
+    """Non-mutation generator used to test GA role validation."""
+
+    input_type = GeneratorInputType.STRUCTURE
+
+    def __init__(self) -> None:
+        super().__init__()
+
+    def _sample(self) -> None:
+        self._validate_generator()
 
 
 def target_a_constraint(
@@ -183,3 +205,29 @@ def test_genetic_algorithm_uses_configured_esm2_mutation_generator(monkeypatch) 
 
     assert calls == [["CCCC", "CCCC", "CCCC", "CCCC"], ["AAAA", "AAAA"]]
     assert segment.result_sequences[0].sequence == "AAAA"
+
+
+def test_genetic_algorithm_rejects_hidden_random_fallback_with_non_mutation_generator() -> None:
+    segment = Segment(sequence="CCCC", sequence_type="protein", label="protein")
+    generator = MockInverseFoldingGenerator()
+    generator.assign(segment)
+    construct = Construct([segment], label="construct")
+    constraint = Constraint(
+        inputs=[segment],
+        function=target_a_constraint,
+        function_config=TargetAConfig(),
+    )
+
+    with pytest.raises(ValueError, match="non-mutation generator targets without a mutation generator"):
+        GeneticAlgorithmOptimizer(
+            constructs=[construct],
+            generators=[generator],
+            constraints=[constraint],
+            config=GeneticAlgorithmOptimizerConfig(
+                num_generations=1,
+                population_size=4,
+                offspring_per_generation=2,
+                num_results=1,
+                mutation_rate=0.1,
+            ),
+        )

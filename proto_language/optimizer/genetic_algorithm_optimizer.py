@@ -169,6 +169,32 @@ class GeneticAlgorithmOptimizer(Optimizer):
             )
         super()._resolve_num_results(num_results)
 
+    def _validate_optimizer(self) -> None:
+        """Validate base optimizer invariants plus GA-specific generator roles."""
+        super()._validate_optimizer()
+        self._validate_generator_roles()
+
+    def _validate_generator_roles(self) -> None:
+        mutation_segment_ids = {id(segment) for generator in self._mutation_generators() for segment in generator.segments}
+        uncovered_non_mutation = [
+            segment.label or "unlabeled"
+            for generator in self._refinement_generators()
+            for segment in generator.segments
+            if id(segment) not in mutation_segment_ids
+        ]
+        if (
+            uncovered_non_mutation
+            and self.config.mutation_rate > 0.0
+            and not self.config.refine_offspring_with_generators
+        ):
+            labels = ", ".join(sorted(set(uncovered_non_mutation)))
+            raise ValueError(
+                "GeneticAlgorithmOptimizer has non-mutation generator targets without a mutation generator: "
+                f"{labels}. Add a starting-sequence mutation generator such as esm2, random-protein, "
+                "or random-nucleotide for those segments; set refine_offspring_with_generators=True to run "
+                "the non-mutation generators on offspring; or set mutation_rate=0 for crossover-only offspring."
+            )
+
     def run(self) -> None:
         """Run the genetic algorithm optimization loop."""
         self._prepare_run()
@@ -327,19 +353,16 @@ class GeneticAlgorithmOptimizer(Optimizer):
 
     def _mutate_offspring(self, offspring_by_segment: list[list[Sequence]]) -> list[list[Sequence]]:
         mutation_generators = self._mutation_generators()
-        covered_segment_ids: set[int] = set()
         if mutation_generators:
-            offspring_by_segment = self._run_generators_on_population(mutation_generators, offspring_by_segment)
-            covered_segment_ids = {id(segment) for generator in mutation_generators for segment in generator.segments}
+            return self._run_generators_on_population(mutation_generators, offspring_by_segment)
 
-        for seg_idx, segment in enumerate(self.segments):
-            if id(segment) in covered_segment_ids:
-                continue
-            offspring_by_segment[seg_idx] = self._mutate_sequence_batch(
-                segment,
-                offspring_by_segment[seg_idx],
-                self.config.mutation_rate,
-            )
+        if not self.generators:
+            for seg_idx, segment in enumerate(self.segments):
+                offspring_by_segment[seg_idx] = self._mutate_sequence_batch(
+                    segment,
+                    offspring_by_segment[seg_idx],
+                    self.config.mutation_rate,
+                )
         return offspring_by_segment
 
     def _run_generators_on_population(

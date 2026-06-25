@@ -1,6 +1,6 @@
 {
   "name": "metal3d_fampnn_ga",
-  "description": "Compact enzyme-design example based on the dEVA Metal3D workflow. The program starts from the zinc-binding 2VVB scaffold, uses FAMPNN to seed a sequence-dependent population, then runs a generic genetic algorithm with crossover and mutation. Each proposal is threaded onto the scaffold, sidechain-packed with FAMPNN, and scored by Metal3D-Cat at the configured pocket residues.",
+  "description": "Compact enzyme-design example based on the dEVA Metal3D workflow. The program starts from the zinc-binding 2VVB scaffold, uses FAMPNN to seed a sequence-dependent population, then runs a generic genetic algorithm with ESM2 offspring mutation. Each proposal is threaded onto the scaffold, sidechain-packed with FAMPNN, and scored by Metal3D-Cat at the configured pocket residues.",
   "version": "1.0",
   "num_results": 2,
   "constructs": [
@@ -43,6 +43,30 @@
             "scn_step_scale": 1.5,
             "device": "cuda",
             "verbose": false
+          }
+        },
+        {
+          "key": "esm2",
+          "label": "ESM2 offspring mutation",
+          "targets": [
+            "enzyme_chain"
+          ],
+          "config": {
+            "model_checkpoint": "esm2_t33_650M_UR50D",
+            "masking_strategy": {
+              "method": "random",
+              "mask_fraction": 0.02,
+              "temperature": 1.0
+            },
+            "sampling_method": "single_pass",
+            "temperature": 1.0,
+            "top_p": 1.0,
+            "num_steps": 20,
+            "schedule": "cosine",
+            "strategy": "random",
+            "temperature_annealing": true,
+            "device": "cuda",
+            "batch_size": 8
           }
         }
       ],
@@ -109,8 +133,8 @@
           "population_size": 8,
           "offspring_per_generation": 8,
           "elite_fraction": 0.25,
-          "mutation_rate": 0.02,
-          "initial_mutation_rate": 0.04,
+          "mutation_rate": 0.0,
+          "initial_mutation_rate": 0.0,
           "crossover_rate": 0.75,
           "crossover_strategy": "uniform",
           "parent_selection": "tournament",
