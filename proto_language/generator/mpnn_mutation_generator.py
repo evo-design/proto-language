@@ -184,9 +184,7 @@ class MPNNMutationGenerator(Generator):
             else self.structure_inputs
         )
         if sampling_structure_inputs is None:
-            raise ValueError(
-                "No structure_inputs provided. Configure structure_inputs or pass them to sample()."
-            )
+            raise ValueError("No structure_inputs provided. Configure structure_inputs or pass them to sample().")
 
         proposals = self.segment.proposal_sequences
         if len(sampling_structure_inputs) == 1:
@@ -211,11 +209,15 @@ class MPNNMutationGenerator(Generator):
             )
             fixed_positions = self._scoring_fixed_positions(struct_input, output_chain_id)
             logits, vocab, score_metadata = self._score(full_sequence, struct_input, fixed_positions, seed)
-            chain_logits = self._slice_chain_logits(logits, output_chain_id, struct_input, chain_offset, proposal.sequence)
+            chain_logits = self._slice_chain_logits(
+                logits, output_chain_id, struct_input, chain_offset, proposal.sequence
+            )
             probabilities = self._softmax(chain_logits, self.replacement_temperature)
             vocab_index = {aa: idx for idx, aa in enumerate(vocab)}
             allowed_indices = self._allowed_vocab_indices(vocab)
-            candidate_positions = self._candidate_positions(proposal.sequence, output_chain_id, struct_input, vocab_index)
+            candidate_positions = self._candidate_positions(
+                proposal.sequence, output_chain_id, struct_input, vocab_index
+            )
             selected_positions = self._select_positions(
                 sequence=proposal.sequence,
                 probabilities=probabilities,
@@ -333,7 +335,9 @@ class MPNNMutationGenerator(Generator):
             self.mutable_positions.validate_against(struct_input.structure, label="mutable_positions")
             mutable = set(self.mutable_positions.chains.get(output_chain_id, []))
             if not mutable:
-                raise ValueError(f"mutable_positions does not include any positions for output chain {output_chain_id!r}.")
+                raise ValueError(
+                    f"mutable_positions does not include any positions for output chain {output_chain_id!r}."
+                )
             output_positions = set(struct_input.structure.get_chain_positions(output_chain_id))
             fixed.setdefault(output_chain_id, set()).update(output_positions - mutable)
 
@@ -468,9 +472,14 @@ class MPNNMutationGenerator(Generator):
             logits = logits[0]
         if logits.ndim != 2:
             raise ValueError(f"Expected MPNN logits with shape (L, vocab), got {logits.shape}.")
-        total_length = sum(len(struct_input.structure.get_chain_sequence(chain_id)) for chain_id in struct_input.structure.get_chain_ids())
+        total_length = sum(
+            len(struct_input.structure.get_chain_sequence(chain_id))
+            for chain_id in struct_input.structure.get_chain_ids()
+        )
         if logits.shape[0] != total_length:
-            raise ValueError(f"MPNN logits length {logits.shape[0]} does not match structure sequence length {total_length}.")
+            raise ValueError(
+                f"MPNN logits length {logits.shape[0]} does not match structure sequence length {total_length}."
+            )
         chain_logits = logits[chain_offset : chain_offset + len(output_sequence)]
         if chain_logits.shape[0] != len(output_sequence):
             raise ValueError(f"Could not slice logits for output chain {output_chain_id!r}.")
@@ -544,8 +553,7 @@ class MPNNMutationGenerator(Generator):
         struct_input: InverseFoldingStructureInput,
     ) -> dict[int, int]:
         return {
-            position: idx
-            for idx, position in enumerate(struct_input.structure.get_chain_positions(output_chain_id))
+            position: idx for idx, position in enumerate(struct_input.structure.get_chain_positions(output_chain_id))
         }
 
     def _select_positions(

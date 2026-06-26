@@ -142,9 +142,7 @@ def _resolve_chain_sequence_map(
             )
         chain_ids = available
     if len(chain_ids) != len(seq_tuple):
-        raise ValueError(
-            f"structure_preparation.chain_ids has {len(chain_ids)} entries, expected {len(seq_tuple)}."
-        )
+        raise ValueError(f"structure_preparation.chain_ids has {len(chain_ids)} entries, expected {len(seq_tuple)}.")
     return {chain_id: seq.sequence for chain_id, seq in zip(chain_ids, seq_tuple, strict=True)}
 
 
