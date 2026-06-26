@@ -128,10 +128,7 @@ def _candidate_residues_for_structure(
         return candidate_residues
 
     remapped = ResidueSelection(
-        chains={
-            chain_map[chain_id]: positions
-            for chain_id, positions in candidate_residues.chains.items()
-        }
+        chains={chain_map[chain_id]: positions for chain_id, positions in candidate_residues.chains.items()}
     )
     remapped.validate_against(structure, label="candidate_residues")
     return remapped

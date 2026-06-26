@@ -55,9 +55,7 @@ def test_ligandmpnn_mutation_uses_mutable_positions_and_logits(monkeypatch: pyte
 
     proposal = segment.proposal_sequences[0]
     assert proposal.sequence == "AWSVL"
-    assert proposal._generator_metadata["mpnn-mutation"]["mutations"] == [
-        {"position": 2, "from": "G", "to": "W"}
-    ]
+    assert proposal._generator_metadata["mpnn-mutation"]["mutations"] == [{"position": 2, "from": "G", "to": "W"}]
 
 
 def test_proteinmpnn_model_dispatches_to_proteinmpnn_score(monkeypatch: pytest.MonkeyPatch, temp_pdb_file):

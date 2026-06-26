@@ -375,15 +375,21 @@ class GeneticAlgorithmOptimizer(Optimizer):
             self.num_proposals = original_num_proposals
 
     def _mutation_generators(self) -> list[Generator]:
-        return [generator for generator in self.generators if generator.input_type == GeneratorInputType.STARTING_SEQUENCE]
+        return [
+            generator for generator in self.generators if generator.input_type == GeneratorInputType.STARTING_SEQUENCE
+        ]
 
     def _initialization_generators(self) -> list[Generator]:
         if self.config.initialize_with_mutation_generators:
             return list(self.generators)
-        return [generator for generator in self.generators if generator.input_type != GeneratorInputType.STARTING_SEQUENCE]
+        return [
+            generator for generator in self.generators if generator.input_type != GeneratorInputType.STARTING_SEQUENCE
+        ]
 
     def _refinement_generators(self) -> list[Generator]:
-        return [generator for generator in self.generators if generator.input_type != GeneratorInputType.STARTING_SEQUENCE]
+        return [
+            generator for generator in self.generators if generator.input_type != GeneratorInputType.STARTING_SEQUENCE
+        ]
 
     def _variable_segment_ids(self) -> set[int]:
         return {id(segment) for generator in self.generators for segment in generator.segments}
@@ -402,9 +408,7 @@ class GeneticAlgorithmOptimizer(Optimizer):
                     continue
                 current = positions_by_segment[segment_id]
                 positions_by_segment[segment_id] = (
-                    set(generator_positions)
-                    if current is None
-                    else current.intersection(generator_positions)
+                    set(generator_positions) if current is None else current.intersection(generator_positions)
                 )
         return positions_by_segment
 
@@ -423,16 +427,17 @@ class GeneticAlgorithmOptimizer(Optimizer):
             selected.extend(("child", idx) for idx in child_ranked[: self.population_size - len(selected)])
             if len(selected) < self.population_size:
                 selected_parent_ids = {idx for source, idx in selected if source == "parent"}
-                selected.extend(
-                    ("parent", idx)
-                    for idx in parent_ranked
-                    if idx not in selected_parent_ids
-                )
+                selected.extend(("parent", idx) for idx in parent_ranked if idx not in selected_parent_ids)
                 selected = selected[: self.population_size]
         else:
             combined = [("parent", idx, energy) for idx, energy in enumerate(parent_energies)]
             combined.extend(("child", idx, energy) for idx, energy in enumerate(child_energies))
-            selected = [(source, idx) for source, idx, _ in sorted(combined, key=lambda item: _energy_sort_key(item[2]))[: self.population_size]]
+            selected = [
+                (source, idx)
+                for source, idx, _ in sorted(combined, key=lambda item: _energy_sort_key(item[2]))[
+                    : self.population_size
+                ]
+            ]
 
         next_by_segment: list[list[Sequence]] = [[] for _ in self.segments]
         next_energies: list[float] = []
@@ -451,7 +456,9 @@ class GeneticAlgorithmOptimizer(Optimizer):
     def _write_results_from_population(self) -> None:
         if self.num_results is None:
             raise RuntimeError("num_results must be resolved before writing GA results.")
-        ranked = sorted(range(len(self._population_energies)), key=lambda idx: _energy_sort_key(self._population_energies[idx]))
+        ranked = sorted(
+            range(len(self._population_energies)), key=lambda idx: _energy_sort_key(self._population_energies[idx])
+        )
         selected = ranked[: self.num_results]
         for segment in self.segments:
             segment.result_sequences = [copy.deepcopy(segment.proposal_sequences[idx]) for idx in selected]
@@ -468,7 +475,9 @@ class GeneticAlgorithmOptimizer(Optimizer):
                 "offspring_per_generation": self.offspring_per_generation,
                 "num_results": self.num_results,
                 "best_population_energy": min(self._population_energies) if self._population_energies else None,
-                "mean_population_energy": float(np.mean(self._population_energies)) if self._population_energies else None,
+                "mean_population_energy": float(np.mean(self._population_energies))
+                if self._population_energies
+                else None,
             },
         )
 
