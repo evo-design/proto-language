@@ -26,7 +26,11 @@ jobs:
         echo "Pinned commit: $PINNED"
         echo "Latest main:   $LATEST"
         if [ "$PINNED" != "$LATEST" ]; then
-          echo "::error::proto-tools submodule is not pointing to the latest main commit. Run 'git submodule update --remote' and commit the result."
-          exit 1
+          STATUS=$(gh api "repos/evo-design/proto-tools/compare/$LATEST...$PINNED" --jq '.status')
+          if [ "$STATUS" != "ahead" ]; then
+            echo "::error::proto-tools submodule is neither latest main nor a descendant of latest main. Run 'git submodule update --remote' and commit the result."
+            exit 1
+          fi
+          echo "Submodule is ahead of latest main; treating as a stacked PR pin."
         fi
         echo "Submodule is up-to-date."

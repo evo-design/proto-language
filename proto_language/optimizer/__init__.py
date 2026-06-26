@@ -14,6 +14,10 @@ from proto_language.optimizer.gradient_optimizer import (
     GradientOptimizer,
     GradientOptimizerConfig,
 )
+from proto_language.optimizer.genetic_algorithm_optimizer import (
+    GeneticAlgorithmOptimizer,
+    GeneticAlgorithmOptimizerConfig,
+)
 from proto_language.optimizer.mcmc_optimizer import MCMCOptimizer, MCMCOptimizerConfig
 from proto_language.optimizer.optimizer_registry import OptimizerRegistry, OptimizerSpec, optimizer
 from proto_language.optimizer.rejection_sampling_optimizer import (
@@ -31,6 +35,9 @@ __all__ = [
     # MCMC Optimizer
     "MCMCOptimizer",
     "MCMCOptimizerConfig",
+    # Genetic Algorithm Optimizer
+    "GeneticAlgorithmOptimizer",
+    "GeneticAlgorithmOptimizerConfig",
     # Beam Search Optimizer (single-segment)
     "BeamSearchOptimizer",
     "BeamSearchOptimizerConfig",
