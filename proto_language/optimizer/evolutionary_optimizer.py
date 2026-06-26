@@ -155,6 +155,11 @@ class EvolutionaryOptimizerConfig(BaseOptimizerConfig):
         title="Crossover Strategy",
         description="Recombination method: 'single-point' swaps at one position, 'uniform' per-position random choice.",
     )
+    selection: Literal["tournament", "nsga2"] = ConfigField(
+        default="tournament",
+        title="Selection Method",
+        description="Survivor selection: 'tournament' (scalar fitness via energy_scores) or 'nsga2' (Pareto ranking on per-objective vectors). NSGA-II requires backends that expose true per-constraint scores.",
+    )
 
     @model_validator(mode="after")
     def validate_cross_field_constraints(self) -> "EvolutionaryOptimizerConfig":
@@ -205,6 +210,7 @@ class EvolutionaryOptimizer(Optimizer):
         crossover_rate: Probability of crossover operation.
         mutation_rate: Probability of mutation operation.
         crossover_strategy: Method for recombining parents ("single-point" or "uniform").
+        selection: Survivor selection method ("tournament" or "nsga2").
 
     Example:
         >>> config = EvolutionaryOptimizerConfig(population_size=20, num_generations=50, elitism_count=2)
@@ -273,6 +279,8 @@ class EvolutionaryOptimizer(Optimizer):
         self.crossover_rate: float = config.crossover_rate
         self.mutation_rate: float = config.mutation_rate
         self.crossover_strategy: str = config.crossover_strategy
+        self.selection: str = config.selection
+        self.pareto_front: list[int] = []  # Rank-0 solutions in nsga2 mode
 
         # Override base class num_steps for progress tracking
         self.num_steps = self.num_generations
@@ -301,12 +309,17 @@ class EvolutionaryOptimizer(Optimizer):
 
         n_filter = sum(1 for c in self.constraints if c.threshold is not None)
         n_score = len(self.constraints) - n_filter
+
+        # Compute total evaluations (invariant across selection modes)
+        total_evals = self.population_size + self.num_generations * (self.population_size - self.elitism_count)
+
         logger.info(
             f"EvolutionaryOptimizer: {self.num_generations} generations, "
             f"population_size={self.population_size}, elitism={self.elitism_count}, "
+            f"selection={self.config.selection}, "
             f"tournament_size={self.tournament_size}, crossover_rate={self.crossover_rate:.2f}, "
             f"mutation_rate={self.mutation_rate:.2f}, {len(self.constraints)} constraints "
-            f"({n_filter} filter, {n_score} scoring)"
+            f"({n_filter} filter, {n_score} scoring), total_evals={total_evals}"
         )
 
         # Evaluate initial population
@@ -335,13 +348,13 @@ class EvolutionaryOptimizer(Optimizer):
 
         # Evolutionary loop
         for generation in range(1, self.num_generations + 1):
-            # 1. Select elites (best individuals by energy)
-            elite_indices = self._select_elites()
-
-            # Save elite energies before scoring offspring
-            elite_energies = [self.energy_scores[idx] for idx in elite_indices]
+            # 1. Select elites from current population (tournament mode only)
+            if self.config.selection == "tournament":
+                elite_indices = self._select_elites()
+                elite_energies = [self.energy_scores[idx] for idx in elite_indices]
 
             # 2. Create offspring to fill remaining population slots
+            # (same eval count for both tournament and nsga2 modes)
             num_offspring = self.population_size - self.elitism_count
             self._create_offspring(num_offspring)
 
@@ -350,8 +363,78 @@ class EvolutionaryOptimizer(Optimizer):
             self.score_energy()
             offspring_energies = list(self.energy_scores)  # Save offspring energies
 
-            # 4. Form next generation: elites + offspring
-            self._update_population(elite_indices, elite_energies, offspring_energies)
+            # 4. Form next generation (branching on selection mode)
+            if self.config.selection == "tournament":
+                # Tournament selection: elites preserved + offspring
+                self._update_population(elite_indices, elite_energies, offspring_energies)
+            else:  # nsga2
+                # NSGA-II: combine current population + offspring, then Pareto-rank
+                # Build combined pool (current population + offspring)
+                combined_sequences_per_segment: dict[int, list[Sequence]] = {id(seg): [] for seg in self.segments}
+
+                # Add current population
+                for idx in range(self.population_size):
+                    for segment in self.segments:
+                        combined_sequences_per_segment[id(segment)].append(
+                            copy.deepcopy(segment.result_sequences[idx])
+                        )
+
+                # Add offspring
+                for idx in range(num_offspring):
+                    for segment in self.segments:
+                        combined_sequences_per_segment[id(segment)].append(
+                            copy.deepcopy(segment.proposal_sequences[idx])
+                        )
+
+                # Temporarily set proposal_sequences to combined pool for objective extraction
+                old_proposal_sequences = {id(seg): seg.proposal_sequences for seg in self.segments}
+                for segment in self.segments:
+                    segment.proposal_sequences = combined_sequences_per_segment[id(segment)]
+
+                # Extract objective vectors from combined pool
+                objective_vectors = self._extract_objective_vectors()
+
+                # Restore proposal_sequences
+                for segment in self.segments:
+                    segment.proposal_sequences = old_proposal_sequences[id(segment)]
+
+                # Run NSGA-II survivor selection
+                survivor_indices = _nsga2_select_survivors(objective_vectors, self.population_size)
+
+                # Build next generation from survivors
+                new_population_per_segment: dict[int, list[Sequence]] = {id(seg): [] for seg in self.segments}
+                new_energies: list[float] = []
+
+                for survivor_idx in survivor_indices:
+                    if survivor_idx < self.population_size:
+                        # Survivor from current population
+                        new_energies.append(self.energy_scores[survivor_idx])
+                        for segment in self.segments:
+                            new_population_per_segment[id(segment)].append(
+                                copy.deepcopy(segment.result_sequences[survivor_idx])
+                            )
+                    else:
+                        # Survivor from offspring
+                        offspring_idx = survivor_idx - self.population_size
+                        new_energies.append(offspring_energies[offspring_idx])
+                        for segment in self.segments:
+                            new_population_per_segment[id(segment)].append(
+                                copy.deepcopy(segment.proposal_sequences[offspring_idx])
+                            )
+
+                # Update population
+                for segment in self.segments:
+                    segment.result_sequences = new_population_per_segment[id(segment)]
+                self.energy_scores = new_energies
+
+                # Store Pareto front (rank-0 individuals in the NEW population)
+                # Extract objective vectors for the new population
+                for segment in self.segments:
+                    segment.proposal_sequences = segment.result_sequences
+
+                new_objective_vectors = self._extract_objective_vectors()
+                fronts = _non_dominated_sort(new_objective_vectors)
+                self.pareto_front = fronts[0] if fronts else []
 
             # Save snapshot and log at tracking interval or final generation
             if generation % self.tracking_interval == 0 or generation == self.num_generations:
@@ -385,6 +468,56 @@ class EvolutionaryOptimizer(Optimizer):
         for segment in self.segments:
             segment.result_sequences = [copy.deepcopy(seq) for seq in segment.proposal_sequences]
         # energy_scores is already correct from score_energy()
+
+    def _extract_objective_vectors(self, num_proposals: int | None = None) -> list[list[float]]:
+        """Extract per-constraint weighted scores for NSGA-II Pareto ranking.
+
+        Reads the per-proposal metadata written by scoring constraints and builds
+        objective vectors. Refuses with clear error if any constraint used a
+        fallback/grouped score.
+
+        Args:
+            num_proposals: Number of proposals to extract vectors for. If None,
+                uses the length of proposal_sequences.
+
+        Returns:
+            list[list[float]]: One objective vector per proposal, where each vector
+                contains weighted scores for all scoring constraints.
+
+        Raises:
+            ValueError: If any constraint has fallback_used=True in metadata.
+        """
+        scoring_constraints = [c for c in self.constraints if c.threshold is None]
+        if num_proposals is None:
+            num_proposals = len(self.segments[0].proposal_sequences)
+        objective_vectors: list[list[float]] = []
+
+        for proposal_idx in range(num_proposals):
+            objective_vector: list[float] = []
+            for constraint in scoring_constraints:
+                # Read metadata written by constraint evaluation
+                seq = self.segments[0].proposal_sequences[proposal_idx]
+                metadata = seq._constraints_metadata.get(constraint.label, {})
+
+                # Check for fallback flag (in top-level metadata or nested data)
+                data = metadata.get("data", {})
+                fallback_used = data.get("fallback_used", metadata.get("fallback_used", False))
+                if fallback_used:
+                    backend = data.get("structure_tool", metadata.get("structure_tool", metadata.get("loss_key", "unknown")))
+                    raise ValueError(
+                        f"EvolutionaryOptimizer(selection='nsga2') requires a true per-objective decomposition, "
+                        f"but constraint '{constraint.label}' (backend {backend}) returned a fallback grouped/worst-case "
+                        f"score for proposal {proposal_idx}. This objective cannot be Pareto-ranked. "
+                        f"Use selection='tournament', or use constraints/backends that expose per-term scores."
+                    )
+
+                # Extract weighted score
+                score = metadata.get("score", float("nan"))
+                objective_vector.append(score)
+
+            objective_vectors.append(objective_vector)
+
+        return objective_vectors
 
     def _select_elites(self) -> list[int]:
         """Select best individuals (lowest energy) to preserve unchanged.
@@ -564,3 +697,150 @@ class EvolutionaryOptimizer(Optimizer):
 
         if self.custom_logging:
             self.custom_logging(generation, self.segments)
+
+
+# NSGA-II helper functions for multi-objective Pareto ranking
+
+
+def _non_dominated_sort(objective_vectors: list[list[float]]) -> list[list[int]]:
+    """Partition population into Pareto fronts via non-dominated sorting.
+
+    A solution dominates another if it's better-or-equal on all objectives
+    and strictly better on at least one (assuming minimization).
+
+    Args:
+        objective_vectors: Per-individual objective scores (lower is better).
+            Each element is a list of objective scores for one individual.
+
+    Returns:
+        list[list[int]]: Fronts, where each front is a list of individual indices.
+            Front 0 contains non-dominated individuals (Pareto-optimal set).
+    """
+    n = len(objective_vectors)
+    if n == 0:
+        return []
+
+    # Domination counts and dominated sets
+    domination_count = [0] * n  # How many solutions dominate this one
+    dominated_by: list[list[int]] = [[] for _ in range(n)]  # Which solutions this one dominates
+
+    # Compare all pairs
+    for i in range(n):
+        for j in range(i + 1, n):
+            if _dominates(objective_vectors[i], objective_vectors[j]):
+                dominated_by[i].append(j)
+                domination_count[j] += 1
+            elif _dominates(objective_vectors[j], objective_vectors[i]):
+                dominated_by[j].append(i)
+                domination_count[i] += 1
+
+    # Build fronts
+    fronts: list[list[int]] = []
+    current_front = [i for i in range(n) if domination_count[i] == 0]
+
+    while current_front:
+        fronts.append(current_front)
+        next_front = []
+        for i in current_front:
+            for j in dominated_by[i]:
+                domination_count[j] -= 1
+                if domination_count[j] == 0:
+                    next_front.append(j)
+        current_front = next_front
+
+    return fronts
+
+
+def _dominates(obj_a: list[float], obj_b: list[float]) -> bool:
+    """Check if solution A dominates solution B (minimization).
+
+    A dominates B iff A <= B on all objectives and A < B on at least one.
+    """
+    at_least_one_better = False
+    for a_val, b_val in zip(obj_a, obj_b, strict=True):
+        if a_val > b_val:
+            return False  # A is worse on this objective
+        if a_val < b_val:
+            at_least_one_better = True
+    return at_least_one_better
+
+
+def _crowding_distance(objective_vectors: list[list[float]], front_indices: list[int]) -> dict[int, float]:
+    """Compute crowding distance for individuals in a front.
+
+    Crowding distance measures isolation in objective space; higher means
+    more spread out (preferred for diversity). Boundary solutions get infinite distance.
+
+    Args:
+        objective_vectors: All objective vectors (one per individual).
+        front_indices: Indices of individuals in this front.
+
+    Returns:
+        dict[int, float]: Crowding distance for each individual in the front.
+    """
+    if len(front_indices) <= 2:
+        # Boundary case: all individuals get infinite distance
+        return {idx: float('inf') for idx in front_indices}
+
+    num_objectives = len(objective_vectors[0])
+    distances = dict.fromkeys(front_indices, 0.0)
+
+    # For each objective
+    for obj_idx in range(num_objectives):
+        # Sort front by this objective
+        sorted_indices = sorted(front_indices, key=lambda i: objective_vectors[i][obj_idx])
+
+        # Boundary solutions get infinite distance
+        distances[sorted_indices[0]] = float('inf')
+        distances[sorted_indices[-1]] = float('inf')
+
+        # Range for normalization
+        obj_range = objective_vectors[sorted_indices[-1]][obj_idx] - objective_vectors[sorted_indices[0]][obj_idx]
+        if obj_range == 0:
+            continue  # All same value on this objective
+
+        # Add normalized distance for interior solutions
+        for i in range(1, len(sorted_indices) - 1):
+            curr_idx = sorted_indices[i]
+            prev_val = objective_vectors[sorted_indices[i - 1]][obj_idx]
+            next_val = objective_vectors[sorted_indices[i + 1]][obj_idx]
+            distances[curr_idx] += (next_val - prev_val) / obj_range
+
+    return distances
+
+
+def _nsga2_select_survivors(
+    objective_vectors: list[list[float]],
+    population_size: int,
+) -> list[int]:
+    """Select survivors via NSGA-II (non-dominated sort + crowding distance).
+
+    Fills the next generation front by front. When a front overflows the population
+    size, takes the highest-crowding-distance members of that front.
+
+    Args:
+        objective_vectors: Per-individual objective scores (lower is better).
+        population_size: Number of survivors to select.
+
+    Returns:
+        list[int]: Indices of selected survivors.
+    """
+    if len(objective_vectors) <= population_size:
+        return list(range(len(objective_vectors)))
+
+    fronts = _non_dominated_sort(objective_vectors)
+    survivors: list[int] = []
+
+    # Fill front by front
+    for front in fronts:
+        if len(survivors) + len(front) <= population_size:
+            survivors.extend(front)
+        else:
+            # Front overflows - select by crowding distance
+            remaining = population_size - len(survivors)
+            distances = _crowding_distance(objective_vectors, front)
+            sorted_front = sorted(front, key=lambda i: distances[i], reverse=True)
+            survivors.extend(sorted_front[:remaining])
+            break
+
+    return survivors

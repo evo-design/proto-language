@@ -491,3 +491,327 @@ class TestEvolutionaryOptimizer:
         for seq in segment.result_sequences:
             assert len(seq.sequence) == 1
             assert seq.sequence in "ACGT"
+
+
+class TestNSGA2Selection:
+    """Tests for NSGA-II multi-objective selection mode."""
+
+    def test_dominates_logic(self) -> None:
+        """Test domination relation (minimization)."""
+        from proto_language.optimizer.evolutionary_optimizer import _dominates
+
+        # A strictly dominates B (better on all objectives)
+        assert _dominates([1.0, 2.0], [2.0, 3.0])
+        assert _dominates([0.5, 0.5], [1.0, 1.0])
+
+        # A dominates B (equal on some, better on others)
+        assert _dominates([1.0, 2.0], [1.0, 3.0])
+        assert _dominates([1.0, 2.0], [2.0, 2.0])
+
+        # A does not dominate B (worse on at least one)
+        assert not _dominates([1.0, 3.0], [2.0, 2.0])
+        assert not _dominates([3.0, 1.0], [1.0, 3.0])
+
+        # A does not dominate B (equal on all)
+        assert not _dominates([1.0, 2.0], [1.0, 2.0])
+
+        # A does not dominate B (worse on one, better on another)
+        assert not _dominates([1.0, 5.0], [3.0, 2.0])
+
+    def test_non_dominated_sort(self) -> None:
+        """Test non-dominated sorting produces correct Pareto fronts."""
+        from proto_language.optimizer.evolutionary_optimizer import _non_dominated_sort
+
+        # Empty population
+        assert _non_dominated_sort([]) == []
+
+        # Single individual
+        fronts = _non_dominated_sort([[1.0, 2.0]])
+        assert fronts == [[0]]
+
+        # Two non-dominated individuals (Pareto front)
+        fronts = _non_dominated_sort([[1.0, 3.0], [3.0, 1.0]])
+        assert len(fronts) == 1
+        assert set(fronts[0]) == {0, 1}
+
+        # Three individuals: two on front 0, one dominated
+        fronts = _non_dominated_sort(
+            [
+                [1.0, 3.0],  # Front 0
+                [3.0, 1.0],  # Front 0
+                [2.0, 2.0],  # Dominated by both
+            ]
+        )
+        assert len(fronts) == 1
+        assert set(fronts[0]) == {0, 1, 2}  # All on same front (trade-off)
+
+        # Clear domination: [1,1] dominates [2,2]
+        fronts = _non_dominated_sort([[1.0, 1.0], [2.0, 2.0]])
+        assert len(fronts) == 2
+        assert fronts[0] == [0]
+        assert fronts[1] == [1]
+
+        # Complex case with multiple fronts
+        fronts = _non_dominated_sort(
+            [
+                [1.0, 1.0],  # Front 0 (best on both)
+                [2.0, 2.0],  # Front 1
+                [1.5, 3.0],  # Front 0 (trades off with [1,1])
+                [3.0, 1.5],  # Front 0 (trades off with [1,1])
+                [3.0, 3.0],  # Front 2 (dominated by [2,2])
+            ]
+        )
+        assert 0 in fronts[0]  # [1,1] is in front 0
+
+    def test_crowding_distance(self) -> None:
+        """Test crowding distance computation."""
+        from proto_language.optimizer.evolutionary_optimizer import _crowding_distance
+
+        # Two or fewer individuals get infinite distance
+        distances = _crowding_distance([[1.0, 1.0], [2.0, 2.0]], [0, 1])
+        assert distances[0] == float('inf')
+        assert distances[1] == float('inf')
+
+        # Three individuals on a line (middle one gets finite distance)
+        objective_vectors = [
+            [1.0, 1.0],  # Boundary
+            [2.0, 2.0],  # Middle
+            [3.0, 3.0],  # Boundary
+        ]
+        distances = _crowding_distance(objective_vectors, [0, 1, 2])
+        assert distances[0] == float('inf')
+        assert distances[2] == float('inf')
+        assert 0 < distances[1] < float('inf')
+
+    def test_nsga2_select_survivors(self) -> None:
+        """Test NSGA-II survivor selection fills front-by-front."""
+        from proto_language.optimizer.evolutionary_optimizer import _nsga2_select_survivors
+
+        # Population smaller than target: select all
+        survivors = _nsga2_select_survivors([[1.0, 2.0], [2.0, 1.0]], population_size=5)
+        assert set(survivors) == {0, 1}
+
+        # Clear domination: select best individuals
+        objective_vectors = [
+            [1.0, 1.0],  # Front 0
+            [2.0, 2.0],  # Front 1
+            [3.0, 3.0],  # Front 2
+            [4.0, 4.0],  # Front 3
+        ]
+        survivors = _nsga2_select_survivors(objective_vectors, population_size=2)
+        assert 0 in survivors  # Best individual always selected
+        assert len(survivors) == 2
+
+    def test_nsga2_mode_config(self) -> None:
+        """Test that selection='nsga2' can be configured."""
+        config = EvolutionaryOptimizerConfig(
+            population_size=10,
+            num_generations=5,
+            selection="nsga2",
+        )
+        assert config.selection == "nsga2"
+
+        # Default should be tournament
+        config_default = EvolutionaryOptimizerConfig(
+            population_size=10,
+            num_generations=5,
+        )
+        assert config_default.selection == "tournament"
+
+    def test_nsga2_pareto_front_spread(self) -> None:
+        """Test that NSGA-II maintains diverse Pareto front on multi-objective problem."""
+        # Create two conflicting constraints
+        segment = Segment(sequence="A" * 20, sequence_type="dna")
+        mutation_gen = RandomNucleotideGenerator(
+            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
+        )
+        mutation_gen.assign(segment)
+
+        # Constraint 1: favor low GC (min=10, max=30)
+        constraint1 = Constraint(
+            inputs=[segment],
+            function=gc_content_constraint,
+            function_config=GCContentConfig(min_gc=10, max_gc=30),
+            weight=1.0,
+            label="low_gc",
+        )
+
+        # Constraint 2: favor high GC (min=70, max=90)
+        constraint2 = Constraint(
+            inputs=[segment],
+            function=gc_content_constraint,
+            function_config=GCContentConfig(min_gc=70, max_gc=90),
+            weight=1.0,
+            label="high_gc",
+        )
+
+        config = EvolutionaryOptimizerConfig(
+            population_size=10,
+            num_generations=20,
+            selection="nsga2",
+            seed=42,
+        )
+
+        optimizer = EvolutionaryOptimizer(
+            constructs=[Construct([segment])],
+            generators=[mutation_gen],
+            constraints=[constraint1, constraint2],
+            config=config,
+        )
+
+        program = Program(optimizers=[optimizer], num_results=10, seed=42)
+        program.run()
+
+        # Check that pareto_front was populated
+        assert len(optimizer.pareto_front) > 0
+        assert len(optimizer.pareto_front) <= optimizer.population_size
+
+        # Check diversity: Pareto front should have solutions with different GC contents
+        gc_contents = []
+        for idx in optimizer.pareto_front:
+            seq = segment.result_sequences[idx].sequence
+            gc_count = seq.count('G') + seq.count('C')
+            gc_pct = (gc_count / len(seq)) * 100
+            gc_contents.append(gc_pct)
+
+        # Should have spread across GC space (not all the same)
+        unique_gc = len({int(gc) for gc in gc_contents})
+        assert unique_gc >= 2, f"Pareto front collapsed to {unique_gc} unique GC values"
+
+    def test_nsga2_eval_count_invariant(self) -> None:
+        """Test that tournament and nsga2 modes use identical evaluation counts."""
+        # Test parameters
+        population_size = 10
+        num_generations = 5
+        elitism_count = 2
+
+        # Expected total evaluations
+        expected_evals = population_size + num_generations * (population_size - elitism_count)
+
+        # Tournament mode
+        segment_tournament = Segment(sequence="A" * 20, sequence_type="dna")
+        gen_tournament = RandomNucleotideGenerator(
+            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
+        )
+        gen_tournament.assign(segment_tournament)
+        constraint_tournament = Constraint(
+            inputs=[segment_tournament],
+            function=gc_content_constraint,
+            function_config=GCContentConfig(min_gc=40, max_gc=60),
+        )
+
+        config_tournament = EvolutionaryOptimizerConfig(
+            population_size=population_size,
+            num_generations=num_generations,
+            elitism_count=elitism_count,
+            selection="tournament",
+            seed=42,
+        )
+
+        optimizer_tournament = EvolutionaryOptimizer(
+            constructs=[Construct([segment_tournament])],
+            generators=[gen_tournament],
+            constraints=[constraint_tournament],
+            config=config_tournament,
+        )
+
+        # Count evaluations by tracking score_energy calls
+        tournament_evals = 0
+        original_score = optimizer_tournament.score_energy
+
+        def count_tournament(*args, **kwargs):
+            nonlocal tournament_evals
+            tournament_evals += len(optimizer_tournament.segments[0].proposal_sequences)
+            return original_score(*args, **kwargs)
+
+        optimizer_tournament.score_energy = count_tournament
+        optimizer_tournament.run()
+
+        # NSGA-II mode
+        segment_nsga2 = Segment(sequence="A" * 20, sequence_type="dna")
+        gen_nsga2 = RandomNucleotideGenerator(
+            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
+        )
+        gen_nsga2.assign(segment_nsga2)
+        constraint_nsga2 = Constraint(
+            inputs=[segment_nsga2],
+            function=gc_content_constraint,
+            function_config=GCContentConfig(min_gc=40, max_gc=60),
+        )
+
+        config_nsga2 = EvolutionaryOptimizerConfig(
+            population_size=population_size,
+            num_generations=num_generations,
+            elitism_count=elitism_count,
+            selection="nsga2",
+            seed=42,
+        )
+
+        optimizer_nsga2 = EvolutionaryOptimizer(
+            constructs=[Construct([segment_nsga2])],
+            generators=[gen_nsga2],
+            constraints=[constraint_nsga2],
+            config=config_nsga2,
+        )
+
+        nsga2_evals = 0
+        original_score_nsga2 = optimizer_nsga2.score_energy
+
+        def count_nsga2(*args, **kwargs):
+            nonlocal nsga2_evals
+            nsga2_evals += len(optimizer_nsga2.segments[0].proposal_sequences)
+            return original_score_nsga2(*args, **kwargs)
+
+        optimizer_nsga2.score_energy = count_nsga2
+        optimizer_nsga2.run()
+
+        # Both modes should have identical eval counts
+        assert tournament_evals == expected_evals, f"Tournament mode: {tournament_evals} != {expected_evals}"
+        assert nsga2_evals == expected_evals, f"NSGA-II mode: {nsga2_evals} != {expected_evals}"
+        assert tournament_evals == nsga2_evals, f"Eval count mismatch: {tournament_evals} vs {nsga2_evals}"
+
+    def test_nsga2_refuses_fallback_scores(self) -> None:
+        """Test that NSGA-II refuses to rank when constraints return fallback scores."""
+        segment = Segment(sequence="A" * 20, sequence_type="dna")
+        mutation_gen = RandomNucleotideGenerator(
+            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
+        )
+        mutation_gen.assign(segment)
+
+        # Create a mock constraint that returns fallback_used=True in metadata
+        def mock_fallback_constraint(input_sequences, config=None):
+            # Return metadata with fallback flag - the Constraint framework will write it
+            return [
+                ConstraintOutput(
+                    score=0.5,
+                    metadata={"fallback_used": True, "structure_tool": "mock_backend"},
+                )
+                for _seq_tuple in input_sequences
+            ]
+
+        mock_fallback_constraint._constraint_config_class = EmptyConfig
+        mock_fallback_constraint._constraint_supported_sequence_types = ["dna"]
+
+        constraint = Constraint(
+            inputs=[segment],
+            function=mock_fallback_constraint,
+            function_config=EmptyConfig(),
+            label="mock_fallback",
+        )
+
+        config = EvolutionaryOptimizerConfig(
+            population_size=4,
+            num_generations=2,
+            selection="nsga2",
+        )
+
+        optimizer = EvolutionaryOptimizer(
+            constructs=[Construct([segment])],
+            generators=[mutation_gen],
+            constraints=[constraint],
+            config=config,
+        )
+
+        # Should raise ValueError when trying to extract objective vectors with fallback
+        with pytest.raises(ValueError, match="requires a true per-objective decomposition"):
+            optimizer.run()
