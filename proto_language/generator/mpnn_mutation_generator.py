@@ -37,6 +37,19 @@ class MPNNMutationGeneratorConfig(BaseConfig):
     sequence against a backbone, choose mutable positions using the model's
     probability of the current residue, then replace each chosen residue from
     the model's per-position amino-acid distribution.
+
+    Attributes:
+        model (MPNNMutationModel): MPNN scorer used to compute mutation probabilities.
+        structure_inputs (list[InverseFoldingStructureInput] | None): Structures for scoring proposals.
+        output_chain_id (str | None): Chain corresponding to the assigned segment.
+        num_mutations (int): Number of positions to mutate per sequence.
+        mutable_positions (ResidueSelection | None): Optional 1-indexed residue positions allowed to mutate.
+        excluded_amino_acids (list[str] | None): One-letter amino acids forbidden as replacements.
+        replacement_strategy (ReplacementStrategy): Sampling strategy for replacement residues.
+        replacement_temperature (float): Temperature applied to MPNN logits before sampling.
+        proteinmpnn_model_choice (ProteinMPNNModelChoice): ProteinMPNN checkpoint when model is proteinmpnn.
+        device (str): Device used for MPNN scoring.
+        verbose (bool): Whether to emit MPNN scoring logs.
     """
 
     model: MPNNMutationModel = ConfigField(
@@ -471,7 +484,7 @@ class MPNNMutationGenerator(Generator):
         totals = np.sum(exp, axis=1, keepdims=True)
         if np.any(~np.isfinite(totals)) or np.any(totals <= 0):
             raise ValueError("MPNN logits could not be normalized into probabilities.")
-        return exp / totals
+        return np.asarray(exp / totals, dtype=np.float64)
 
     def _allowed_vocab_indices(self, vocab: list[str]) -> list[int]:
         segment_vocab = set(self.segment.ordered_vocab())

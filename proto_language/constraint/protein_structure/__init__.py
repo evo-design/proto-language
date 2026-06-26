@@ -69,11 +69,6 @@ from proto_language.constraint.protein_structure.structure_constraint_config imp
     AlphaFold2BinderStructureConfig,
     StructureBasedConstraintConfig,
 )
-from proto_language.constraint.protein_structure.structure_preparation import (
-    StructurePreparationConfig,
-    prepare_structures_for_proposals,
-    thread_sequences_onto_structure,
-)
 from proto_language.constraint.protein_structure.structure_ensemble_similarity_constraint import (
     structure_ensemble_rmsd_constraint,
 )
@@ -85,6 +80,11 @@ from proto_language.constraint.protein_structure.structure_geometry_constraint i
     structure_interface_contact_constraint,
     structure_radius_gyration_constraint,
     structure_termini_distance_constraint,
+)
+from proto_language.constraint.protein_structure.structure_preparation import (
+    StructurePreparationConfig,
+    prepare_structures_for_proposals,
+    thread_sequences_onto_structure,
 )
 from proto_language.constraint.protein_structure.structure_similarity_constraint import (
     structure_rmsd_constraint,

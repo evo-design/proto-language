@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from proto_tools import (
     FAMPNNPackConfig,
@@ -179,11 +179,11 @@ def thread_sequences_onto_structure(scaffold: Structure, chain_sequences: dict[s
     )
 
 
-def _is_protein_residue(residue: object) -> bool:
+def _is_protein_residue(residue: Any) -> bool:
     return any(atom.name.strip() == "CA" for atom in residue)
 
 
-def _strip_sidechain_atoms(residue: object) -> None:
+def _strip_sidechain_atoms(residue: Any) -> None:
     for idx in range(len(residue) - 1, -1, -1):
         atom = residue[idx]
         if atom.name.strip() not in BACKBONE_ATOMS:

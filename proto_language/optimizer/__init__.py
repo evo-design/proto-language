@@ -7,16 +7,16 @@ from proto_language.optimizer.beam_search_optimizer import (
     BeamState,
 )
 from proto_language.optimizer.cycling_optimizer import CyclingOptimizer, CyclingOptimizerConfig
+from proto_language.optimizer.genetic_algorithm_optimizer import (
+    GeneticAlgorithmOptimizer,
+    GeneticAlgorithmOptimizerConfig,
+)
 
 # Optimizers
 from proto_language.optimizer.gradient_optimizer import (
     ConstraintWeightSchedule,
     GradientOptimizer,
     GradientOptimizerConfig,
-)
-from proto_language.optimizer.genetic_algorithm_optimizer import (
-    GeneticAlgorithmOptimizer,
-    GeneticAlgorithmOptimizerConfig,
 )
 from proto_language.optimizer.mcmc_optimizer import MCMCOptimizer, MCMCOptimizerConfig
 from proto_language.optimizer.optimizer_registry import OptimizerRegistry, OptimizerSpec, optimizer

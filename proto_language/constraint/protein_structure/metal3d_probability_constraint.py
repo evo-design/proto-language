@@ -21,7 +21,14 @@ from proto_language.utils.base import BaseConfig, ConfigField
 
 
 class Metal3DProbabilityConfig(BaseConfig):
-    """Configuration for the Metal3D probability constraint."""
+    """Configuration for the Metal3D probability constraint.
+
+    Attributes:
+        target_probability (float): Metal3D probability target where the score reaches zero.
+        metal3d_config (Metal3DPredictionConfig): Configuration passed to the Metal3D tool.
+        structure_preparation (StructurePreparationConfig): How to prepare proposal structures for scoring.
+        candidate_residues (ResidueSelection | None): Optional residues passed to Metal3D as candidates.
+    """
 
     target_probability: float = ConfigField(
         default=0.5,

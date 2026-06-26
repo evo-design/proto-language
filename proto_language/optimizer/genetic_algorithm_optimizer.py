@@ -1,4 +1,15 @@
-"""Genetic algorithm optimizer for discrete sequence design."""
+"""Genetic algorithm optimizer for discrete sequence design.
+
+This module implements a general population-based optimizer for discrete
+segments. It initializes a population from existing proposals, combines parents
+by crossover, applies configured starting-sequence generators as mutation
+operators, and keeps low-energy candidates according to the replacement policy.
+
+Examples:
+    >>> config = GeneticAlgorithmOptimizerConfig(num_generations=10, population_size=32)
+    >>> config.crossover_strategy
+    'single_point'
+"""
 
 from __future__ import annotations
 
@@ -19,7 +30,24 @@ logger = logging.getLogger(__name__)
 
 
 class GeneticAlgorithmOptimizerConfig(BaseOptimizerConfig):
-    """Configuration for a general genetic algorithm optimizer."""
+    """Configuration for a general genetic algorithm optimizer.
+
+    Attributes:
+        num_generations (int): Number of generations to run after population initialization.
+        num_results (int | None): Number of final candidates to return; overrides program count.
+        population_size (int): Number of candidates maintained in each population.
+        offspring_per_generation (int | None): Number of offspring scored per generation.
+        elite_fraction (float): Fraction of top parents copied before child selection.
+        crossover_rate (float): Probability that a child recombines two parents.
+        crossover_strategy (Literal["single_point", "two_point", "uniform"]): Recombination operator.
+        parent_selection (Literal["tournament", "rank", "roulette"]): Strategy for choosing parents.
+        tournament_size (int): Number of candidates sampled for tournament parent selection.
+        replacement (Literal["elitist", "generational"]): Policy for forming the next population.
+        refine_offspring_with_generators (bool): Run non-mutation generators after mutation.
+        initialize_with_mutation_generators (bool): Use mutation generators during initialization.
+        tracking_interval (int): Number of generations between saved progress snapshots.
+        track_proposals (bool): Whether to store proposal sequences alongside accepted results.
+    """
 
     num_generations: int = ConfigField(
         ge=1,
@@ -77,16 +105,16 @@ class GeneticAlgorithmOptimizerConfig(BaseOptimizerConfig):
     replacement: Literal["elitist", "generational"] = ConfigField(
         default="elitist",
         title="Replacement",
-        description="Replacement strategy. Elitist selects the best combined parents and children; generational keeps elites plus the best children.",
+        description="Elitist keeps the best parents and children; generational keeps elites plus top children.",
     )
     refine_offspring_with_generators: bool = ConfigField(
         default=False,
-        title="Refine Offspring With Generators",
-        description="If true, run configured non-mutation generators on each offspring batch after crossover and mutation.",
+        title="Refine With Generators",
+        description="Run configured non-mutation generators on offspring after crossover and mutation.",
     )
     initialize_with_mutation_generators: bool = ConfigField(
         default=False,
-        title="Initialize With Mutation Generators",
+        title="Mutation Initialization",
         description="If true, run starting-sequence mutation generators when creating the initial population.",
     )
 
@@ -109,7 +137,14 @@ class GeneticAlgorithmOptimizerConfig(BaseOptimizerConfig):
 )
 @final
 class GeneticAlgorithmOptimizer(Optimizer):
-    """Population-based genetic algorithm optimizer."""
+    """Population-based genetic algorithm optimizer.
+
+    Examples:
+        >>> config = GeneticAlgorithmOptimizerConfig(num_generations=5, population_size=16)
+        >>> optimizer_config_key = config.parent_selection
+        >>> optimizer_config_key
+        'tournament'
+    """
 
     config_class = GeneticAlgorithmOptimizerConfig
     _require_non_empty_generators = False
@@ -260,8 +295,8 @@ class GeneticAlgorithmOptimizer(Optimizer):
         if not finite:
             return self._rng.randrange(len(energies))
         worst = max(finite)
-        weights = [(worst - energy + 1e-8) if math.isfinite(energy) else 1e-12 for energy in energies]
-        return self._rng.choices(range(len(energies)), weights=weights, k=1)[0]
+        roulette_weights = [(worst - energy + 1e-8) if math.isfinite(energy) else 1e-12 for energy in energies]
+        return self._rng.choices(range(len(energies)), weights=roulette_weights, k=1)[0]
 
     def _crossover_copy(
         self,

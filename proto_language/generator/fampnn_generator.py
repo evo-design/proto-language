@@ -26,6 +26,21 @@ class FAMPNNGeneratorConfig(BaseConfig):
     conditioned on an input backbone. The generator writes the designed protein
     sequence to the assigned segment and attaches FAMPNN's full-atom output
     structure to ``proposal.structure``.
+
+    Attributes:
+        structure_inputs (list[FAMPNNStructureInput] | None): Structures and redesign selections.
+        output_chain_id (str | None): Chain whose sequence is written to the segment.
+        model_variant (str): FAMPNN checkpoint variant used for design.
+        temperature (float): Sampling temperature for amino-acid design.
+        batch_size (int): Number of sequences processed together on GPU.
+        num_steps (int): Number of iterative unmasking steps.
+        seq_only (bool): Whether to skip sidechain generation.
+        repack_last (bool): Whether to repack sidechains after sequence design.
+        psce_threshold (float): Predicted-error cutoff for sidechain conditioning.
+        scn_diffusion_steps (int): Number of sidechain denoising steps.
+        scn_step_scale (float): Step scale for sidechain diffusion.
+        device (str): Device used for model inference.
+        verbose (bool): Whether to emit FAMPNN progress logs.
     """
 
     structure_inputs: list[FAMPNNStructureInput] | None = ConfigField(
@@ -194,7 +209,7 @@ class FAMPNNGenerator(Generator):
         for design_set, struct_input in zip(result.design_sets, sampling_structure_inputs, strict=True):
             for design in design_set.complexes:
                 designed_sequences = [
-                    chain.sequence
+                    str(chain.sequence)
                     for chain, was_designed in zip(design.chains, design.designed, strict=True)
                     if was_designed
                 ]
@@ -224,7 +239,7 @@ class FAMPNNGenerator(Generator):
             chain for chain, was_designed in zip(design.chains, design.designed, strict=True) if was_designed
         ]
         if self.output_chain_id is None:
-            return "/".join(chain.sequence for chain in designed_chains)
+            return "/".join(str(chain.sequence) for chain in designed_chains)
         if self.output_chain_id not in struct_input.chain_ids_to_redesign:
             raise ValueError(
                 f"output_chain_id {self.output_chain_id!r} not found in chain_ids_to_redesign "
@@ -232,5 +247,5 @@ class FAMPNNGenerator(Generator):
             )
         for chain in designed_chains:
             if chain.id == self.output_chain_id:
-                return chain.sequence
+                return str(chain.sequence)
         raise ValueError(f"FAMPNN did not return designed chain {self.output_chain_id!r}.")
