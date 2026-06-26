@@ -12,8 +12,8 @@ to produce a concave Pareto front:
 - objective_2: concave transform of GC% distance from [70, 90] target
 
 The constraints are identical to the linear baseline, but scores are transformed
-as f(s) = sqrt(s) to create a ZDT2-style concave front that bows away from the
-line connecting the two extremes (0,0)-(1,1).
+as f(s) = 1 - (1-s)² to create a ZDT2-style concave front that bows strongly
+away from the line connecting the two extremes, with maximum deviation ~0.18.
 
 ## Prediction (pre-registered before running)
 
@@ -128,23 +128,23 @@ BUDGET_TOLERANCE = 0.05
 
 
 def concave_transform(score: float) -> float:
-    """Transform linear score to produce concave Pareto front.
+    """Transform linear score to produce strongly concave Pareto front.
 
-    Applies f(s) = sqrt(s) transformation to create a concave front geometry
-    in objective space. For two objectives with this transform, the Pareto front
-    bows away from the line connecting (0,0) and (1,1), making the middle
-    trade-offs unreachable by any weighted sum (the ZDT2 property).
+    Applies f(s) = 1 - (1-s)² transformation to create ZDT2-style concave
+    front geometry. The squared term produces pronounced curvature, making
+    the front bow strongly away from the line connecting extremes. This
+    creates wide objective spread and ensures middle trade-offs are
+    unreachable by weighted-sum scalarization.
 
     Args:
         score: Linear constraint score in [0, 1]
 
     Returns:
-        Transformed score in [0, 1] with concave Pareto geometry
+        Transformed score in [0, 1] with strong concave Pareto geometry
     """
-    import math
     # Clamp to [0, 1] to handle numerical noise
     s = max(0.0, min(1.0, score))
-    return math.sqrt(s)
+    return 1.0 - (1.0 - s) * (1.0 - s)
 
 
 # ============================================================================
@@ -685,7 +685,7 @@ def main() -> None:
         f"\nTask: Concave Pareto front (GC targets: low={LOW_GC_MIN}-{LOW_GC_MAX}%, "
         f"high={HIGH_GC_MIN}-{HIGH_GC_MAX}%)"
     )
-    logger.info("Objectives transformed via f(s) = sqrt(s) for concave geometry")
+    logger.info("Objectives transformed via f(s) = 1-(1-s)² for strong concave geometry")
     logger.info(f"Target budget: ~{TARGET_BUDGET} evals/trial, {NUM_TRIALS} trials")
     logger.info("Budget assertion: methods must agree within 5% (hard failure if mismatched)")
     logger.info("Methods extract non-dominated sets from full trajectories (comparable front sizes)")
