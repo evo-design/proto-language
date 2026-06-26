@@ -773,11 +773,10 @@ class TestNSGA2Selection:
         # Tournament mode should match expected count
         assert tournament_evals == expected_evals, f"Tournament mode: {tournament_evals} != {expected_evals}"
 
-        # NSGA-II adds diversification cost: population_size extra evals for re-evaluation
-        expected_nsga2_evals = expected_evals + population_size
-        assert nsga2_evals == expected_nsga2_evals, (
-            f"NSGA-II mode: {nsga2_evals} != {expected_nsga2_evals} "
-            f"(base {expected_evals} + diversification {population_size})"
+        # NSGA-II mode should match tournament (diversification happens before first evaluation)
+        assert nsga2_evals == expected_evals, (
+            f"NSGA-II mode: {nsga2_evals} != {expected_evals}. "
+            f"NSGA-II and tournament should use identical evaluation budgets."
         )
 
     def test_nsga2_refuses_fallback_scores(self) -> None:
