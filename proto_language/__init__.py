@@ -62,6 +62,7 @@ from proto_language.constraint import (
     longest_orf_length_constraint,
     malinois_activity_constraint,
     max_homopolymer_constraint,
+    melting_temperature_constraint,
     mirna_specificity_constraint,
     mmseqs_similarity_constraint,
     mpnn_perplexity_constraint,
@@ -213,6 +214,7 @@ __all__ = [
     "kmer_frequency_constraint",
     "specific_kmer_constraint",
     "dinucleotide_composition_constraint",
+    "melting_temperature_constraint",
     # Protein structure constraints
     "AlphaFold2BinderStructureConfig",
     "StructureBasedConstraintConfig",

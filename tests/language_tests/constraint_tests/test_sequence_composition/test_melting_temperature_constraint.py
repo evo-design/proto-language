@@ -22,15 +22,6 @@ def _tm_wallace_ref(seq: str) -> float:
     return 2.0 * (s.count("A") + s.count("T")) + 4.0 * (s.count("G") + s.count("C"))
 
 
-def _tm_gc_ref(seq: str, salt_mm: float = 50.0) -> float:
-    s = seq.upper()
-    n = len(s)
-    gc = s.count("G") + s.count("C")
-    gc_pct = 100.0 * gc / n
-    salt_molar = salt_mm / 1000.0
-    return 81.5 + 16.6 * math.log10(salt_molar) + 0.41 * gc_pct - 675.0 / n
-
-
 # ---------------------------------------------------------------------------
 # Wallace rule formula tests
 # ---------------------------------------------------------------------------

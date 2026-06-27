@@ -54,8 +54,9 @@ class MeltingTemperatureConfig(BaseConfig):
             ``"gc_based"``. Defaults to ``"auto"``.
         salt_mm (float): Monovalent salt concentration in millimolar, used only
             by the ``"gc_based"`` method. Represents the [Na⁺] equivalent of the
-            hybridisation buffer. Typical values: 50 mM (standard PCR), 0 mM
-            (water — will produce lower predicted Tm), 200 mM (high-salt buffer).
+            hybridisation buffer. Must be strictly positive (``gt=0``); the
+            GC-based formula calls ``log10(salt_mm / 1000)`` and is undefined at
+            zero. Typical values: 50 mM (standard PCR), 200 mM (high-salt buffer).
             Defaults to 50.0 mM.
     """
 
@@ -111,9 +112,10 @@ class MeltingTemperatureConfig(BaseConfig):
 def _tm_wallace(sequence: str) -> float:
     """Compute Tm using the Wallace rule: 2·(A+T) + 4·(G+C).
 
-    Applies to short oligonucleotides (≤ 13 nt). Uses upper-cased sequence
-    and treats both DNA (T) and RNA (U) correctly (U is not AT/GC and is
-    ignored — sequences should be DNA only for reliable results).
+    Applies to short oligonucleotides (≤ 13 nt). Non-ACGT characters are
+    ignored in the count, so the function is safe for padded sequences, but
+    this constraint is DNA-only and callers should pass clean upper-cased
+    ACGT sequences.
 
     Args:
         sequence: Upper-cased DNA sequence string.
