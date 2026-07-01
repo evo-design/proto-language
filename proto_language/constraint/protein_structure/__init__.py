@@ -42,6 +42,10 @@ from proto_language.constraint.protein_structure.ipsae_constraint import (
     ProteinDNAIpsaeConfig,
     protein_dna_ipsae_constraint,
 )
+from proto_language.constraint.protein_structure.metal3d_probability_constraint import (
+    Metal3DProbabilityConfig,
+    metal3d_probability_constraint,
+)
 from proto_language.constraint.protein_structure.protein_globularity_constraint import (
     protein_globularity_constraint,
 )
@@ -76,6 +80,11 @@ from proto_language.constraint.protein_structure.structure_geometry_constraint i
     structure_interface_contact_constraint,
     structure_radius_gyration_constraint,
     structure_termini_distance_constraint,
+)
+from proto_language.constraint.protein_structure.structure_preparation import (
+    StructurePreparationConfig,
+    prepare_structures_for_proposals,
+    thread_sequences_onto_structure,
 )
 from proto_language.constraint.protein_structure.structure_similarity_constraint import (
     structure_rmsd_constraint,
@@ -128,4 +137,9 @@ __all__ = [
     "dbp_design_metrics_constraint",
     "ProteinDNAIpsaeConfig",
     "protein_dna_ipsae_constraint",
+    "Metal3DProbabilityConfig",
+    "metal3d_probability_constraint",
+    "StructurePreparationConfig",
+    "prepare_structures_for_proposals",
+    "thread_sequences_onto_structure",
 ]
