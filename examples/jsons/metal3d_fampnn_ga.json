@@ -1,6 +1,6 @@
 {
   "name": "metal3d_fampnn_ga",
-  "description": "Compact enzyme-design example based on the dEVA Metal3D workflow. The program starts from the zinc-binding 2VVB scaffold, uses LigandMPNN to seed the configured variable residues, then runs a generic genetic algorithm with variable-residue crossover and MPNN-guided offspring mutation. Each proposal is threaded onto the scaffold, sidechain-packed with FAMPNN, and scored by Metal3D-Cat at the configured pocket residues.",
+  "description": "Compact enzyme-design example based on the dEVA Metal3D workflow. The program starts from the zinc-binding 2VVB scaffold, reproduces the literal dEVA 2VVB mutability behavior where chain X is fully designable, then runs a generic genetic algorithm with whole-chain crossover and MPNN-guided offspring mutation. Each proposal is threaded onto the scaffold, sidechain-packed with FAMPNN, and scored by Metal3D-Cat over the default canonical metal-binding residue candidates.",
   "version": "1.0",
   "num_results": 2,
   "constructs": [
@@ -27,47 +27,10 @@
           "config": {
             "structure_inputs": [
               {
-                "structure": "https://raw.githubusercontent.com/gelnesr/dEVA/main/inputs/2VVB.pdb",
-                "chains_to_redesign": ["X"],
-                "fixed_positions": {
-                  "X": [
-                    10, 11, 12, 13, 14, 15, 16, 17,
-                    18, 19, 20, 21, 22, 23, 24, 25,
-                    26, 27, 28, 29, 30, 31, 32, 33,
-                    34, 35, 36, 37, 38, 39, 40, 41,
-                    42, 43, 44, 45, 46, 47, 48, 49,
-                    50, 51, 52, 53, 54, 55, 56, 57,
-                    58, 59, 60, 61, 62, 63, 64, 65,
-                    66, 67, 68, 69, 70, 71, 72, 73,
-                    74, 75, 76, 77, 78, 79, 80, 81,
-                    82, 83, 84, 85, 86, 87, 88, 89,
-                    90, 91, 92, 93, 94, 95, 96, 97,
-                    98, 99, 100, 101, 102, 103, 104, 105,
-                    106, 107, 108, 109, 110, 111, 112, 113,
-                    114, 115, 116, 117, 118, 119, 120, 121,
-                    122, 123, 124, 125, 127, 128, 129, 130,
-                    131, 132, 133, 134, 135, 136, 137, 138,
-                    139, 140, 141, 142, 143, 144, 145, 146,
-                    147, 148, 149, 150, 151, 152, 153, 154,
-                    155, 156, 157, 158, 159, 160, 161, 162,
-                    163, 164, 165, 166, 167, 168, 169, 170,
-                    171, 172, 173, 174, 175, 176, 177, 178,
-                    179, 180, 181, 182, 183, 184, 185, 186,
-                    187, 188, 189, 190, 191, 192, 193, 194,
-                    195, 196, 197, 198, 199, 200, 201, 202,
-                    203, 204, 205, 206, 207, 208, 209, 210,
-                    211, 212, 213, 214, 215, 216, 217, 218,
-                    219, 220, 221, 222, 223, 224, 225, 226,
-                    227, 228, 229, 230, 231, 232, 233, 234,
-                    235, 236, 237, 238, 239, 240, 241, 242,
-                    243, 244, 245, 246, 247, 248, 249, 250,
-                    251, 252, 253, 254, 255, 256, 257, 258,
-                    259, 260, 261
-                  ]
-                }
+                "structure": "https://raw.githubusercontent.com/gelnesr/dEVA/main/inputs/2VVB.pdb"
               }
             ],
-            "temperature": 0.1,
+            "temperature": 0.5,
             "excluded_amino_acids": ["C"],
             "batch_size": 4,
             "device": "cuda",
@@ -90,9 +53,6 @@
             ],
             "output_chain_id": "X",
             "num_mutations": 4,
-            "mutable_positions": {
-              "X": [3, 4, 5, 6, 7, 8, 9]
-            },
             "excluded_amino_acids": ["C"],
             "replacement_strategy": "sample",
             "replacement_temperature": 1.0,
@@ -104,14 +64,11 @@
       "constraints": [
         {
           "key": "metal3d-probability",
-          "label": "Metal3D-Cat pocket probability",
+          "label": "Metal3D-Cat metal-site probability",
           "targets": ["enzyme_chain"],
           "weight": 1.0,
           "config": {
             "min_probability": 0.2,
-            "candidate_residues": {
-              "X": [94, 96, 106, 119, 199]
-            },
             "structure_preparation": {
               "mode": "fampnn_pack_from_scaffold",
               "scaffold_structure": "https://raw.githubusercontent.com/gelnesr/dEVA/main/inputs/2VVB.pdb",
@@ -120,7 +77,7 @@
                 "model_variant": "0.0",
                 "num_samples_per_structure": 1,
                 "batch_size": 4,
-                "scn_diffusion_steps": 25,
+                "scn_diffusion_steps": 8,
                 "scn_step_scale": 1.5,
                 "device": "cuda",
                 "verbose": false
@@ -133,25 +90,6 @@
               "device": "cuda",
               "verbose": false
             }
-          }
-        },
-        {
-          "key": "protein-complexity",
-          "label": "Low-complexity filter",
-          "targets": ["enzyme_chain"],
-          "weight": 0.2,
-          "config": {
-            "max_low_complexity": 0.35
-          }
-        },
-        {
-          "key": "balanced-aa",
-          "label": "Amino-acid balance filter",
-          "targets": ["enzyme_chain"],
-          "weight": 0.2,
-          "config": {
-            "min_aa_frequency": 0.01,
-            "max_underrepresented_count": 8
           }
         }
       ],
@@ -173,7 +111,7 @@
           "tracking_interval": 1,
           "track_proposals": false,
           "verbose": false,
-          "seed": 7
+          "seed": 0
         }
       }
     }
