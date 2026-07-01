@@ -39,7 +39,7 @@ class Metal3DProbabilityConfig(BaseConfig):
         ge=0.0,
         le=1.0,
         title="Min Probability",
-        description="Single Metal3D probability floor for detection, annotation, and scoring; overrides the tool threshold.",
+        description="Single Metal3D probability floor for detection, annotation, and scoring; overrides tool threshold.",
     )
     metal3d_config: Metal3DPredictionConfig = ConfigField(
         default_factory=Metal3DPredictionConfig,
