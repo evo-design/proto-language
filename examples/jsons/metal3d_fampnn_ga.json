@@ -108,7 +108,7 @@
           "targets": ["enzyme_chain"],
           "weight": 1.0,
           "config": {
-            "min_probability": 0.5,
+            "min_probability": 0.2,
             "candidate_residues": {
               "X": [94, 96, 106, 119, 199]
             },
@@ -128,7 +128,6 @@
             },
             "metal3d_config": {
               "model_checkpoint": "metal3d-cat",
-              "probability_threshold": 0.2,
               "cluster_distance_threshold": 7.0,
               "max_sites": 8,
               "device": "cuda",
