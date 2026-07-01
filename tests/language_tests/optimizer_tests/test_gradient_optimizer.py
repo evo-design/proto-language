@@ -1270,9 +1270,10 @@ class TestCompiledConstraints:
         with caplog.at_level(
             "WARNING", logger="proto_language.optimizer.constraint_compiler.alphafold2_binder_provider"
         ):
-            score = _term_score({"iptm": 0.8}, "plddt", 4.0)
+            score, fallback_used = _term_score({"iptm": 0.8}, "plddt", 4.0)
 
         assert score == 4.0
+        assert fallback_used is True
         assert any("Using grouped loss" in record.message for record in caplog.records)
 
     def test_rejects_discrete_constraint_without_compiled_gradient(self) -> None:
