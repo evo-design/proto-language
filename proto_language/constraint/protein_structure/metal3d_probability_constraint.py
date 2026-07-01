@@ -24,7 +24,7 @@ class Metal3DProbabilityConfig(BaseConfig):
     """Configuration for the Metal3D probability constraint.
 
     Attributes:
-        min_probability (float): Minimum Metal3D site probability to keep; the score reaches zero once met.
+        min_probability (float): Minimum Metal3D site probability to keep; sites below it get the worst score, and above it the score improves as the probability approaches 1.0.
         metal3d_config (Metal3DPredictionConfig): Configuration passed to the Metal3D tool.
         structure_preparation (StructurePreparationConfig): How to prepare proposal structures for scoring.
         candidate_residues (ResidueSelection | None): Optional residues passed to Metal3D as candidates.
@@ -35,7 +35,7 @@ class Metal3DProbabilityConfig(BaseConfig):
         ge=0.0,
         le=1.0,
         title="Min Probability",
-        description="Minimum Metal3D site probability to keep. Scores are zero once this minimum is met.",
+        description="Minimum Metal3D site probability to keep; above it, higher probability scores better (best at 1.0).",
     )
     metal3d_config: Metal3DPredictionConfig = ConfigField(
         default_factory=Metal3DPredictionConfig,
@@ -89,10 +89,11 @@ def metal3d_probability_constraint(
     )
 
     results: list[ConstraintOutput] = []
-    denom = max(config.min_probability, 1e-8)
     for result, seq_tuple in zip(output.results, input_sequences, strict=True):
         pmetal = float(result["pmetal"])
-        score = max(0.0, config.min_probability - pmetal) / denom
+        # Reward higher Metal3D probability monotonically: energy is lowest when pmetal
+        # reaches 1.0. Sites below min_probability are discarded and get the worst score.
+        score = (1.0 - pmetal) if pmetal >= config.min_probability else 1.0
         metadata = {
             "pmetal": pmetal,
             "min_probability": config.min_probability,
