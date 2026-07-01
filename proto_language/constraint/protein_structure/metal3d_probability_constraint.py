@@ -96,9 +96,7 @@ def metal3d_probability_constraint(
     results: list[ConstraintOutput] = []
     for result, seq_tuple in zip(output.results, input_sequences, strict=True):
         pmetal = float(result["pmetal"])
-        # min_probability is the single floor: the tool never reports sites below it, so
-        # pmetal is either 0 (no site) or >= min_probability. Reward higher probability
-        # monotonically; energy is lowest when pmetal reaches 1.0.
+        # Reward higher probability; energy is lowest when pmetal reaches 1.0.
         score = 1.0 - pmetal
         metadata = {
             "pmetal": pmetal,
