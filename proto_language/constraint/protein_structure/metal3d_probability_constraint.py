@@ -24,18 +24,18 @@ class Metal3DProbabilityConfig(BaseConfig):
     """Configuration for the Metal3D probability constraint.
 
     Attributes:
-        target_probability (float): Metal3D probability target where the score reaches zero.
+        min_probability (float): Minimum Metal3D site probability to keep; the score reaches zero once met.
         metal3d_config (Metal3DPredictionConfig): Configuration passed to the Metal3D tool.
         structure_preparation (StructurePreparationConfig): How to prepare proposal structures for scoring.
         candidate_residues (ResidueSelection | None): Optional residues passed to Metal3D as candidates.
     """
 
-    target_probability: float = ConfigField(
+    min_probability: float = ConfigField(
         default=0.5,
         ge=0.0,
         le=1.0,
-        title="Target Probability",
-        description="Desired minimum Metal3D site probability. Scores are zero once this target is met.",
+        title="Min Probability",
+        description="Minimum Metal3D site probability to keep. Scores are zero once this minimum is met.",
     )
     metal3d_config: Metal3DPredictionConfig = ConfigField(
         default_factory=Metal3DPredictionConfig,
@@ -89,13 +89,13 @@ def metal3d_probability_constraint(
     )
 
     results: list[ConstraintOutput] = []
-    denom = max(config.target_probability, 1e-8)
+    denom = max(config.min_probability, 1e-8)
     for result, seq_tuple in zip(output.results, input_sequences, strict=True):
         pmetal = float(result["pmetal"])
-        score = max(0.0, config.target_probability - pmetal) / denom
+        score = max(0.0, config.min_probability - pmetal) / denom
         metadata = {
             "pmetal": pmetal,
-            "target_probability": config.target_probability,
+            "min_probability": config.min_probability,
             "found": result.found,
             "num_sites": len(result.sites),
             "sites": [site.model_dump(mode="json") for site in result.sites],
