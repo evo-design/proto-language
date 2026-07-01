@@ -64,7 +64,7 @@ class Metal3DProbabilityConfig(BaseConfig):
     config=Metal3DProbabilityConfig,
     description="Reward protein sequences whose prepared structures contain high-probability Metal3D metal-ion sites.",
     uses_gpu=True,
-    tools_called=["fampnn-pack", "metal3d-prediction"],
+    tools_called=["fampnn-pack", "ligandmpnn-sample", "metal3d-prediction"],
     category="protein_structure",
     supported_sequence_types=["protein"],
     input_labels=None,

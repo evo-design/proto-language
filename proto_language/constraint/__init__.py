@@ -139,12 +139,14 @@ from proto_language.constraint.sequence_scoring import (
     AbLangPerplexityConfig,
     ESM2PerplexityConfig,
     MpnnPerplexityConfig,
+    MPNNSequenceProbabilityConfig,
     ablang_perplexity_constraint,
     ablang_perplexity_gradient_backward,
     esm2_perplexity_constraint,
     esm2_perplexity_gradient_backward,
     mpnn_perplexity_constraint,
     mpnn_perplexity_gradient_backward,
+    mpnn_sequence_probability_constraint,
 )
 
 __all__ = [
@@ -258,12 +260,14 @@ __all__ = [
     "AbLangPerplexityConfig",
     "ESM2PerplexityConfig",
     "MpnnPerplexityConfig",
+    "MPNNSequenceProbabilityConfig",
     "ablang_perplexity_constraint",
     "ablang_perplexity_gradient_backward",
     "esm2_perplexity_constraint",
     "esm2_perplexity_gradient_backward",
     "mpnn_perplexity_constraint",
     "mpnn_perplexity_gradient_backward",
+    "mpnn_sequence_probability_constraint",
     # RNA splicing
     "AlphaGenomeSpliceJunctionConfig",
     "alphagenome_splice_junction_constraint",

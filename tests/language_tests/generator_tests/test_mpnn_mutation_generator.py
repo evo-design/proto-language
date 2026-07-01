@@ -128,27 +128,6 @@ def test_requires_mutable_candidates_after_fixed_positions(monkeypatch: pytest.M
         generator.sample()
 
 
-def test_crossover_positions_match_mutable_positions(temp_pdb_file):
-    """GA crossover can reuse the MPNN mutation generator's mutable residue scope."""
-    generator = MPNNMutationGenerator(
-        MPNNMutationGeneratorConfig(
-            structure_inputs=InverseFoldingStructureInput(
-                structure=temp_pdb_file,
-                chains_to_redesign=["A"],
-                fixed_positions={"A": [4]},
-            ),
-            output_chain_id="A",
-            mutable_positions={"A": [2, 4]},
-            num_mutations=1,
-            device="cpu",
-        )
-    )
-    segment = Segment(sequence="AGSVL", sequence_type="protein")
-    generator.assign(segment)
-
-    assert generator.crossover_position_indices(segment) == {1}
-
-
 def test_scoring_pdb_sanitizer_selects_single_altloc_and_preserves_ligand_context():
     pdb = """\
 ATOM      1  N   SER A   1       0.000   0.000   0.000  0.50  0.00           N

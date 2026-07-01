@@ -15,6 +15,12 @@ from proto_language.core import (
 from proto_language.generator import ESM2Generator, ESM2GeneratorConfig
 from proto_language.generator.random_protein_generator import RandomProteinGenerator
 from proto_language.optimizer import GeneticAlgorithmOptimizer, GeneticAlgorithmOptimizerConfig
+from proto_language.optimizer.genetic_algorithm_optimizer import (
+    _crowding_distance,
+    _dominates,
+    _non_dominated_sort,
+    _nsga2_select_survivors,
+)
 
 
 class TargetAConfig(BaseModel):
@@ -233,7 +239,7 @@ def test_genetic_algorithm_does_not_crossover_fixed_segments(monkeypatch) -> Non
     assert offspring[1][0].sequence == "CCCC"
 
 
-def test_genetic_algorithm_restricts_crossover_to_generator_positions(monkeypatch) -> None:
+def test_genetic_algorithm_restricts_crossover_to_configured_positions(monkeypatch) -> None:
     def noop_esm2_sample(self: ESM2Generator) -> None:
         return None
 
@@ -242,7 +248,6 @@ def test_genetic_algorithm_restricts_crossover_to_generator_positions(monkeypatc
     segment = Segment(sequence="AAAAAA", sequence_type="protein", label="protein")
     generator = ESM2Generator(ESM2GeneratorConfig())
     generator.assign(segment)
-    generator.crossover_position_indices = lambda _segment: {2, 3}  # type: ignore[attr-defined]
 
     optimizer = GeneticAlgorithmOptimizer(
         constructs=[Construct([segment], label="construct")],
@@ -261,6 +266,7 @@ def test_genetic_algorithm_restricts_crossover_to_generator_positions(monkeypatc
             num_results=1,
             crossover_rate=1.0,
             crossover_strategy="uniform",
+            crossover_positions={"protein": [2, 3]},
             seed=123,
         ),
     )
@@ -275,3 +281,100 @@ def test_genetic_algorithm_restricts_crossover_to_generator_positions(monkeypatc
 
     assert child.sequence[:2] == "AA"
     assert child.sequence[4:] == "AA"
+
+
+def test_genetic_algorithm_rejects_unknown_crossover_position_segment(monkeypatch) -> None:
+    def noop_esm2_sample(self: ESM2Generator) -> None:
+        return None
+
+    monkeypatch.setattr(ESM2Generator, "_sample", noop_esm2_sample)
+
+    segment = Segment(sequence="AAAAAA", sequence_type="protein", label="protein")
+    generator = ESM2Generator(ESM2GeneratorConfig())
+    generator.assign(segment)
+
+    try:
+        GeneticAlgorithmOptimizer(
+            constructs=[Construct([segment], label="construct")],
+            generators=[generator],
+            constraints=[
+                Constraint(
+                    inputs=[segment],
+                    function=target_a_constraint,
+                    function_config=TargetAConfig(),
+                )
+            ],
+            config=GeneticAlgorithmOptimizerConfig(
+                num_generations=1,
+                population_size=2,
+                offspring_per_generation=1,
+                num_results=1,
+                crossover_positions={"missing": [0]},
+                seed=123,
+            ),
+        )
+    except ValueError as exc:
+        assert "crossover_positions contains unknown segment labels" in str(exc)
+    else:
+        raise AssertionError("Expected validation error")
+
+
+def test_genetic_algorithm_rejects_out_of_bounds_crossover_positions(monkeypatch) -> None:
+    def noop_esm2_sample(self: ESM2Generator) -> None:
+        return None
+
+    monkeypatch.setattr(ESM2Generator, "_sample", noop_esm2_sample)
+
+    segment = Segment(sequence="AAAAAA", sequence_type="protein", label="protein")
+    generator = ESM2Generator(ESM2GeneratorConfig())
+    generator.assign(segment)
+
+    try:
+        GeneticAlgorithmOptimizer(
+            constructs=[Construct([segment], label="construct")],
+            generators=[generator],
+            constraints=[
+                Constraint(
+                    inputs=[segment],
+                    function=target_a_constraint,
+                    function_config=TargetAConfig(),
+                )
+            ],
+            config=GeneticAlgorithmOptimizerConfig(
+                num_generations=1,
+                population_size=2,
+                offspring_per_generation=1,
+                num_results=1,
+                crossover_positions={"protein": [-1, 6]},
+                seed=123,
+            ),
+        )
+    except ValueError as exc:
+        assert "crossover_positions for segment 'protein' contains out-of-bounds indices" in str(exc)
+    else:
+        raise AssertionError("Expected validation error")
+
+
+def test_nsga2_helper_functions_rank_pareto_fronts() -> None:
+    assert _dominates([0.1, 0.2], [0.2, 0.3])
+    assert _dominates([0.1, 0.2], [0.1, 0.3])
+    assert not _dominates([0.1, 0.4], [0.2, 0.3])
+    assert not _dominates([0.1, 0.2], [0.1, 0.2])
+
+    objectives = [
+        [0.1, 0.8],
+        [0.8, 0.1],
+        [0.5, 0.5],
+        [0.9, 0.9],
+    ]
+    fronts = _non_dominated_sort(objectives)
+    assert set(fronts[0]) == {0, 1, 2}
+    assert fronts[1] == [3]
+
+    distances = _crowding_distance(objectives, fronts[0])
+    assert distances[0] == float("inf")
+    assert distances[1] == float("inf")
+    assert distances[2] > 0.0
+
+    survivors = _nsga2_select_survivors(objectives, population_size=2)
+    assert set(survivors).issubset({0, 1, 2})

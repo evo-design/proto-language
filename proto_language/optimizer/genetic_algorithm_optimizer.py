@@ -22,7 +22,7 @@ from typing import Any, Literal, final
 import numpy as np
 from pydantic import model_validator
 
-from proto_language.core import Constraint, Construct, Generator, GeneratorInputType, Optimizer, Sequence
+from proto_language.core import Constraint, Construct, Generator, GeneratorInputType, Optimizer, Segment, Sequence
 from proto_language.optimizer.optimizer_registry import optimizer
 from proto_language.utils.base import BaseOptimizerConfig, ConfigField
 
@@ -43,6 +43,9 @@ class GeneticAlgorithmOptimizerConfig(BaseOptimizerConfig):
         parent_selection (Literal["tournament", "rank", "roulette"]): Strategy for choosing parents.
         tournament_size (int): Number of candidates sampled for tournament parent selection.
         replacement (Literal["elitist", "generational"]): Policy for forming the next population.
+        survivor_selection (Literal["energy", "nsga2"]): Survivor selection criterion.
+        crossover_positions (dict[str, list[int]] | None):
+            Optional zero-based crossover positions, keyed by segment label.
         refine_offspring_with_generators (bool): Run non-mutation generators after mutation.
         initialize_with_mutation_generators (bool): Use mutation generators during initialization.
         tracking_interval (int): Number of generations between saved progress snapshots.
@@ -106,6 +109,16 @@ class GeneticAlgorithmOptimizerConfig(BaseOptimizerConfig):
         default="elitist",
         title="Replacement",
         description="Elitist keeps the best parents and children; generational keeps elites plus top children.",
+    )
+    survivor_selection: Literal["energy", "nsga2"] = ConfigField(
+        default="energy",
+        title="Survivor Selection",
+        description="Select survivors by scalar energy or NSGA-II Pareto rank over scoring constraints.",
+    )
+    crossover_positions: dict[str, list[int]] | None = ConfigField(
+        default=None,
+        title="Crossover Positions",
+        description="Zero-based per-segment sequence positions eligible for crossover.",
     )
     refine_offspring_with_generators: bool = ConfigField(
         default=False,
@@ -178,6 +191,14 @@ class GeneticAlgorithmOptimizer(Optimizer):
         self.population_size = config.population_size
         self.offspring_per_generation = config.offspring_per_generation or config.population_size
         self._population_energies: list[float] = []
+        self._population_objectives: list[list[float]] = []
+        self._population_nsga2_ranks: list[float] = []
+        self._population_nsga2_crowding: list[float] = []
+
+    def _validate_optimizer(self) -> None:
+        """Validate GA configuration after base optimizer checks."""
+        super()._validate_optimizer()
+        self._validate_crossover_positions()
 
     def _resolve_num_results(self, num_results: int) -> None:
         if num_results > self.config.population_size:
@@ -235,6 +256,9 @@ class GeneticAlgorithmOptimizer(Optimizer):
 
         self._score_current_proposals()
         self._population_energies = list(self.energy_scores)
+        if self.config.survivor_selection == "nsga2":
+            self._population_objectives = self._extract_objective_vectors(self._copy_current_population())
+            self._update_nsga2_population_state()
 
     def _score_current_proposals(self) -> None:
         proposal_count = len(self.segments[0].proposal_sequences)
@@ -283,6 +307,8 @@ class GeneticAlgorithmOptimizer(Optimizer):
         return self._mutate_offspring(offspring_by_segment)
 
     def _select_parent(self, energies: list[float]) -> int:
+        if self.config.survivor_selection == "nsga2" and self._population_nsga2_ranks:
+            return self._select_nsga2_parent()
         if self.config.parent_selection == "tournament":
             k = min(self.config.tournament_size, len(energies))
             candidates = self._rng.sample(range(len(energies)), k)
@@ -297,6 +323,19 @@ class GeneticAlgorithmOptimizer(Optimizer):
         worst = max(finite)
         roulette_weights = [(worst - energy + 1e-8) if math.isfinite(energy) else 1e-12 for energy in energies]
         return self._rng.choices(range(len(energies)), weights=roulette_weights, k=1)[0]
+
+    def _select_nsga2_parent(self) -> int:
+        """Select a parent by Pareto rank, then crowding distance."""
+        k = min(self.config.tournament_size, len(self._population_nsga2_ranks))
+        candidates = self._rng.sample(range(len(self._population_nsga2_ranks)), k)
+        return min(
+            candidates,
+            key=lambda idx: (
+                self._population_nsga2_ranks[idx],
+                -self._population_nsga2_crowding[idx],
+                _energy_sort_key(self._population_energies[idx]),
+            ),
+        )
 
     def _crossover_copy(
         self,
@@ -395,22 +434,58 @@ class GeneticAlgorithmOptimizer(Optimizer):
         return {id(segment) for generator in self.generators for segment in generator.segments}
 
     def _crossover_positions_by_segment(self) -> dict[int, set[int] | None]:
-        positions_by_segment: dict[int, set[int] | None] = {}
-        for generator in self.generators:
-            provider = getattr(generator, "crossover_position_indices", None)
-            for segment in generator.segments:
-                segment_id = id(segment)
-                positions_by_segment.setdefault(segment_id, None)
-                if not callable(provider):
-                    continue
-                generator_positions = provider(segment)
-                if generator_positions is None:
-                    continue
-                current = positions_by_segment[segment_id]
-                positions_by_segment[segment_id] = (
-                    set(generator_positions) if current is None else current.intersection(generator_positions)
-                )
+        positions_by_segment: dict[int, set[int] | None] = {
+            id(segment): None for generator in self.generators for segment in generator.segments
+        }
+        if self.config.crossover_positions is None:
+            return positions_by_segment
+
+        segment_by_label = self._unique_segment_by_label()
+        for label, positions in self.config.crossover_positions.items():
+            segment = segment_by_label[label]
+            positions_by_segment[id(segment)] = self._resolve_crossover_indices(segment, positions)
         return positions_by_segment
+
+    def _validate_crossover_positions(self) -> None:
+        if self.config.crossover_positions is None:
+            return
+
+        segment_by_label = self._unique_segment_by_label()
+        unknown_labels = sorted(set(self.config.crossover_positions) - set(segment_by_label))
+        if unknown_labels:
+            available = sorted(segment_by_label)
+            raise ValueError(
+                f"crossover_positions contains unknown segment labels {unknown_labels}. "
+                f"Available segment labels: {available}."
+            )
+        for label, positions in self.config.crossover_positions.items():
+            self._resolve_crossover_indices(segment_by_label[label], positions)
+
+    def _unique_segment_by_label(self) -> dict[str, Segment]:
+        labels: dict[str, Segment] = {}
+        duplicates: set[str] = set()
+        for segment in self.segments:
+            label = segment.label or "unlabeled"
+            if label in labels:
+                duplicates.add(label)
+            else:
+                labels[label] = segment
+        if duplicates:
+            raise ValueError(
+                f"crossover_positions requires globally unique segment labels; duplicates: {sorted(duplicates)}."
+            )
+        return labels
+
+    @staticmethod
+    def _resolve_crossover_indices(segment: Segment, positions: list[int]) -> set[int]:
+        indices = set(positions)
+        out_of_bounds = sorted(idx for idx in indices if idx < 0 or idx >= segment.sequence_length)
+        if out_of_bounds:
+            raise ValueError(
+                f"crossover_positions for segment {segment.label or 'unlabeled'!r} contains "
+                f"out-of-bounds indices {out_of_bounds} for length {segment.sequence_length}."
+            )
+        return indices
 
     def _select_next_population(
         self,
@@ -419,6 +494,10 @@ class GeneticAlgorithmOptimizer(Optimizer):
         child_sequences: list[list[Sequence]],
         child_energies: list[float],
     ) -> None:
+        if self.config.survivor_selection == "nsga2":
+            self._select_next_population_nsga2(parent_sequences, parent_energies, child_sequences, child_energies)
+            return
+
         if self.config.replacement == "generational":
             elite_count = min(self.population_size, round(self.config.elite_fraction * self.population_size))
             parent_ranked = sorted(range(len(parent_energies)), key=lambda idx: _energy_sort_key(parent_energies[idx]))
@@ -453,12 +532,116 @@ class GeneticAlgorithmOptimizer(Optimizer):
         self._proposal_outcomes = ["accepted"] * len(next_energies)
         self._proposal_energy_scores = list(next_energies)
 
+    def _select_next_population_nsga2(
+        self,
+        parent_sequences: list[list[Sequence]],
+        parent_energies: list[float],
+        child_sequences: list[list[Sequence]],
+        child_energies: list[float],
+    ) -> None:
+        """Select the next population with NSGA-II non-dominated sorting."""
+        combined_by_segment = [
+            [copy.deepcopy(seq) for seq in parent_segment + child_segment]
+            for parent_segment, child_segment in zip(parent_sequences, child_sequences, strict=True)
+        ]
+        combined_energies = [float(energy) for energy in parent_energies + child_energies]
+        objective_vectors = self._extract_objective_vectors(combined_by_segment)
+        selected_indices = _nsga2_select_survivors(objective_vectors, self.population_size)
+
+        next_by_segment: list[list[Sequence]] = [[] for _ in self.segments]
+        next_energies: list[float] = []
+        next_objectives: list[list[float]] = []
+        for idx in selected_indices:
+            for seg_idx in range(len(self.segments)):
+                next_by_segment[seg_idx].append(copy.deepcopy(combined_by_segment[seg_idx][idx]))
+            next_energies.append(combined_energies[idx])
+            next_objectives.append(list(objective_vectors[idx]))
+
+        self._set_proposal_population(next_by_segment)
+        self._population_energies = next_energies
+        self._population_objectives = next_objectives
+        self._update_nsga2_population_state()
+        self._proposal_outcomes = ["accepted"] * len(next_energies)
+        self._proposal_energy_scores = list(next_energies)
+
+    def _extract_objective_vectors(self, population: list[list[Sequence]]) -> list[list[float]]:
+        """Extract lower-is-better per-constraint objective vectors from sequence metadata."""
+        scoring_constraints = [constraint for constraint in self.constraints if constraint.threshold is None]
+        if not scoring_constraints:
+            raise ValueError("GeneticAlgorithmOptimizer survivor_selection='nsga2' requires scoring constraints.")
+        if not population:
+            return []
+
+        objective_vectors: list[list[float]] = []
+        for proposal_idx in range(len(population[0])):
+            objective_vector: list[float] = []
+            for constraint in scoring_constraints:
+                sequence = self._metadata_sequence_for_constraint(population, constraint, proposal_idx)
+                metadata = sequence._constraints_metadata.get(constraint.label)
+                if metadata is None:
+                    raise ValueError(
+                        "GeneticAlgorithmOptimizer survivor_selection='nsga2' requires per-constraint metadata, "
+                        f"but proposal {proposal_idx} is missing metadata for constraint {constraint.label!r}."
+                    )
+                data = metadata.get("data", {})
+                fallback_used = bool(data.get("fallback_used", metadata.get("fallback_used", False)))
+                if fallback_used:
+                    backend = data.get("structure_tool", metadata.get("structure_tool", "unknown"))
+                    raise ValueError(
+                        "GeneticAlgorithmOptimizer survivor_selection='nsga2' requires true per-objective scores, "
+                        f"but constraint {constraint.label!r} returned fallback metadata from {backend}."
+                    )
+                score = metadata.get("weighted_score", metadata.get("score"))
+                if score is None:
+                    raise ValueError(
+                        f"Constraint metadata for {constraint.label!r} does not contain score information."
+                    )
+                score_float = float(score)
+                if not math.isfinite(score_float):
+                    raise ValueError(
+                        f"Constraint {constraint.label!r} has non-finite NSGA-II objective {score_float} "
+                        f"for proposal {proposal_idx}."
+                    )
+                objective_vector.append(score_float)
+            objective_vectors.append(objective_vector)
+        return objective_vectors
+
+    def _metadata_sequence_for_constraint(
+        self,
+        population: list[list[Sequence]],
+        constraint: Constraint,
+        proposal_idx: int,
+    ) -> Sequence:
+        """Return the proposal sequence that should carry metadata for a constraint."""
+        for constraint_segment in constraint.inputs:
+            for seg_idx, segment in enumerate(self.segments):
+                if segment is constraint_segment:
+                    return population[seg_idx][proposal_idx]
+        return population[0][proposal_idx]
+
+    def _update_nsga2_population_state(self) -> None:
+        fronts = _non_dominated_sort(self._population_objectives)
+        rank_by_index: dict[int, int] = {}
+        crowding_by_index: dict[int, float] = {}
+        for rank, front in enumerate(fronts):
+            rank_by_index.update(dict.fromkeys(front, rank))
+            crowding_by_index.update(_crowding_distance(self._population_objectives, front))
+        self._population_nsga2_ranks = [
+            rank_by_index.get(idx, math.inf) for idx in range(len(self._population_objectives))
+        ]
+        self._population_nsga2_crowding = [
+            crowding_by_index.get(idx, 0.0) for idx in range(len(self._population_objectives))
+        ]
+
     def _write_results_from_population(self) -> None:
         if self.num_results is None:
             raise RuntimeError("num_results must be resolved before writing GA results.")
-        ranked = sorted(
-            range(len(self._population_energies)), key=lambda idx: _energy_sort_key(self._population_energies[idx])
-        )
+        if self.config.survivor_selection == "nsga2" and self._population_objectives:
+            ranked = _nsga2_ranked_indices(self._population_objectives, self._population_energies)
+        else:
+            ranked = sorted(
+                range(len(self._population_energies)), key=lambda idx: _energy_sort_key(self._population_energies[idx])
+            )
         selected = ranked[: self.num_results]
         for segment in self.segments:
             segment.result_sequences = [copy.deepcopy(segment.proposal_sequences[idx]) for idx in selected]
@@ -474,6 +657,7 @@ class GeneticAlgorithmOptimizer(Optimizer):
                 "population_size": self.population_size,
                 "offspring_per_generation": self.offspring_per_generation,
                 "num_results": self.num_results,
+                "survivor_selection": self.config.survivor_selection,
                 "best_population_energy": min(self._population_energies) if self._population_energies else None,
                 "mean_population_energy": float(np.mean(self._population_energies))
                 if self._population_energies
@@ -493,3 +677,102 @@ class GeneticAlgorithmOptimizer(Optimizer):
 
 def _energy_sort_key(energy: float) -> tuple[int, float]:
     return (0, energy) if math.isfinite(energy) else (1, float("inf"))
+
+
+def _dominates(objective_a: list[float], objective_b: list[float]) -> bool:
+    """Return whether objective_a Pareto-dominates objective_b for minimization."""
+    strictly_better = False
+    for a_value, b_value in zip(objective_a, objective_b, strict=True):
+        if a_value > b_value:
+            return False
+        strictly_better = strictly_better or a_value < b_value
+    return strictly_better
+
+
+def _non_dominated_sort(objective_vectors: list[list[float]]) -> list[list[int]]:
+    """Partition objective vectors into Pareto fronts with lower values preferred."""
+    n = len(objective_vectors)
+    if n == 0:
+        return []
+
+    domination_counts = [0] * n
+    dominated_by: list[list[int]] = [[] for _ in range(n)]
+    for i in range(n):
+        for j in range(i + 1, n):
+            if _dominates(objective_vectors[i], objective_vectors[j]):
+                dominated_by[i].append(j)
+                domination_counts[j] += 1
+            elif _dominates(objective_vectors[j], objective_vectors[i]):
+                dominated_by[j].append(i)
+                domination_counts[i] += 1
+
+    fronts: list[list[int]] = []
+    current_front = [idx for idx, count in enumerate(domination_counts) if count == 0]
+    while current_front:
+        fronts.append(current_front)
+        next_front = []
+        for idx in current_front:
+            for dominated_idx in dominated_by[idx]:
+                domination_counts[dominated_idx] -= 1
+                if domination_counts[dominated_idx] == 0:
+                    next_front.append(dominated_idx)
+        current_front = next_front
+    return fronts
+
+
+def _crowding_distance(objective_vectors: list[list[float]], front: list[int]) -> dict[int, float]:
+    """Compute NSGA-II crowding distance for one Pareto front."""
+    if len(front) <= 2:
+        return {idx: float("inf") for idx in front}
+
+    distances = dict.fromkeys(front, 0.0)
+    num_objectives = len(objective_vectors[0]) if objective_vectors else 0
+    for objective_idx in range(num_objectives):
+        sorted_front = sorted(front, key=lambda idx: objective_vectors[idx][objective_idx])
+        distances[sorted_front[0]] = float("inf")
+        distances[sorted_front[-1]] = float("inf")
+        objective_min = objective_vectors[sorted_front[0]][objective_idx]
+        objective_max = objective_vectors[sorted_front[-1]][objective_idx]
+        objective_range = objective_max - objective_min
+        if objective_range == 0:
+            continue
+        for left, idx, right in zip(sorted_front[:-2], sorted_front[1:-1], sorted_front[2:], strict=True):
+            if math.isinf(distances[idx]):
+                continue
+            distances[idx] += (
+                objective_vectors[right][objective_idx] - objective_vectors[left][objective_idx]
+            ) / objective_range
+    return distances
+
+
+def _nsga2_select_survivors(objective_vectors: list[list[float]], population_size: int) -> list[int]:
+    """Select survivor indices by non-dominated sort and crowding distance."""
+    selected: list[int] = []
+    for front in _non_dominated_sort(objective_vectors):
+        remaining = population_size - len(selected)
+        if remaining <= 0:
+            break
+        if len(front) <= remaining:
+            selected.extend(front)
+            continue
+        distances = _crowding_distance(objective_vectors, front)
+        selected.extend(sorted(front, key=lambda idx: distances[idx], reverse=True)[:remaining])
+        break
+    return selected
+
+
+def _nsga2_ranked_indices(objective_vectors: list[list[float]], energies: list[float]) -> list[int]:
+    """Return all indices ordered by Pareto front, crowding distance, then scalar energy."""
+    ranked: list[int] = []
+    for front in _non_dominated_sort(objective_vectors):
+        distances = _crowding_distance(objective_vectors, front)
+        ranked.extend(
+            sorted(
+                front,
+                key=lambda idx: (
+                    -distances[idx],
+                    _energy_sort_key(energies[idx]),
+                ),
+            )
+        )
+    return ranked

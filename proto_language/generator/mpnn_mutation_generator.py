@@ -19,7 +19,7 @@ from proto_tools import (
 from proto_tools.entities.structures import ResidueSelection
 from pydantic import field_validator
 
-from proto_language.core import Generator, GeneratorInputType, Segment
+from proto_language.core import Generator, GeneratorInputType
 from proto_language.core.sequence import PROTEIN_AMINO_ACIDS
 from proto_language.generator.generator_registry import generator
 from proto_language.utils.base import BaseConfig, ConfigField
@@ -33,10 +33,10 @@ ProteinMPNNModelChoice = Literal["proteinmpnn", "v_48_002", "v_48_010", "v_48_03
 class MPNNMutationGeneratorConfig(BaseConfig):
     """Configuration for structure-conditioned MPNN mutation.
 
-    The generator mirrors dEVA's MPNN mutation operator: score the current
-    sequence against a backbone, choose mutable positions using the model's
-    probability of the current residue, then replace each chosen residue from
-    the model's per-position amino-acid distribution.
+    The generator scores the current sequence against a backbone, chooses
+    mutable positions using the model's probability of the current residue,
+    then replaces each chosen residue from the model's per-position amino-acid
+    distribution.
 
     Attributes:
         model (MPNNMutationModel): MPNN scorer used to compute mutation probabilities.
@@ -48,6 +48,8 @@ class MPNNMutationGeneratorConfig(BaseConfig):
         replacement_strategy (ReplacementStrategy): Sampling strategy for replacement residues.
         replacement_temperature (float): Temperature applied to MPNN logits before sampling.
         proteinmpnn_model_choice (ProteinMPNNModelChoice): ProteinMPNN checkpoint when model is proteinmpnn.
+        ligand_mpnn_use_side_chain_context (bool): Whether LigandMPNN uses fixed-residue sidechain context.
+        ligand_mpnn_cutoff_for_score (float): Ligand-residue cutoff for LigandMPNN scoring.
         device (str): Device used for MPNN scoring.
         verbose (bool): Whether to emit MPNN scoring logs.
     """
@@ -98,6 +100,17 @@ class MPNNMutationGeneratorConfig(BaseConfig):
         default="proteinmpnn",
         title="ProteinMPNN Weights",
         description="ProteinMPNN weights used when model='proteinmpnn'.",
+    )
+    ligand_mpnn_use_side_chain_context: bool = ConfigField(
+        default=False,
+        title="LigandMPNN Sidechain Context",
+        description="Whether LigandMPNN scoring conditions on fixed-residue sidechain atoms.",
+    )
+    ligand_mpnn_cutoff_for_score: float = ConfigField(
+        default=8.0,
+        gt=0.0,
+        title="LigandMPNN Ligand Cutoff",
+        description="Ligand-residue distance cutoff (Å) used by LigandMPNN scoring.",
     )
     device: str = ConfigField(
         default="cuda",
@@ -172,6 +185,8 @@ class MPNNMutationGenerator(Generator):
         self.replacement_strategy = config.replacement_strategy
         self.replacement_temperature = config.replacement_temperature
         self.proteinmpnn_model_choice = config.proteinmpnn_model_choice
+        self.ligand_mpnn_use_side_chain_context = config.ligand_mpnn_use_side_chain_context
+        self.ligand_mpnn_cutoff_for_score = config.ligand_mpnn_cutoff_for_score
         self.device = config.device
         self.verbose = config.verbose
 
@@ -269,27 +284,6 @@ class MPNNMutationGenerator(Generator):
             )
         return output_chain_id
 
-    def crossover_position_indices(self, segment: Segment) -> set[int] | None:
-        """Return zero-based sequence positions that GA crossover may modify.
-
-        GeneticAlgorithmOptimizer treats this as an optional mutation-generator
-        contract. When MPNN mutation is configured with mutable/fixed residues,
-        crossover should respect the same mutability boundary; this mirrors
-        dEVA's segment crossover over variable residues while keeping the API
-        general for other mutation generators.
-        """
-        if not any(segment is assigned_segment for assigned_segment in self.segments) or self.structure_inputs is None:
-            return None
-
-        mutable_sets = []
-        for struct_input in self.structure_inputs:
-            output_chain_id = self._resolve_output_chain(struct_input)
-            mutable_sets.append(set(self._mutable_sequence_indices(output_chain_id, struct_input)))
-
-        if not mutable_sets:
-            return None
-        return set.intersection(*mutable_sets)
-
     def _build_scoring_sequence(
         self,
         *,
@@ -357,15 +351,21 @@ class MPNNMutationGenerator(Generator):
             fixed_positions=fixed_positions,
         )
         if self.model == "ligandmpnn":
+            scoring_config: dict[str, Any] = {
+                "return_logits": True,
+                "scoring_mode": "single_aa",
+                "seed": seed,
+                "device": self.device,
+                "verbose": self.verbose,
+            }
+            supported_fields = getattr(LigandMPNNScoringConfig, "model_fields", {})
+            if "ligand_mpnn_use_side_chain_context" in supported_fields:
+                scoring_config["ligand_mpnn_use_side_chain_context"] = self.ligand_mpnn_use_side_chain_context
+            if "ligand_mpnn_cutoff_for_score" in supported_fields:
+                scoring_config["ligand_mpnn_cutoff_for_score"] = self.ligand_mpnn_cutoff_for_score
             result = run_ligandmpnn_score(
                 inputs=LigandMPNNScoringInput(sequence_structure_pairs=[pair]),
-                config=LigandMPNNScoringConfig(
-                    return_logits=True,
-                    scoring_mode="single_aa",
-                    seed=seed,
-                    device=self.device,
-                    verbose=self.verbose,
-                ),
+                config=LigandMPNNScoringConfig(**scoring_config),
             )
         else:
             result = run_proteinmpnn_score(
@@ -390,9 +390,9 @@ class MPNNMutationGenerator(Generator):
     def _structure_for_scoring(self, structure: Structure) -> Structure:
         """Normalize PDB records that inverse-folding scorers commonly drop.
 
-        dEVA's 2VVB scaffold contains alternate conformers with partial
-        occupancy. LigandMPNN sampling handles the full chain, but the scoring
-        path drops those residues unless a single conformer is selected and
+        Some scaffolds contain alternate conformers with partial occupancy.
+        LigandMPNN sampling handles the full chain, but the scoring path can
+        drop those residues unless a single conformer is selected and
         occupancies are normalized.
         """
         if structure.structure_format not in (None, "pdb"):

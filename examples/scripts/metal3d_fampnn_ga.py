@@ -1,20 +1,24 @@
-"""dEVA-style Metal3D enzyme design with FAMPNN packing and a genetic algorithm.
+"""dEVA-style Metal3D enzyme design with LigandMPNN packing and a genetic algorithm.
 
 This mirrors ``examples/jsons/metal3d_fampnn_ga.json`` as a regular Proto program.
-It requires GPU-backed LigandMPNN, FAMPNN, and Metal3D services to run.
+It requires GPU-backed LigandMPNN and Metal3D services to run.
 """
 
 import argparse
 import logging
 from pathlib import Path
 
-from proto_tools import FAMPNNPackConfig, InverseFoldingStructureInput, Metal3DPredictionConfig
+from proto_tools import InverseFoldingStructureInput, LigandMPNNSampleConfig, Metal3DPredictionConfig
 
 from proto_language.constraint.protein_structure.metal3d_probability_constraint import (
     Metal3DProbabilityConfig,
     metal3d_probability_constraint,
 )
 from proto_language.constraint.protein_structure.structure_preparation import StructurePreparationConfig
+from proto_language.constraint.sequence_scoring.mpnn_sequence_probability_constraint import (
+    MPNNSequenceProbabilityConfig,
+    mpnn_sequence_probability_constraint,
+)
 from proto_language.core import Constraint, Construct, Program, Segment
 from proto_language.generator import (
     LigandMPNNGenerator,
@@ -49,7 +53,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-results", type=int, default=2)
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--output-dir", type=Path, default=Path("metal3d_fampnn_ga_outputs"))
+    parser.add_argument("--output-dir", type=Path, default=Path("metal3d_ligandmpnn_ga_outputs"))
     parser.add_argument("--verbose", action="store_true")
     return parser.parse_args()
 
@@ -66,6 +70,8 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
             structure_inputs=InverseFoldingStructureInput(structure=SCAFFOLD_URL),
             temperature=0.5,
             excluded_amino_acids=["C"],
+            ligand_mpnn_use_side_chain_context=True,
+            ligand_mpnn_cutoff_for_score=20.0,
             batch_size=args.batch_size,
             device=args.device,
             verbose=args.verbose,
@@ -85,6 +91,8 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
             excluded_amino_acids=["C"],
             replacement_strategy="sample",
             replacement_temperature=1.0,
+            ligand_mpnn_use_side_chain_context=True,
+            ligand_mpnn_cutoff_for_score=20.0,
             device=args.device,
             verbose=args.verbose,
         )
@@ -92,21 +100,40 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
     mutation_generator.assign(enzyme)
 
     # Constraints.
+    mpnn_probability_constraint = Constraint(
+        inputs=[enzyme],
+        function=mpnn_sequence_probability_constraint,
+        function_config=MPNNSequenceProbabilityConfig(
+            model="ligandmpnn",
+            structure_inputs=InverseFoldingStructureInput(
+                structure=SCAFFOLD_URL,
+                chains_to_redesign=["X"],
+            ),
+            output_chain_id="X",
+            score_mode="probability_loss",
+            ligand_mpnn_use_side_chain_context=True,
+            ligand_mpnn_cutoff_for_score=20.0,
+            device=args.device,
+            verbose=args.verbose,
+        ),
+        label="LigandMPNN sequence probability",
+        weight=1.0,
+    )
+
     metal3d_constraint = Constraint(
         inputs=[enzyme],
         function=metal3d_probability_constraint,
         function_config=Metal3DProbabilityConfig(
             min_probability=0.2,
             structure_preparation=StructurePreparationConfig(
-                mode="fampnn_pack_from_scaffold",
+                mode="ligandmpnn_pack_from_scaffold",
                 scaffold_structure=SCAFFOLD_URL,
                 chain_ids=["X"],
-                fampnn_pack_config=FAMPNNPackConfig(
-                    model_variant="0.0",
-                    num_samples_per_structure=1,
-                    batch_size=args.batch_size,
-                    scn_diffusion_steps=8,
-                    scn_step_scale=1.5,
+                ligandmpnn_pack_config=LigandMPNNSampleConfig(
+                    temperature=0.5,
+                    ligand_mpnn_use_side_chain_context=True,
+                    ligand_mpnn_cutoff_for_score=20.0,
+                    batch_size=1,
                     device=args.device,
                     verbose=args.verbose,
                 ),
@@ -127,7 +154,7 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
     optimizer = GeneticAlgorithmOptimizer(
         constructs=[construct],
         generators=[initialization_generator, mutation_generator],
-        constraints=[metal3d_constraint],
+        constraints=[mpnn_probability_constraint, metal3d_constraint],
         config=GeneticAlgorithmOptimizerConfig(
             num_generations=args.num_generations,
             num_results=args.num_results,
@@ -139,6 +166,7 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
             parent_selection="tournament",
             tournament_size=2,
             replacement="elitist",
+            survivor_selection="nsga2",
             refine_offspring_with_generators=False,
             initialize_with_mutation_generators=False,
             tracking_interval=1,

@@ -79,6 +79,12 @@ class LigandMPNNGeneratorConfig(BaseConfig):
 
             Default: ``None`` (all amino acids allowed).
 
+        ligand_mpnn_use_side_chain_context (bool): Whether LigandMPNN conditions
+            on sidechain atoms of fixed residues. Default: ``False``.
+
+        ligand_mpnn_cutoff_for_score (float): Ligand-residue distance cutoff used
+            by LigandMPNN. Default: ``8.0``.
+
         batch_size (int): Number of sequences to process simultaneously on GPU.
             Larger batches improve throughput but use more GPU memory; reduce
             if encountering out-of-memory errors. Default: ``1``.
@@ -146,6 +152,17 @@ class LigandMPNNGeneratorConfig(BaseConfig):
         default=None,
         title="Excluded Amino Acids",
         description="Single-letter amino-acid codes to forbid in the designed sequence.",
+    )
+    ligand_mpnn_use_side_chain_context: bool = ConfigField(
+        default=False,
+        title="LigandMPNN Sidechain Context",
+        description="Whether LigandMPNN conditions on fixed-residue sidechain atoms.",
+    )
+    ligand_mpnn_cutoff_for_score: float = ConfigField(
+        default=8.0,
+        gt=0.0,
+        title="LigandMPNN Ligand Cutoff",
+        description="Ligand-residue distance cutoff (Å) used by LigandMPNN.",
     )
     batch_size: int = ConfigField(
         default=1,
@@ -244,6 +261,8 @@ class LigandMPNNGenerator(Generator):
         self.structure_inputs = config.structure_inputs
         self.temperature = config.temperature
         self.excluded_amino_acids = config.excluded_amino_acids
+        self.ligand_mpnn_use_side_chain_context = config.ligand_mpnn_use_side_chain_context
+        self.ligand_mpnn_cutoff_for_score = config.ligand_mpnn_cutoff_for_score
         self.batch_size = config.batch_size
         self.device = config.device
         self.verbose = config.verbose
@@ -278,6 +297,7 @@ class LigandMPNNGenerator(Generator):
             )
 
         generated_sequences: list[str] = []
+        generated_structures: list[Structure | None] = []
         all_recovery: list[float] = []
         all_interface_recovery: list[float | None] = []
 
@@ -294,15 +314,21 @@ class LigandMPNNGenerator(Generator):
             num_seqs = 1
             bs = 1
 
-        tool_config = LigandMPNNSampleConfig(
-            num_sequences_per_structure=num_seqs,
-            batch_size=bs,
-            temperature=self.temperature,
-            excluded_amino_acids=self.excluded_amino_acids,
-            seed=self._next_seed(),
-            device=self.device,
-            verbose=self.verbose,
-        )
+        tool_config_kwargs: dict[str, Any] = {
+            "num_sequences_per_structure": num_seqs,
+            "batch_size": bs,
+            "temperature": self.temperature,
+            "excluded_amino_acids": self.excluded_amino_acids,
+            "seed": self._next_seed(),
+            "device": self.device,
+            "verbose": self.verbose,
+        }
+        supported_fields = getattr(LigandMPNNSampleConfig, "model_fields", {})
+        if "ligand_mpnn_use_side_chain_context" in supported_fields:
+            tool_config_kwargs["ligand_mpnn_use_side_chain_context"] = self.ligand_mpnn_use_side_chain_context
+        if "ligand_mpnn_cutoff_for_score" in supported_fields:
+            tool_config_kwargs["ligand_mpnn_cutoff_for_score"] = self.ligand_mpnn_cutoff_for_score
+        tool_config = LigandMPNNSampleConfig(**tool_config_kwargs)
 
         result = run_ligandmpnn_sample(
             inputs=InverseFoldingInput(inputs=sampling_structure_inputs),
@@ -316,28 +342,34 @@ class LigandMPNNGenerator(Generator):
                     if was_designed
                 ]
                 generated_sequences.append("/".join(designed_seqs))
+                generated_structures.append(getattr(design, "structure", None))
                 all_recovery.append(design.metrics["sequence_recovery"])
                 # ligand_interface_sequence_recovery is absent when the input has no ligand interface.
                 all_interface_recovery.append(design.metrics.get("ligand_interface_sequence_recovery", None))
 
         key = self._spec.key
-        for proposal, sequence, recovery, interface_recovery in zip(
+        for proposal, sequence, structure, recovery, interface_recovery in zip(
             self.segment.proposal_sequences,
             generated_sequences,
+            generated_structures,
             all_recovery,
             all_interface_recovery,
             strict=True,
         ):
             proposal.sequence = sequence
+            if structure is not None:
+                proposal.structure = structure
             proposal._generator_metadata[key] = {
                 "sequence_recovery": recovery,
                 "ligand_interface_sequence_recovery": interface_recovery,
             }
 
-        # Write the generating structure onto each proposal sequence
+        # Fall back to the generating structure if the tool did not emit a designed structure.
         if len(sampling_structure_inputs) == 1:
             for proposal in self.segment.proposal_sequences:
-                proposal.structure = sampling_structure_inputs[0].structure
+                if proposal.structure is None:
+                    proposal.structure = sampling_structure_inputs[0].structure
         else:
             for proposal, struct_input in zip(self.segment.proposal_sequences, sampling_structure_inputs, strict=True):
-                proposal.structure = struct_input.structure
+                if proposal.structure is None:
+                    proposal.structure = struct_input.structure
