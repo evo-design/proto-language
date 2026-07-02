@@ -86,10 +86,7 @@ class MPNNMutationGeneratorConfig(BaseConfig):
     structure_inputs: list[InverseFoldingStructureInput] | None = ConfigField(
         default=None,
         title="Structure Inputs",
-        description=(
-            "Structure(s) for MPNN scoring, with optional chains_to_redesign and fixed_positions. "
-            "When structure_source='proposal_structure', these act as optional selection templates."
-        ),
+        description="Structures for MPNN scoring; templates when structure_source='proposal_structure'.",
     )
     output_chain_id: str | None = ConfigField(
         default=None,
@@ -151,7 +148,7 @@ class MPNNMutationGeneratorConfig(BaseConfig):
     )
     ligand_mpnn_reference_backend_path: str | None = ConfigField(
         default=None,
-        title="LigandMPNN Reference Backend Path",
+        title="Reference Backend Path",
         description="Path to a local reference LigandMPNN checkout when ligand_mpnn_backend='reference'.",
     )
     ligand_mpnn_tool_seed: int | None = ConfigField(
@@ -178,7 +175,7 @@ class MPNNMutationGeneratorConfig(BaseConfig):
     )
     post_mutation_structure_preparation: StructurePreparationConfig | None = ConfigField(
         default=None,
-        title="Post-Mutation Structure Preparation",
+        title="Post-Mutation Structure",
         description="Optional structure preparation used to attach sequence-consistent structures after mutation.",
     )
     device: str = ConfigField(

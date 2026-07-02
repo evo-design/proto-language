@@ -91,6 +91,8 @@ class LigandMPNNGeneratorConfig(BaseConfig):
         backend (LigandMPNNBackend): Inference backend.
         reference_backend_path (str | None): Local reference LigandMPNN checkout used by backend="reference".
         packer_checkpoint_path (str | None): Optional side-chain packer checkpoint for backend="reference".
+        sc_num_denoising_steps (int): Number of side-chain denoising steps for compatible packers.
+        sc_num_samples (int): Number of side-chain samples for compatible packers.
         tool_seed (int | None): Optional seed passed directly to the LigandMPNN tool.
 
         batch_size (int): Number of sequences to process simultaneously on GPU.

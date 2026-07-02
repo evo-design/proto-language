@@ -39,7 +39,7 @@ class MPNNSequenceProbabilityConfig(BaseConfig):
             variant used to score sequence probability.
         structure_source (MPNNSequenceProbabilityStructureSource): Whether scoring uses configured structures or the
             structure currently attached to each proposal.
-        structure_inputs (list[InverseFoldingStructureInput]): Backbone
+        structure_inputs (list[InverseFoldingStructureInput] | None): Backbone
             structure inputs, with optional chains to redesign and fixed positions. When
             ``structure_source`` is ``"proposal_structure"``, these act as optional selection templates.
         output_chain_id (str | None): Chain whose sequence is supplied by the
@@ -77,10 +77,7 @@ class MPNNSequenceProbabilityConfig(BaseConfig):
     structure_inputs: list[InverseFoldingStructureInput] | None = ConfigField(
         default=None,
         title="Structure Inputs",
-        description=(
-            "Structure(s) for MPNN scoring, with optional chains_to_redesign and fixed_positions. "
-            "Optional when structure_source='proposal_structure'."
-        ),
+        description="Structures for MPNN scoring; optional when using proposal structures.",
     )
     output_chain_id: str | None = ConfigField(
         default=None,
@@ -130,7 +127,7 @@ class MPNNSequenceProbabilityConfig(BaseConfig):
     )
     ligand_mpnn_reference_backend_path: str | None = ConfigField(
         default=None,
-        title="LigandMPNN Reference Backend Path",
+        title="Reference Backend Path",
         description="Path to a local reference LigandMPNN checkout when ligand_mpnn_backend='reference'.",
     )
     seed: int | None = ConfigField(
