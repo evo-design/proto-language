@@ -83,6 +83,49 @@ def test_genetic_algorithm_rejects_more_results_than_population() -> None:
         raise AssertionError("Expected validation error")
 
 
+def test_genetic_algorithm_rejects_shared_tournament_with_non_tournament_selection() -> None:
+    try:
+        GeneticAlgorithmOptimizerConfig(
+            num_generations=1,
+            population_size=2,
+            parent_selection="rank",
+            parent_pair_selection="shared_tournament",
+        )
+    except ValueError as exc:
+        assert "requires parent_selection='tournament'" in str(exc)
+    else:
+        raise AssertionError("Expected validation error")
+
+
+def test_genetic_algorithm_shared_tournament_returns_winner_and_runner_up() -> None:
+    segment = Segment(sequence="CCCC", sequence_type="protein", label="protein")
+    optimizer = GeneticAlgorithmOptimizer(
+        constructs=[Construct([segment], label="construct")],
+        generators=[],
+        constraints=[
+            Constraint(
+                inputs=[segment],
+                function=target_a_constraint,
+                function_config=TargetAConfig(),
+            )
+        ],
+        config=GeneticAlgorithmOptimizerConfig(
+            num_generations=1,
+            population_size=2,
+            parent_pair_selection="shared_tournament",
+            survivor_selection="nsga2",
+            tournament_size=2,
+            tournament_win_probability=1.0,
+            seed=0,
+        ),
+    )
+    optimizer._population_energies = [1.0, 2.0]
+    optimizer._population_nsga2_ranks = [0, 1]
+    optimizer._population_nsga2_crowding = [float("inf"), float("inf")]
+
+    assert optimizer._select_parent_pair([1.0, 2.0]) == (0, 1)
+
+
 def test_generational_replacement_backfills_when_offspring_are_few() -> None:
     segment = Segment(sequence="CCCCCCCC", sequence_type="dna", label="dna")
     construct = Construct([segment], label="construct")

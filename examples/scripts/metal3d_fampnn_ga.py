@@ -36,8 +36,8 @@ SCAFFOLD_SEQUENCE = (
     "RLIQFHFHWGSLDGQGSEHTVDKKKYAAELHLVHWNTKYGDFGKAVQQPDGLAVLGIFLKVGSAKPGLQKVVDVLDSIKTKGKSADF"
     "TNFDPRGLLPESLDYWTYPGSLTTPPLLECVTWIVLKEPISVSSEQVLKFRKLNFNGEGEPEELMVDNWRPAQPLKNRQIKASFK"
 )
-# Literal dEVA behavior: its 2VVB config names X1-X7, but this PDB starts at X3,
-# so dEVA's sequence model leaves chain X fully designable.
+# dEVA excludes residues X1-X7 from crossover; the bundled 2VVB PDB starts at X3.
+CROSSOVER_EXCLUDED_POSITIONS = list(range(5))
 
 
 def parse_args() -> argparse.Namespace:
@@ -53,6 +53,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-results", type=int, default=2)
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--scaffold", default=SCAFFOLD_URL)
+    parser.add_argument("--ligandmpnn-backend", choices=["foundry", "reference"], default="foundry")
+    parser.add_argument("--ligandmpnn-checkpoint-path", default=None)
+    parser.add_argument("--ligandmpnn-reference-backend-path", default=None)
+    parser.add_argument("--ligandmpnn-packer-checkpoint-path", default=None)
+    parser.add_argument("--ligandmpnn-tool-seed", type=int, default=0)
+    parser.add_argument("--mpnn-score-source", choices=["model", "proposal_metadata"], default=None)
+    parser.add_argument("--mutation-rng-mode", choices=["derived_seed", "global"], default="global")
+    parser.add_argument("--mutation-rng-seed", type=int, default=None)
     parser.add_argument("--output-dir", type=Path, default=Path("metal3d_ligandmpnn_ga_outputs"))
     parser.add_argument("--verbose", action="store_true")
     return parser.parse_args()
@@ -67,11 +76,16 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
     # Generators.
     initialization_generator = LigandMPNNGenerator(
         LigandMPNNGeneratorConfig(
-            structure_inputs=InverseFoldingStructureInput(structure=SCAFFOLD_URL),
+            structure_inputs=InverseFoldingStructureInput(structure=args.scaffold),
             temperature=0.5,
             excluded_amino_acids=["C"],
             ligand_mpnn_use_side_chain_context=True,
             ligand_mpnn_cutoff_for_score=20.0,
+            checkpoint_path=args.ligandmpnn_checkpoint_path,
+            backend=args.ligandmpnn_backend,
+            reference_backend_path=args.ligandmpnn_reference_backend_path,
+            packer_checkpoint_path=args.ligandmpnn_packer_checkpoint_path,
+            tool_seed=args.ligandmpnn_tool_seed,
             batch_size=args.batch_size,
             device=args.device,
             verbose=args.verbose,
@@ -82,17 +96,42 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
     mutation_generator = MPNNMutationGenerator(
         MPNNMutationGeneratorConfig(
             model="ligandmpnn",
+            structure_source="proposal_structure",
             structure_inputs=InverseFoldingStructureInput(
-                structure=SCAFFOLD_URL,
+                structure=args.scaffold,
                 chains_to_redesign=["X"],
             ),
             output_chain_id="X",
             num_mutations=4,
             excluded_amino_acids=["C"],
-            replacement_strategy="sample",
+            replacement_strategy="argmax",
             replacement_temperature=1.0,
             ligand_mpnn_use_side_chain_context=True,
             ligand_mpnn_cutoff_for_score=20.0,
+            ligand_mpnn_checkpoint_path=args.ligandmpnn_checkpoint_path,
+            ligand_mpnn_backend=args.ligandmpnn_backend,
+            ligand_mpnn_reference_backend_path=args.ligandmpnn_reference_backend_path,
+            ligand_mpnn_tool_seed=args.ligandmpnn_tool_seed,
+            rng_mode=args.mutation_rng_mode,
+            rng_seed=args.mutation_rng_seed if args.mutation_rng_seed is not None else args.seed,
+            post_mutation_score_mode="autoregressive",
+            post_mutation_structure_preparation=StructurePreparationConfig(
+                mode="ligandmpnn_pack_from_proposal",
+                chain_ids=["X"],
+                ligandmpnn_pack_config=LigandMPNNSampleConfig(
+                    temperature=0.5,
+                    ligand_mpnn_use_side_chain_context=True,
+                    ligand_mpnn_cutoff_for_score=20.0,
+                    checkpoint_path=args.ligandmpnn_checkpoint_path,
+                    backend=args.ligandmpnn_backend,
+                    reference_backend_path=args.ligandmpnn_reference_backend_path,
+                    packer_checkpoint_path=args.ligandmpnn_packer_checkpoint_path,
+                    seed=args.ligandmpnn_tool_seed,
+                    batch_size=1,
+                    device=args.device,
+                    verbose=args.verbose,
+                ),
+            ),
             device=args.device,
             verbose=args.verbose,
         )
@@ -100,19 +139,27 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
     mutation_generator.assign(enzyme)
 
     # Constraints.
+    mpnn_score_source = args.mpnn_score_source or (
+        "proposal_metadata" if args.ligandmpnn_backend == "reference" else "model"
+    )
     mpnn_probability_constraint = Constraint(
         inputs=[enzyme],
         function=mpnn_sequence_probability_constraint,
         function_config=MPNNSequenceProbabilityConfig(
             model="ligandmpnn",
+            structure_source="proposal_structure",
             structure_inputs=InverseFoldingStructureInput(
-                structure=SCAFFOLD_URL,
+                structure=args.scaffold,
                 chains_to_redesign=["X"],
             ),
             output_chain_id="X",
             score_mode="probability_loss",
+            score_source=mpnn_score_source,
             ligand_mpnn_use_side_chain_context=True,
             ligand_mpnn_cutoff_for_score=20.0,
+            ligand_mpnn_checkpoint_path=args.ligandmpnn_checkpoint_path,
+            ligand_mpnn_backend=args.ligandmpnn_backend,
+            ligand_mpnn_reference_backend_path=args.ligandmpnn_reference_backend_path,
             device=args.device,
             verbose=args.verbose,
         ),
@@ -126,17 +173,7 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
         function_config=Metal3DProbabilityConfig(
             min_probability=0.2,
             structure_preparation=StructurePreparationConfig(
-                mode="ligandmpnn_pack_from_scaffold",
-                scaffold_structure=SCAFFOLD_URL,
-                chain_ids=["X"],
-                ligandmpnn_pack_config=LigandMPNNSampleConfig(
-                    temperature=0.5,
-                    ligand_mpnn_use_side_chain_context=True,
-                    ligand_mpnn_cutoff_for_score=20.0,
-                    batch_size=1,
-                    device=args.device,
-                    verbose=args.verbose,
-                ),
+                mode="proposal_structure",
             ),
             metal3d_config=Metal3DPredictionConfig(
                 model_checkpoint="metal3d-cat",
@@ -164,9 +201,16 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
             crossover_rate=1.0,
             crossover_strategy="two_point",
             parent_selection="tournament",
+            parent_pair_selection="shared_tournament",
             tournament_size=2,
+            tournament_win_probability=0.9,
+            require_distinct_parents=True,
+            offspring_pairing="reciprocal",
             replacement="elitist",
             survivor_selection="nsga2",
+            crossover_excluded_positions={"2VVB chain X": CROSSOVER_EXCLUDED_POSITIONS},
+            crossover_allow_empty_region=True,
+            preserve_parent_structure_after_crossover=True,
             refine_offspring_with_generators=False,
             initialize_with_mutation_generators=False,
             tracking_interval=1,
@@ -177,7 +221,7 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
     )
 
     # Program.
-    return Program(optimizers=[optimizer], num_results=args.num_results, seed=args.seed), enzyme
+    return Program(optimizers=[optimizer], num_results=args.num_results), enzyme
 
 
 def write_results(enzyme: Segment, output_dir: Path, energy_scores: list[float]) -> None:

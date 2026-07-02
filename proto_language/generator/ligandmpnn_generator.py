@@ -4,7 +4,7 @@ protein sequences, making it particularly effective for enzyme design
 and binding site optimization.
 """
 
-from typing import Any, final
+from typing import Any, Literal, final
 
 from proto_tools import (
     InverseFoldingInput,
@@ -18,6 +18,8 @@ from pydantic import field_validator
 from proto_language.core import Generator, GeneratorInputType
 from proto_language.generator.generator_registry import generator
 from proto_language.utils.base import BaseConfig, ConfigField
+
+LigandMPNNBackend = Literal["foundry", "reference"]
 
 
 class LigandMPNNGeneratorConfig(BaseConfig):
@@ -84,6 +86,12 @@ class LigandMPNNGeneratorConfig(BaseConfig):
 
         ligand_mpnn_cutoff_for_score (float): Ligand-residue distance cutoff used
             by LigandMPNN. Default: ``8.0``.
+
+        checkpoint_path (str | None): Optional explicit LigandMPNN checkpoint path.
+        backend (LigandMPNNBackend): Inference backend.
+        reference_backend_path (str | None): Local reference LigandMPNN checkout used by backend="reference".
+        packer_checkpoint_path (str | None): Optional side-chain packer checkpoint for backend="reference".
+        tool_seed (int | None): Optional seed passed directly to the LigandMPNN tool.
 
         batch_size (int): Number of sequences to process simultaneously on GPU.
             Larger batches improve throughput but use more GPU memory; reduce
@@ -163,6 +171,44 @@ class LigandMPNNGeneratorConfig(BaseConfig):
         gt=0.0,
         title="LigandMPNN Ligand Cutoff",
         description="Ligand-residue distance cutoff (Å) used by LigandMPNN.",
+    )
+    checkpoint_path: str | None = ConfigField(
+        default=None,
+        title="Checkpoint Path",
+        description="Optional explicit LigandMPNN checkpoint path.",
+    )
+    backend: LigandMPNNBackend = ConfigField(
+        default="foundry",
+        title="Backend",
+        description="LigandMPNN inference backend.",
+    )
+    reference_backend_path: str | None = ConfigField(
+        default=None,
+        title="Reference Backend Path",
+        description="Path to a local reference LigandMPNN checkout when backend='reference'.",
+    )
+    packer_checkpoint_path: str | None = ConfigField(
+        default=None,
+        title="Packer Checkpoint Path",
+        description="Optional side-chain packer checkpoint path for reference backend packing.",
+    )
+    sc_num_denoising_steps: int = ConfigField(
+        default=8,
+        ge=1,
+        title="Sidechain Denoising Steps",
+        description="Number of side-chain denoising steps for compatible LigandMPNN packers.",
+    )
+    sc_num_samples: int = ConfigField(
+        default=1,
+        ge=1,
+        title="Sidechain Samples",
+        description="Number of side-chain samples for compatible LigandMPNN packers.",
+    )
+    tool_seed: int | None = ConfigField(
+        default=None,
+        ge=0,
+        title="Tool Seed",
+        description="Optional seed passed directly to the LigandMPNN tool; None uses Proto's derived seed stream.",
     )
     batch_size: int = ConfigField(
         default=1,
@@ -263,6 +309,13 @@ class LigandMPNNGenerator(Generator):
         self.excluded_amino_acids = config.excluded_amino_acids
         self.ligand_mpnn_use_side_chain_context = config.ligand_mpnn_use_side_chain_context
         self.ligand_mpnn_cutoff_for_score = config.ligand_mpnn_cutoff_for_score
+        self.checkpoint_path = config.checkpoint_path
+        self.backend = config.backend
+        self.reference_backend_path = config.reference_backend_path
+        self.packer_checkpoint_path = config.packer_checkpoint_path
+        self.sc_num_denoising_steps = config.sc_num_denoising_steps
+        self.sc_num_samples = config.sc_num_samples
+        self.tool_seed = config.tool_seed
         self.batch_size = config.batch_size
         self.device = config.device
         self.verbose = config.verbose
@@ -300,6 +353,7 @@ class LigandMPNNGenerator(Generator):
         generated_structures: list[Structure | None] = []
         all_recovery: list[float] = []
         all_interface_recovery: list[float | None] = []
+        all_pmpnn: list[float | None] = []
 
         if len(sampling_structure_inputs) == 1:
             # Single structure: generate num_proposals sequences in chunks of batch_size
@@ -319,7 +373,7 @@ class LigandMPNNGenerator(Generator):
             "batch_size": bs,
             "temperature": self.temperature,
             "excluded_amino_acids": self.excluded_amino_acids,
-            "seed": self._next_seed(),
+            "seed": self.tool_seed if self.tool_seed is not None else self._next_seed(),
             "device": self.device,
             "verbose": self.verbose,
         }
@@ -328,6 +382,18 @@ class LigandMPNNGenerator(Generator):
             tool_config_kwargs["ligand_mpnn_use_side_chain_context"] = self.ligand_mpnn_use_side_chain_context
         if "ligand_mpnn_cutoff_for_score" in supported_fields:
             tool_config_kwargs["ligand_mpnn_cutoff_for_score"] = self.ligand_mpnn_cutoff_for_score
+        if "checkpoint_path" in supported_fields:
+            tool_config_kwargs["checkpoint_path"] = self.checkpoint_path
+        if "backend" in supported_fields:
+            tool_config_kwargs["backend"] = self.backend
+        if "reference_backend_path" in supported_fields:
+            tool_config_kwargs["reference_backend_path"] = self.reference_backend_path
+        if "packer_checkpoint_path" in supported_fields:
+            tool_config_kwargs["packer_checkpoint_path"] = self.packer_checkpoint_path
+        if "sc_num_denoising_steps" in supported_fields:
+            tool_config_kwargs["sc_num_denoising_steps"] = self.sc_num_denoising_steps
+        if "sc_num_samples" in supported_fields:
+            tool_config_kwargs["sc_num_samples"] = self.sc_num_samples
         tool_config = LigandMPNNSampleConfig(**tool_config_kwargs)
 
         result = run_ligandmpnn_sample(
@@ -346,14 +412,16 @@ class LigandMPNNGenerator(Generator):
                 all_recovery.append(design.metrics["sequence_recovery"])
                 # ligand_interface_sequence_recovery is absent when the input has no ligand interface.
                 all_interface_recovery.append(design.metrics.get("ligand_interface_sequence_recovery", None))
+                all_pmpnn.append(design.metrics.get("pmpnn", None))
 
         key = self._spec.key
-        for proposal, sequence, structure, recovery, interface_recovery in zip(
+        for proposal, sequence, structure, recovery, interface_recovery, pmpnn in zip(
             self.segment.proposal_sequences,
             generated_sequences,
             generated_structures,
             all_recovery,
             all_interface_recovery,
+            all_pmpnn,
             strict=True,
         ):
             proposal.sequence = sequence
@@ -362,6 +430,7 @@ class LigandMPNNGenerator(Generator):
             proposal._generator_metadata[key] = {
                 "sequence_recovery": recovery,
                 "ligand_interface_sequence_recovery": interface_recovery,
+                "pmpnn": pmpnn,
             }
 
         # Fall back to the generating structure if the tool did not emit a designed structure.

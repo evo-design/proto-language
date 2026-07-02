@@ -41,11 +41,22 @@ class GeneticAlgorithmOptimizerConfig(BaseOptimizerConfig):
         crossover_rate (float): Probability that a child recombines two parents.
         crossover_strategy (Literal["single_point", "two_point", "uniform"]): Recombination operator.
         parent_selection (Literal["tournament", "rank", "roulette"]): Strategy for choosing parents.
+        parent_pair_selection (Literal["independent", "shared_tournament"]): Whether parent pairs are selected
+            by independent parent draws or by one tournament that returns the winner and runner-up.
         tournament_size (int): Number of candidates sampled for tournament parent selection.
+        tournament_win_probability (float): Probability that tournament selection accepts the best candidate
+            before considering the next candidate.
+        require_distinct_parents (bool): Resample parent pairs until they use different population indices.
+        offspring_pairing (Literal["single", "reciprocal"]): Whether each parent pair creates one child or two
+            reciprocal children with the same crossover mask.
         replacement (Literal["elitist", "generational"]): Policy for forming the next population.
         survivor_selection (Literal["energy", "nsga2"]): Survivor selection criterion.
         crossover_positions (dict[str, list[int]] | None):
             Optional zero-based crossover positions, keyed by segment label.
+        crossover_excluded_positions (dict[str, list[int]] | None):
+            Optional zero-based positions excluded from crossover, keyed by segment label.
+        crossover_allow_empty_region (bool): Whether two-point crossover may draw identical cut points.
+        preserve_parent_structure_after_crossover (bool): Keep parent structures on crossed-over children.
         refine_offspring_with_generators (bool): Run non-mutation generators after mutation.
         initialize_with_mutation_generators (bool): Use mutation generators during initialization.
         tracking_interval (int): Number of generations between saved progress snapshots.
@@ -99,11 +110,33 @@ class GeneticAlgorithmOptimizerConfig(BaseOptimizerConfig):
         title="Parent Selection",
         description="Parent selection strategy.",
     )
+    parent_pair_selection: Literal["independent", "shared_tournament"] = ConfigField(
+        default="independent",
+        title="Parent Pair Selection",
+        description=("Use independent parent draws or one shared tournament that returns the winner and runner-up."),
+    )
     tournament_size: int = ConfigField(
         default=3,
         ge=2,
         title="Tournament Size",
         description="Number of candidates sampled for tournament parent selection.",
+    )
+    tournament_win_probability: float = ConfigField(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        title="Tournament Win Probability",
+        description="Probability of accepting the current best tournament candidate before considering the next.",
+    )
+    require_distinct_parents: bool = ConfigField(
+        default=False,
+        title="Require Distinct Parents",
+        description="If true, resample parent pairs until they use different population indices.",
+    )
+    offspring_pairing: Literal["single", "reciprocal"] = ConfigField(
+        default="single",
+        title="Offspring Pairing",
+        description="Single creates one child per parent pair; reciprocal creates two children with swapped parents.",
     )
     replacement: Literal["elitist", "generational"] = ConfigField(
         default="elitist",
@@ -119,6 +152,21 @@ class GeneticAlgorithmOptimizerConfig(BaseOptimizerConfig):
         default=None,
         title="Crossover Positions",
         description="Zero-based per-segment sequence positions eligible for crossover.",
+    )
+    crossover_excluded_positions: dict[str, list[int]] | None = ConfigField(
+        default=None,
+        title="Crossover Excluded Positions",
+        description="Zero-based per-segment sequence positions ineligible for crossover.",
+    )
+    crossover_allow_empty_region: bool = ConfigField(
+        default=False,
+        title="Allow Empty Crossover Region",
+        description="If true, two-point crossover may select identical cut points and swap no residues.",
+    )
+    preserve_parent_structure_after_crossover: bool = ConfigField(
+        default=False,
+        title="Preserve Crossover Structure",
+        description="Keep parent structures on crossed-over children so downstream generators can use them.",
     )
     refine_offspring_with_generators: bool = ConfigField(
         default=False,
@@ -138,6 +186,8 @@ class GeneticAlgorithmOptimizerConfig(BaseOptimizerConfig):
             self.offspring_per_generation = self.population_size
         if self.num_results is not None and self.num_results > self.population_size:
             raise ValueError("num_results cannot exceed population_size.")
+        if self.parent_pair_selection == "shared_tournament" and self.parent_selection != "tournament":
+            raise ValueError("parent_pair_selection='shared_tournament' requires parent_selection='tournament'.")
         return self
 
 
@@ -287,24 +337,92 @@ class GeneticAlgorithmOptimizer(Optimizer):
         offspring_by_segment: list[list[Sequence]] = [[] for _ in self.segments]
         variable_segment_ids = self._variable_segment_ids()
         crossover_positions = self._crossover_positions_by_segment()
-        for _ in range(self.offspring_per_generation):
-            p1 = self._select_parent(parent_energies)
-            p2 = self._select_parent(parent_energies)
+        while len(offspring_by_segment[0]) < self.offspring_per_generation:
+            p1, p2 = self._select_parent_pair(parent_energies)
             for seg_idx, segment in enumerate(self.segments):
                 if id(segment) in variable_segment_ids:
-                    child = self._crossover_copy(
+                    children = self._crossover_children(
                         parent_sequences[seg_idx][p1],
                         parent_sequences[seg_idx][p2],
                         mutable_indices=crossover_positions.get(id(segment)),
                     )
                 else:
-                    child = copy.deepcopy(parent_sequences[seg_idx][p1])
-                child._metadata.setdefault("genetic_algorithm", {})
-                child._metadata["genetic_algorithm"].update(
-                    {"generation": generation, "parents": [p1, p2], "optimizer": "genetic-algorithm"}
-                )
-                offspring_by_segment[seg_idx].append(child)
+                    children = (
+                        copy.deepcopy(parent_sequences[seg_idx][p1]),
+                        copy.deepcopy(parent_sequences[seg_idx][p2]),
+                    )
+                if self.config.offspring_pairing == "single":
+                    children = children[:1]
+                for child in children:
+                    if len(offspring_by_segment[seg_idx]) >= self.offspring_per_generation:
+                        break
+                    child._metadata.setdefault("genetic_algorithm", {})
+                    child._metadata["genetic_algorithm"].update(
+                        {"generation": generation, "parents": [p1, p2], "optimizer": "genetic-algorithm"}
+                    )
+                    offspring_by_segment[seg_idx].append(child)
         return self._mutate_offspring(offspring_by_segment)
+
+    def _select_parent_pair(self, energies: list[float]) -> tuple[int, int]:
+        if self.config.parent_pair_selection == "shared_tournament":
+            return self._select_shared_tournament_parent_pair(energies)
+
+        p1 = self._select_parent(energies)
+        p2 = self._select_parent(energies)
+        if not self.config.require_distinct_parents or len(energies) < 2:
+            return p1, p2
+
+        for _ in range(max(10, len(energies) * 2)):
+            if p2 != p1:
+                return p1, p2
+            p2 = self._select_parent(energies)
+        alternatives = [idx for idx in range(len(energies)) if idx != p1]
+        return p1, self._rng.choice(alternatives)
+
+    def _select_shared_tournament_parent_pair(self, energies: list[float]) -> tuple[int, int]:
+        """Select a winner and runner-up from one tournament candidate set."""
+        if len(energies) < 2:
+            return 0, 0
+
+        k = min(self.config.tournament_size, len(energies))
+        participants = self._rng.sample(range(len(energies)), k)
+        best: int | None = None
+        second_best: int | None = None
+        for participant in participants:
+            if best is None or (
+                self._parent_candidate_is_better(participant, best, energies)
+                and self._rng.random() <= self.config.tournament_win_probability
+            ):
+                second_best = best
+                best = participant
+            elif second_best is None or (
+                self._parent_candidate_is_better(participant, second_best, energies)
+                and self._rng.random() <= self.config.tournament_win_probability
+            ):
+                second_best = participant
+
+        if best is None:
+            best = self._rng.randrange(len(energies))
+        if second_best is None or (self.config.require_distinct_parents and second_best == best):
+            alternatives = [idx for idx in range(len(energies)) if idx != best]
+            second_best = self._rng.choice(alternatives) if alternatives else best
+        return best, second_best
+
+    def _parent_candidate_is_better(self, candidate: int, incumbent: int, energies: list[float]) -> bool:
+        """Return whether candidate should outrank incumbent for parent selection."""
+        if self.config.survivor_selection == "nsga2" and self._population_nsga2_ranks:
+            candidate_key = (
+                self._population_nsga2_ranks[candidate],
+                -self._population_nsga2_crowding[candidate],
+                _energy_sort_key(energies[candidate]),
+            )
+            incumbent_key = (
+                self._population_nsga2_ranks[incumbent],
+                -self._population_nsga2_crowding[incumbent],
+                _energy_sort_key(energies[incumbent]),
+            )
+            return candidate_key < incumbent_key
+        return _energy_sort_key(energies[candidate]) < _energy_sort_key(energies[incumbent])
 
     def _select_parent(self, energies: list[float]) -> int:
         if self.config.survivor_selection == "nsga2" and self._population_nsga2_ranks:
@@ -312,7 +430,8 @@ class GeneticAlgorithmOptimizer(Optimizer):
         if self.config.parent_selection == "tournament":
             k = min(self.config.tournament_size, len(energies))
             candidates = self._rng.sample(range(len(energies)), k)
-            return min(candidates, key=lambda idx: _energy_sort_key(energies[idx]))
+            ranked = sorted(candidates, key=lambda idx: _energy_sort_key(energies[idx]))
+            return self._stochastic_tournament_pick(ranked)
         if self.config.parent_selection == "rank":
             ranked = sorted(range(len(energies)), key=lambda idx: _energy_sort_key(energies[idx]))
             weights = list(range(len(ranked), 0, -1))
@@ -328,7 +447,7 @@ class GeneticAlgorithmOptimizer(Optimizer):
         """Select a parent by Pareto rank, then crowding distance."""
         k = min(self.config.tournament_size, len(self._population_nsga2_ranks))
         candidates = self._rng.sample(range(len(self._population_nsga2_ranks)), k)
-        return min(
+        ranked = sorted(
             candidates,
             key=lambda idx: (
                 self._population_nsga2_ranks[idx],
@@ -336,6 +455,14 @@ class GeneticAlgorithmOptimizer(Optimizer):
                 _energy_sort_key(self._population_energies[idx]),
             ),
         )
+        return self._stochastic_tournament_pick(ranked)
+
+    def _stochastic_tournament_pick(self, ranked_candidates: list[int]) -> int:
+        """Pick from candidates ordered best-to-worst using tournament_win_probability."""
+        for idx in ranked_candidates[:-1]:
+            if self._rng.random() <= self.config.tournament_win_probability:
+                return idx
+        return ranked_candidates[-1]
 
     def _crossover_copy(
         self,
@@ -343,38 +470,66 @@ class GeneticAlgorithmOptimizer(Optimizer):
         parent_b: Sequence,
         mutable_indices: set[int] | None = None,
     ) -> Sequence:
-        child = copy.deepcopy(parent_a)
+        return self._crossover_children(parent_a, parent_b, mutable_indices=mutable_indices)[0]
+
+    def _crossover_children(
+        self,
+        parent_a: Sequence,
+        parent_b: Sequence,
+        mutable_indices: set[int] | None = None,
+    ) -> tuple[Sequence, Sequence]:
+        child_a = copy.deepcopy(parent_a)
+        child_b = copy.deepcopy(parent_b)
         seq_a = parent_a.sequence
         seq_b = parent_b.sequence
         if parent_a.sequence_type == "ligand" or len(seq_a) != len(seq_b) or len(seq_a) < 2:
-            return child
+            return child_a, child_b
         if mutable_indices is not None:
             mutable_indices = {idx for idx in mutable_indices if 0 <= idx < len(seq_a)}
             if not mutable_indices:
-                return child
-        if self._rng.random() >= self.config.crossover_rate:
-            return child
+                return child_a, child_b
+        if self.config.crossover_rate <= 0.0:
+            return child_a, child_b
+        if self.config.crossover_rate < 1.0 and self._rng.random() >= self.config.crossover_rate:
+            return child_a, child_b
         if self.config.crossover_strategy == "uniform":
-            child.sequence = "".join(
-                self._crossover_residue(i, a, b, mutable_indices)
+            use_b = [
+                self._can_crossover_index(i, mutable_indices) and self._rng.random() >= 0.5 for i in range(len(seq_a))
+            ]
+            child_a.sequence = "".join(b if swap else a for swap, a, b in zip(use_b, seq_a, seq_b, strict=True))
+            child_b.sequence = "".join(a if swap else b for swap, a, b in zip(use_b, seq_a, seq_b, strict=True))
+        elif self.config.crossover_strategy == "two_point":
+            if self.config.crossover_allow_empty_region:
+                left, right = sorted((self._rng.randint(0, len(seq_a)), self._rng.randint(0, len(seq_a))))
+            else:
+                left = self._rng.randint(0, len(seq_a) - 2)
+                right = self._rng.randint(left + 1, len(seq_a))
+            child_a.sequence = "".join(
+                b if left <= i < right and self._can_crossover_index(i, mutable_indices) else a
                 for i, (a, b) in enumerate(zip(seq_a, seq_b, strict=True))
             )
-        elif self.config.crossover_strategy == "two_point":
-            left = self._rng.randint(0, len(seq_a) - 2)
-            right = self._rng.randint(left + 1, len(seq_a))
-            child.sequence = "".join(
-                b if left <= i < right and self._can_crossover_index(i, mutable_indices) else a
+            child_b.sequence = "".join(
+                a if left <= i < right and self._can_crossover_index(i, mutable_indices) else b
                 for i, (a, b) in enumerate(zip(seq_a, seq_b, strict=True))
             )
         else:
             point = self._rng.randint(1, len(seq_a) - 1)
-            child.sequence = "".join(
+            child_a.sequence = "".join(
                 b if i >= point and self._can_crossover_index(i, mutable_indices) else a
                 for i, (a, b) in enumerate(zip(seq_a, seq_b, strict=True))
             )
-        child.structure = None
+            child_b.sequence = "".join(
+                a if i >= point and self._can_crossover_index(i, mutable_indices) else b
+                for i, (a, b) in enumerate(zip(seq_a, seq_b, strict=True))
+            )
+        self._mark_crossover_changed(child_a)
+        self._mark_crossover_changed(child_b)
+        return child_a, child_b
+
+    def _mark_crossover_changed(self, child: Sequence) -> None:
+        if not self.config.preserve_parent_structure_after_crossover:
+            child.structure = None
         child.logits = None
-        return child
 
     def _crossover_residue(
         self,
@@ -438,27 +593,46 @@ class GeneticAlgorithmOptimizer(Optimizer):
             id(segment): None for generator in self.generators for segment in generator.segments
         }
         if self.config.crossover_positions is None:
+            if self.config.crossover_excluded_positions is None:
+                return positions_by_segment
+            segment_by_label = self._unique_segment_by_label()
+            for label, positions in self.config.crossover_excluded_positions.items():
+                segment = segment_by_label[label]
+                excluded = self._resolve_crossover_indices(segment, positions)
+                positions_by_segment[id(segment)] = set(range(segment.sequence_length)) - excluded
             return positions_by_segment
 
         segment_by_label = self._unique_segment_by_label()
         for label, positions in self.config.crossover_positions.items():
             segment = segment_by_label[label]
-            positions_by_segment[id(segment)] = self._resolve_crossover_indices(segment, positions)
+            included = self._resolve_crossover_indices(segment, positions)
+            if self.config.crossover_excluded_positions and label in self.config.crossover_excluded_positions:
+                included -= self._resolve_crossover_indices(segment, self.config.crossover_excluded_positions[label])
+            positions_by_segment[id(segment)] = included
         return positions_by_segment
 
     def _validate_crossover_positions(self) -> None:
-        if self.config.crossover_positions is None:
+        if self.config.crossover_positions is None and self.config.crossover_excluded_positions is None:
             return
 
         segment_by_label = self._unique_segment_by_label()
-        unknown_labels = sorted(set(self.config.crossover_positions) - set(segment_by_label))
+        configured_labels = set(self.config.crossover_positions or {}) | set(
+            self.config.crossover_excluded_positions or {}
+        )
+        unknown_labels = sorted(configured_labels - set(segment_by_label))
         if unknown_labels:
             available = sorted(segment_by_label)
-            raise ValueError(
-                f"crossover_positions contains unknown segment labels {unknown_labels}. "
-                f"Available segment labels: {available}."
+            field_name = (
+                "crossover_positions"
+                if self.config.crossover_positions and set(self.config.crossover_positions) & set(unknown_labels)
+                else "crossover_excluded_positions"
             )
-        for label, positions in self.config.crossover_positions.items():
+            raise ValueError(
+                f"{field_name} contains unknown segment labels {unknown_labels}. Available segment labels: {available}."
+            )
+        for label, positions in (self.config.crossover_positions or {}).items():
+            self._resolve_crossover_indices(segment_by_label[label], positions)
+        for label, positions in (self.config.crossover_excluded_positions or {}).items():
             self._resolve_crossover_indices(segment_by_label[label], positions)
 
     def _unique_segment_by_label(self) -> dict[str, Segment]:

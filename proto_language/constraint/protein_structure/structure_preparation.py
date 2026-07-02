@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, Literal
 
 from proto_tools import (
@@ -54,7 +55,9 @@ class StructurePreparationConfig(BaseConfig):
         "proposal_structure",
         "configured_structure",
         "fampnn_pack_from_scaffold",
+        "fampnn_pack_from_proposal",
         "ligandmpnn_pack_from_scaffold",
+        "ligandmpnn_pack_from_proposal",
     ] = ConfigField(
         default="proposal_structure",
         title="Preparation Mode",
@@ -111,10 +114,22 @@ def prepare_structures_for_proposals(
         return [config.configured_structure for _ in input_sequences]
 
     if config.mode == "fampnn_pack_from_scaffold":
-        return _fampnn_pack_from_scaffold(input_sequences, config)
+        if config.scaffold_structure is None:
+            raise ValueError("structure_preparation.scaffold_structure is required for fampnn_pack_from_scaffold mode.")
+        return _fampnn_pack(input_sequences, config, lambda _seq_tuple: config.scaffold_structure)
+
+    if config.mode == "fampnn_pack_from_proposal":
+        return _fampnn_pack(input_sequences, config, _proposal_structure)
 
     if config.mode == "ligandmpnn_pack_from_scaffold":
-        return _ligandmpnn_pack_from_scaffold(input_sequences, config)
+        if config.scaffold_structure is None:
+            raise ValueError(
+                "structure_preparation.scaffold_structure is required for ligandmpnn_pack_from_scaffold mode."
+            )
+        return _ligandmpnn_pack(input_sequences, config, lambda _seq_tuple: config.scaffold_structure)
+
+    if config.mode == "ligandmpnn_pack_from_proposal":
+        return _ligandmpnn_pack(input_sequences, config, _proposal_structure)
 
     raise ValueError(f"Unknown structure preparation mode: {config.mode!r}")
 
@@ -129,12 +144,11 @@ def _proposal_structure(seq_tuple: tuple[Sequence, ...]) -> Structure:
 def _resolve_chain_sequence_map(
     seq_tuple: tuple[Sequence, ...],
     config: StructurePreparationConfig,
+    scaffold: Structure,
 ) -> dict[str, str]:
-    if config.scaffold_structure is None:
-        raise ValueError("scaffold_structure is required.")
     chain_ids = config.chain_ids
     if chain_ids is None:
-        available = config.scaffold_structure.get_chain_ids()
+        available = scaffold.get_chain_ids()
         if len(available) != len(seq_tuple):
             raise ValueError(
                 "structure_preparation.chain_ids is required when the scaffold chain count does not match "
@@ -177,22 +191,22 @@ def thread_sequences_onto_structure(scaffold: Structure, chain_sequences: dict[s
     )
 
 
-def _fampnn_pack_from_scaffold(
+def _fampnn_pack(
     input_sequences: list[tuple[Sequence, ...]],
     config: StructurePreparationConfig,
+    scaffold_for: Callable[[tuple[Sequence, ...]], Structure],
 ) -> list[Structure]:
-    if config.scaffold_structure is None:
-        raise ValueError("structure_preparation.scaffold_structure is required for fampnn_pack_from_scaffold mode.")
-
-    chain_maps = [_resolve_chain_sequence_map(seq_tuple, config) for seq_tuple in input_sequences]
-    threaded_inputs = [
-        FAMPNNStructureInput(
-            structure=thread_sequences_onto_structure(config.scaffold_structure, chain_map),
-            fixed_positions=config.fixed_positions,
-            fixed_sidechain_positions=config.fixed_sidechain_positions,
+    threaded_inputs: list[FAMPNNStructureInput] = []
+    for seq_tuple in input_sequences:
+        scaffold = scaffold_for(seq_tuple)
+        chain_map = _resolve_chain_sequence_map(seq_tuple, config, scaffold)
+        threaded_inputs.append(
+            FAMPNNStructureInput(
+                structure=thread_sequences_onto_structure(scaffold, chain_map),
+                fixed_positions=config.fixed_positions,
+                fixed_sidechain_positions=config.fixed_sidechain_positions,
+            )
         )
-        for chain_map in chain_maps
-    ]
     packed = run_fampnn_pack(
         inputs=FAMPNNPackInput(inputs=threaded_inputs),
         config=config.fampnn_pack_config,
@@ -201,29 +215,31 @@ def _fampnn_pack_from_scaffold(
     structures: list[Structure] = []
     for packed_structures in packed.packed_structures:
         if not packed_structures:
-            raise ValueError("fampnn_pack_from_scaffold did not return a packed structure for a proposal.")
+            raise ValueError(f"{config.mode} did not return a packed structure for a proposal.")
         # FAMPNN can generate multiple packing samples; structure preparation returns
         # one structure per proposal, preserving the previous first-sample behavior.
         structures.append(packed_structures[0])
     return structures
 
 
-def _ligandmpnn_pack_from_scaffold(
+def _ligandmpnn_pack(
     input_sequences: list[tuple[Sequence, ...]],
     config: StructurePreparationConfig,
+    scaffold_for: Callable[[tuple[Sequence, ...]], Structure],
 ) -> list[Structure]:
-    if config.scaffold_structure is None:
-        raise ValueError("structure_preparation.scaffold_structure is required for ligandmpnn_pack_from_scaffold mode.")
-
-    chain_maps = [_resolve_chain_sequence_map(seq_tuple, config) for seq_tuple in input_sequences]
-    threaded_inputs = [
-        InverseFoldingStructureInput(
-            structure=thread_sequences_onto_structure(config.scaffold_structure, chain_map),
-            chains_to_redesign=list(chain_map),
-            fixed_positions=_all_threaded_positions(config.scaffold_structure, chain_map),
+    chain_maps: list[dict[str, str]] = []
+    threaded_inputs: list[InverseFoldingStructureInput] = []
+    for seq_tuple in input_sequences:
+        scaffold = scaffold_for(seq_tuple)
+        chain_map = _resolve_chain_sequence_map(seq_tuple, config, scaffold)
+        chain_maps.append(chain_map)
+        threaded_inputs.append(
+            InverseFoldingStructureInput(
+                structure=thread_sequences_onto_structure(scaffold, chain_map),
+                chains_to_redesign=list(chain_map),
+                fixed_positions=_all_threaded_positions(scaffold, chain_map),
+            )
         )
-        for chain_map in chain_maps
-    ]
     pack_config = config.ligandmpnn_pack_config.model_copy(
         update={
             "num_sequences_per_structure": 1,
@@ -239,8 +255,7 @@ def _ligandmpnn_pack_from_scaffold(
     for design_set, chain_map in zip(packed.design_sets, chain_maps, strict=True):
         if len(design_set.complexes) != 1:
             raise ValueError(
-                "ligandmpnn_pack_from_scaffold expected one packed structure per proposal, "
-                f"got {len(design_set.complexes)}."
+                f"{config.mode} expected one packed structure per proposal, got {len(design_set.complexes)}."
             )
         design = design_set.complexes[0]
         for chain in design.chains:

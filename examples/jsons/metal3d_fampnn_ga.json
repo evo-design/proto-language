@@ -1,6 +1,6 @@
 {
   "name": "metal3d_ligandmpnn_ga",
-  "description": "Compact enzyme-design example based on the dEVA Metal3D workflow. The program starts from the zinc-binding 2VVB scaffold, reproduces the literal dEVA 2VVB mutability behavior where chain X is fully designable, then runs a generic genetic algorithm with whole-chain crossover and MPNN-guided offspring mutation. Each proposal is scored as two NSGA-II objectives: LigandMPNN sequence probability and Metal3D-Cat probability after LigandMPNN structure preparation.",
+  "description": "Compact enzyme-design example based on the dEVA Metal3D workflow. The program starts from the zinc-binding 2VVB scaffold, runs LigandMPNN scaffold-conditioned initialization, then uses a generic genetic algorithm with dEVA-style two-point crossover and proposal-structure MPNN-guided offspring mutation. Each proposal is scored as two NSGA-II objectives: LigandMPNN sequence probability and Metal3D-Cat probability on the current proposal structure.",
   "version": "1.0",
   "num_results": 2,
   "constructs": [
@@ -34,6 +34,8 @@
             "excluded_amino_acids": ["C"],
             "ligand_mpnn_use_side_chain_context": true,
             "ligand_mpnn_cutoff_for_score": 20.0,
+            "backend": "foundry",
+            "tool_seed": 0,
             "batch_size": 4,
             "device": "cuda",
             "verbose": false
@@ -47,6 +49,7 @@
           ],
           "config": {
             "model": "ligandmpnn",
+            "structure_source": "proposal_structure",
             "structure_inputs": [
               {
                 "structure": "https://raw.githubusercontent.com/gelnesr/dEVA/main/inputs/2VVB.pdb",
@@ -56,10 +59,29 @@
             "output_chain_id": "X",
             "num_mutations": 4,
             "excluded_amino_acids": ["C"],
-            "replacement_strategy": "sample",
+            "replacement_strategy": "argmax",
             "replacement_temperature": 1.0,
             "ligand_mpnn_use_side_chain_context": true,
             "ligand_mpnn_cutoff_for_score": 20.0,
+            "ligand_mpnn_backend": "foundry",
+            "ligand_mpnn_tool_seed": 0,
+            "rng_mode": "global",
+            "rng_seed": 0,
+            "post_mutation_score_mode": "autoregressive",
+            "post_mutation_structure_preparation": {
+              "mode": "ligandmpnn_pack_from_proposal",
+              "chain_ids": ["X"],
+              "ligandmpnn_pack_config": {
+                "temperature": 0.5,
+                "ligand_mpnn_use_side_chain_context": true,
+                "ligand_mpnn_cutoff_for_score": 20.0,
+                "backend": "foundry",
+                "seed": 0,
+                "batch_size": 1,
+                "device": "cuda",
+                "verbose": false
+              }
+            },
             "device": "cuda",
             "verbose": false
           }
@@ -73,6 +95,7 @@
           "weight": 1.0,
           "config": {
             "model": "ligandmpnn",
+            "structure_source": "proposal_structure",
             "structure_inputs": [
               {
                 "structure": "https://raw.githubusercontent.com/gelnesr/dEVA/main/inputs/2VVB.pdb",
@@ -81,8 +104,10 @@
             ],
             "output_chain_id": "X",
             "score_mode": "probability_loss",
+            "score_source": "model",
             "ligand_mpnn_use_side_chain_context": true,
             "ligand_mpnn_cutoff_for_score": 20.0,
+            "ligand_mpnn_backend": "foundry",
             "device": "cuda",
             "verbose": false
           }
@@ -95,17 +120,7 @@
           "config": {
             "min_probability": 0.2,
             "structure_preparation": {
-              "mode": "ligandmpnn_pack_from_scaffold",
-              "scaffold_structure": "https://raw.githubusercontent.com/gelnesr/dEVA/main/inputs/2VVB.pdb",
-              "chain_ids": ["X"],
-              "ligandmpnn_pack_config": {
-                "temperature": 0.5,
-                "ligand_mpnn_use_side_chain_context": true,
-                "ligand_mpnn_cutoff_for_score": 20.0,
-                "batch_size": 1,
-                "device": "cuda",
-                "verbose": false
-              }
+              "mode": "proposal_structure"
             },
             "metal3d_config": {
               "model_checkpoint": "metal3d-cat",
@@ -128,9 +143,18 @@
           "crossover_rate": 1.0,
           "crossover_strategy": "two_point",
           "parent_selection": "tournament",
+          "parent_pair_selection": "shared_tournament",
           "tournament_size": 2,
+          "tournament_win_probability": 0.9,
+          "require_distinct_parents": true,
+          "offspring_pairing": "reciprocal",
           "replacement": "elitist",
           "survivor_selection": "nsga2",
+          "crossover_excluded_positions": {
+            "2VVB chain X": [0, 1, 2, 3, 4]
+          },
+          "crossover_allow_empty_region": true,
+          "preserve_parent_structure_after_crossover": true,
           "refine_offspring_with_generators": false,
           "initialize_with_mutation_generators": false,
           "tracking_interval": 1,
