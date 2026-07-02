@@ -340,6 +340,7 @@ class GeneticAlgorithmOptimizer(Optimizer):
         while len(offspring_by_segment[0]) < self.offspring_per_generation:
             p1, p2 = self._select_parent_pair(parent_energies)
             for seg_idx, segment in enumerate(self.segments):
+                children: tuple[Sequence, ...]
                 if id(segment) in variable_segment_ids:
                     children = self._crossover_children(
                         parent_sequences[seg_idx][p1],
