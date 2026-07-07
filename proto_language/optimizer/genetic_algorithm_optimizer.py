@@ -465,14 +465,6 @@ class GeneticAlgorithmOptimizer(Optimizer):
                 return idx
         return ranked_candidates[-1]
 
-    def _crossover_copy(
-        self,
-        parent_a: Sequence,
-        parent_b: Sequence,
-        mutable_indices: set[int] | None = None,
-    ) -> Sequence:
-        return self._crossover_children(parent_a, parent_b, mutable_indices=mutable_indices)[0]
-
     def _crossover_children(
         self,
         parent_a: Sequence,
@@ -531,17 +523,6 @@ class GeneticAlgorithmOptimizer(Optimizer):
         if not self.config.preserve_parent_structure_after_crossover:
             child.structure = None
         child.logits = None
-
-    def _crossover_residue(
-        self,
-        idx: int,
-        residue_a: str,
-        residue_b: str,
-        mutable_indices: set[int] | None,
-    ) -> str:
-        if self._can_crossover_index(idx, mutable_indices) and self._rng.random() >= 0.5:
-            return residue_b
-        return residue_a
 
     @staticmethod
     def _can_crossover_index(idx: int, mutable_indices: set[int] | None) -> bool:

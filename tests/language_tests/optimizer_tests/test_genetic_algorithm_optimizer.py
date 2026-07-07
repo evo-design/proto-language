@@ -316,11 +316,11 @@ def test_genetic_algorithm_restricts_crossover_to_configured_positions(monkeypat
 
     assert optimizer._crossover_positions_by_segment()[id(segment)] == {2, 3}
 
-    child = optimizer._crossover_copy(
+    child = optimizer._crossover_children(
         Sequence("AAAAAA", "protein"),
         Sequence("CCCCCC", "protein"),
         mutable_indices={2, 3},
-    )
+    )[0]
 
     assert child.sequence[:2] == "AA"
     assert child.sequence[4:] == "AA"
