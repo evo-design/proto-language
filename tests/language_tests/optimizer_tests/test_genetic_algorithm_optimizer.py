@@ -13,7 +13,6 @@ from proto_language.core import (
     Sequence,
 )
 from proto_language.generator import ESM2Generator, ESM2GeneratorConfig
-from proto_language.generator.random_protein_generator import RandomProteinGenerator
 from proto_language.optimizer import GeneticAlgorithmOptimizer, GeneticAlgorithmOptimizerConfig
 from proto_language.optimizer.genetic_algorithm_optimizer import (
     _crowding_distance,
@@ -153,49 +152,6 @@ def test_generational_replacement_backfills_when_offspring_are_few() -> None:
 
     assert len(segment.proposal_sequences) == 6
     assert len(optimizer._population_energies) == 6
-
-
-def test_genetic_algorithm_uses_configured_esm2_mutation_generator(monkeypatch) -> None:
-    calls = []
-
-    def fake_esm2_sample(self: ESM2Generator) -> None:
-        calls.append([sequence.sequence for sequence in self.segment.proposal_sequences])
-        for sequence in self.segment.proposal_sequences:
-            sequence.sequence = "A" * len(sequence.sequence)
-
-    def fail_random_protein_mutation(self: RandomProteinGenerator) -> None:
-        raise AssertionError(f"Unexpected random protein mutation via {self.__class__.__name__}")
-
-    monkeypatch.setattr(ESM2Generator, "_sample", fake_esm2_sample)
-    monkeypatch.setattr(RandomProteinGenerator, "_sample", fail_random_protein_mutation)
-
-    segment = Segment(sequence="CCCC", sequence_type="protein", label="protein")
-    generator = ESM2Generator(ESM2GeneratorConfig())
-    generator.assign(segment)
-    construct = Construct([segment], label="construct")
-    constraint = Constraint(
-        inputs=[segment],
-        function=target_a_constraint,
-        function_config=TargetAConfig(),
-    )
-    optimizer = GeneticAlgorithmOptimizer(
-        constructs=[construct],
-        generators=[generator],
-        constraints=[constraint],
-        config=GeneticAlgorithmOptimizerConfig(
-            num_generations=1,
-            population_size=4,
-            offspring_per_generation=2,
-            num_results=1,
-            initialize_with_mutation_generators=True,
-            seed=123,
-        ),
-    )
-
-    Program(optimizers=[optimizer], num_results=1, compute=nullcontext()).run()
-
-    assert calls == [["CCCC", "CCCC", "CCCC", "CCCC"], ["AAAA", "AAAA"]]
-    assert segment.result_sequences[0].sequence == "AAAA"
 
 
 def test_genetic_algorithm_mutates_offspring_only_by_default(monkeypatch) -> None:

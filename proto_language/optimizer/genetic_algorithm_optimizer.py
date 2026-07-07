@@ -57,8 +57,6 @@ class GeneticAlgorithmOptimizerConfig(BaseOptimizerConfig):
             Optional zero-based positions excluded from crossover, keyed by segment label.
         crossover_allow_empty_region (bool): Whether two-point crossover may draw identical cut points.
         preserve_parent_structure_after_crossover (bool): Keep parent structures on crossed-over children.
-        refine_offspring_with_generators (bool): Run non-mutation generators after mutation.
-        initialize_with_mutation_generators (bool): Use mutation generators during initialization.
         tracking_interval (int): Number of generations between saved progress snapshots.
         track_proposals (bool): Whether to store proposal sequences alongside accepted results.
     """
@@ -168,16 +166,6 @@ class GeneticAlgorithmOptimizerConfig(BaseOptimizerConfig):
         title="Preserve Crossover Structure",
         description="Keep parent structures on crossed-over children so downstream generators can use them.",
     )
-    refine_offspring_with_generators: bool = ConfigField(
-        default=False,
-        title="Refine With Generators",
-        description="Run configured non-mutation generators on offspring after crossover and mutation.",
-    )
-    initialize_with_mutation_generators: bool = ConfigField(
-        default=False,
-        title="Mutation Initialization",
-        description="If true, run starting-sequence mutation generators when creating the initial population.",
-    )
 
     @model_validator(mode="after")
     def validate_params(self) -> GeneticAlgorithmOptimizerConfig:
@@ -284,9 +272,6 @@ class GeneticAlgorithmOptimizer(Optimizer):
             parent_energies = list(self._population_energies)
             offspring = self._make_offspring(parent_sequences, parent_energies, generation)
             self._set_proposal_population(offspring)
-            if self.config.refine_offspring_with_generators:
-                for generator in self._refinement_generators():
-                    generator.sample()
             self._score_current_proposals()
             child_sequences = self._copy_current_population()
             child_energies = list(self.energy_scores)
@@ -556,13 +541,6 @@ class GeneticAlgorithmOptimizer(Optimizer):
         ]
 
     def _initialization_generators(self) -> list[Generator]:
-        if self.config.initialize_with_mutation_generators:
-            return list(self.generators)
-        return [
-            generator for generator in self.generators if generator.input_type != GeneratorInputType.STARTING_SEQUENCE
-        ]
-
-    def _refinement_generators(self) -> list[Generator]:
         return [
             generator for generator in self.generators if generator.input_type != GeneratorInputType.STARTING_SEQUENCE
         ]

@@ -155,8 +155,6 @@
           },
           "crossover_allow_empty_region": true,
           "preserve_parent_structure_after_crossover": true,
-          "refine_offspring_with_generators": false,
-          "initialize_with_mutation_generators": false,
           "tracking_interval": 1,
           "track_proposals": false,
           "verbose": false,

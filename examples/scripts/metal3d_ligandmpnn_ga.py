@@ -211,8 +211,6 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
             crossover_excluded_positions={"2VVB chain X": CROSSOVER_EXCLUDED_POSITIONS},
             crossover_allow_empty_region=True,
             preserve_parent_structure_after_crossover=True,
-            refine_offspring_with_generators=False,
-            initialize_with_mutation_generators=False,
             tracking_interval=1,
             track_proposals=False,
             verbose=args.verbose,
