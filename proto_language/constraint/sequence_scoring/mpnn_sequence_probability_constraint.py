@@ -52,9 +52,9 @@ class MPNNSequenceProbabilityConfig(BaseConfig):
             ``score_source`` is ``"proposal_metadata"``.
         proteinmpnn_model_choice (ProteinMPNNModelChoice): ProteinMPNN weights
             used when ``model`` is ``"proteinmpnn"``.
-        ligand_mpnn_use_side_chain_context (bool): Whether LigandMPNN scoring
+        use_side_chain_context (bool): Whether LigandMPNN scoring
             conditions on fixed-residue sidechain atoms.
-        ligand_mpnn_cutoff_for_score (float): Ligand-residue distance cutoff
+        cutoff_for_score (float): Ligand-residue distance cutoff
             used by LigandMPNN scoring.
         ligand_mpnn_checkpoint_path (str | None): Optional explicit LigandMPNN checkpoint path.
         ligand_mpnn_backend (LigandMPNNBackend): Inference backend for LigandMPNN scoring.
@@ -104,12 +104,12 @@ class MPNNSequenceProbabilityConfig(BaseConfig):
         title="ProteinMPNN Weights",
         description="ProteinMPNN weights used when model='proteinmpnn'.",
     )
-    ligand_mpnn_use_side_chain_context: bool = ConfigField(
+    use_side_chain_context: bool = ConfigField(
         default=False,
         title="LigandMPNN Sidechain Context",
         description="Whether LigandMPNN scoring conditions on fixed-residue sidechain atoms.",
     )
-    ligand_mpnn_cutoff_for_score: float = ConfigField(
+    cutoff_for_score: float = ConfigField(
         default=8.0,
         gt=0.0,
         title="LigandMPNN Ligand Cutoff",
@@ -401,9 +401,9 @@ def _run_score(
         }
         supported_fields = getattr(LigandMPNNScoringConfig, "model_fields", {})
         if "use_side_chain_context" in supported_fields:
-            scoring_config["use_side_chain_context"] = config.ligand_mpnn_use_side_chain_context
+            scoring_config["use_side_chain_context"] = config.use_side_chain_context
         if "cutoff_for_score" in supported_fields:
-            scoring_config["cutoff_for_score"] = config.ligand_mpnn_cutoff_for_score
+            scoring_config["cutoff_for_score"] = config.cutoff_for_score
         if "checkpoint_path" in supported_fields:
             scoring_config["checkpoint_path"] = config.ligand_mpnn_checkpoint_path
         if "backend" in supported_fields:

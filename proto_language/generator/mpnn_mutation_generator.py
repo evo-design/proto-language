@@ -58,8 +58,8 @@ class MPNNMutationGeneratorConfig(BaseConfig):
         replacement_strategy (ReplacementStrategy): Sampling strategy for replacement residues.
         replacement_temperature (float): Temperature applied to MPNN logits before sampling.
         proteinmpnn_model_choice (ProteinMPNNModelChoice): ProteinMPNN checkpoint when model is proteinmpnn.
-        ligand_mpnn_use_side_chain_context (bool): Whether LigandMPNN uses fixed-residue sidechain context.
-        ligand_mpnn_cutoff_for_score (float): Ligand-residue cutoff for LigandMPNN scoring.
+        use_side_chain_context (bool): Whether LigandMPNN uses fixed-residue sidechain context.
+        cutoff_for_score (float): Ligand-residue cutoff for LigandMPNN scoring.
         ligand_mpnn_checkpoint_path (str | None): Optional explicit LigandMPNN checkpoint path.
         ligand_mpnn_backend (LigandMPNNBackend): Inference backend for LigandMPNN scoring.
         ligand_mpnn_reference_backend_path (str | None): Local reference LigandMPNN checkout used by backend="reference".
@@ -125,12 +125,12 @@ class MPNNMutationGeneratorConfig(BaseConfig):
         title="ProteinMPNN Weights",
         description="ProteinMPNN weights used when model='proteinmpnn'.",
     )
-    ligand_mpnn_use_side_chain_context: bool = ConfigField(
+    use_side_chain_context: bool = ConfigField(
         default=False,
         title="LigandMPNN Sidechain Context",
         description="Whether LigandMPNN scoring conditions on fixed-residue sidechain atoms.",
     )
-    ligand_mpnn_cutoff_for_score: float = ConfigField(
+    cutoff_for_score: float = ConfigField(
         default=8.0,
         gt=0.0,
         title="LigandMPNN Ligand Cutoff",
@@ -252,8 +252,8 @@ class MPNNMutationGenerator(Generator):
         self.replacement_strategy = config.replacement_strategy
         self.replacement_temperature = config.replacement_temperature
         self.proteinmpnn_model_choice = config.proteinmpnn_model_choice
-        self.ligand_mpnn_use_side_chain_context = config.ligand_mpnn_use_side_chain_context
-        self.ligand_mpnn_cutoff_for_score = config.ligand_mpnn_cutoff_for_score
+        self.use_side_chain_context = config.use_side_chain_context
+        self.cutoff_for_score = config.cutoff_for_score
         self.ligand_mpnn_checkpoint_path = config.ligand_mpnn_checkpoint_path
         self.ligand_mpnn_backend = config.ligand_mpnn_backend
         self.ligand_mpnn_reference_backend_path = config.ligand_mpnn_reference_backend_path
@@ -517,9 +517,9 @@ class MPNNMutationGenerator(Generator):
             }
             supported_fields = getattr(LigandMPNNScoringConfig, "model_fields", {})
             if "use_side_chain_context" in supported_fields:
-                scoring_config["use_side_chain_context"] = self.ligand_mpnn_use_side_chain_context
+                scoring_config["use_side_chain_context"] = self.use_side_chain_context
             if "cutoff_for_score" in supported_fields:
-                scoring_config["cutoff_for_score"] = self.ligand_mpnn_cutoff_for_score
+                scoring_config["cutoff_for_score"] = self.cutoff_for_score
             if "checkpoint_path" in supported_fields:
                 scoring_config["checkpoint_path"] = self.ligand_mpnn_checkpoint_path
             if "backend" in supported_fields:

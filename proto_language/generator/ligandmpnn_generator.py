@@ -81,10 +81,10 @@ class LigandMPNNGeneratorConfig(BaseConfig):
 
             Default: ``None`` (all amino acids allowed).
 
-        ligand_mpnn_use_side_chain_context (bool): Whether LigandMPNN conditions
+        use_side_chain_context (bool): Whether LigandMPNN conditions
             on sidechain atoms of fixed residues. Default: ``False``.
 
-        ligand_mpnn_cutoff_for_score (float): Ligand-residue distance cutoff used
+        cutoff_for_score (float): Ligand-residue distance cutoff used
             by LigandMPNN. Default: ``8.0``.
 
         checkpoint_path (str | None): Optional explicit LigandMPNN checkpoint path.
@@ -163,12 +163,12 @@ class LigandMPNNGeneratorConfig(BaseConfig):
         title="Excluded Amino Acids",
         description="Single-letter amino-acid codes to forbid in the designed sequence.",
     )
-    ligand_mpnn_use_side_chain_context: bool = ConfigField(
+    use_side_chain_context: bool = ConfigField(
         default=False,
         title="LigandMPNN Sidechain Context",
         description="Whether LigandMPNN conditions on fixed-residue sidechain atoms.",
     )
-    ligand_mpnn_cutoff_for_score: float = ConfigField(
+    cutoff_for_score: float = ConfigField(
         default=8.0,
         gt=0.0,
         title="LigandMPNN Ligand Cutoff",
@@ -309,8 +309,8 @@ class LigandMPNNGenerator(Generator):
         self.structure_inputs = config.structure_inputs
         self.temperature = config.temperature
         self.excluded_amino_acids = config.excluded_amino_acids
-        self.ligand_mpnn_use_side_chain_context = config.ligand_mpnn_use_side_chain_context
-        self.ligand_mpnn_cutoff_for_score = config.ligand_mpnn_cutoff_for_score
+        self.use_side_chain_context = config.use_side_chain_context
+        self.cutoff_for_score = config.cutoff_for_score
         self.checkpoint_path = config.checkpoint_path
         self.backend = config.backend
         self.reference_backend_path = config.reference_backend_path
@@ -381,9 +381,9 @@ class LigandMPNNGenerator(Generator):
         }
         supported_fields = getattr(LigandMPNNSampleConfig, "model_fields", {})
         if "use_side_chain_context" in supported_fields:
-            tool_config_kwargs["use_side_chain_context"] = self.ligand_mpnn_use_side_chain_context
+            tool_config_kwargs["use_side_chain_context"] = self.use_side_chain_context
         if "cutoff_for_score" in supported_fields:
-            tool_config_kwargs["cutoff_for_score"] = self.ligand_mpnn_cutoff_for_score
+            tool_config_kwargs["cutoff_for_score"] = self.cutoff_for_score
         if "checkpoint_path" in supported_fields:
             tool_config_kwargs["checkpoint_path"] = self.checkpoint_path
         if "backend" in supported_fields:
