@@ -400,10 +400,10 @@ def _run_score(
             "verbose": config.verbose,
         }
         supported_fields = getattr(LigandMPNNScoringConfig, "model_fields", {})
-        if "ligand_mpnn_use_side_chain_context" in supported_fields:
-            scoring_config["ligand_mpnn_use_side_chain_context"] = config.ligand_mpnn_use_side_chain_context
-        if "ligand_mpnn_cutoff_for_score" in supported_fields:
-            scoring_config["ligand_mpnn_cutoff_for_score"] = config.ligand_mpnn_cutoff_for_score
+        if "use_side_chain_context" in supported_fields:
+            scoring_config["use_side_chain_context"] = config.ligand_mpnn_use_side_chain_context
+        if "cutoff_for_score" in supported_fields:
+            scoring_config["cutoff_for_score"] = config.ligand_mpnn_cutoff_for_score
         if "checkpoint_path" in supported_fields:
             scoring_config["checkpoint_path"] = config.ligand_mpnn_checkpoint_path
         if "backend" in supported_fields:

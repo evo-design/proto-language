@@ -380,10 +380,10 @@ class LigandMPNNGenerator(Generator):
             "verbose": self.verbose,
         }
         supported_fields = getattr(LigandMPNNSampleConfig, "model_fields", {})
-        if "ligand_mpnn_use_side_chain_context" in supported_fields:
-            tool_config_kwargs["ligand_mpnn_use_side_chain_context"] = self.ligand_mpnn_use_side_chain_context
-        if "ligand_mpnn_cutoff_for_score" in supported_fields:
-            tool_config_kwargs["ligand_mpnn_cutoff_for_score"] = self.ligand_mpnn_cutoff_for_score
+        if "use_side_chain_context" in supported_fields:
+            tool_config_kwargs["use_side_chain_context"] = self.ligand_mpnn_use_side_chain_context
+        if "cutoff_for_score" in supported_fields:
+            tool_config_kwargs["cutoff_for_score"] = self.ligand_mpnn_cutoff_for_score
         if "checkpoint_path" in supported_fields:
             tool_config_kwargs["checkpoint_path"] = self.checkpoint_path
         if "backend" in supported_fields:

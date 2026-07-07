@@ -516,10 +516,10 @@ class MPNNMutationGenerator(Generator):
                 "verbose": self.verbose,
             }
             supported_fields = getattr(LigandMPNNScoringConfig, "model_fields", {})
-            if "ligand_mpnn_use_side_chain_context" in supported_fields:
-                scoring_config["ligand_mpnn_use_side_chain_context"] = self.ligand_mpnn_use_side_chain_context
-            if "ligand_mpnn_cutoff_for_score" in supported_fields:
-                scoring_config["ligand_mpnn_cutoff_for_score"] = self.ligand_mpnn_cutoff_for_score
+            if "use_side_chain_context" in supported_fields:
+                scoring_config["use_side_chain_context"] = self.ligand_mpnn_use_side_chain_context
+            if "cutoff_for_score" in supported_fields:
+                scoring_config["cutoff_for_score"] = self.ligand_mpnn_cutoff_for_score
             if "checkpoint_path" in supported_fields:
                 scoring_config["checkpoint_path"] = self.ligand_mpnn_checkpoint_path
             if "backend" in supported_fields:
