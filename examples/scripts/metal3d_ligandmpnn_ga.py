@@ -67,6 +67,12 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def ligandmpnn_sample_config(**kwargs: object) -> LigandMPNNSampleConfig:
+    """Build a LigandMPNN sample config against the installed proto-tools schema."""
+    supported_fields = getattr(LigandMPNNSampleConfig, "model_fields", {})
+    return LigandMPNNSampleConfig(**{key: value for key, value in kwargs.items() if key in supported_fields})
+
+
 def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
     """Build the dEVA-style Metal3D program."""
     # Sequences.
@@ -82,8 +88,6 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
             use_side_chain_context=True,
             cutoff_for_score=20.0,
             checkpoint_path=args.ligandmpnn_checkpoint_path,
-            backend=args.ligandmpnn_backend,
-            reference_backend_path=args.ligandmpnn_reference_backend_path,
             packer_checkpoint_path=args.ligandmpnn_packer_checkpoint_path,
             tool_seed=args.ligandmpnn_tool_seed,
             batch_size=args.batch_size,
@@ -118,13 +122,11 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
             post_mutation_structure_preparation=StructurePreparationConfig(
                 mode="ligandmpnn_pack_from_proposal",
                 chain_ids=["X"],
-                ligandmpnn_pack_config=LigandMPNNSampleConfig(
+                ligandmpnn_pack_config=ligandmpnn_sample_config(
                     temperature=0.5,
                     use_side_chain_context=True,
                     cutoff_for_score=20.0,
                     checkpoint_path=args.ligandmpnn_checkpoint_path,
-                    backend=args.ligandmpnn_backend,
-                    reference_backend_path=args.ligandmpnn_reference_backend_path,
                     packer_checkpoint_path=args.ligandmpnn_packer_checkpoint_path,
                     seed=args.ligandmpnn_tool_seed,
                     batch_size=1,
@@ -140,7 +142,9 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
 
     # Constraints.
     mpnn_score_source = args.mpnn_score_source or (
-        "proposal_metadata" if args.ligandmpnn_backend == "reference" else "model"
+        "proposal_metadata"
+        if args.ligandmpnn_backend == "reference" or args.ligandmpnn_packer_checkpoint_path
+        else "model"
     )
     mpnn_probability_constraint = Constraint(
         inputs=[enzyme],

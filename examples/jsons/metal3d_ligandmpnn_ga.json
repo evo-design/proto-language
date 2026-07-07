@@ -34,7 +34,6 @@
             "excluded_amino_acids": ["C"],
             "use_side_chain_context": true,
             "cutoff_for_score": 20.0,
-            "backend": "foundry",
             "tool_seed": 0,
             "batch_size": 4,
             "device": "cuda",
@@ -63,7 +62,6 @@
             "replacement_temperature": 1.0,
             "use_side_chain_context": true,
             "cutoff_for_score": 20.0,
-            "ligand_mpnn_backend": "foundry",
             "ligand_mpnn_tool_seed": 0,
             "rng_mode": "global",
             "rng_seed": 0,
@@ -75,7 +73,6 @@
                 "temperature": 0.5,
                 "use_side_chain_context": true,
                 "cutoff_for_score": 20.0,
-                "backend": "foundry",
                 "seed": 0,
                 "batch_size": 1,
                 "device": "cuda",
@@ -107,7 +104,6 @@
             "score_source": "model",
             "use_side_chain_context": true,
             "cutoff_for_score": 20.0,
-            "ligand_mpnn_backend": "foundry",
             "device": "cuda",
             "verbose": false
           }
