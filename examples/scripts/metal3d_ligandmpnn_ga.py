@@ -1,6 +1,6 @@
 """dEVA-style Metal3D enzyme design with LigandMPNN packing and a genetic algorithm.
 
-This mirrors ``examples/jsons/metal3d_fampnn_ga.json`` as a regular Proto program.
+This mirrors ``examples/jsons/metal3d_ligandmpnn_ga.json`` as a regular Proto program.
 It requires GPU-backed LigandMPNN and Metal3D services to run.
 """
 
