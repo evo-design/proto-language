@@ -31,7 +31,6 @@ from proto_language.utils.serialization import make_json_safe
 
 MPNNMutationModel = Literal["ligandmpnn", "proteinmpnn"]
 MPNNMutationStructureSource = Literal["configured_structure_inputs", "proposal_structure"]
-LigandMPNNBackend = Literal["foundry", "reference"]
 ReplacementStrategy = Literal["sample", "argmax"]
 MutationRNGMode = Literal["derived_seed", "global"]
 PostMutationScoreMode = Literal["disabled", "single_aa", "autoregressive"]
@@ -61,8 +60,6 @@ class MPNNMutationGeneratorConfig(BaseConfig):
         use_side_chain_context (bool): Whether LigandMPNN uses fixed-residue sidechain context.
         cutoff_for_score (float): Ligand-residue cutoff for LigandMPNN scoring.
         ligand_mpnn_checkpoint_path (str | None): Optional explicit LigandMPNN checkpoint path.
-        ligand_mpnn_backend (LigandMPNNBackend): Inference backend for LigandMPNN scoring.
-        ligand_mpnn_reference_backend_path (str | None): Local reference LigandMPNN checkout used by backend="reference".
         ligand_mpnn_tool_seed (int | None): Optional seed passed directly to LigandMPNN scoring.
         rng_mode (MutationRNGMode): Random source for mutation-position and replacement sampling.
         rng_seed (int | None): Optional seed for rng_mode="global".
@@ -140,16 +137,6 @@ class MPNNMutationGeneratorConfig(BaseConfig):
         default=None,
         title="LigandMPNN Checkpoint Path",
         description="Optional explicit LigandMPNN checkpoint path.",
-    )
-    ligand_mpnn_backend: LigandMPNNBackend = ConfigField(
-        default="foundry",
-        title="LigandMPNN Backend",
-        description="LigandMPNN inference backend for scoring.",
-    )
-    ligand_mpnn_reference_backend_path: str | None = ConfigField(
-        default=None,
-        title="Reference Backend Path",
-        description="Path to a local reference LigandMPNN checkout when ligand_mpnn_backend='reference'.",
     )
     ligand_mpnn_tool_seed: int | None = ConfigField(
         default=None,
@@ -255,8 +242,6 @@ class MPNNMutationGenerator(Generator):
         self.use_side_chain_context = config.use_side_chain_context
         self.cutoff_for_score = config.cutoff_for_score
         self.ligand_mpnn_checkpoint_path = config.ligand_mpnn_checkpoint_path
-        self.ligand_mpnn_backend = config.ligand_mpnn_backend
-        self.ligand_mpnn_reference_backend_path = config.ligand_mpnn_reference_backend_path
         self.ligand_mpnn_tool_seed = config.ligand_mpnn_tool_seed
         self.rng_mode = config.rng_mode
         self.rng_seed = config.rng_seed
@@ -522,10 +507,6 @@ class MPNNMutationGenerator(Generator):
                 scoring_config["cutoff_for_score"] = self.cutoff_for_score
             if "checkpoint_path" in supported_fields:
                 scoring_config["checkpoint_path"] = self.ligand_mpnn_checkpoint_path
-            if "backend" in supported_fields:
-                scoring_config["backend"] = self.ligand_mpnn_backend
-            if "reference_backend_path" in supported_fields:
-                scoring_config["reference_backend_path"] = self.ligand_mpnn_reference_backend_path
             result = run_ligandmpnn_score(
                 inputs=LigandMPNNScoringInput(sequence_structure_pairs=[pair]),
                 config=LigandMPNNScoringConfig(**scoring_config),

@@ -28,7 +28,6 @@ MPNNSequenceProbabilityModel = Literal["ligandmpnn", "proteinmpnn"]
 MPNNSequenceProbabilityScoreMode = Literal["probability_loss", "nll", "perplexity"]
 MPNNSequenceProbabilityStructureSource = Literal["configured_structure_inputs", "proposal_structure"]
 MPNNSequenceProbabilityScoreSource = Literal["model", "proposal_metadata"]
-LigandMPNNBackend = Literal["foundry", "reference"]
 
 
 class MPNNSequenceProbabilityConfig(BaseConfig):
@@ -57,8 +56,6 @@ class MPNNSequenceProbabilityConfig(BaseConfig):
         cutoff_for_score (float): Ligand-residue distance cutoff
             used by LigandMPNN scoring.
         ligand_mpnn_checkpoint_path (str | None): Optional explicit LigandMPNN checkpoint path.
-        ligand_mpnn_backend (LigandMPNNBackend): Inference backend for LigandMPNN scoring.
-        ligand_mpnn_reference_backend_path (str | None): Local reference LigandMPNN checkout used by backend="reference".
         seed (int | None): Optional random seed for MPNN scoring.
         device (str): Device for MPNN scoring, for example ``"cuda"``.
         verbose (bool): Whether to print MPNN scoring progress.
@@ -119,16 +116,6 @@ class MPNNSequenceProbabilityConfig(BaseConfig):
         default=None,
         title="LigandMPNN Checkpoint Path",
         description="Optional explicit LigandMPNN checkpoint path.",
-    )
-    ligand_mpnn_backend: LigandMPNNBackend = ConfigField(
-        default="foundry",
-        title="LigandMPNN Backend",
-        description="LigandMPNN inference backend for scoring.",
-    )
-    ligand_mpnn_reference_backend_path: str | None = ConfigField(
-        default=None,
-        title="Reference Backend Path",
-        description="Path to a local reference LigandMPNN checkout when ligand_mpnn_backend='reference'.",
     )
     seed: int | None = ConfigField(
         default=None,
@@ -406,10 +393,6 @@ def _run_score(
             scoring_config["cutoff_for_score"] = config.cutoff_for_score
         if "checkpoint_path" in supported_fields:
             scoring_config["checkpoint_path"] = config.ligand_mpnn_checkpoint_path
-        if "backend" in supported_fields:
-            scoring_config["backend"] = config.ligand_mpnn_backend
-        if "reference_backend_path" in supported_fields:
-            scoring_config["reference_backend_path"] = config.ligand_mpnn_reference_backend_path
         output = run_ligandmpnn_score(
             inputs=LigandMPNNScoringInput(sequence_structure_pairs=[pair]),
             config=LigandMPNNScoringConfig(**scoring_config),

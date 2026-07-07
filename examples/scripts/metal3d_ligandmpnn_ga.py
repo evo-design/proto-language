@@ -54,10 +54,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--scaffold", default=SCAFFOLD_URL)
-    parser.add_argument("--ligandmpnn-backend", choices=["foundry", "reference"], default="foundry")
     parser.add_argument("--ligandmpnn-checkpoint-path", default=None)
-    parser.add_argument("--ligandmpnn-reference-backend-path", default=None)
-    parser.add_argument("--ligandmpnn-packer-checkpoint-path", default=None)
     parser.add_argument("--ligandmpnn-tool-seed", type=int, default=0)
     parser.add_argument("--mpnn-score-source", choices=["model", "proposal_metadata"], default=None)
     parser.add_argument("--mutation-rng-mode", choices=["derived_seed", "global"], default="global")
@@ -88,7 +85,6 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
             use_side_chain_context=True,
             cutoff_for_score=20.0,
             checkpoint_path=args.ligandmpnn_checkpoint_path,
-            packer_checkpoint_path=args.ligandmpnn_packer_checkpoint_path,
             tool_seed=args.ligandmpnn_tool_seed,
             batch_size=args.batch_size,
             device=args.device,
@@ -113,8 +109,6 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
             use_side_chain_context=True,
             cutoff_for_score=20.0,
             ligand_mpnn_checkpoint_path=args.ligandmpnn_checkpoint_path,
-            ligand_mpnn_backend=args.ligandmpnn_backend,
-            ligand_mpnn_reference_backend_path=args.ligandmpnn_reference_backend_path,
             ligand_mpnn_tool_seed=args.ligandmpnn_tool_seed,
             rng_mode=args.mutation_rng_mode,
             rng_seed=args.mutation_rng_seed if args.mutation_rng_seed is not None else args.seed,
@@ -127,7 +121,6 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
                     use_side_chain_context=True,
                     cutoff_for_score=20.0,
                     checkpoint_path=args.ligandmpnn_checkpoint_path,
-                    packer_checkpoint_path=args.ligandmpnn_packer_checkpoint_path,
                     seed=args.ligandmpnn_tool_seed,
                     batch_size=1,
                     device=args.device,
@@ -141,11 +134,7 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
     mutation_generator.assign(enzyme)
 
     # Constraints.
-    mpnn_score_source = args.mpnn_score_source or (
-        "proposal_metadata"
-        if args.ligandmpnn_backend == "reference" or args.ligandmpnn_packer_checkpoint_path
-        else "model"
-    )
+    mpnn_score_source = args.mpnn_score_source or "model"
     mpnn_probability_constraint = Constraint(
         inputs=[enzyme],
         function=mpnn_sequence_probability_constraint,
@@ -162,8 +151,6 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
             use_side_chain_context=True,
             cutoff_for_score=20.0,
             ligand_mpnn_checkpoint_path=args.ligandmpnn_checkpoint_path,
-            ligand_mpnn_backend=args.ligandmpnn_backend,
-            ligand_mpnn_reference_backend_path=args.ligandmpnn_reference_backend_path,
             device=args.device,
             verbose=args.verbose,
         ),

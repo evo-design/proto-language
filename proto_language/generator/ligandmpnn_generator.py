@@ -4,7 +4,7 @@ protein sequences, making it particularly effective for enzyme design
 and binding site optimization.
 """
 
-from typing import Any, Literal, final
+from typing import Any, final
 
 from proto_tools import (
     InverseFoldingInput,
@@ -18,8 +18,6 @@ from pydantic import field_validator
 from proto_language.core import Generator, GeneratorInputType
 from proto_language.generator.generator_registry import generator
 from proto_language.utils.base import BaseConfig, ConfigField
-
-LigandMPNNBackend = Literal["foundry", "reference"]
 
 
 class LigandMPNNGeneratorConfig(BaseConfig):
@@ -88,11 +86,6 @@ class LigandMPNNGeneratorConfig(BaseConfig):
             by LigandMPNN. Default: ``8.0``.
 
         checkpoint_path (str | None): Optional explicit LigandMPNN checkpoint path.
-        backend (LigandMPNNBackend): Inference backend.
-        reference_backend_path (str | None): Local reference LigandMPNN checkout used by backend="reference".
-        packer_checkpoint_path (str | None): Optional side-chain packer checkpoint for backend="reference".
-        sc_num_denoising_steps (int): Number of side-chain denoising steps for compatible packers.
-        sc_num_samples (int): Number of side-chain samples for compatible packers.
         tool_seed (int | None): Optional seed passed directly to the LigandMPNN tool.
 
         batch_size (int): Number of sequences to process simultaneously on GPU.
@@ -178,33 +171,6 @@ class LigandMPNNGeneratorConfig(BaseConfig):
         default=None,
         title="Checkpoint Path",
         description="Optional explicit LigandMPNN checkpoint path.",
-    )
-    backend: LigandMPNNBackend = ConfigField(
-        default="foundry",
-        title="Backend",
-        description="LigandMPNN inference backend.",
-    )
-    reference_backend_path: str | None = ConfigField(
-        default=None,
-        title="Reference Backend Path",
-        description="Path to a local reference LigandMPNN checkout when backend='reference'.",
-    )
-    packer_checkpoint_path: str | None = ConfigField(
-        default=None,
-        title="Packer Checkpoint Path",
-        description="Optional side-chain packer checkpoint path for reference backend packing.",
-    )
-    sc_num_denoising_steps: int = ConfigField(
-        default=8,
-        ge=1,
-        title="Sidechain Denoising Steps",
-        description="Number of side-chain denoising steps for compatible LigandMPNN packers.",
-    )
-    sc_num_samples: int = ConfigField(
-        default=1,
-        ge=1,
-        title="Sidechain Samples",
-        description="Number of side-chain samples for compatible LigandMPNN packers.",
     )
     tool_seed: int | None = ConfigField(
         default=None,
@@ -312,11 +278,6 @@ class LigandMPNNGenerator(Generator):
         self.use_side_chain_context = config.use_side_chain_context
         self.cutoff_for_score = config.cutoff_for_score
         self.checkpoint_path = config.checkpoint_path
-        self.backend = config.backend
-        self.reference_backend_path = config.reference_backend_path
-        self.packer_checkpoint_path = config.packer_checkpoint_path
-        self.sc_num_denoising_steps = config.sc_num_denoising_steps
-        self.sc_num_samples = config.sc_num_samples
         self.tool_seed = config.tool_seed
         self.batch_size = config.batch_size
         self.device = config.device
@@ -386,16 +347,6 @@ class LigandMPNNGenerator(Generator):
             tool_config_kwargs["cutoff_for_score"] = self.cutoff_for_score
         if "checkpoint_path" in supported_fields:
             tool_config_kwargs["checkpoint_path"] = self.checkpoint_path
-        if "backend" in supported_fields:
-            tool_config_kwargs["backend"] = self.backend
-        if "reference_backend_path" in supported_fields:
-            tool_config_kwargs["reference_backend_path"] = self.reference_backend_path
-        if "packer_checkpoint_path" in supported_fields:
-            tool_config_kwargs["packer_checkpoint_path"] = self.packer_checkpoint_path
-        if "sc_num_denoising_steps" in supported_fields:
-            tool_config_kwargs["sc_num_denoising_steps"] = self.sc_num_denoising_steps
-        if "sc_num_samples" in supported_fields:
-            tool_config_kwargs["sc_num_samples"] = self.sc_num_samples
         tool_config = LigandMPNNSampleConfig(**tool_config_kwargs)
 
         result = run_ligandmpnn_sample(
