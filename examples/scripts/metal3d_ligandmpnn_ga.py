@@ -117,6 +117,7 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
                 mode="ligandmpnn_pack_from_proposal",
                 chain_ids=["X"],
                 ligandmpnn_pack_config=ligandmpnn_sample_config(
+                    model_type="original",
                     temperature=0.5,
                     use_side_chain_context=True,
                     cutoff_for_score=20.0,
