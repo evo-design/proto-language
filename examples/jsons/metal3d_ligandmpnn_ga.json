@@ -27,7 +27,9 @@
           "config": {
             "structure_inputs": [
               {
-                "structure": "https://raw.githubusercontent.com/gelnesr/dEVA/main/inputs/2VVB.pdb"
+                "structure": {
+                  "structure": "https://raw.githubusercontent.com/gelnesr/dEVA/main/inputs/2VVB.pdb"
+                }
               }
             ],
             "temperature": 0.5,
@@ -51,8 +53,12 @@
             "structure_source": "proposal_structure",
             "structure_inputs": [
               {
-                "structure": "https://raw.githubusercontent.com/gelnesr/dEVA/main/inputs/2VVB.pdb",
-                "chains_to_redesign": ["X"]
+                "structure": {
+                  "structure": "https://raw.githubusercontent.com/gelnesr/dEVA/main/inputs/2VVB.pdb"
+                },
+                "chains_to_redesign": {
+                  "chains": ["X"]
+                }
               }
             ],
             "output_chain_id": "X",
@@ -77,7 +83,7 @@
                 "seed": 0,
                 "batch_size": 1,
                 "device": "cuda",
-                "verbose": false
+                "verbose": 0
               }
             },
             "device": "cuda",
@@ -96,8 +102,12 @@
             "structure_source": "proposal_structure",
             "structure_inputs": [
               {
-                "structure": "https://raw.githubusercontent.com/gelnesr/dEVA/main/inputs/2VVB.pdb",
-                "chains_to_redesign": ["X"]
+                "structure": {
+                  "structure": "https://raw.githubusercontent.com/gelnesr/dEVA/main/inputs/2VVB.pdb"
+                },
+                "chains_to_redesign": {
+                  "chains": ["X"]
+                }
               }
             ],
             "output_chain_id": "X",
@@ -124,7 +134,7 @@
               "cluster_distance_threshold": 7.0,
               "max_sites": 8,
               "device": "cuda",
-              "verbose": false
+              "verbose": 0
             }
           }
         }
