@@ -1,8 +1,8 @@
 {
   "name": "metal3d_ligandmpnn_ga",
-  "description": "Compact enzyme-design example based on the dEVA Metal3D workflow. The program starts from the zinc-binding 2VVB scaffold, uses LigandMPNN rejection sampling to initialize the genetic-algorithm population, then refines that population with dEVA-style two-point crossover and proposal-structure MPNN-guided offspring mutation. Each proposal is scored as two NSGA-II objectives: LigandMPNN sequence probability and Metal3D-Cat probability on the current proposal structure.",
+  "description": "Compact enzyme-design example based on the dEVA Metal3D workflow. The program starts from the zinc-binding 2VVB scaffold, uses LigandMPNN rejection sampling to initialize the genetic-algorithm population, then refines that population with dEVA-style two-point crossover and proposal-structure MPNN-guided offspring mutation. Each proposal is scored as two NSGA-II objectives: LigandMPNN sequence probability and Metal3D-Cat probability on the current proposal structure. A final one-shot ESMFold2 stage predicts the top designed enzyme as an all-atom complex with one zinc ion.",
   "version": "1.0",
-  "num_results": 2,
+  "num_results": 1,
   "constructs": [
     {
       "id": "construct1",
@@ -13,6 +13,18 @@
           "id": "enzyme_chain",
           "label": "2VVB chain X",
           "sequence": "HHWGYGKHNGPEHWHKDFPIAKGERQSPVDIDTHTAKYDPSLKPLSVSYDQATSLRILNNGHAFNVEFDDSQDKAVLKGGPLDGTYRLIQFHFHWGSLDGQGSEHTVDKKKYAAELHLVHWNTKYGDFGKAVQQPDGLAVLGIFLKVGSAKPGLQKVVDVLDSIKTKGKSADFTNFDPRGLLPESLDYWTYPGSLTTPPLLECVTWIVLKEPISVSSEQVLKFRKLNFNGEGEPEELMVDNWRPAQPLKNRQIKASFK"
+        }
+      ]
+    },
+    {
+      "id": "zinc_construct",
+      "type": "ligand",
+      "label": "Single zinc ion",
+      "segments": [
+        {
+          "id": "zinc_ion",
+          "label": "single zinc ion",
+          "sequence": "[Zn+2]"
         }
       ]
     }
@@ -210,7 +222,7 @@
         "method": "genetic-algorithm",
         "config": {
           "num_generations": 5,
-          "num_results": 2,
+          "num_results": 1,
           "population_size": 2,
           "offspring_per_generation": 2,
           "elite_fraction": 0.25,
@@ -229,6 +241,39 @@
           },
           "crossover_allow_empty_region": true,
           "preserve_parent_structure_after_crossover": true,
+          "tracking_interval": 1,
+          "track_proposals": false,
+          "verbose": false,
+          "seed": 0
+        }
+      }
+    },
+    {
+      "generators": [],
+      "constraints": [
+        {
+          "key": "structure-plddt",
+          "label": "ESMFold2 zinc-complex pLDDT",
+          "targets": ["enzyme_chain", "zinc_ion"],
+          "weight": 0.0,
+          "config": {
+            "structure_tool": "esmfold2",
+            "esmfold2_config": {
+              "model_checkpoint": "esmfold2-fast",
+              "use_msa": false,
+              "seed": 0,
+              "device": "cuda",
+              "verbose": 0
+            }
+          }
+        }
+      ],
+      "optimizer": {
+        "method": "rejection-sampling",
+        "config": {
+          "num_samples": 1,
+          "num_results": 1,
+          "proposal_source": "existing_results",
           "tracking_interval": 1,
           "track_proposals": false,
           "verbose": false,

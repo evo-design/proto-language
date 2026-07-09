@@ -1,7 +1,7 @@
 """dEVA-style Metal3D enzyme design with LigandMPNN initialization and a genetic algorithm.
 
 This mirrors ``examples/jsons/metal3d_ligandmpnn_ga.json`` as a regular Proto program.
-It requires GPU-backed LigandMPNN and Metal3D services to run.
+It requires GPU-backed LigandMPNN, Metal3D, and ESMFold2 services to run.
 """
 
 import argparse
@@ -9,12 +9,14 @@ import logging
 from pathlib import Path
 from typing import Literal
 
-from proto_tools import InverseFoldingStructureInput, LigandMPNNSampleConfig, Metal3DPredictionConfig
+from proto_tools import ESMFold2Config, InverseFoldingStructureInput, LigandMPNNSampleConfig, Metal3DPredictionConfig
 
 from proto_language.constraint.protein_structure.metal3d_probability_constraint import (
     Metal3DProbabilityConfig,
     metal3d_probability_constraint,
 )
+from proto_language.constraint.protein_structure.structure_confidence_constraint import structure_plddt_constraint
+from proto_language.constraint.protein_structure.structure_constraint_config import StructureBasedConstraintConfig
 from proto_language.constraint.protein_structure.structure_preparation import StructurePreparationConfig
 from proto_language.constraint.sequence_scoring.mpnn_sequence_probability_constraint import (
     MPNNSequenceProbabilityConfig,
@@ -37,6 +39,7 @@ from proto_language.optimizer import (
 logger = logging.getLogger(__name__)
 
 SCAFFOLD_URL = "https://raw.githubusercontent.com/gelnesr/dEVA/main/inputs/2VVB.pdb"
+ZINC_SMILES = "[Zn+2]"
 SCAFFOLD_SEQUENCE = (
     "HHWGYGKHNGPEHWHKDFPIAKGERQSPVDIDTHTAKYDPSLKPLSVSYDQATSLRILNNGHAFNVEFDDSQDKAVLKGGPLDGTY"
     "RLIQFHFHWGSLDGQGSEHTVDKKKYAAELHLVHWNTKYGDFGKAVQQPDGLAVLGIFLKVGSAKPGLQKVVDVLDSIKTKGKSADF"
@@ -56,7 +59,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-generations", type=int, default=5)
     parser.add_argument("--population-size", type=int, default=2)
     parser.add_argument("--offspring-per-generation", type=int, default=2)
-    parser.add_argument("--num-results", type=int, default=2)
+    parser.add_argument("--num-results", type=int, default=1)
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--scaffold", default=SCAFFOLD_URL)
@@ -199,15 +202,38 @@ def build_constraints(
     return [mpnn_probability_constraint, metal3d_constraint]
 
 
+def build_final_structure_constraint(enzyme: Segment, zinc: Segment, args: argparse.Namespace) -> Constraint:
+    """Build the final ESMFold2 zinc-complex prediction constraint."""
+    return Constraint(
+        inputs=[enzyme, zinc],
+        function=structure_plddt_constraint,
+        function_config=StructureBasedConstraintConfig(
+            structure_tool="esmfold2",
+            esmfold2_config=ESMFold2Config(
+                model_checkpoint="esmfold2-fast",
+                use_msa=False,
+                seed=args.seed,
+                device=args.device,
+                verbose=int(args.verbose),
+            ),
+        ),
+        label="ESMFold2 zinc-complex pLDDT",
+        weight=0.0,
+    )
+
+
 def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
-    """Build the two-stage dEVA-style Metal3D program."""
+    """Build the three-stage dEVA-style Metal3D program."""
     # Sequences.
     enzyme = Segment(sequence=SCAFFOLD_SEQUENCE, sequence_type="protein", label="2VVB chain X")
-    construct = Construct([enzyme])
+    zinc = Segment(sequence=ZINC_SMILES, sequence_type="ligand", label="single zinc ion")
+    enzyme_construct = Construct([enzyme])
+    zinc_construct = Construct([zinc])
+    constructs = [enzyme_construct, zinc_construct]
 
     # Stage 1: initialize a full GA population from LigandMPNN samples.
     initialization_optimizer = RejectionSamplingOptimizer(
-        constructs=[construct],
+        constructs=constructs,
         generators=[build_initialization_generator(enzyme, args)],
         constraints=build_constraints(enzyme, args, mpnn_score_source="proposal_metadata"),
         config=RejectionSamplingOptimizerConfig(
@@ -224,7 +250,7 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
 
     # Stage 2: refine the initialized population with crossover and MPNN mutation.
     ga_optimizer = GeneticAlgorithmOptimizer(
-        constructs=[construct],
+        constructs=constructs,
         generators=[build_mutation_generator(enzyme, args)],
         constraints=build_constraints(enzyme, args),
         config=GeneticAlgorithmOptimizerConfig(
@@ -253,8 +279,27 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
         ),
     )
 
+    # Stage 3: predict the top enzyme sequence as an all-atom ESMFold2 complex with one zinc ion.
+    final_structure_optimizer = RejectionSamplingOptimizer(
+        constructs=constructs,
+        generators=[],
+        constraints=[build_final_structure_constraint(enzyme, zinc, args)],
+        config=RejectionSamplingOptimizerConfig(
+            num_samples=1,
+            num_results=1,
+            proposal_source="existing_results",
+            tracking_interval=1,
+            track_proposals=False,
+            verbose=args.verbose,
+            seed=args.seed,
+        ),
+    )
+
     # Program.
-    return Program(optimizers=[initialization_optimizer, ga_optimizer], num_results=args.num_results), enzyme
+    return Program(
+        optimizers=[initialization_optimizer, ga_optimizer, final_structure_optimizer],
+        num_results=1,
+    ), enzyme
 
 
 def write_results(enzyme: Segment, output_dir: Path, energy_scores: list[float]) -> None:
