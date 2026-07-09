@@ -562,19 +562,19 @@ class Program:
         return self._stage_results[stage_index]
 
     def _clear_sequence_metadata(self) -> None:
-        """Clear constraint and generator metadata from every sequence.
+        """Clear constraint metadata from every sequence.
 
         Run at each stage boundary so a sequence surviving into the next stage does
-        not carry the prior stage's constraint results or generator provenance.
+        not carry prior-stage constraint results. Generator metadata is preserved
+        because some downstream constraints intentionally score from generator
+        outputs carried across optimizer handoff.
         """
         for construct in self.constructs:
             for segment in construct.segments:
                 for seq in segment.result_sequences:
                     seq._constraints_metadata = {}
-                    seq._generator_metadata = {}
                 for seq in segment.proposal_sequences:
                     seq._constraints_metadata = {}
-                    seq._generator_metadata = {}
 
     def extract_results(self, energy_scores: list[float]) -> dict[str, Any]:
         """Extract results from constructs."""
@@ -583,9 +583,10 @@ class Program:
     def serialize_state(self) -> dict[str, Any]:
         """Serialize program state for persistence between stages.
 
-        Stores sequence identity plus optimizer handoff state. Constraint and
-        generator metadata are excluded since they will be re-evaluated in
-        subsequent stages.
+        Stores sequence identity plus optimizer handoff state. Constraint metadata
+        is excluded because it is re-evaluated in subsequent stages. Generator
+        metadata is preserved so downstream constraints may reuse generator
+        outputs carried across optimizer handoff.
         """
         segment_states = []
         for construct in self.constructs:
@@ -611,6 +612,8 @@ class Program:
             seq_data["logits_shape"] = list(seq.logits.shape)
         if seq.structure is not None:
             seq_data["structure"] = seq.structure.model_dump(mode="json")
+        if seq._generator_metadata:
+            seq_data["generators"] = seq._generator_metadata
         return seq_data
 
     def restore_state(self, state: dict[str, Any], stage_index: int | None = None) -> None:

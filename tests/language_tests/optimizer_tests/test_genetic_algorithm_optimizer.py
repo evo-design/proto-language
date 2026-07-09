@@ -2,12 +2,15 @@
 
 from contextlib import nullcontext
 
+import pytest
 from pydantic import BaseModel
 
 from proto_language.core import (
     Constraint,
     ConstraintOutput,
     Construct,
+    Generator,
+    GeneratorInputType,
     Program,
     Segment,
     Sequence,
@@ -24,6 +27,21 @@ from proto_language.optimizer.genetic_algorithm_optimizer import (
 
 class TargetAConfig(BaseModel):
     """Dummy config for a deterministic test constraint."""
+
+
+class StructureGenerator(Generator):
+    """Minimal inverse-folding test double."""
+
+    input_type = GeneratorInputType.STRUCTURE
+
+    def __init__(self) -> None:
+        super().__init__()
+
+    def assign(self, segments: Segment | tuple[Segment, ...]) -> None:
+        self._assigned_segments = (segments,) if isinstance(segments, Segment) else tuple(segments)
+
+    def _sample(self, *args, **kwargs) -> None:
+        return None
 
 
 def target_a_constraint(
@@ -94,6 +112,86 @@ def test_genetic_algorithm_rejects_shared_tournament_with_non_tournament_selecti
         assert "requires parent_selection='tournament'" in str(exc)
     else:
         raise AssertionError("Expected validation error")
+
+
+def test_genetic_algorithm_rejects_non_mutation_generators() -> None:
+    segment = Segment(sequence="CCCC", sequence_type="protein", label="protein")
+    generator = StructureGenerator()
+    generator.assign(segment)
+
+    with pytest.raises(ValueError, match="only accepts STARTING_SEQUENCE"):
+        GeneticAlgorithmOptimizer(
+            constructs=[Construct([segment], label="construct")],
+            generators=[generator],
+            constraints=[
+                Constraint(
+                    inputs=[segment],
+                    function=target_a_constraint,
+                    function_config=TargetAConfig(),
+                )
+            ],
+            config=GeneticAlgorithmOptimizerConfig(
+                num_generations=1,
+                population_size=2,
+                num_results=1,
+            ),
+        )
+
+
+def test_genetic_algorithm_rejects_multiple_mutation_generators_for_segment() -> None:
+    segment = Segment(sequence="CCCC", sequence_type="protein", label="protein")
+    first = ESM2Generator(ESM2GeneratorConfig())
+    second = ESM2Generator(ESM2GeneratorConfig())
+    first.assign(segment)
+    second.assign(segment)
+
+    with pytest.raises(ValueError, match="multiple mutation generators for segment 'protein'"):
+        GeneticAlgorithmOptimizer(
+            constructs=[Construct([segment], label="construct")],
+            generators=[first, second],
+            constraints=[
+                Constraint(
+                    inputs=[segment],
+                    function=target_a_constraint,
+                    function_config=TargetAConfig(),
+                )
+            ],
+            config=GeneticAlgorithmOptimizerConfig(
+                num_generations=1,
+                population_size=2,
+                num_results=1,
+            ),
+        )
+
+
+def test_genetic_algorithm_preserves_upstream_population_for_proposals() -> None:
+    segment = Segment(sequence="AAAA", sequence_type="protein", label="protein")
+    segment.result_sequences = [
+        Sequence("AAAA", "protein"),
+        Sequence("CCCC", "protein"),
+        Sequence("GGGG", "protein"),
+        Sequence("TTTT", "protein"),
+    ]
+
+    GeneticAlgorithmOptimizer(
+        constructs=[Construct([segment], label="construct")],
+        generators=[],
+        constraints=[
+            Constraint(
+                inputs=[segment],
+                function=target_a_constraint,
+                function_config=TargetAConfig(),
+            )
+        ],
+        config=GeneticAlgorithmOptimizerConfig(
+            num_generations=1,
+            population_size=4,
+            num_results=2,
+        ),
+    )
+
+    assert [sequence.sequence for sequence in segment.result_sequences] == ["AAAA", "CCCC"]
+    assert [sequence.sequence for sequence in segment.proposal_sequences] == ["AAAA", "CCCC", "GGGG", "TTTT"]
 
 
 def test_genetic_algorithm_shared_tournament_returns_winner_and_runner_up() -> None:

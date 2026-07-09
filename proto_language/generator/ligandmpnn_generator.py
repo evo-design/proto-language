@@ -4,7 +4,7 @@ protein sequences, making it particularly effective for enzyme design
 and binding site optimization.
 """
 
-from typing import Any, final
+from typing import Any, Literal, final
 
 from proto_tools import (
     InverseFoldingInput,
@@ -18,6 +18,8 @@ from pydantic import field_validator
 from proto_language.core import Generator, GeneratorInputType
 from proto_language.generator.generator_registry import generator
 from proto_language.utils.base import BaseConfig, ConfigField
+
+LigandMPNNModelType = Literal["ligand_mpnn", "original"]
 
 
 class LigandMPNNGeneratorConfig(BaseConfig):
@@ -51,12 +53,17 @@ class LigandMPNNGeneratorConfig(BaseConfig):
             - ``fixed_positions``: Optional per-chain residue positions to keep fixed
               (e.g., ``{"A": [1, 2, 3]}``, 1-indexed)
 
-            **Accepts flexible input formats:**
+        **Accepts flexible input formats:**
 
             - A single string (file path or PDB content) - auto-converted to ``InverseFoldingStructureInput``
             - A single ``InverseFoldingStructureInput`` object
             - A list of strings or ``InverseFoldingStructureInput`` objects
             - A list of dicts with ``structure``, ``chains_to_redesign``, ``fixed_positions`` keys
+
+        model_type (LigandMPNNModelType): LigandMPNN implementation to use.
+            ``"ligand_mpnn"`` selects the default Foundry-backed implementation;
+            ``"original"`` selects the original LigandMPNN implementation when
+            supported by the installed proto-tools backend.
 
         temperature (float): Controls randomness in amino acid sampling from the
             model's predicted probability distribution:
@@ -141,6 +148,11 @@ class LigandMPNNGeneratorConfig(BaseConfig):
         default=None,
         title="Structure Inputs",
         description="Structure(s) with optional chains_to_redesign and fixed_positions constraints.",
+    )
+    model_type: LigandMPNNModelType = ConfigField(
+        default="ligand_mpnn",
+        title="LigandMPNN Model Type",
+        description="LigandMPNN implementation: Foundry-backed ligand_mpnn or original LigandMPNN.",
     )
 
     # Optional parameters.
@@ -273,6 +285,7 @@ class LigandMPNNGenerator(Generator):
         self.config = config
 
         self.structure_inputs = config.structure_inputs
+        self.model_type = config.model_type
         self.temperature = config.temperature
         self.excluded_amino_acids = config.excluded_amino_acids
         self.use_side_chain_context = config.use_side_chain_context
@@ -341,6 +354,8 @@ class LigandMPNNGenerator(Generator):
             "verbose": self.verbose,
         }
         supported_fields = getattr(LigandMPNNSampleConfig, "model_fields", {})
+        if "model_type" in supported_fields:
+            tool_config_kwargs["model_type"] = self.model_type
         if "use_side_chain_context" in supported_fields:
             tool_config_kwargs["use_side_chain_context"] = self.use_side_chain_context
         if "cutoff_for_score" in supported_fields:

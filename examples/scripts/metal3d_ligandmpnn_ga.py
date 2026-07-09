@@ -1,4 +1,4 @@
-"""dEVA-style Metal3D enzyme design with LigandMPNN packing and a genetic algorithm.
+"""dEVA-style Metal3D enzyme design with LigandMPNN initialization and a genetic algorithm.
 
 This mirrors ``examples/jsons/metal3d_ligandmpnn_ga.json`` as a regular Proto program.
 It requires GPU-backed LigandMPNN and Metal3D services to run.
@@ -26,7 +26,12 @@ from proto_language.generator import (
     MPNNMutationGenerator,
     MPNNMutationGeneratorConfig,
 )
-from proto_language.optimizer import GeneticAlgorithmOptimizer, GeneticAlgorithmOptimizerConfig
+from proto_language.optimizer import (
+    GeneticAlgorithmOptimizer,
+    GeneticAlgorithmOptimizerConfig,
+    RejectionSamplingOptimizer,
+    RejectionSamplingOptimizerConfig,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -54,9 +59,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--scaffold", default=SCAFFOLD_URL)
+    parser.add_argument("--ligandmpnn-model-type", choices=["ligand_mpnn", "original"], default="original")
     parser.add_argument("--ligandmpnn-checkpoint-path", default=None)
     parser.add_argument("--ligandmpnn-tool-seed", type=int, default=0)
-    parser.add_argument("--mpnn-score-source", choices=["model", "proposal_metadata"], default=None)
+    parser.add_argument("--mpnn-score-source", choices=["model", "proposal_metadata"], default="proposal_metadata")
     parser.add_argument("--mutation-rng-mode", choices=["derived_seed", "global"], default="global")
     parser.add_argument("--mutation-rng-seed", type=int, default=None)
     parser.add_argument("--output-dir", type=Path, default=Path("metal3d_ligandmpnn_ga_outputs"))
@@ -70,16 +76,12 @@ def ligandmpnn_sample_config(**kwargs: object) -> LigandMPNNSampleConfig:
     return LigandMPNNSampleConfig(**{key: value for key, value in kwargs.items() if key in supported_fields})
 
 
-def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
-    """Build the dEVA-style Metal3D program."""
-    # Sequences.
-    enzyme = Segment(sequence=SCAFFOLD_SEQUENCE, sequence_type="protein", label="2VVB chain X")
-    construct = Construct([enzyme])
-
-    # Generators.
-    initialization_generator = LigandMPNNGenerator(
+def build_initialization_generator(enzyme: Segment, args: argparse.Namespace) -> LigandMPNNGenerator:
+    """Build the LigandMPNN population-initialization generator."""
+    generator = LigandMPNNGenerator(
         LigandMPNNGeneratorConfig(
             structure_inputs=InverseFoldingStructureInput(structure=args.scaffold),
+            model_type=args.ligandmpnn_model_type,
             temperature=0.5,
             excluded_amino_acids=["C"],
             use_side_chain_context=True,
@@ -91,9 +93,13 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
             verbose=args.verbose,
         )
     )
-    initialization_generator.assign(enzyme)
+    generator.assign(enzyme)
+    return generator
 
-    mutation_generator = MPNNMutationGenerator(
+
+def build_mutation_generator(enzyme: Segment, args: argparse.Namespace) -> MPNNMutationGenerator:
+    """Build the LigandMPNN-guided offspring mutation generator."""
+    generator = MPNNMutationGenerator(
         MPNNMutationGeneratorConfig(
             model="ligandmpnn",
             structure_source="proposal_structure",
@@ -108,6 +114,7 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
             replacement_temperature=1.0,
             use_side_chain_context=True,
             cutoff_for_score=20.0,
+            ligand_mpnn_model_type=args.ligandmpnn_model_type,
             ligand_mpnn_checkpoint_path=args.ligandmpnn_checkpoint_path,
             ligand_mpnn_tool_seed=args.ligandmpnn_tool_seed,
             rng_mode=args.mutation_rng_mode,
@@ -117,7 +124,7 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
                 mode="ligandmpnn_pack_from_proposal",
                 chain_ids=["X"],
                 ligandmpnn_pack_config=ligandmpnn_sample_config(
-                    model_type="original",
+                    model_type=args.ligandmpnn_model_type,
                     temperature=0.5,
                     use_side_chain_context=True,
                     cutoff_for_score=20.0,
@@ -132,10 +139,13 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
             verbose=args.verbose,
         )
     )
-    mutation_generator.assign(enzyme)
+    generator.assign(enzyme)
+    return generator
 
-    # Constraints.
-    mpnn_score_source = args.mpnn_score_source or "model"
+
+def build_constraints(enzyme: Segment, args: argparse.Namespace) -> list[Constraint]:
+    """Build per-stage scoring constraints."""
+    mpnn_score_source = args.mpnn_score_source
     mpnn_probability_constraint = Constraint(
         inputs=[enzyme],
         function=mpnn_sequence_probability_constraint,
@@ -151,6 +161,7 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
             score_source=mpnn_score_source,
             use_side_chain_context=True,
             cutoff_for_score=20.0,
+            ligand_mpnn_model_type=args.ligandmpnn_model_type,
             ligand_mpnn_checkpoint_path=args.ligandmpnn_checkpoint_path,
             device=args.device,
             verbose=args.verbose,
@@ -179,11 +190,37 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
         weight=1.0,
     )
 
-    # Optimizer.
-    optimizer = GeneticAlgorithmOptimizer(
+    return [mpnn_probability_constraint, metal3d_constraint]
+
+
+def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
+    """Build the two-stage dEVA-style Metal3D program."""
+    # Sequences.
+    enzyme = Segment(sequence=SCAFFOLD_SEQUENCE, sequence_type="protein", label="2VVB chain X")
+    construct = Construct([enzyme])
+
+    # Stage 1: initialize a full GA population from LigandMPNN samples.
+    initialization_optimizer = RejectionSamplingOptimizer(
         constructs=[construct],
-        generators=[initialization_generator, mutation_generator],
-        constraints=[mpnn_probability_constraint, metal3d_constraint],
+        generators=[build_initialization_generator(enzyme, args)],
+        constraints=build_constraints(enzyme, args),
+        config=RejectionSamplingOptimizerConfig(
+            num_samples=args.population_size,
+            num_results=args.population_size,
+            proposal_source="generated",
+            proposal_batch_size=args.population_size,
+            tracking_interval=1,
+            track_proposals=False,
+            verbose=args.verbose,
+            seed=args.seed,
+        ),
+    )
+
+    # Stage 2: refine the initialized population with crossover and MPNN mutation.
+    ga_optimizer = GeneticAlgorithmOptimizer(
+        constructs=[construct],
+        generators=[build_mutation_generator(enzyme, args)],
+        constraints=build_constraints(enzyme, args),
         config=GeneticAlgorithmOptimizerConfig(
             num_generations=args.num_generations,
             num_results=args.num_results,
@@ -211,7 +248,7 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
     )
 
     # Program.
-    return Program(optimizers=[optimizer], num_results=args.num_results), enzyme
+    return Program(optimizers=[initialization_optimizer, ga_optimizer], num_results=args.num_results), enzyme
 
 
 def write_results(enzyme: Segment, output_dir: Path, energy_scores: list[float]) -> None:

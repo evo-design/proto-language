@@ -212,6 +212,8 @@ class GeneticAlgorithmOptimizer(Optimizer):
     ) -> None:
         """Initialize a population-based discrete optimizer."""
         self.config = config
+        self.population_size = config.population_size
+        self.offspring_per_generation = config.offspring_per_generation or config.population_size
         super().__init__(
             constructs=constructs,
             generators=generators,
@@ -226,8 +228,6 @@ class GeneticAlgorithmOptimizer(Optimizer):
             seed=config.seed,
         )
         self.num_steps = config.num_generations
-        self.population_size = config.population_size
-        self.offspring_per_generation = config.offspring_per_generation or config.population_size
         self._population_energies: list[float] = []
         self._population_objectives: list[list[float]] = []
         self._population_nsga2_ranks: list[float] = []
@@ -236,6 +236,7 @@ class GeneticAlgorithmOptimizer(Optimizer):
     def _validate_optimizer(self) -> None:
         """Validate GA configuration after base optimizer checks."""
         super()._validate_optimizer()
+        self._validate_mutation_generators()
         self._validate_crossover_positions()
 
     def _resolve_num_results(self, num_results: int) -> None:
@@ -244,6 +245,46 @@ class GeneticAlgorithmOptimizer(Optimizer):
                 f"num_results ({num_results}) cannot exceed population_size ({self.config.population_size})."
             )
         super()._resolve_num_results(num_results)
+
+    def _initialize_sequence_pools(self) -> None:
+        """Initialize GA pools while preserving upstream population diversity.
+
+        The base handoff initializes ``result_sequences`` to ``num_results`` and
+        would truncate an upstream initialization stage before GA can seed its
+        full population. GA instead uses all available upstream results to seed
+        ``proposal_sequences`` up to ``population_size``.
+        """
+        assert self.num_results is not None  # noqa: S101 -- mypy type narrowing
+        assert self.num_proposals is not None  # noqa: S101 -- mypy type narrowing
+
+        sources = [segment.result_sequences or [segment.original_sequence] for segment in self.segments]
+        source_len = len(sources[0])
+        for segment, source in zip(self.segments, sources, strict=True):
+            if len(source) != source_len:
+                raise RuntimeError(
+                    f"GeneticAlgorithmOptimizer handoff mismatch: segment '{segment.label or 'unlabeled'}' has "
+                    f"{len(source)} candidate(s), expected {source_len}."
+                )
+
+        optimizer_name = self.__class__.__name__
+        if source_len > self.population_size:
+            logger.info(
+                f"Handoff to {optimizer_name}: truncating {source_len} upstream candidates to "
+                f"population_size={self.population_size}."
+            )
+        elif source_len < self.population_size:
+            logger.warning(
+                f"Handoff to {optimizer_name}: expanding {source_len} upstream candidate(s) to "
+                f"population_size={self.population_size} by cycling."
+            )
+        else:
+            logger.info(f"Handoff to {optimizer_name}: seeding population from {source_len} upstream candidate(s).")
+
+        for segment, source in zip(self.segments, sources, strict=True):
+            segment.result_sequences = [copy.deepcopy(source[i % source_len]) for i in range(self.num_results)]
+            segment.proposal_sequences = [
+                copy.deepcopy(source[i % source_len]) for i in range(self.population_size)
+            ]
 
     def run(self) -> None:
         """Run the genetic algorithm optimization loop."""
@@ -283,11 +324,8 @@ class GeneticAlgorithmOptimizer(Optimizer):
 
     def _initialize_population(self) -> None:
         for segment in self.segments:
-            source = segment.result_sequences or [segment.original_sequence]
+            source = segment.proposal_sequences or segment.result_sequences or [segment.original_sequence]
             segment.proposal_sequences = [copy.deepcopy(source[i % len(source)]) for i in range(self.population_size)]
-
-        for generator in self._initialization_generators():
-            generator.sample()
 
         self._score_current_proposals()
         self._population_energies = list(self.energy_scores)
@@ -536,14 +574,27 @@ class GeneticAlgorithmOptimizer(Optimizer):
             self.num_proposals = original_num_proposals
 
     def _mutation_generators(self) -> list[Generator]:
-        return [
-            generator for generator in self.generators if generator.input_type == GeneratorInputType.STARTING_SEQUENCE
-        ]
+        return list(self.generators)
 
-    def _initialization_generators(self) -> list[Generator]:
-        return [
-            generator for generator in self.generators if generator.input_type != GeneratorInputType.STARTING_SEQUENCE
-        ]
+    def _validate_mutation_generators(self) -> None:
+        """Validate that GA only uses one mutation generator per mutable segment."""
+        generator_by_segment: dict[int, Generator] = {}
+        for generator in self.generators:
+            if generator.input_type != GeneratorInputType.STARTING_SEQUENCE:
+                raise ValueError(
+                    "GeneticAlgorithmOptimizer only accepts STARTING_SEQUENCE mutation generators. "
+                    f"Move {generator.__class__.__name__} to a prior optimizer stage."
+                )
+            for segment in generator.segments:
+                previous = generator_by_segment.get(id(segment))
+                if previous is not None:
+                    label = segment.label or "unlabeled"
+                    raise ValueError(
+                        f"GeneticAlgorithmOptimizer received multiple mutation generators for segment {label!r}: "
+                        f"{previous.__class__.__name__} and {generator.__class__.__name__}. "
+                        "Use at most one mutation generator per segment."
+                    )
+                generator_by_segment[id(segment)] = generator
 
     def _variable_segment_ids(self) -> set[int]:
         return {id(segment) for generator in self.generators for segment in generator.segments}

@@ -25,6 +25,7 @@ from proto_language.generator.mpnn_mutation_generator import ProteinMPNNModelCho
 from proto_language.utils.base import BaseConfig, ConfigField
 
 MPNNSequenceProbabilityModel = Literal["ligandmpnn", "proteinmpnn"]
+LigandMPNNModelType = Literal["ligand_mpnn", "original"]
 MPNNSequenceProbabilityScoreMode = Literal["probability_loss", "nll", "perplexity"]
 MPNNSequenceProbabilityStructureSource = Literal["configured_structure_inputs", "proposal_structure"]
 MPNNSequenceProbabilityScoreSource = Literal["model", "proposal_metadata"]
@@ -55,6 +56,8 @@ class MPNNSequenceProbabilityConfig(BaseConfig):
             conditions on fixed-residue sidechain atoms.
         cutoff_for_score (float): Ligand-residue distance cutoff
             used by LigandMPNN scoring.
+        ligand_mpnn_model_type (LigandMPNNModelType): LigandMPNN implementation
+            used for LigandMPNN scoring.
         ligand_mpnn_checkpoint_path (str | None): Optional explicit LigandMPNN checkpoint path.
         seed (int | None): Optional random seed for MPNN scoring.
         device (str): Device for MPNN scoring, for example ``"cuda"``.
@@ -111,6 +114,11 @@ class MPNNSequenceProbabilityConfig(BaseConfig):
         gt=0.0,
         title="LigandMPNN Ligand Cutoff",
         description="Ligand-residue distance cutoff (Å) used by LigandMPNN scoring.",
+    )
+    ligand_mpnn_model_type: LigandMPNNModelType = ConfigField(
+        default="ligand_mpnn",
+        title="LigandMPNN Model Type",
+        description="LigandMPNN implementation used for scoring: Foundry-backed ligand_mpnn or original LigandMPNN.",
     )
     ligand_mpnn_checkpoint_path: str | None = ConfigField(
         default=None,
@@ -387,6 +395,8 @@ def _run_score(
             "verbose": config.verbose,
         }
         supported_fields = getattr(LigandMPNNScoringConfig, "model_fields", {})
+        if "model_type" in supported_fields:
+            scoring_config["model_type"] = config.ligand_mpnn_model_type
         if "use_side_chain_context" in supported_fields:
             scoring_config["use_side_chain_context"] = config.use_side_chain_context
         if "cutoff_for_score" in supported_fields:

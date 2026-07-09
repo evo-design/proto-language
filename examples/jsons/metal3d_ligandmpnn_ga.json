@@ -1,6 +1,6 @@
 {
   "name": "metal3d_ligandmpnn_ga",
-  "description": "Compact enzyme-design example based on the dEVA Metal3D workflow. The program starts from the zinc-binding 2VVB scaffold, runs LigandMPNN scaffold-conditioned initialization, then uses a generic genetic algorithm with dEVA-style two-point crossover and proposal-structure MPNN-guided offspring mutation. Each proposal is scored as two NSGA-II objectives: LigandMPNN sequence probability and Metal3D-Cat probability on the current proposal structure.",
+  "description": "Compact enzyme-design example based on the dEVA Metal3D workflow. The program starts from the zinc-binding 2VVB scaffold, uses LigandMPNN rejection sampling to initialize the genetic-algorithm population, then refines that population with dEVA-style two-point crossover and proposal-structure MPNN-guided offspring mutation. Each proposal is scored as two NSGA-II objectives: LigandMPNN sequence probability and Metal3D-Cat probability on the current proposal structure.",
   "version": "1.0",
   "num_results": 2,
   "constructs": [
@@ -32,6 +32,7 @@
                 }
               }
             ],
+            "model_type": "original",
             "temperature": 0.5,
             "excluded_amino_acids": ["C"],
             "use_side_chain_context": true,
@@ -41,13 +42,77 @@
             "device": "cuda",
             "verbose": false
           }
+        }
+      ],
+      "constraints": [
+        {
+          "key": "mpnn-sequence-probability",
+          "label": "LigandMPNN sequence probability",
+          "targets": ["enzyme_chain"],
+          "weight": 1.0,
+          "config": {
+            "model": "ligandmpnn",
+            "structure_source": "proposal_structure",
+            "structure_inputs": [
+              {
+                "structure": {
+                  "structure": "https://raw.githubusercontent.com/gelnesr/dEVA/main/inputs/2VVB.pdb"
+                },
+                "chains_to_redesign": {
+                  "chains": ["X"]
+                }
+              }
+            ],
+            "output_chain_id": "X",
+            "score_mode": "probability_loss",
+            "score_source": "proposal_metadata",
+            "use_side_chain_context": true,
+            "cutoff_for_score": 20.0,
+            "ligand_mpnn_model_type": "original",
+            "device": "cuda",
+            "verbose": false
+          }
         },
+        {
+          "key": "metal3d-probability",
+          "label": "Metal3D-Cat metal-site probability",
+          "targets": ["enzyme_chain"],
+          "weight": 1.0,
+          "config": {
+            "min_probability": 0.2,
+            "structure_preparation": {
+              "mode": "proposal_structure"
+            },
+            "metal3d_config": {
+              "model_checkpoint": "metal3d-cat",
+              "cluster_distance_threshold": 7.0,
+              "max_sites": 8,
+              "device": "cuda",
+              "verbose": 0
+            }
+          }
+        }
+      ],
+      "optimizer": {
+        "method": "rejection-sampling",
+        "config": {
+          "num_samples": 2,
+          "num_results": 2,
+          "proposal_source": "generated",
+          "proposal_batch_size": 2,
+          "tracking_interval": 1,
+          "track_proposals": false,
+          "verbose": false,
+          "seed": 0
+        }
+      }
+    },
+    {
+      "generators": [
         {
           "key": "mpnn-mutation",
           "label": "LigandMPNN offspring mutation",
-          "targets": [
-            "enzyme_chain"
-          ],
+          "targets": ["enzyme_chain"],
           "config": {
             "model": "ligandmpnn",
             "structure_source": "proposal_structure",
@@ -68,6 +133,7 @@
             "replacement_temperature": 1.0,
             "use_side_chain_context": true,
             "cutoff_for_score": 20.0,
+            "ligand_mpnn_model_type": "original",
             "ligand_mpnn_tool_seed": 0,
             "rng_mode": "global",
             "rng_seed": 0,
@@ -112,9 +178,10 @@
             ],
             "output_chain_id": "X",
             "score_mode": "probability_loss",
-            "score_source": "model",
+            "score_source": "proposal_metadata",
             "use_side_chain_context": true,
             "cutoff_for_score": 20.0,
+            "ligand_mpnn_model_type": "original",
             "device": "cuda",
             "verbose": false
           }

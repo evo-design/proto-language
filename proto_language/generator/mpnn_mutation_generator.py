@@ -30,6 +30,7 @@ from proto_language.utils.base import BaseConfig, ConfigField
 from proto_language.utils.serialization import make_json_safe
 
 MPNNMutationModel = Literal["ligandmpnn", "proteinmpnn"]
+LigandMPNNModelType = Literal["ligand_mpnn", "original"]
 MPNNMutationStructureSource = Literal["configured_structure_inputs", "proposal_structure"]
 ReplacementStrategy = Literal["sample", "argmax"]
 MutationRNGMode = Literal["derived_seed", "global"]
@@ -59,6 +60,8 @@ class MPNNMutationGeneratorConfig(BaseConfig):
         proteinmpnn_model_choice (ProteinMPNNModelChoice): ProteinMPNN checkpoint when model is proteinmpnn.
         use_side_chain_context (bool): Whether LigandMPNN uses fixed-residue sidechain context.
         cutoff_for_score (float): Ligand-residue cutoff for LigandMPNN scoring.
+        ligand_mpnn_model_type (LigandMPNNModelType): LigandMPNN implementation
+            used for LigandMPNN scoring.
         ligand_mpnn_checkpoint_path (str | None): Optional explicit LigandMPNN checkpoint path.
         ligand_mpnn_tool_seed (int | None): Optional seed passed directly to LigandMPNN scoring.
         rng_mode (MutationRNGMode): Random source for mutation-position and replacement sampling.
@@ -132,6 +135,11 @@ class MPNNMutationGeneratorConfig(BaseConfig):
         gt=0.0,
         title="LigandMPNN Ligand Cutoff",
         description="Ligand-residue distance cutoff (Å) used by LigandMPNN scoring.",
+    )
+    ligand_mpnn_model_type: LigandMPNNModelType = ConfigField(
+        default="ligand_mpnn",
+        title="LigandMPNN Model Type",
+        description="LigandMPNN implementation used for scoring: Foundry-backed ligand_mpnn or original LigandMPNN.",
     )
     ligand_mpnn_checkpoint_path: str | None = ConfigField(
         default=None,
@@ -241,6 +249,7 @@ class MPNNMutationGenerator(Generator):
         self.proteinmpnn_model_choice = config.proteinmpnn_model_choice
         self.use_side_chain_context = config.use_side_chain_context
         self.cutoff_for_score = config.cutoff_for_score
+        self.ligand_mpnn_model_type = config.ligand_mpnn_model_type
         self.ligand_mpnn_checkpoint_path = config.ligand_mpnn_checkpoint_path
         self.ligand_mpnn_tool_seed = config.ligand_mpnn_tool_seed
         self.rng_mode = config.rng_mode
@@ -501,6 +510,8 @@ class MPNNMutationGenerator(Generator):
                 "verbose": self.verbose,
             }
             supported_fields = getattr(LigandMPNNScoringConfig, "model_fields", {})
+            if "model_type" in supported_fields:
+                scoring_config["model_type"] = self.ligand_mpnn_model_type
             if "use_side_chain_context" in supported_fields:
                 scoring_config["use_side_chain_context"] = self.use_side_chain_context
             if "cutoff_for_score" in supported_fields:
