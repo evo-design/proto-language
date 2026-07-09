@@ -1,6 +1,6 @@
 {
   "name": "metal3d_ligandmpnn_ga",
-  "description": "Compact enzyme-design example based on the dEVA Metal3D workflow. The program starts from the zinc-binding 2VVB scaffold, uses LigandMPNN rejection sampling to initialize the genetic-algorithm population, then refines that population with dEVA-style two-point crossover and proposal-structure MPNN-guided offspring mutation. Each proposal is scored as two NSGA-II objectives: LigandMPNN sequence probability and Metal3D-Cat probability on the current proposal structure. A final one-shot ESMFold2 stage predicts the top designed enzyme as an all-atom complex with one zinc ion.",
+  "description": "A zinc-binding enzyme design workflow adapted from dEVA. The program initializes scaffold-conditioned sequences with rejection sampling, refines them with a genetic algorithm, and predicts the top sequence as a zinc-bound structure.",
   "version": "1.0",
   "num_results": 1,
   "constructs": [
