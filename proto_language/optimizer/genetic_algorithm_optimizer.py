@@ -282,9 +282,7 @@ class GeneticAlgorithmOptimizer(Optimizer):
 
         for segment, source in zip(self.segments, sources, strict=True):
             segment.result_sequences = [copy.deepcopy(source[i % source_len]) for i in range(self.num_results)]
-            segment.proposal_sequences = [
-                copy.deepcopy(source[i % source_len]) for i in range(self.population_size)
-            ]
+            segment.proposal_sequences = [copy.deepcopy(source[i % source_len]) for i in range(self.population_size)]
 
     def run(self) -> None:
         """Run the genetic algorithm optimization loop."""

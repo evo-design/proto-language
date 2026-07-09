@@ -53,7 +53,7 @@ class LigandMPNNGeneratorConfig(BaseConfig):
             - ``fixed_positions``: Optional per-chain residue positions to keep fixed
               (e.g., ``{"A": [1, 2, 3]}``, 1-indexed)
 
-        **Accepts flexible input formats:**
+            **Accepts flexible input formats:**
 
             - A single string (file path or PDB content) - auto-converted to ``InverseFoldingStructureInput``
             - A single ``InverseFoldingStructureInput`` object
