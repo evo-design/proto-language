@@ -178,7 +178,7 @@
             ],
             "output_chain_id": "X",
             "score_mode": "probability_loss",
-            "score_source": "proposal_metadata",
+            "score_source": "model",
             "use_side_chain_context": true,
             "cutoff_for_score": 20.0,
             "ligand_mpnn_model_type": "original",

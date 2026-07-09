@@ -96,8 +96,8 @@ def _create_simple_program(
 class TestClearSequenceMetadata:
     """Tests for Program._clear_sequence_metadata stage hygiene."""
 
-    def test_clears_constraint_metadata_and_preserves_generator_metadata(self):
-        """At a stage boundary, stale constraint metadata is reset while generator outputs are preserved."""
+    def test_clears_both_constraint_and_generator_metadata(self):
+        """At a stage boundary, stale constraint and generator metadata are reset."""
         program = _create_simple_program(num_stages=1, compute=nullcontext())
         segment = program.constructs[0].segments[0]
         for seq in segment.result_sequences + segment.proposal_sequences:
@@ -108,7 +108,7 @@ class TestClearSequenceMetadata:
 
         for seq in segment.result_sequences + segment.proposal_sequences:
             assert seq._constraints_metadata == {}
-            assert seq._generator_metadata == {"stale-generator": {"samples": ["AAAA"]}}
+            assert seq._generator_metadata == {}
 
 
 class TestProgramRestart:
@@ -1195,22 +1195,6 @@ class TestSerializeRestoreState:
         assert restored_seq.structure is not None
         np.testing.assert_allclose(restored_seq.structure.per_residue_plddt, plddt)
 
-    def test_serialize_restore_preserves_generator_metadata(self):
-        """Optimizer handoff state preserves generator outputs used by downstream metadata constraints."""
-        program = _create_simple_program(num_stages=1)
-        program.run_stage(0)
-        segment = program.constructs[0].segments[0]
-        segment.result_sequences[0]._generator_metadata = {"sample": {"pmpnn": 0.25}}
-
-        state = program.serialize_state()
-        assert state["segments"][0]["result_sequences"][0]["generators"] == {"sample": {"pmpnn": 0.25}}
-
-        fresh_program = _create_simple_program(num_stages=1)
-        fresh_program.restore_state(state)
-
-        restored_seq = fresh_program.constructs[0].segments[0].result_sequences[0]
-        assert restored_seq._generator_metadata == {"sample": {"pmpnn": 0.25}}
-
     def test_serialize_state_with_handoff_payloads_is_json_compatible(self):
         """Intermediate DB state survives the hosted JSON round-trip."""
         import json
@@ -1223,7 +1207,6 @@ class TestSerializeRestoreState:
         plddt = [0.2, 0.8]
         sequence.logits = logits
         sequence.structure = MockStructure.with_plddt(plddt)
-        sequence._generator_metadata = {"sample": {"pmpnn": 0.25}}
 
         state = program.serialize_state()
         structure_state = state["segments"][0]["result_sequences"][0]["structure"]
@@ -1237,7 +1220,6 @@ class TestSerializeRestoreState:
         np.testing.assert_array_equal(restored_seq.logits, logits)
         assert restored_seq.structure is not None
         np.testing.assert_allclose(restored_seq.structure.per_residue_plddt, plddt)
-        assert restored_seq._generator_metadata == {"sample": {"pmpnn": 0.25}}
 
 
 class TestProgramExport:

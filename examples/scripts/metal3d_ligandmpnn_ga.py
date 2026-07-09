@@ -7,6 +7,7 @@ It requires GPU-backed LigandMPNN and Metal3D services to run.
 import argparse
 import logging
 from pathlib import Path
+from typing import Literal
 
 from proto_tools import InverseFoldingStructureInput, LigandMPNNSampleConfig, Metal3DPredictionConfig
 
@@ -62,7 +63,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ligandmpnn-model-type", choices=["ligand_mpnn", "original"], default="original")
     parser.add_argument("--ligandmpnn-checkpoint-path", default=None)
     parser.add_argument("--ligandmpnn-tool-seed", type=int, default=0)
-    parser.add_argument("--mpnn-score-source", choices=["model", "proposal_metadata"], default="proposal_metadata")
+    parser.add_argument("--mpnn-score-source", choices=["model", "proposal_metadata"], default="model")
     parser.add_argument("--mutation-rng-mode", choices=["derived_seed", "global"], default="global")
     parser.add_argument("--mutation-rng-seed", type=int, default=None)
     parser.add_argument("--output-dir", type=Path, default=Path("metal3d_ligandmpnn_ga_outputs"))
@@ -143,9 +144,14 @@ def build_mutation_generator(enzyme: Segment, args: argparse.Namespace) -> MPNNM
     return generator
 
 
-def build_constraints(enzyme: Segment, args: argparse.Namespace) -> list[Constraint]:
+def build_constraints(
+    enzyme: Segment,
+    args: argparse.Namespace,
+    *,
+    mpnn_score_source: Literal["model", "proposal_metadata"] | None = None,
+) -> list[Constraint]:
     """Build per-stage scoring constraints."""
-    mpnn_score_source = args.mpnn_score_source
+    mpnn_score_source = mpnn_score_source or args.mpnn_score_source
     mpnn_probability_constraint = Constraint(
         inputs=[enzyme],
         function=mpnn_sequence_probability_constraint,
@@ -203,7 +209,7 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
     initialization_optimizer = RejectionSamplingOptimizer(
         constructs=[construct],
         generators=[build_initialization_generator(enzyme, args)],
-        constraints=build_constraints(enzyme, args),
+        constraints=build_constraints(enzyme, args, mpnn_score_source="proposal_metadata"),
         config=RejectionSamplingOptimizerConfig(
             num_samples=args.population_size,
             num_results=args.population_size,
