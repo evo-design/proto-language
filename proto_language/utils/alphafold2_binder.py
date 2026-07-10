@@ -203,6 +203,7 @@ def af2_binder_constraint_output_metadata(
     output_structure: Structure,
     loss_key: str,
     group_loss: float | None = None,
+    fallback_used: bool | None = None,
 ) -> dict[str, Any]:
     """Build metadata for an AF2 binder-backed structure constraint result."""
     metrics = canonical_af2_binder_metrics(output_metrics)
@@ -215,6 +216,8 @@ def af2_binder_constraint_output_metadata(
     }
     if group_loss is not None:
         metadata["af2_group_loss"] = group_loss
+    if fallback_used is not None:
+        metadata["fallback_used"] = fallback_used
     return metadata
 
 

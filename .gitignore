@@ -52,6 +52,11 @@ coverage.xml
 # Project
 data/
 
+# Benchmark outputs
+benchmark_*.json
+benchmark_*.png
+benchmark_*.tsv
+
 # Distribution / packaging
 .Python
 develop-eggs/

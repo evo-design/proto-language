@@ -169,6 +169,8 @@ from proto_language.optimizer import (
     BeamState,
     CyclingOptimizer,
     CyclingOptimizerConfig,
+    EvolutionaryOptimizer,
+    EvolutionaryOptimizerConfig,
     GradientOptimizer,
     GradientOptimizerConfig,
     MCMCOptimizer,
@@ -375,6 +377,8 @@ __all__ = [
     "RejectionSamplingOptimizerConfig",
     "CyclingOptimizer",
     "CyclingOptimizerConfig",
+    "EvolutionaryOptimizer",
+    "EvolutionaryOptimizerConfig",
     "GradientOptimizer",
     "GradientOptimizerConfig",
     # Logging

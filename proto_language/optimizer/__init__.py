@@ -7,6 +7,7 @@ from proto_language.optimizer.beam_search_optimizer import (
     BeamState,
 )
 from proto_language.optimizer.cycling_optimizer import CyclingOptimizer, CyclingOptimizerConfig
+from proto_language.optimizer.evolutionary_optimizer import EvolutionaryOptimizer, EvolutionaryOptimizerConfig
 
 # Optimizers
 from proto_language.optimizer.gradient_optimizer import (
@@ -41,6 +42,9 @@ __all__ = [
     # Cycling Optimizer
     "CyclingOptimizer",
     "CyclingOptimizerConfig",
+    # Evolutionary Optimizer
+    "EvolutionaryOptimizer",
+    "EvolutionaryOptimizerConfig",
     # Gradient Optimizer
     "GradientOptimizer",
     "GradientOptimizerConfig",

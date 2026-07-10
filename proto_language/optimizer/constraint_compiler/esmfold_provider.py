@@ -287,20 +287,22 @@ def evaluate_scoring_group(compiled_constraints: list[CompiledConstraint], mask:
 
     for proposal_idx, structure in zip(proposal_indices, output.structures, strict=True):
         metrics = dict(structure.metrics.items())
-        term_scores = [_scoring_term_score(metrics, compiled.objective_key) for compiled in compiled_constraints]
+        term_results = [_scoring_term_score(metrics, compiled.objective_key) for compiled in compiled_constraints]
+        term_scores = [score for score, _ in term_results]
         group_score = sum(
             compiled.constraint.weight * score
             for compiled, score in zip(compiled_constraints, term_scores, strict=True)
         )
         scores[proposal_idx] = group_score
 
-        for compiled, score in zip(compiled_constraints, term_scores, strict=True):
+        for compiled, (score, fallback_used) in zip(compiled_constraints, term_results, strict=True):
             metadata = _scoring_constraint_metadata(
                 metrics,
                 output_structure=structure,
                 objective_key=compiled.objective_key,
                 output_score=score,
                 group_score=group_score,
+                fallback_used=fallback_used,
             )
             compiled.constraint._write_constraint_metadata(proposal_idx, score, metadata)
 
@@ -366,6 +368,7 @@ def _scoring_constraint_metadata(
     objective_key: str,
     output_score: float,
     group_score: float,
+    fallback_used: bool,
 ) -> dict[str, Any]:
     """Build per-public-constraint metadata from an ESMFold scoring output."""
     target_metric = TARGET_METRIC_BY_OBJECTIVE[objective_key]
@@ -382,6 +385,7 @@ def _scoring_constraint_metadata(
             "group_score": group_score,
             "pdb_output": output_structure.structure_pdb,
             "structure_tool": "esmfold",
+            "fallback_used": fallback_used,
         }
     )
     return metadata
@@ -392,20 +396,24 @@ def _provider_label(constraints: list[CompiledConstraint]) -> str:
     return "esmfold[" + ",".join(c.constraint.label for c in constraints) + "]"
 
 
-def _scoring_term_score(metrics: dict[str, Any], objective_key: str) -> float:
-    """Compute the public forward ESMFold confidence score for one objective."""
+def _scoring_term_score(metrics: dict[str, Any], objective_key: str) -> tuple[float, bool]:
+    """Compute the public forward ESMFold confidence score for one objective.
+
+    Returns:
+        tuple[float, bool]: Score and whether fallback was used (MAX_ENERGY sentinel).
+    """
     target_metric = TARGET_METRIC_BY_OBJECTIVE[objective_key]
     metric = _metric_value(metrics, target_metric)
     if metric is None:
         logger.warning("Metric %r not found in ESMFold structure output, returning worst score.", target_metric)
-        return MAX_ENERGY
+        return MAX_ENERGY, True
     if objective_key == "plddt":
         normalized = metric / 100.0 if metric > 1.0 else metric
-        return 1.0 - normalized
+        return 1.0 - normalized, False
     if objective_key == "ptm":
-        return 1.0 - metric
+        return 1.0 - metric, False
     if objective_key == "pae":
-        return min(metric / PAE_MAXIMUM, 1.0)
+        return min(metric / PAE_MAXIMUM, 1.0), False
     raise ValueError(f"Unsupported ESMFold scoring objective {objective_key!r}.")
 
 

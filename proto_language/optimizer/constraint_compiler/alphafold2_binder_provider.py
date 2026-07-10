@@ -248,13 +248,14 @@ class AF2BinderGradientProvider(GradientProvider):
             structures = af2_binder_structures(output.structure, self.config, len(self.inputs))
 
             for compiled in self.constraints:
-                score = _term_score(output.metrics, compiled.objective_key, output.loss)
+                score, fallback_used = _term_score(output.metrics, compiled.objective_key, output.loss)
                 metadata = af2_binder_constraint_output_metadata(
                     output.metrics,
                     output_loss=score,
                     output_structure=output.structure,
                     loss_key=compiled.objective_key,
                     group_loss=output.loss,
+                    fallback_used=fallback_used,
                 )
                 compiled.constraint._write_constraint_metadata(proposal_idx, score, metadata)
 
@@ -571,13 +572,14 @@ def evaluate_scoring_group(compiled_constraints: list[CompiledConstraint], mask:
         scores[proposal_idx] = output.loss
         structures = af2_binder_structures(output.structure, config, len(inputs))
         for compiled in compiled_constraints:
-            term_score = _term_score(output.metrics, compiled.objective_key, output.loss)
+            term_score, fallback_used = _term_score(output.metrics, compiled.objective_key, output.loss)
             metadata = af2_binder_constraint_output_metadata(
                 output.metrics,
                 output_loss=term_score,
                 output_structure=output.structure,
                 loss_key=compiled.objective_key,
                 group_loss=output.loss,
+                fallback_used=fallback_used,
             )
             compiled.constraint._write_constraint_metadata(proposal_idx, term_score, metadata)
 
@@ -599,7 +601,7 @@ def _provider_label(constraints: list[CompiledConstraint]) -> str:
     return "af2_binder[" + ",".join(c.constraint.label for c in constraints) + "]"
 
 
-def _term_score(metrics: dict[str, Any], objective_key: str, fallback: float) -> float:
+def _term_score(metrics: dict[str, Any], objective_key: str, fallback: float) -> tuple[float, bool]:
     """Extract the scalar score for one AF2 binder objective from tool metrics.
 
     AF2 binder/ColabDesign exposes some terms under several spellings: raw objective
@@ -615,7 +617,7 @@ def _term_score(metrics: dict[str, Any], objective_key: str, fallback: float) ->
         fallback (float): Grouped loss to use when no per-term metric is found.
 
     Returns:
-        float: Per-term scalar score/loss.
+        tuple[float, bool]: Per-term scalar score/loss and whether fallback was used.
     """
     tool_loss_key = AF2_BINDER_TOOL_LOSS_ALIASES.get(objective_key, objective_key)
     candidate_keys = [f"loss_{objective_key}", f"loss_{tool_loss_key}", tool_loss_key, objective_key]
@@ -626,7 +628,7 @@ def _term_score(metrics: dict[str, Any], objective_key: str, fallback: float) ->
     for key in candidate_keys:
         value = metrics.get(key)
         if isinstance(value, int | float):
-            return float(value)
+            return float(value), False
     numeric_keys = sorted(key for key, value in metrics.items() if isinstance(value, int | float))
     logger.warning(
         "AF2 binder metrics did not include a per-term score for objective %r. "
@@ -636,4 +638,4 @@ def _term_score(metrics: dict[str, Any], objective_key: str, fallback: float) ->
         ", ".join(candidate_keys),
         ", ".join(numeric_keys) or "<none>",
     )
-    return fallback
+    return fallback, True
