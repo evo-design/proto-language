@@ -273,7 +273,7 @@ def _ligandmpnn_pack(
 def _all_threaded_positions(scaffold: Structure, chain_sequences: dict[str, str]) -> ResidueSelection:
     fixed = {}
     for chain_id in scaffold.get_chain_ids():
-        positions = scaffold.get_chain_positions(chain_id)
+        positions = list(range(1, len(scaffold.get_chain_positions(chain_id)) + 1))
         sequence = chain_sequences.get(chain_id)
         if sequence is not None and len(positions) != len(sequence):
             raise ValueError(
