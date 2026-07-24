@@ -71,6 +71,7 @@ tests/
 │   │   ├── test_sequence_scoring/
 │   │   ├── test_protein_quality/
 │   │   ├── test_protein_structure/
+│   │   ├── test_rna_expression/
 │   │   ├── test_rna_secondary_structure/
 │   │   └── test_rna_splicing/
 │   ├── generator_tests/

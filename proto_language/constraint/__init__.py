@@ -71,6 +71,18 @@ from proto_language.constraint.protein_structure import (
     structure_tmscore_constraint,
 )
 
+# RNA expression constraints
+from proto_language.constraint.rna_expression import (
+    ParadeUTRActivityConfig,
+    ParadeUTRSpecificityConfig,
+    ParadeUTRStabilityConfig,
+    parade_utr_activity_constraint,
+    parade_utr_activity_gradient_backward,
+    parade_utr_specificity_constraint,
+    parade_utr_specificity_gradient_backward,
+    parade_utr_stability_constraint,
+)
+
 # RNA secondary structure constraints
 from proto_language.constraint.rna_secondary_structure import (
     rna_basepair_similarity_constraint,
@@ -245,6 +257,15 @@ __all__ = [
     "seq_motif_constraint",
     "promoter_strength_constraint",
     "alphagenome_interval_track_constraint",
+    # RNA expression
+    "ParadeUTRActivityConfig",
+    "ParadeUTRSpecificityConfig",
+    "ParadeUTRStabilityConfig",
+    "parade_utr_activity_constraint",
+    "parade_utr_activity_gradient_backward",
+    "parade_utr_specificity_constraint",
+    "parade_utr_specificity_gradient_backward",
+    "parade_utr_stability_constraint",
     # RNA secondary structure
     "rna_property_similarity_constraint",
     "rna_motif_similarity_constraint",
