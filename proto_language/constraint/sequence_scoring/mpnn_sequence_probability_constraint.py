@@ -368,7 +368,8 @@ def _fixed_non_output_chains(
     fixed: dict[str, set[int]] = {}
     for chain_id in struct_input.structure.get_chain_ids():
         if chain_id != output_chain_id:
-            fixed[chain_id] = set(struct_input.structure.get_chain_positions(chain_id))
+            # ResidueSelection positions are 1-indexed ordinals, not author residue numbers.
+            fixed[chain_id] = set(range(1, len(struct_input.structure.get_chain_positions(chain_id)) + 1))
     if struct_input.fixed_positions is not None:
         for chain_id, positions in struct_input.fixed_positions.chains.items():
             fixed.setdefault(chain_id, set()).update(positions)
