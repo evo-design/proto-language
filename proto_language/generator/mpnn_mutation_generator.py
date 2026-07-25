@@ -38,6 +38,16 @@ PostMutationScoreMode = Literal["disabled", "single_aa", "autoregressive"]
 ProteinMPNNModelChoice = Literal["proteinmpnn", "v_48_002", "v_48_010", "v_48_030", "abmpnn", "soluble"]
 
 
+def _chain_ordinals(struct_input: InverseFoldingStructureInput, chain_id: str) -> range:
+    """Return every 1-indexed position in ``chain_id``.
+
+    ``ResidueSelection`` positions are ordinals over a chain's residues, not author residue
+    numbers, so a chain of ``N`` residues spans ``1..N`` regardless of how the structure
+    numbers or gaps them.
+    """
+    return range(1, len(struct_input.structure.get_chain_positions(chain_id)) + 1)
+
+
 class MPNNMutationGeneratorConfig(BaseConfig):
     """Configuration for structure-conditioned MPNN mutation.
 
@@ -465,7 +475,8 @@ class MPNNMutationGenerator(Generator):
     ) -> ResidueSelection | None:
         fixed: dict[str, set[int]] = {}
         for chain_id in struct_input.structure.get_chain_ids():
-            chain_positions = set(struct_input.structure.get_chain_positions(chain_id))
+            # ResidueSelection positions are 1-indexed ordinals, not author residue numbers.
+            chain_positions = set(_chain_ordinals(struct_input, chain_id))
             if chain_id != output_chain_id:
                 fixed[chain_id] = set(chain_positions)
 
@@ -480,7 +491,7 @@ class MPNNMutationGenerator(Generator):
                 raise ValueError(
                     f"mutable_positions does not include any positions for output chain {output_chain_id!r}."
                 )
-            output_positions = set(struct_input.structure.get_chain_positions(output_chain_id))
+            output_positions = set(_chain_ordinals(struct_input, output_chain_id))
             fixed.setdefault(output_chain_id, set()).update(output_positions - mutable)
 
         fixed_dict = {chain_id: sorted(positions) for chain_id, positions in fixed.items() if positions}
@@ -704,30 +715,25 @@ class MPNNMutationGenerator(Generator):
         output_chain_id: str,
         struct_input: InverseFoldingStructureInput,
     ) -> list[int]:
+        chain_length = len(struct_input.structure.get_chain_positions(output_chain_id))
         if self.mutable_positions is not None:
             positions = set(self.mutable_positions.chains.get(output_chain_id, []))
         else:
-            positions = set(struct_input.structure.get_chain_positions(output_chain_id))
+            positions = set(range(1, chain_length + 1))
 
         if struct_input.fixed_positions is not None:
             positions -= set(struct_input.fixed_positions.chains.get(output_chain_id, []))
 
-        position_to_index = self._chain_position_to_index(output_chain_id, struct_input)
         indices = []
         for position in sorted(positions):
-            if position not in position_to_index:
-                raise ValueError(f"Position {output_chain_id}{position} is not present in the structure.")
-            indices.append(position_to_index[position])
+            # Positions are 1-indexed ordinals into the chain, so index i lives at position i + 1.
+            if not 1 <= position <= chain_length:
+                raise ValueError(
+                    f"Position {output_chain_id}{position} is out of range for chain "
+                    f"{output_chain_id!r} (chain has {chain_length} residues)."
+                )
+            indices.append(position - 1)
         return indices
-
-    @staticmethod
-    def _chain_position_to_index(
-        output_chain_id: str,
-        struct_input: InverseFoldingStructureInput,
-    ) -> dict[int, int]:
-        return {
-            position: idx for idx, position in enumerate(struct_input.structure.get_chain_positions(output_chain_id))
-        }
 
     def _select_positions(
         self,
