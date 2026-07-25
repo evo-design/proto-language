@@ -53,3 +53,22 @@ def test_ligandmpnn_sequence_probability_scores_one_minus_pmpnn(
     assert outputs[0].score == pytest.approx(1.0 - 0.7788007830714049)
     assert outputs[0].metadata["pmpnn"] == pytest.approx(0.7788007830714049)
     assert outputs[0].metadata["mpnn_avg_log_likelihood"] == -0.25
+
+
+def test_fixed_non_output_chains_are_ordinals_for_offset_numbering(temp_pdb_file):
+    """Non-output chains are fixed by 1-indexed position, not author residue number."""
+    from proto_tools import InverseFoldingStructureInput
+    from proto_tools.entities.structures import Structure
+
+    from proto_language.constraint.sequence_scoring.mpnn_sequence_probability_constraint import (
+        _fixed_non_output_chains,
+    )
+
+    scaffold = Structure.from_file(temp_pdb_file)
+    for residue in scaffold.gemmi_struct[0]["A"]:
+        residue.seqid.num += 100
+
+    struct_input = InverseFoldingStructureInput(structure=scaffold, chains_to_redesign=["A"])
+
+    assert scaffold.get_chain_positions("A") == [101, 102, 103, 104, 105]
+    assert _fixed_non_output_chains(struct_input, "B").chains == {"A": [1, 2, 3, 4, 5]}

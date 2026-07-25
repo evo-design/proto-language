@@ -147,3 +147,27 @@ END
     assert all(line[16] == " " for line in lines if line.startswith("ATOM"))
     assert all(line[54:60] == "  1.00" for line in lines if line.startswith(("ATOM", "HETATM")))
     assert [line[21] for line in lines if line.startswith("HETATM")] == ["B"]
+
+
+def test_scoring_fixed_positions_are_ordinals_for_offset_numbering(temp_pdb_file):
+    """Fixed positions use 1-indexed chain positions, not author residue numbers."""
+    from proto_tools.entities.structures import Structure
+
+    scaffold = Structure.from_file(temp_pdb_file)
+    for residue in scaffold.gemmi_struct[0]["A"]:
+        residue.seqid.num += 100
+
+    generator = MPNNMutationGenerator(
+        MPNNMutationGeneratorConfig(
+            structure_inputs=InverseFoldingStructureInput(structure=scaffold, chains_to_redesign=["A"]),
+            output_chain_id="A",
+            mutable_positions={"A": [2, 4]},
+            num_mutations=1,
+            device="cpu",
+        )
+    )
+    struct_input = generator.structure_inputs[0]
+
+    assert scaffold.get_chain_positions("A") == [101, 102, 103, 104, 105]
+    assert generator._scoring_fixed_positions(struct_input, "A").chains == {"A": [1, 3, 5]}
+    assert generator._mutable_sequence_indices("A", struct_input) == [1, 3]
