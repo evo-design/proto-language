@@ -4,7 +4,7 @@ protein sequences, making it particularly effective for enzyme design
 and binding site optimization.
 """
 
-from typing import Any, final
+from typing import Any, Literal, final
 
 from proto_tools import (
     InverseFoldingInput,
@@ -18,6 +18,8 @@ from pydantic import field_validator
 from proto_language.core import Generator, GeneratorInputType
 from proto_language.generator.generator_registry import generator
 from proto_language.utils.base import BaseConfig, ConfigField
+
+LigandMPNNModelType = Literal["ligand_mpnn", "original"]
 
 
 class LigandMPNNGeneratorConfig(BaseConfig):
@@ -58,6 +60,11 @@ class LigandMPNNGeneratorConfig(BaseConfig):
             - A list of strings or ``InverseFoldingStructureInput`` objects
             - A list of dicts with ``structure``, ``chains_to_redesign``, ``fixed_positions`` keys
 
+        model_type (LigandMPNNModelType): LigandMPNN implementation to use.
+            ``"ligand_mpnn"`` selects the default Foundry-backed implementation;
+            ``"original"`` selects the original LigandMPNN implementation when
+            supported by the installed proto-tools backend.
+
         temperature (float): Controls randomness in amino acid sampling from the
             model's predicted probability distribution:
 
@@ -78,6 +85,15 @@ class LigandMPNNGeneratorConfig(BaseConfig):
             - ``["C", "M", "W"]``: Exclude multiple residues
 
             Default: ``None`` (all amino acids allowed).
+
+        use_side_chain_context (bool): Whether LigandMPNN conditions
+            on sidechain atoms of fixed residues. Default: ``False``.
+
+        cutoff_for_score (float): Ligand-residue distance cutoff used
+            by LigandMPNN. Default: ``8.0``.
+
+        checkpoint_path (str | None): Optional explicit LigandMPNN checkpoint path.
+        tool_seed (int | None): Optional seed passed directly to the LigandMPNN tool.
 
         batch_size (int): Number of sequences to process simultaneously on GPU.
             Larger batches improve throughput but use more GPU memory; reduce
@@ -133,6 +149,11 @@ class LigandMPNNGeneratorConfig(BaseConfig):
         title="Structure Inputs",
         description="Structure(s) with optional chains_to_redesign and fixed_positions constraints.",
     )
+    model_type: LigandMPNNModelType = ConfigField(
+        default="ligand_mpnn",
+        title="LigandMPNN Model Type",
+        description="LigandMPNN implementation: Foundry-backed ligand_mpnn or original LigandMPNN.",
+    )
 
     # Optional parameters.
     temperature: float = ConfigField(
@@ -146,6 +167,28 @@ class LigandMPNNGeneratorConfig(BaseConfig):
         default=None,
         title="Excluded Amino Acids",
         description="Single-letter amino-acid codes to forbid in the designed sequence.",
+    )
+    use_side_chain_context: bool = ConfigField(
+        default=False,
+        title="LigandMPNN Sidechain Context",
+        description="Whether LigandMPNN conditions on fixed-residue sidechain atoms.",
+    )
+    cutoff_for_score: float = ConfigField(
+        default=8.0,
+        gt=0.0,
+        title="LigandMPNN Ligand Cutoff",
+        description="Ligand-residue distance cutoff (Å) used by LigandMPNN.",
+    )
+    checkpoint_path: str | None = ConfigField(
+        default=None,
+        title="Checkpoint Path",
+        description="Optional explicit LigandMPNN checkpoint path.",
+    )
+    tool_seed: int | None = ConfigField(
+        default=None,
+        ge=0,
+        title="Tool Seed",
+        description="Optional seed passed directly to the LigandMPNN tool; None uses Proto's derived seed stream.",
     )
     batch_size: int = ConfigField(
         default=1,
@@ -242,8 +285,13 @@ class LigandMPNNGenerator(Generator):
         self.config = config
 
         self.structure_inputs = config.structure_inputs
+        self.model_type = config.model_type
         self.temperature = config.temperature
         self.excluded_amino_acids = config.excluded_amino_acids
+        self.use_side_chain_context = config.use_side_chain_context
+        self.cutoff_for_score = config.cutoff_for_score
+        self.checkpoint_path = config.checkpoint_path
+        self.tool_seed = config.tool_seed
         self.batch_size = config.batch_size
         self.device = config.device
         self.verbose = config.verbose
@@ -278,8 +326,10 @@ class LigandMPNNGenerator(Generator):
             )
 
         generated_sequences: list[str] = []
+        generated_structures: list[Structure | None] = []
         all_recovery: list[float] = []
         all_interface_recovery: list[float | None] = []
+        all_pmpnn: list[float | None] = []
 
         if len(sampling_structure_inputs) == 1:
             # Single structure: generate num_proposals sequences in chunks of batch_size
@@ -294,15 +344,25 @@ class LigandMPNNGenerator(Generator):
             num_seqs = 1
             bs = 1
 
-        tool_config = LigandMPNNSampleConfig(
-            num_sequences_per_structure=num_seqs,
-            batch_size=bs,
-            temperature=self.temperature,
-            excluded_amino_acids=self.excluded_amino_acids,
-            seed=self._next_seed(),
-            device=self.device,
-            verbose=self.verbose,
-        )
+        tool_config_kwargs: dict[str, Any] = {
+            "num_sequences_per_structure": num_seqs,
+            "batch_size": bs,
+            "temperature": self.temperature,
+            "excluded_amino_acids": self.excluded_amino_acids,
+            "seed": self.tool_seed if self.tool_seed is not None else self._next_seed(),
+            "device": self.device,
+            "verbose": self.verbose,
+        }
+        supported_fields = getattr(LigandMPNNSampleConfig, "model_fields", {})
+        if "model_type" in supported_fields:
+            tool_config_kwargs["model_type"] = self.model_type
+        if "use_side_chain_context" in supported_fields:
+            tool_config_kwargs["use_side_chain_context"] = self.use_side_chain_context
+        if "cutoff_for_score" in supported_fields:
+            tool_config_kwargs["cutoff_for_score"] = self.cutoff_for_score
+        if "checkpoint_path" in supported_fields:
+            tool_config_kwargs["checkpoint_path"] = self.checkpoint_path
+        tool_config = LigandMPNNSampleConfig(**tool_config_kwargs)
 
         result = run_ligandmpnn_sample(
             inputs=InverseFoldingInput(inputs=sampling_structure_inputs),
@@ -316,28 +376,37 @@ class LigandMPNNGenerator(Generator):
                     if was_designed
                 ]
                 generated_sequences.append("/".join(designed_seqs))
+                generated_structures.append(getattr(design, "structure", None))
                 all_recovery.append(design.metrics["sequence_recovery"])
                 # ligand_interface_sequence_recovery is absent when the input has no ligand interface.
                 all_interface_recovery.append(design.metrics.get("ligand_interface_sequence_recovery", None))
+                all_pmpnn.append(design.metrics.get("pmpnn", None))
 
         key = self._spec.key
-        for proposal, sequence, recovery, interface_recovery in zip(
+        for proposal, sequence, structure, recovery, interface_recovery, pmpnn in zip(
             self.segment.proposal_sequences,
             generated_sequences,
+            generated_structures,
             all_recovery,
             all_interface_recovery,
+            all_pmpnn,
             strict=True,
         ):
             proposal.sequence = sequence
+            if structure is not None:
+                proposal.structure = structure
             proposal._generator_metadata[key] = {
                 "sequence_recovery": recovery,
                 "ligand_interface_sequence_recovery": interface_recovery,
+                "pmpnn": pmpnn,
             }
 
-        # Write the generating structure onto each proposal sequence
+        # Fall back to the generating structure if the tool did not emit a designed structure.
         if len(sampling_structure_inputs) == 1:
             for proposal in self.segment.proposal_sequences:
-                proposal.structure = sampling_structure_inputs[0].structure
+                if proposal.structure is None:
+                    proposal.structure = sampling_structure_inputs[0].structure
         else:
             for proposal, struct_input in zip(self.segment.proposal_sequences, sampling_structure_inputs, strict=True):
-                proposal.structure = struct_input.structure
+                if proposal.structure is None:
+                    proposal.structure = struct_input.structure

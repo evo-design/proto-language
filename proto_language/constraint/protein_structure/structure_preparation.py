@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, Literal
 
 from proto_tools import (
     FAMPNNPackConfig,
     FAMPNNPackInput,
     FAMPNNStructureInput,
+    InverseFoldingInput,
+    InverseFoldingStructureInput,
+    LigandMPNNSampleConfig,
     Structure,
     run_fampnn_pack,
+    run_ligandmpnn_sample,
 )
 from proto_tools.entities.structures import ResidueSelection
 from proto_tools.entities.structures.utils import _serialize_gemmi
@@ -46,7 +51,14 @@ BACKBONE_ATOMS = frozenset({"N", "CA", "C", "O", "OXT"})
 class StructurePreparationConfig(BaseConfig):
     """Generic structure preparation for sequence-dependent structure scorers."""
 
-    mode: Literal["proposal_structure", "configured_structure", "fampnn_pack_from_scaffold"] = ConfigField(
+    mode: Literal[
+        "proposal_structure",
+        "configured_structure",
+        "fampnn_pack_from_scaffold",
+        "fampnn_pack_from_proposal",
+        "ligandmpnn_pack_from_scaffold",
+        "ligandmpnn_pack_from_proposal",
+    ] = ConfigField(
         default="proposal_structure",
         title="Preparation Mode",
         description="How to obtain a structure for each proposal before scoring.",
@@ -59,7 +71,7 @@ class StructurePreparationConfig(BaseConfig):
     scaffold_structure: Structure | None = ConfigField(
         default=None,
         title="Scaffold Structure",
-        description="Backbone structure used when threading proposal sequences before FAMPNN packing.",
+        description="Backbone structure used when threading proposal sequences before scaffold-based packing.",
     )
     chain_ids: list[str] | None = ConfigField(
         default=None,
@@ -69,17 +81,22 @@ class StructurePreparationConfig(BaseConfig):
     fixed_positions: ResidueSelection | None = ConfigField(
         default=None,
         title="Fixed Positions",
-        description="Optional fixed positions forwarded to FAMPNN packing.",
+        description="Optional fixed positions forwarded to scaffold-based packers that support them.",
     )
     fixed_sidechain_positions: ResidueSelection | None = ConfigField(
         default=None,
         title="Fixed Sidechain Positions",
-        description="Optional fixed sidechain positions forwarded to FAMPNN packing.",
+        description="Optional fixed sidechain positions forwarded to scaffold-based packers that support them.",
     )
     fampnn_pack_config: FAMPNNPackConfig = ConfigField(
         default_factory=FAMPNNPackConfig,
         title="FAMPNN Pack Config",
         description="FAMPNN sidechain packing configuration for threaded scaffold structures.",
+    )
+    ligandmpnn_pack_config: LigandMPNNSampleConfig = ConfigField(
+        default_factory=LigandMPNNSampleConfig,
+        title="LigandMPNN Pack Config",
+        description="LigandMPNN sampling configuration used to emit fixed-sequence packed structures.",
     )
 
 
@@ -99,22 +116,20 @@ def prepare_structures_for_proposals(
     if config.mode == "fampnn_pack_from_scaffold":
         if config.scaffold_structure is None:
             raise ValueError("structure_preparation.scaffold_structure is required for fampnn_pack_from_scaffold mode.")
-        threaded_inputs = [
-            FAMPNNStructureInput(
-                structure=thread_sequences_onto_structure(
-                    config.scaffold_structure,
-                    _resolve_chain_sequence_map(seq_tuple, config),
-                ),
-                fixed_positions=config.fixed_positions,
-                fixed_sidechain_positions=config.fixed_sidechain_positions,
+        return _fampnn_pack(input_sequences, config, lambda _seq_tuple: config.scaffold_structure)
+
+    if config.mode == "fampnn_pack_from_proposal":
+        return _fampnn_pack(input_sequences, config, _proposal_structure)
+
+    if config.mode == "ligandmpnn_pack_from_scaffold":
+        if config.scaffold_structure is None:
+            raise ValueError(
+                "structure_preparation.scaffold_structure is required for ligandmpnn_pack_from_scaffold mode."
             )
-            for seq_tuple in input_sequences
-        ]
-        packed = run_fampnn_pack(
-            inputs=FAMPNNPackInput(inputs=threaded_inputs),
-            config=config.fampnn_pack_config,
-        )
-        return [packed_structures[0] for packed_structures in packed.packed_structures]
+        return _ligandmpnn_pack(input_sequences, config, lambda _seq_tuple: config.scaffold_structure)
+
+    if config.mode == "ligandmpnn_pack_from_proposal":
+        return _ligandmpnn_pack(input_sequences, config, _proposal_structure)
 
     raise ValueError(f"Unknown structure preparation mode: {config.mode!r}")
 
@@ -129,12 +144,11 @@ def _proposal_structure(seq_tuple: tuple[Sequence, ...]) -> Structure:
 def _resolve_chain_sequence_map(
     seq_tuple: tuple[Sequence, ...],
     config: StructurePreparationConfig,
+    scaffold: Structure,
 ) -> dict[str, str]:
-    if config.scaffold_structure is None:
-        raise ValueError("scaffold_structure is required.")
     chain_ids = config.chain_ids
     if chain_ids is None:
-        available = config.scaffold_structure.get_chain_ids()
+        available = scaffold.get_chain_ids()
         if len(available) != len(seq_tuple):
             raise ValueError(
                 "structure_preparation.chain_ids is required when the scaffold chain count does not match "
@@ -175,6 +189,99 @@ def thread_sequences_onto_structure(scaffold: Structure, chain_sequences: dict[s
         structure_format="pdb",
         source="sequence-threaded-scaffold",
     )
+
+
+def _fampnn_pack(
+    input_sequences: list[tuple[Sequence, ...]],
+    config: StructurePreparationConfig,
+    scaffold_for: Callable[[tuple[Sequence, ...]], Structure],
+) -> list[Structure]:
+    threaded_inputs: list[FAMPNNStructureInput] = []
+    for seq_tuple in input_sequences:
+        scaffold = scaffold_for(seq_tuple)
+        chain_map = _resolve_chain_sequence_map(seq_tuple, config, scaffold)
+        threaded_inputs.append(
+            FAMPNNStructureInput(
+                structure=thread_sequences_onto_structure(scaffold, chain_map),
+                fixed_positions=config.fixed_positions,
+                fixed_sidechain_positions=config.fixed_sidechain_positions,
+            )
+        )
+    packed = run_fampnn_pack(
+        inputs=FAMPNNPackInput(inputs=threaded_inputs),
+        config=config.fampnn_pack_config,
+    )
+
+    structures: list[Structure] = []
+    for packed_structures in packed.packed_structures:
+        if not packed_structures:
+            raise ValueError(f"{config.mode} did not return a packed structure for a proposal.")
+        # FAMPNN can generate multiple packing samples; structure preparation returns
+        # one structure per proposal, preserving the previous first-sample behavior.
+        structures.append(packed_structures[0])
+    return structures
+
+
+def _ligandmpnn_pack(
+    input_sequences: list[tuple[Sequence, ...]],
+    config: StructurePreparationConfig,
+    scaffold_for: Callable[[tuple[Sequence, ...]], Structure],
+) -> list[Structure]:
+    chain_maps: list[dict[str, str]] = []
+    threaded_inputs: list[InverseFoldingStructureInput] = []
+    for seq_tuple in input_sequences:
+        scaffold = scaffold_for(seq_tuple)
+        chain_map = _resolve_chain_sequence_map(seq_tuple, config, scaffold)
+        chain_maps.append(chain_map)
+        threaded_inputs.append(
+            InverseFoldingStructureInput(
+                structure=thread_sequences_onto_structure(scaffold, chain_map),
+                chains_to_redesign=list(chain_map),
+                fixed_positions=_all_threaded_positions(scaffold, chain_map),
+            )
+        )
+    pack_config = config.ligandmpnn_pack_config.model_copy(
+        update={
+            "num_sequences_per_structure": 1,
+            "batch_size": 1,
+        }
+    )
+    packed = run_ligandmpnn_sample(
+        inputs=InverseFoldingInput(inputs=threaded_inputs),
+        config=pack_config,
+    )
+
+    structures: list[Structure] = []
+    for design_set, chain_map in zip(packed.design_sets, chain_maps, strict=True):
+        if len(design_set.complexes) != 1:
+            raise ValueError(
+                f"{config.mode} expected one packed structure per proposal, got {len(design_set.complexes)}."
+            )
+        design = design_set.complexes[0]
+        for chain in design.chains:
+            expected = chain_map.get(chain.id)
+            if expected is not None and str(chain.sequence) != expected:
+                raise ValueError(
+                    f"LigandMPNN packing changed fixed chain {chain.id!r}: expected {expected}, got {chain.sequence}."
+                )
+        if design.structure is None:
+            raise ValueError("LigandMPNN sampling did not return a packed structure.")
+        structures.append(design.structure)
+    return structures
+
+
+def _all_threaded_positions(scaffold: Structure, chain_sequences: dict[str, str]) -> ResidueSelection:
+    fixed = {}
+    for chain_id in scaffold.get_chain_ids():
+        positions = list(range(1, len(scaffold.get_chain_positions(chain_id)) + 1))
+        sequence = chain_sequences.get(chain_id)
+        if sequence is not None and len(positions) != len(sequence):
+            raise ValueError(
+                f"Cannot fix chain {chain_id!r}: scaffold has {len(positions)} positions but sequence has "
+                f"{len(sequence)} residues."
+            )
+        fixed[chain_id] = positions
+    return ResidueSelection(chains=fixed)
 
 
 def _is_protein_residue(residue: Any) -> bool:
