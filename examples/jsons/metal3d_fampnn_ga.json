@@ -108,7 +108,7 @@
           "targets": ["enzyme_chain"],
           "weight": 1.0,
           "config": {
-            "target_probability": 0.5,
+            "min_probability": 0.2,
             "candidate_residues": {
               "X": [94, 96, 106, 119, 199]
             },
@@ -128,7 +128,6 @@
             },
             "metal3d_config": {
               "model_checkpoint": "metal3d-cat",
-              "probability_threshold": 0.2,
               "cluster_distance_threshold": 7.0,
               "max_sites": 8,
               "device": "cuda",
@@ -169,8 +168,6 @@
           "parent_selection": "tournament",
           "tournament_size": 2,
           "replacement": "elitist",
-          "refine_offspring_with_generators": false,
-          "initialize_with_mutation_generators": false,
           "tracking_interval": 1,
           "track_proposals": false,
           "verbose": false,

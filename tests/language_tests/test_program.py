@@ -97,7 +97,7 @@ class TestClearSequenceMetadata:
     """Tests for Program._clear_sequence_metadata stage hygiene."""
 
     def test_clears_both_constraint_and_generator_metadata(self):
-        """At a stage boundary, both stale constraint and generator metadata are reset."""
+        """At a stage boundary, stale constraint and generator metadata are reset."""
         program = _create_simple_program(num_stages=1, compute=nullcontext())
         segment = program.constructs[0].segments[0]
         for seq in segment.result_sequences + segment.proposal_sequences:

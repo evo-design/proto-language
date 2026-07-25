@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from proto_tools import (
     Metal3DPredictionConfig,
     Metal3DPredictionInput,
@@ -19,28 +21,30 @@ from proto_language.constraint.protein_structure.structure_preparation import (
 from proto_language.core import ConstraintOutput, Sequence
 from proto_language.utils.base import BaseConfig, ConfigField
 
+logger = logging.getLogger(__name__)
+
 
 class Metal3DProbabilityConfig(BaseConfig):
     """Configuration for the Metal3D probability constraint.
 
     Attributes:
-        target_probability (float): Metal3D probability target where the score reaches zero.
-        metal3d_config (Metal3DPredictionConfig): Configuration passed to the Metal3D tool.
+        min_probability (float): The single Metal3D probability floor, used for site detection, annotation, and scoring. Sites below it are not reported (score is worst); above it the score improves as the probability approaches 1.0. This overrides ``metal3d_config.probability_threshold``.
+        metal3d_config (Metal3DPredictionConfig): Configuration passed to the Metal3D tool. Its ``probability_threshold`` is overridden by ``min_probability``; setting it to a non-default value logs a warning.
         structure_preparation (StructurePreparationConfig): How to prepare proposal structures for scoring.
         candidate_residues (ResidueSelection | None): Optional residues passed to Metal3D as candidates.
     """
 
-    target_probability: float = ConfigField(
-        default=0.5,
+    min_probability: float = ConfigField(
+        default=0.2,
         ge=0.0,
         le=1.0,
-        title="Target Probability",
-        description="Desired minimum Metal3D site probability. Scores are zero once this target is met.",
+        title="Min Probability",
+        description="Single Metal3D probability floor for detection, annotation, and scoring; overrides tool threshold.",
     )
     metal3d_config: Metal3DPredictionConfig = ConfigField(
         default_factory=Metal3DPredictionConfig,
         title="Metal3D Config",
-        description="Metal3D tool configuration.",
+        description="Metal3D tool configuration; its probability_threshold is overridden by min_probability.",
     )
     structure_preparation: StructurePreparationConfig = ConfigField(
         default_factory=StructurePreparationConfig,
@@ -60,7 +64,7 @@ class Metal3DProbabilityConfig(BaseConfig):
     config=Metal3DProbabilityConfig,
     description="Reward protein sequences whose prepared structures contain high-probability Metal3D metal-ion sites.",
     uses_gpu=True,
-    tools_called=["fampnn-pack", "metal3d-prediction"],
+    tools_called=["fampnn-pack", "ligandmpnn-sample", "metal3d-prediction"],
     category="protein_structure",
     supported_sequence_types=["protein"],
     input_labels=None,
@@ -71,6 +75,7 @@ def metal3d_probability_constraint(
 ) -> list[ConstraintOutput]:
     """Score proposals by Metal3D metal-site probability; lower is better."""
     prepared_structures = prepare_structures_for_proposals(input_sequences, config.structure_preparation)
+    metal3d_config = _apply_min_probability_floor(config)
     output = run_metal3d_prediction(
         inputs=Metal3DPredictionInput(
             inputs=[
@@ -85,17 +90,17 @@ def metal3d_probability_constraint(
                 for structure in prepared_structures
             ]
         ),
-        config=config.metal3d_config,
+        config=metal3d_config,
     )
 
     results: list[ConstraintOutput] = []
-    denom = max(config.target_probability, 1e-8)
     for result, seq_tuple in zip(output.results, input_sequences, strict=True):
         pmetal = float(result["pmetal"])
-        score = max(0.0, config.target_probability - pmetal) / denom
+        # Reward higher probability; energy is lowest when pmetal reaches 1.0.
+        score = 1.0 - pmetal
         metadata = {
             "pmetal": pmetal,
-            "target_probability": config.target_probability,
+            "min_probability": config.min_probability,
             "found": result.found,
             "num_sites": len(result.sites),
             "sites": [site.model_dump(mode="json") for site in result.sites],
@@ -104,6 +109,24 @@ def metal3d_probability_constraint(
         structures = (result.annotated_structure,) + (None,) * (len(seq_tuple) - 1)
         results.append(ConstraintOutput(score=score, metadata=metadata, structures=structures))
     return results
+
+
+def _apply_min_probability_floor(config: Metal3DProbabilityConfig) -> Metal3DPredictionConfig:
+    """Return a Metal3D tool config whose probability_threshold is forced to min_probability.
+
+    ``min_probability`` is the single Metal3D probability floor; it governs the tool's site
+    detection and annotation as well as scoring. Any user-set ``probability_threshold`` is
+    overridden, with a warning when it differs from the tool default.
+    """
+    default_threshold = Metal3DPredictionConfig.model_fields["probability_threshold"].default
+    if config.metal3d_config.probability_threshold != default_threshold:
+        logger.warning(
+            "metal3d-probability: metal3d_config.probability_threshold=%s is ignored; "
+            "min_probability=%s is used as the single Metal3D probability floor.",
+            config.metal3d_config.probability_threshold,
+            config.min_probability,
+        )
+    return config.metal3d_config.model_copy(update={"probability_threshold": config.min_probability})
 
 
 def _candidate_residues_for_structure(

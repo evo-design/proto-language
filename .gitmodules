@@ -1,5 +1,5 @@
 [submodule "proto-tools"]
 	path = proto-tools
-	url = git@github.com:evo-design/proto-tools.git
+	url = https://github.com/evo-design/proto-tools.git
 	branch = main
 	ignore = dirty
