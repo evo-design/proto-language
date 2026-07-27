@@ -24,6 +24,7 @@ from proto_language.constraint import (
     MalinoisActivityConfig,
     MalinoisActivityDirection,
     Metal3DProbabilityConfig,
+    MFEConfig,
     MiRNASpecificityConfig,
     MpnnPerplexityConfig,
     MPNNSequenceProbabilityConfig,
@@ -48,6 +49,7 @@ from proto_language.constraint import (
     boltz_binding_strength_constraint,
     borzoi_chromatin_accessibility_morse_constraint,
     borzoi_track_activity_constraint,
+    codon_adaptation_index_constraint,
     codonfm_fitness_constraint,
     consensus_operator_specificity_constraint,
     constraint,
@@ -70,6 +72,7 @@ from proto_language.constraint import (
     malinois_activity_constraint,
     max_homopolymer_constraint,
     metal3d_probability_constraint,
+    mfe_constraint,
     mirna_specificity_constraint,
     mmseqs_similarity_constraint,
     mpnn_perplexity_constraint,
@@ -125,6 +128,7 @@ from proto_language.constraint import (
     structure_termini_distance_constraint,
     structure_tmscore_constraint,
     targetscan_site_constraint,
+    uracil_content_constraint,
 )
 from proto_language.core import (
     BaseConfig,
@@ -231,6 +235,8 @@ __all__ = [
     # Sequence composition constraints
     "sequence_length_constraint",
     "gc_content_constraint",
+    "uracil_content_constraint",
+    "codon_adaptation_index_constraint",
     "max_homopolymer_constraint",
     "kmer_frequency_constraint",
     "specific_kmer_constraint",
@@ -332,6 +338,8 @@ __all__ = [
     "rna_motif_similarity_constraint",
     "rna_feature_similarity_constraint",
     "rna_basepair_similarity_constraint",
+    "mfe_constraint",
+    "MFEConfig",
     # RNA expression constraints
     "ParadeUTRActivityConfig",
     "ParadeUTRSpecificityConfig",
