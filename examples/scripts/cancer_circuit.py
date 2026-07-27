@@ -442,14 +442,14 @@ def build_binder_stage(args: argparse.Namespace) -> tuple[Program, Segment]:
             threshold=1.0 - AF3_IPTM_MIN,
             label="af3_iptm_filter",
         )
-        # 'existing_results' re-scores the surviving binders (no generation), so no generator.
+        # No generator, so this stage re-scores the surviving binders instead of generating.
         optimizers.append(
             RejectionSamplingOptimizer(
                 constructs=[construct],
                 generators=[],
                 constraints=[af3_filter],
                 config=RejectionSamplingOptimizerConfig(
-                    num_samples=retained, num_results=min(args.num_results, retained), proposal_source="existing_results"
+                    num_samples=retained, num_results=min(args.num_results, retained)
                 ),
             )
         )

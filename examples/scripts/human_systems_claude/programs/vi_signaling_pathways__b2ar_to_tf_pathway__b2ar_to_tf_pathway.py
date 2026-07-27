@@ -504,7 +504,6 @@ def create_b2ar_to_tf_pathway_program(creb_dna: str, profile: str = "full") -> t
         config=RejectionSamplingOptimizerConfig(
             num_samples=1,
             num_results=1,
-            proposal_source="existing_results",
             verbose=True,
         ),
     )

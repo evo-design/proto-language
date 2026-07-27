@@ -103,8 +103,9 @@ class RejectionSamplingOptimizerConfig(BaseOptimizerConfig):
         num_results (int | None): Number of top sequences to keep and return (lowest
             energy scores). Overrides program-level ``num_results`` if set.
 
-        proposal_source (Literal["generated", "existing_results"]): Whether to
-            generate new proposals or score existing upstream results.
+        proposal_source (Literal["generated", "existing_results"] | None): Whether to
+            generate new proposals or score existing upstream results. If ``None``,
+            derived from whether the optimizer has generators.
 
         proposal_batch_size (int | None): Number of proposal sequences to
             generate and evaluate per internal batch. If ``None``, inferred
@@ -138,10 +139,10 @@ class RejectionSamplingOptimizerConfig(BaseOptimizerConfig):
         title="Design Candidates",
         description="Number of top-scoring candidate designs to retain (lowest energy first). Overrides program count.",
     )
-    proposal_source: Literal["generated", "existing_results"] = ConfigField(
-        default="generated",
+    proposal_source: Literal["generated", "existing_results"] | None = ConfigField(
+        default=None,
         title="Proposal Source",
-        description="Use generated proposals, or rank existing upstream result candidates.",
+        description="Derived from the generator list when unset: generated if generators are present.",
     )
 
     # Advanced parameters
@@ -252,6 +253,8 @@ class RejectionSamplingOptimizer(Optimizer):
             ValueError: If any validation checks fail or num_results cannot be determined.
         """
         self.config = config
+        if config.proposal_source is None:
+            config.proposal_source = "generated" if generators else "existing_results"
         if config.proposal_source == "generated":
             proposal_batch_size = self._resolve_proposal_batch_size(
                 generators=generators,
