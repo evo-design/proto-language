@@ -5,6 +5,10 @@ from proto_language.constraint.sequence_scoring.ablang_perplexity_constraint imp
     ablang_perplexity_constraint,
     ablang_perplexity_gradient_backward,
 )
+from proto_language.constraint.sequence_scoring.codonfm_fitness_constraint import (
+    CodonFMFitnessConstraintConfig,
+    codonfm_fitness_constraint,
+)
 from proto_language.constraint.sequence_scoring.esm2_perplexity_constraint import (
     ESM2PerplexityConfig,
     esm2_perplexity_constraint,
@@ -22,11 +26,13 @@ from proto_language.constraint.sequence_scoring.mpnn_sequence_probability_constr
 
 __all__ = [
     "AbLangPerplexityConfig",
+    "CodonFMFitnessConstraintConfig",
     "ESM2PerplexityConfig",
     "MpnnPerplexityConfig",
     "MPNNSequenceProbabilityConfig",
     "ablang_perplexity_constraint",
     "ablang_perplexity_gradient_backward",
+    "codonfm_fitness_constraint",
     "esm2_perplexity_constraint",
     "esm2_perplexity_gradient_backward",
     "mpnn_perplexity_constraint",
