@@ -87,6 +87,8 @@ from proto_language.constraint.rna_expression import (
 
 # RNA secondary structure constraints
 from proto_language.constraint.rna_secondary_structure import (
+    MFEConfig,
+    mfe_constraint,
     rna_basepair_similarity_constraint,
     rna_feature_similarity_constraint,
     rna_motif_similarity_constraint,
@@ -138,12 +140,14 @@ from proto_language.constraint.sequence_annotation import (
 
 # Sequence composition constraints
 from proto_language.constraint.sequence_composition import (
+    codon_adaptation_index_constraint,
     dinucleotide_composition_constraint,
     gc_content_constraint,
     kmer_frequency_constraint,
     max_homopolymer_constraint,
     sequence_length_constraint,
     specific_kmer_constraint,
+    uracil_content_constraint,
 )
 
 # Sequence scoring constraints
@@ -172,6 +176,8 @@ __all__ = [
     # Sequence composition
     "sequence_length_constraint",
     "gc_content_constraint",
+    "uracil_content_constraint",
+    "codon_adaptation_index_constraint",
     "max_homopolymer_constraint",
     "kmer_frequency_constraint",
     "specific_kmer_constraint",
@@ -279,6 +285,8 @@ __all__ = [
     "rna_motif_similarity_constraint",
     "rna_feature_similarity_constraint",
     "rna_basepair_similarity_constraint",
+    "mfe_constraint",
+    "MFEConfig",
     # Sequence scoring
     "AbLangPerplexityConfig",
     "CodonFMFitnessConstraintConfig",
