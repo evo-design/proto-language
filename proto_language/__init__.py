@@ -143,6 +143,8 @@ from proto_language.core import (
     SequenceType,
 )
 from proto_language.generator import (
+    CodonFMGenerator,
+    CodonFMGeneratorConfig,
     ESM2Generator,
     ESM2GeneratorConfig,
     ESM3Generator,
@@ -384,6 +386,8 @@ __all__ = [
     "Evo2GeneratorConfig",
     "FreeBindCraftGenerator",
     "FreeBindCraftGeneratorConfig",
+    "CodonFMGenerator",
+    "CodonFMGeneratorConfig",
     "ESM2Generator",
     "ESM2GeneratorConfig",
     "ESM3Generator",

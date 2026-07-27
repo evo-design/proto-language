@@ -3,6 +3,7 @@
 from proto_tools.transforms.masking import MaskingStrategy
 
 from proto_language.core.generator import GeneratorInputType
+from proto_language.generator.codonfm_generator import CodonFMGenerator, CodonFMGeneratorConfig
 from proto_language.generator.esm2_generator import ESM2Generator, ESM2GeneratorConfig
 from proto_language.generator.esm3_generator import ESM3Generator, ESM3GeneratorConfig
 from proto_language.generator.evo1_generator import Evo1Generator, Evo1GeneratorConfig
@@ -47,6 +48,8 @@ __all__ = [
     # Generator input contract enum
     "GeneratorInputType",
     # Mutation generators
+    "CodonFMGenerator",
+    "CodonFMGeneratorConfig",
     "ESM2Generator",
     "ESM2GeneratorConfig",
     "ESM3Generator",
