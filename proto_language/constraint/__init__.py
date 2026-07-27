@@ -149,11 +149,13 @@ from proto_language.constraint.sequence_composition import (
 # Sequence scoring constraints
 from proto_language.constraint.sequence_scoring import (
     AbLangPerplexityConfig,
+    CodonFMFitnessConstraintConfig,
     ESM2PerplexityConfig,
     MpnnPerplexityConfig,
     MPNNSequenceProbabilityConfig,
     ablang_perplexity_constraint,
     ablang_perplexity_gradient_backward,
+    codonfm_fitness_constraint,
     esm2_perplexity_constraint,
     esm2_perplexity_gradient_backward,
     mpnn_perplexity_constraint,
@@ -279,11 +281,13 @@ __all__ = [
     "rna_basepair_similarity_constraint",
     # Sequence scoring
     "AbLangPerplexityConfig",
+    "CodonFMFitnessConstraintConfig",
     "ESM2PerplexityConfig",
     "MpnnPerplexityConfig",
     "MPNNSequenceProbabilityConfig",
     "ablang_perplexity_constraint",
     "ablang_perplexity_gradient_backward",
+    "codonfm_fitness_constraint",
     "esm2_perplexity_constraint",
     "esm2_perplexity_gradient_backward",
     "mpnn_perplexity_constraint",
