@@ -941,6 +941,9 @@ class TestBuiltinConstraints:
         """Test that DNA/RNA constraints have correct supported_sequence_types."""
         dna_rna_constraints = {
             "gc-content": ["dna", "rna"],
+            "parade-utr-activity": ["dna", "rna"],
+            "parade-utr-specificity": ["dna", "rna"],
+            "parade-utr-stability": ["dna", "rna"],
             "rna-property-similarity": ["dna", "rna"],
             "rna-motif-similarity": ["dna", "rna"],
             "rna-feature-similarity": ["dna", "rna"],
