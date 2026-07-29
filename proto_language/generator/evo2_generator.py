@@ -269,7 +269,7 @@ class Evo2Generator(Generator):
         self.batch_size = config.batch_size
         self.store_kv_cache = config.store_kv_cache
         self.prepend_prompt = config.prepend_prompt
-        self.kv_caches: list[Evo2KVCacheRef] = []
+        self.kv_caches: list[Evo2KVCacheRef | None] = []
 
     def _sample(
         self,
@@ -315,11 +315,11 @@ class Evo2Generator(Generator):
         )
 
         evo2_output = run_evo2_sample(inputs=Evo2SampleInput(prompts=sampling_prompts), config=sample_config)
-        generated_sequences = evo2_output.sequences
-        self.kv_caches = (evo2_output.kv_caches or []) if self.store_kv_cache else []
+        # One entry per generated prompt, position preserved: beam search indexes this by proposal.
+        self.kv_caches = [s.kv_cache for s in evo2_output.results] if self.store_kv_cache else []
 
-        for proposal, sequence in zip(self.segment.proposal_sequences, generated_sequences, strict=True):
-            proposal.sequence = sequence
+        for proposal, sample in zip(self.segment.proposal_sequences, evo2_output.results, strict=True):
+            proposal.sequence = sample.sequence
 
     def release_kv_cache(self, cache: Evo2KVCacheRef | list[Evo2KVCacheRef | None] | None) -> None:
         """Release worker-local cache handles held by the Evo2 worker."""

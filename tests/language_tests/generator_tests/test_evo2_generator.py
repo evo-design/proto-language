@@ -17,6 +17,14 @@ def _segment_with_proposals(length: int, count: int) -> Segment:
     return segment
 
 
+def _sample_output(sequences: list[str], kv_caches: list | None = None) -> SimpleNamespace:
+    """A fake ``run_evo2_sample`` return: one self-contained object per generated sequence."""
+    caches = kv_caches if kv_caches is not None else [None] * len(sequences)
+    return SimpleNamespace(
+        results=[SimpleNamespace(sequence=s, kv_cache=c) for s, c in zip(sequences, caches, strict=True)]
+    )
+
+
 class TestEvo2Generator:
     @patch("proto_language.generator.evo2_generator.run_evo2_sample")
     def test_sample_dispatches_batched_prompts(self, mock_run):
@@ -24,10 +32,7 @@ class TestEvo2Generator:
             {"type": "evo2_kv_cache", "cache_id": "cache-a"},
             {"type": "evo2_kv_cache", "cache_id": "cache-b"},
         ]
-        mock_run.return_value = SimpleNamespace(
-            sequences=["ATCGAAAA", "GGCCTTTT"],
-            kv_caches=cache_refs,
-        )
+        mock_run.return_value = _sample_output(["ATCGAAAA", "GGCCTTTT"], cache_refs)
         generator = Evo2Generator(
             Evo2GeneratorConfig(
                 prompts=["ATCG", "GGCC"],
@@ -65,7 +70,7 @@ class TestEvo2Generator:
     @patch("proto_language.generator.evo2_generator.run_evo2_sample")
     def test_single_prompt_replicates_across_proposals(self, mock_run):
         cache_ref = Evo2KVCacheRef(cache_id="prefix")
-        mock_run.return_value = SimpleNamespace(sequences=["AA", "CC", "GG"], kv_caches=None)
+        mock_run.return_value = _sample_output(["AA", "CC", "GG"])
         generator = Evo2Generator(Evo2GeneratorConfig(prompts="ATCG", prepend_prompt=False))
         segment = _segment_with_proposals(length=6, count=3)
         generator.assign(segment)
@@ -94,7 +99,7 @@ class TestEvo2Generator:
 
     @patch("proto_language.generator.evo2_generator.run_evo2_sample")
     def test_max_new_tokens_uses_prepend_prompt_override(self, mock_run):
-        mock_run.return_value = SimpleNamespace(sequences=["A" * 100], kv_caches=[])
+        mock_run.return_value = _sample_output(["A" * 100])
         generator = Evo2Generator(Evo2GeneratorConfig(prompts="ATCG", prepend_prompt=False))
         segment = _segment_with_proposals(length=100, count=1)
         generator.assign(segment)

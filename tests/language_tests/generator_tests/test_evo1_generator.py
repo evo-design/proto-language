@@ -1,6 +1,7 @@
 """tests/language_tests/generator_tests/test_evo1_generator.py."""
 
 import copy
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -94,8 +95,7 @@ class TestEvo1GeneratorValidation:
         gen.assign(segment)
 
         mock_output = MagicMock()
-        mock_output.sequences = ["A" * 100]
-        mock_output.scores = []
+        mock_output.results = [SimpleNamespace(sequence="A" * 100, metrics=None)]
         mock_run.return_value = mock_output
 
         # prepend_prompt=True → should subtract prompt len: 100 - 4 = 96
