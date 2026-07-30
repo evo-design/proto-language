@@ -10,6 +10,7 @@ from proto_tools import (
     Mmseqs2SearchProteinsOutput,
     Mmseqs2SequenceSearchResult,
     OrfipyOutput,
+    OrfPredictionResult,
 )
 
 from proto_language.constraint import (
@@ -381,12 +382,14 @@ class TestMMseqsSimilarityConstraint:
         orfipy_output = OrfipyOutput(
             metadata={},
             success=True,
-            predicted_orfs=[
-                [
-                    make_orf("gene_1", "MVLSP", 1, 15),
-                    make_orf("gene_2", "MKLLV", 4, 18),
-                    make_orf("gene_3", "MAAAA", 7, 21),
-                ]
+            results=[
+                OrfPredictionResult(
+                    orfs=[
+                        make_orf("gene_1", "MVLSP", 1, 15),
+                        make_orf("gene_2", "MKLLV", 4, 18),
+                        make_orf("gene_3", "MAAAA", 7, 21),
+                    ]
+                )
             ],
         )
 
