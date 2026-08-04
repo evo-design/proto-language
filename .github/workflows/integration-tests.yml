@@ -33,4 +33,4 @@ jobs:
       run: |
         uv pip install --system -e ".[dev]"
         uv pip install --system -e ./proto-tools
-    - run: pytest --integration --cpu-only -v
+    - run: pytest --integration --cpu-only -v --random-order

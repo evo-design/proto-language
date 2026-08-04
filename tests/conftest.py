@@ -110,6 +110,12 @@ def pytest_addoption(parser):
         default=False,
         help="Disable console logging during tests",
     )
+    parser.addoption(
+        "--random-order",
+        action="store_true",
+        default=False,
+        help="Shuffle test order (pytest-randomly's reordering, which this suite disables by default)",
+    )
 
 
 def pytest_configure(config):
@@ -121,6 +127,11 @@ def pytest_configure(config):
     # Hide CUDA devices when --skip-ci is specified to simulate CI environment
     if config.getoption("--skip-ci"):
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
+
+    # Deterministic order by default, so a failure reproduces from the same command that found it.
+    # Integration CI passes --random-order, which is where order-dependence is worth surfacing.
+    if hasattr(config.option, "randomly_reorganize"):
+        config.option.randomly_reorganize = bool(config.getoption("--random-order"))
 
     # Note: We don't configure pytest's log file here. Instead, we rely on
     # setup_logging() in the setup_test_logging fixture which already has
