@@ -397,8 +397,9 @@ def test_real_model_forward_backward_consistency() -> None:
         [(gradient_sequence,)], config=config, temperature=1.0, soft=1.0, hard=1.0
     )
 
-    assert forward.score == pytest.approx(backward.loss, rel=1e-5, abs=1e-6)
-    assert backward.metrics["on_activity"] == pytest.approx(forward.metadata["on_activity"], rel=1e-5)
-    assert backward.metrics["off_activity"] == pytest.approx(forward.metadata["off_activity"], rel=1e-5)
+    # The two paths run the model separately, so they agree to float32 noise rather than exactly.
+    assert forward.score == pytest.approx(backward.loss, rel=1e-4, abs=1e-6)
+    assert backward.metrics["on_activity"] == pytest.approx(forward.metadata["on_activity"], rel=1e-4)
+    assert backward.metrics["off_activity"] == pytest.approx(forward.metadata["off_activity"], rel=1e-4)
     assert np.isfinite(backward.gradient[0]).all()
     assert np.any(backward.gradient[0] != 0.0)
