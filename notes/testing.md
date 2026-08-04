@@ -6,6 +6,8 @@ Long-form testing reference for `proto-language`: commands, markers, placement, 
 
 Use `--cpu-only` for normal local and CI-equivalent runs. Plain `pytest` skips slow and integration tests, but it does not skip tests marked `uses_gpu`.
 
+Test order is deterministic by default, so a failure reproduces from the command that found it. `--random-order` restores `pytest-randomly`'s shuffling, and the integration workflow passes it so order-dependence still gets exercised somewhere.
+
 ```bash
 pytest --cpu-only -x                              # fast CPU-focused feedback
 pytest tests/language_tests/generator_tests --cpu-only -x
@@ -14,6 +16,7 @@ pytest --cpu-only --skip-ci                       # additionally skip skip_ci an
 pytest --integration --cpu-only -v                # external-tool tests, CPU only
 pytest --gpu-only -k "esm2" -x                    # GPU-marked tests only, still respects slow/integration gates
 pytest --gpu-only --slow -k "beam_search" -x      # slow GPU subset
+pytest --cpu-only --random-order                   # shuffle order; deterministic otherwise
 
 ruff check proto_language tests
 ruff format --check
@@ -24,7 +27,7 @@ python .github/scripts/validate_exports.py --verbose
 Current GitHub workflows:
 
 - `unit-tests.yml`: non-draft PRs and manual `workflow_dispatch`, runs `pytest --cpu-only -q --override-ini="log_cli=false" --cov --cov-report=term-missing`.
-- `integration-tests.yml`: scheduled/manual, installs MAFFT and runs `pytest --integration --cpu-only -v`.
+- `integration-tests.yml`: scheduled/manual, installs MAFFT and runs `pytest --integration --cpu-only -v --random-order`.
 - `checks.yml`: non-draft PRs, runs `ruff check`, `ruff format --check`, `mypy proto_language/`, and export validation.
 - `submodule-check.yml`: non-draft PRs, verifies `proto-tools` points at the latest `main`.
 - `claude.yml`: responds to `@claude` mentions in issue/PR/review comments (code review or scoped Q&A); not a test workflow.
