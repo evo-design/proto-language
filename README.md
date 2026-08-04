@@ -56,6 +56,17 @@ To override only the model-weights location, set `export PROTO_MODEL_CACHE=/path
 
 Some generators and constraints load gated models (for example ESM3, AlphaGenome, and AlphaFold3) that require accepting a license and authenticating with HuggingFace. Set `HF_TOKEN` in the environment after accepting each model's terms. See [`proto-tools/README.md`](https://github.com/evo-design/proto-tools#step-3-gated-model-access-optional-) for the full procedure and the list of gated models.
 
+### Step 4: Remote compute (optional) <a href="https://modal.com"><img src="proto-tools/guides/assets/modal/modal-logo.png" alt="Modal" height="20" align="center"></a>
+
+Tools can execute in remote containers on [Modal](https://modal.com) instead of on your own machine, so a program can reach more GPUs than are installed locally. Deployments ship with proto-tools, so hosting one is a single command.
+
+Setup lives in the tool layer, in the separate [evo-design/proto-tools](https://github.com/evo-design/proto-tools) repository:
+
+- [Modal setup guide](https://github.com/evo-design/proto-tools/blob/main/proto_tools/modal/README.md) — account setup, deploying a tool, and costs.
+- [Step 4 of the proto-tools README](https://github.com/evo-design/proto-tools#step-4-remote-compute-optional-) — the same step in context.
+
+Once a tool is deployed, set `device="modal"` on the constraint or generator config that uses it.
+
 > [!TIP]
 > Setup is complete. See the [Quickstart](#quickstart) to run a program from end to end.
 
