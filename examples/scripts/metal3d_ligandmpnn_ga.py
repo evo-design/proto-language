@@ -239,7 +239,6 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
         config=RejectionSamplingOptimizerConfig(
             num_samples=args.population_size,
             num_results=args.population_size,
-            proposal_source="generated",
             proposal_batch_size=args.population_size,
             tracking_interval=1,
             track_proposals=False,
@@ -287,7 +286,6 @@ def build_program(args: argparse.Namespace) -> tuple[Program, Segment]:
         config=RejectionSamplingOptimizerConfig(
             num_samples=1,
             num_results=1,
-            proposal_source="existing_results",
             tracking_interval=1,
             track_proposals=False,
             verbose=args.verbose,

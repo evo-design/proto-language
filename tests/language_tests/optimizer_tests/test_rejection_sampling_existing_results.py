@@ -46,6 +46,56 @@ def test_rejection_sampling_scores_existing_results_without_generators():
     assert len(optimizer.history[-1]["proposal_results"]) == 1
 
 
+def test_rejection_sampling_derives_existing_results_without_generators():
+    segment = Segment(sequence="AAAA", sequence_type="dna", label="candidate")
+    segment.result_sequences = [
+        Sequence("AAAA", "dna"),
+        Sequence("AAGG", "dna"),
+        Sequence("GGGG", "dna"),
+    ]
+    construct = Construct([segment], label="dna")
+    constraint = Constraint(
+        inputs=[segment],
+        function=gc_content_constraint,
+        function_config={"min_gc": 40, "max_gc": 60},
+    )
+    optimizer = RejectionSamplingOptimizer(
+        constructs=[construct],
+        generators=[],
+        constraints=[constraint],
+        config=RejectionSamplingOptimizerConfig(num_samples=3, num_results=2),
+    )
+
+    assert optimizer.config.proposal_source == "existing_results"
+
+    program = Program(optimizers=[optimizer], num_results=2)
+    program.run()
+
+    assert [seq.sequence for seq in segment.result_sequences] == ["AAGG", "AAAA"]
+    assert optimizer.history[-1]["optimizer"]["proposal_source"] == "existing_results"
+
+
+def test_rejection_sampling_derives_generated_with_generators():
+    segment = Segment(length=10, sequence_type="dna", label="candidate")
+    construct = Construct([segment], label="dna")
+    generator = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig())
+    generator.assign(segment)
+    constraint = Constraint(
+        inputs=[segment],
+        function=gc_content_constraint,
+        function_config={"min_gc": 40, "max_gc": 60},
+    )
+
+    optimizer = RejectionSamplingOptimizer(
+        constructs=[construct],
+        generators=[generator],
+        constraints=[constraint],
+        config=RejectionSamplingOptimizerConfig(num_samples=2, num_results=1),
+    )
+
+    assert optimizer.config.proposal_source == "generated"
+
+
 def test_rejection_sampling_existing_results_allows_later_stage_generated_inputs():
     segment = Segment(length=10, sequence_type="dna", label="generated-upstream")
     construct = Construct([segment], label="dna")
@@ -99,5 +149,5 @@ def test_rejection_sampling_generated_mode_rejects_missing_generators():
             constructs=[construct],
             generators=[],
             constraints=[constraint],
-            config=RejectionSamplingOptimizerConfig(num_samples=1, num_results=1),
+            config=RejectionSamplingOptimizerConfig(proposal_source="generated", num_samples=1, num_results=1),
         )
