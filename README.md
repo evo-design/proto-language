@@ -7,6 +7,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/evo-design/proto-language/blob/main/LICENSE)
 [![Docs](https://img.shields.io/badge/docs-proto.evodesign.org-blue)](https://proto.evodesign.org/docs/language/introduction)
 [![bioRxiv](https://img.shields.io/badge/bioRxiv-2026.06.22.733870-b31b1b.svg)](https://www.biorxiv.org/content/10.64898/2026.06.22.733870)
+[![Modal](https://img.shields.io/badge/Modal-ready--to--deploy-brightgreen?logo=modal&logoColor=white)](proto-tools/proto_tools/modal/README.md)
+[![Arc Institute blog](https://img.shields.io/badge/Blog-0073E6?logo=data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAQAAAD9CzEMAAADrElEQVR42u2WX4jUVRTHv%2Bf%2BfjM7iqXWmFZGmWEFWiBR%2BxBBsSY9CFKQGT1ElKhsEuRrEVFPGVu2RpsplWGUCWbURpkSYZtDEj4oKmYvGxHUruui7czvz6eHuTPzm3HsaQSD%2BcIMzJl77znf7zn33CN10UUX%2F39YqwFvMS6xZ%2BySMCCnuGqztDMOXObwQFKfftUxHdVxHsYIOiwKxiz%2BoIrvJVyndQ8kdhJRJiZmSYddYBJFxoCUCBiQCNsyDaviYYTNQhIQ4jBcbU12YyixnjJfAxHwJzObqwkjvDgnrLXyWtbiJE7wObcACRHwZDsOXMdjfMprGDN4hRHeoafGg%2FsYosRJfmCQB5rCI5BYDKyUOAxUgIONKDCMhWzkSyYA2CYxDEDKHEliPnuBw6ynn1EANrcKNMQ40zDWAhEJCUt9%2BYoA40HOATBFxEs8BJSBCeZK3MRvwCf%2BtIVMkgArsgkuMMlmCeNqxjyHLQ2RMInZHCChDLzNUeAcE4xSxPEj8DfXSOQJJY4QU%2BHNevwYq4DbJfISW72Dv7iqoSR5iXeBCinjlFjFAuYwV%2BIJIGF3na9xEoD%2BbIJ%2F4oiEI8DorSd6TYZDiPEBMEXKPnIZgUdIgeex6lqM99jPFgqN4xcAT2PkCMlJHPQcSlg90aHE%2B8A%2FwCaJgg%2FnBqZIgNUXVp2rf69VRZ%2FJWWSxRTh9I8mU6i7dLdp0pQKm2FLJ0CL1KG5unbiq81DClBDoKX1hZySu1Uqt0B0KlShUrFDP2CHa3itq%2FXieJCRloq91Y%2Bc%2Fy1XUCyxmj47rOZ1Sv5Zqp9%2F2CEVL%2FvN9cH7lrW3vMoHEML8zxFk%2Bprf%2B5z31RD%2Fr9c%2Fm4C3%2FO5BY5vN1qFZF2eOdxHwmgRGW1KslIMAo%2BY2%2F4LCLOKjunwJi4H6JHq9%2FIHFbddFG4HV%2FdLZi1vgbDfdiBE0OBmsVg5P4jpQKKae4McPgUU6InMRpfq7dwKbGW2Tcc%2FhQIk%2BekO3ewRsEFDAvUh9QIQZG2cCd3EwfA8C6agdM2dW2AecZJaJMhTGu97YdREwSsb3loRoAUsr%2BPTwPwFeS%2BIgEgBKDLPKEHcZytnKaBs6wgWXsyFi%2BZRNF32cDiZeJyGIvs3ChAm1TLGmGisrXithSrtCVOqBhmZAp0XT1aJrO6tV64DM1XYGfoRKcvchuPa5ezdN5HdMe29W54acxlaj5BZGsqXckjXkOp9bHEXGBLclOgDg5pZZWnVlymc%2BEXXTRxeWDfwGkGF0Pfq%2BibAAAAABJRU5ErkJggg%3D%3D)](https://arcinstitute.org/news/proto)
 
 > [!NOTE]
 > **Have a design pipeline you would like to see in Proto?** We will help you express it in the optimization language, integrate the tools it needs, and get the PRs up so it can be showcased in our repo or UI. New constraints, generators, and optimizers are welcome as pull requests too; see [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -15,7 +17,7 @@
 
 Welcome! This repository contains the open-source implementation of `proto-language`, a Python package for designing biological sequences (DNA, RNA, and proteins) through constraint-based optimization. A design is specified as a set of constraints, and the framework runs a propose–score–refine loop to search for sequences that satisfy them, drawing on a large suite of computational biology and biological AI tools to score candidates.
 
-`proto-language` is built on top of the [proto-tools](https://github.com/evo-design/proto-tools) execution layer, so each computationally intensive tool (structure predictors, protein language models, inverse folding, sequence and structure aligners, gene annotation, and more) runs in its own automatically managed, isolated environment. Programs can run locally or as hosted optimization runs through the [proto-client](https://github.com/evo-design/proto-client) Python SDK. 
+`proto-language` is built on top of the [proto-tools](https://github.com/evo-design/proto-tools) execution layer, so each computationally intensive tool (structure predictors, protein language models, inverse folding, sequence and structure aligners, gene annotation, and more) runs in its own automatically managed, isolated environment. 
 
 Proto-language is open source under an MIT license. Contributions are welcome!
 
@@ -53,6 +55,17 @@ To override only the model-weights location, set `export PROTO_MODEL_CACHE=/path
 ### Step 3: Gated model access (optional)
 
 Some generators and constraints load gated models (for example ESM3, AlphaGenome, and AlphaFold3) that require accepting a license and authenticating with HuggingFace. Set `HF_TOKEN` in the environment after accepting each model's terms. See [`proto-tools/README.md`](https://github.com/evo-design/proto-tools#step-3-gated-model-access-optional-) for the full procedure and the list of gated models.
+
+### Step 4: Remote compute (optional) <a href="https://modal.com"><img src="proto-tools/guides/assets/modal/modal-logo.png" alt="Modal" height="20" align="center"></a>
+
+Tools can execute in remote containers on [Modal](https://modal.com) instead of on your own machine, so a program can reach more GPUs than are installed locally. Deployments ship with proto-tools, so hosting one is a single command.
+
+Setup lives in the tool layer, in the separate [evo-design/proto-tools](https://github.com/evo-design/proto-tools) repository:
+
+- [Modal setup guide](https://github.com/evo-design/proto-tools/blob/main/proto_tools/modal/README.md) — account setup, deploying a tool, and costs.
+- [Step 4 of the proto-tools README](https://github.com/evo-design/proto-tools#step-4-remote-compute-optional-) — the same step in context.
+
+Once a tool is deployed, set `device="modal"` on the constraint or generator config that uses it.
 
 > [!TIP]
 > Setup is complete. See the [Quickstart](#quickstart) to run a program from end to end.
@@ -110,3 +123,22 @@ If you use Proto in your research, please cite our preprint:
   journal = {bioRxiv}
 }
 ```
+
+## Acknowledgements
+
+Thank you to <a href="https://modal.com"><img src="https://github.com/modal-labs.png?size=40" alt="" height="16" align="center"> Modal</a>
+for sponsoring the compute used to develop and test remote execution, and for making it
+straightforward to host the tools a program runs.
+
+Thank you to <a href="https://www.stanford.edu"><img src="https://www.stanford.edu/icon1.png" alt="" height="16" align="center"> Stanford University</a>
+and the <a href="https://arcinstitute.org"><img src="https://github.com/arcinstitute.png?size=40" alt="" height="16" align="center"> Arc Institute</a>
+for supporting this work's development.
+
+Thank you to everyone who has contributed to `proto-language`. Contributions of every size are
+welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
+
+<p align="center">
+  <a href="https://github.com/evo-design/proto-language/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=evo-design/proto-language" alt="Contributors">
+  </a>
+</p>
