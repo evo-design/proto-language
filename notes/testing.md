@@ -6,8 +6,6 @@ Long-form testing reference for `proto-language`: commands, markers, placement, 
 
 Use `--cpu-only` for normal local and CI-equivalent runs. Plain `pytest` skips slow and integration tests, but it does not skip tests marked `uses_gpu`.
 
-Test order is deterministic by default, so a failure reproduces from the command that found it. `--random-order` restores `pytest-randomly`'s shuffling, and the integration workflow passes it so order-dependence still gets exercised somewhere.
-
 ```bash
 pytest --cpu-only -x                              # fast CPU-focused feedback
 pytest tests/language_tests/generator_tests --cpu-only -x
