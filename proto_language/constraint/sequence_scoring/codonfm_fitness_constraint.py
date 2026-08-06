@@ -1,8 +1,10 @@
-"""Score coding-sequence naturalness with the CodonFM (Encodon) codon language model.
+"""Score coding sequences with the upstream CodonFM (Encodon) fitness proxy.
 
 Wraps the ``codonfm-fitness`` tool to drive a coding-sequence (CDS) segment toward high (or
-low) mean codon log-likelihood under Encodon — a zero-shot proxy for a well-formed, natural
-coding sequence. The raw fitness (mean per-token log-likelihood) is mapped to a ``[0, 1]``
+low) upstream non-padding-token mean log-likelihood under Encodon. This averages the likelihoods
+assigned while the original codons remain visible and includes Encodon's CLS and SEP tokens. It
+is not masked pseudo-log-likelihood or a calibrated naturalness, expression, or host-adaptation
+score. The raw fitness is mapped to a ``[0, 1]``
 energy through a sigmoid centred on ``sigmoid_center``; ``direction="max"`` rewards high
 fitness (low energy) and ``direction="min"`` rewards low fitness.
 
@@ -12,13 +14,13 @@ logits, so there is no faithful gradient bridge. Use it in discrete/semigreedy o
 
 Examples:
     >>> from proto_language.core import Constraint, Segment
-    >>> seg = Segment(length=30, sequence_type="dna")  # 10 codons
+    >>> seg = Segment(sequence="ATG" * 10, sequence_type="dna")
     >>> c = Constraint(
     ...     inputs=[seg],
     ...     function=codonfm_fitness_constraint,
     ...     function_config={"model_checkpoint": "encodon_80m", "direction": "max"},
     ... )
-    >>> scores = c.evaluate()  # list[float]; lower = more model-typical coding sequence
+    >>> scores = c.evaluate()  # list[float]; lower = better for the requested model objective
 """
 
 import math
@@ -44,12 +46,13 @@ class CodonFMFitnessConstraintConfig(BaseConfig):
 
     Attributes:
         model_checkpoint (CodonFMCheckpoint): Encodon checkpoint to score with.
-        direction (Literal['max', 'min']): ``"max"`` rewards high fitness (natural coding
-            sequence), ``"min"`` rewards low fitness.
-        sigmoid_center (float): Raw mean-log-likelihood mapped to energy 0.5. Encodon's
-            per-token log-likelihood is negative, so this is a negative tunable midpoint.
+        direction (Literal['max', 'min']): ``"max"`` rewards a high Encodon fitness proxy;
+            ``"min"`` rewards a low proxy value.
+        sigmoid_center (float): Raw upstream non-padding-token mean log-likelihood mapped to
+            energy 0.5. Encodon's per-token log-likelihood is negative, so this is a negative
+            tunable midpoint. The mean includes CLS and SEP as well as visible codon tokens.
         sigmoid_scale (float): Positive width of the sigmoid transform in log-likelihood units.
-        device (str): Device used for CodonFM inference.
+        device (str): Required CUDA device used for CodonFM inference.
         batch_size (int): Number of sequences per CodonFM GPU batch.
     """
 
@@ -67,7 +70,7 @@ class CodonFMFitnessConstraintConfig(BaseConfig):
         default=-2.0,
         allow_inf_nan=False,
         title="Sigmoid Center",
-        description="Raw mean codon log-likelihood mapped to energy 0.5 (tunable; negative).",
+        description="Upstream non-padding-token mean log-likelihood mapped to energy 0.5 (tunable; negative).",
     )
     sigmoid_scale: float = ConfigField(
         default=1.0,
@@ -79,7 +82,7 @@ class CodonFMFitnessConstraintConfig(BaseConfig):
     device: str = ConfigField(
         default="cuda",
         title="Device",
-        description="Device used for CodonFM inference.",
+        description="CUDA device used for CodonFM inference; the upstream xFormers path is GPU-only.",
     )
     batch_size: int = ConfigField(
         default=1,
@@ -93,7 +96,7 @@ class CodonFMFitnessConstraintConfig(BaseConfig):
     key="codonfm-fitness",
     label="CodonFM Fitness",
     config=CodonFMFitnessConstraintConfig,
-    description="Drive a coding sequence toward high or low naturalness using the CodonFM/Encodon model.",
+    description="Optimize the upstream CodonFM/Encodon visible-token fitness proxy in either direction.",
     uses_gpu=True,
     tools_called=["codonfm-fitness"],
     category="sequence_scoring",
@@ -104,7 +107,10 @@ def codonfm_fitness_constraint(
     input_sequences: list[tuple[Sequence, ...]],
     config: CodonFMFitnessConstraintConfig,
 ) -> list[ConstraintOutput]:
-    """Score coding-sequence proposals by CodonFM (Encodon) mean codon log-likelihood.
+    """Score proposals by Encodon's upstream non-padding-token mean log-likelihood.
+
+    This follows ``predict_fitness`` exactly: the mean includes visible codons and the CLS/SEP
+    special tokens, while excluding padding.
 
     Args:
         input_sequences (list[tuple[Sequence, ...]]): One single-segment tuple per proposal.
@@ -118,8 +124,9 @@ def codonfm_fitness_constraint(
         return []
 
     sequences = [seq.sequence for (seq,) in input_sequences]
+    tool_input = CodonFMFitnessInput(sequences=sequences)
     output = run_codonfm_fitness(
-        CodonFMFitnessInput(sequences=sequences),
+        tool_input,
         CodonFMFitnessConfig(
             model_checkpoint=config.model_checkpoint,
             device=config.device,
@@ -127,11 +134,23 @@ def codonfm_fitness_constraint(
         ),
     )
 
+    if len(output.results) != len(input_sequences):
+        raise ValueError(
+            f"CodonFM returned {len(output.results)} fitness results for {len(input_sequences)} proposals."
+        )
+
     results: list[ConstraintOutput] = []
-    for result in output.results:
+    for index, (result, expected_sequence) in enumerate(zip(output.results, tool_input.sequences, strict=True)):
+        returned_sequence = getattr(result, "sequence", expected_sequence)
+        if returned_sequence != expected_sequence:
+            raise ValueError(
+                f"CodonFM fitness result {index} does not match its input sequence; output order is invalid."
+            )
         fitness = result.fitness
         if not math.isfinite(fitness):
             raise ValueError(f"CodonFM returned non-finite fitness {fitness!r}.")
+        if fitness > 0.0:
+            raise ValueError(f"CodonFM returned positive fitness log-probability {fitness!r}.")
         # "max": high fitness -> low energy; "min": the reverse.
         sigmoid = sigmoid_score(fitness, config.sigmoid_center, slope=1.0 / config.sigmoid_scale)
         score = (1.0 - sigmoid) if config.direction == "max" else sigmoid
@@ -142,6 +161,7 @@ def codonfm_fitness_constraint(
                     "direction": config.direction,
                     "fitness": fitness,
                     "model_checkpoint": config.model_checkpoint,
+                    "objective": "upstream_non_padding_token_mean_log_likelihood",
                 },
             )
         )

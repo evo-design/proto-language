@@ -13,18 +13,23 @@ from proto_language.core import Sequence
 
 class TestForward:
     def test_within_range_scores_zero(self) -> None:
-        # ATGTTT -> 3/6 = 50% U (T counted as U).
+        # ATGTTT -> 4/6 = 66.7% U (T counted as U).
         out = uracil_content_constraint(
-            [(Sequence("ATGTTT", sequence_type="dna"),)], UracilContentConfig(min_u=0, max_u=60)
+            [(Sequence("ATGTTT", sequence_type="dna"),)], UracilContentConfig(min_u=0, max_u=70)
         )
         assert out[0].score == 0.0
-        assert out[0].metadata["uracil_content"] == pytest.approx(50.0)
+        assert out[0].metadata["uracil_content"] == pytest.approx(100.0 * 4 / 6)
 
     def test_above_max_is_penalized(self) -> None:
         out = uracil_content_constraint(
             [(Sequence("ATGTTT", sequence_type="dna"),)], UracilContentConfig(min_u=0, max_u=40)
         )
         assert out[0].score > 0.0  # 50% U exceeds the 40% ceiling
+
+    def test_default_range_is_neutral(self) -> None:
+        out = uracil_content_constraint([(Sequence("TTTTTT", sequence_type="dna"),)], UracilContentConfig())
+        assert out[0].score == 0.0
+        assert out[0].metadata["uracil_content"] == pytest.approx(100.0)
 
     def test_rna_u_equals_dna_t(self) -> None:
         dna = uracil_content_constraint(

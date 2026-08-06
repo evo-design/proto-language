@@ -6,6 +6,8 @@ from types import SimpleNamespace
 import pytest
 
 from proto_language.core import GeneratorInputType, Segment
+from proto_tools.transforms.masking import RandomMaskingStrategy
+
 from proto_language.generator.codonfm_generator import CodonFMGenerator, CodonFMGeneratorConfig
 from proto_language.generator.generator_registry import GeneratorRegistry
 
@@ -25,7 +27,7 @@ class TestSample:
 
         monkeypatch.setattr(_MODULE + ".run_codonfm_sample", fake_run)
 
-        gen = CodonFMGenerator(CodonFMGeneratorConfig(num_mutations=2, temperature=1.1, device="cpu"))
+        gen = CodonFMGenerator(CodonFMGeneratorConfig(masking_strategy=RandomMaskingStrategy(num_mutations=2), temperature=1.1, device="cpu"))
         segment = Segment(sequence=_CDS, sequence_type="dna")
         gen.assign(segment)
         gen.sample()
@@ -33,7 +35,7 @@ class TestSample:
         assert segment.proposal_sequences[0].sequence == "AAA" + _CDS[3:]
         assert len(segment.proposal_sequences[0].sequence) == len(_CDS)
         # Config forwarded to the tool.
-        assert captured["config"].num_mutations == 2
+        assert captured["config"].masking_strategy.num_mutations == 2
         assert captured["config"].temperature == 1.1
         assert captured["config"].model_checkpoint == "encodon_80m"
         assert captured["inputs"].sequences == [_CDS]
@@ -43,7 +45,7 @@ class TestSample:
             _MODULE + ".run_codonfm_sample",
             lambda inputs, config: SimpleNamespace(sequences=list(inputs.sequences)),
         )
-        gen = CodonFMGenerator(CodonFMGeneratorConfig(mask_fraction=0.2, device="cpu"))
+        gen = CodonFMGenerator(CodonFMGeneratorConfig(masking_strategy=RandomMaskingStrategy(mask_fraction=0.2), device="cpu"))
         segment = Segment(sequence=_CDS, sequence_type="dna")
         gen.assign(segment)
         segment.proposal_sequences = [copy.deepcopy(segment.original_sequence) for _ in range(4)]
@@ -70,7 +72,7 @@ class TestSample:
 class TestConfigAndRegistry:
     def test_num_mutations_must_be_at_least_one(self) -> None:
         with pytest.raises(ValueError):
-            CodonFMGeneratorConfig(num_mutations=0)
+            CodonFMGeneratorConfig(masking_strategy=RandomMaskingStrategy(num_mutations=0))
 
     def test_temperature_must_be_positive(self) -> None:
         with pytest.raises(ValueError):
