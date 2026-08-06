@@ -140,6 +140,8 @@ from proto_language.constraint.sequence_annotation import (
 
 # Sequence composition constraints
 from proto_language.constraint.sequence_composition import (
+    CodonAdaptationIndexConfig,
+    UracilContentConfig,
     codon_adaptation_index_constraint,
     dinucleotide_composition_constraint,
     gc_content_constraint,
@@ -176,7 +178,9 @@ __all__ = [
     # Sequence composition
     "sequence_length_constraint",
     "gc_content_constraint",
+    "UracilContentConfig",
     "uracil_content_constraint",
+    "CodonAdaptationIndexConfig",
     "codon_adaptation_index_constraint",
     "max_homopolymer_constraint",
     "kmer_frequency_constraint",

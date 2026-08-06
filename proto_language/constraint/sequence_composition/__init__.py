@@ -1,6 +1,7 @@
 """Sequence composition constraints (GC content, k-mer frequency, homopolymer, length)."""
 
 from proto_language.constraint.sequence_composition.codon_adaptation_index_constraint import (
+    CodonAdaptationIndexConfig,
     codon_adaptation_index_constraint,
 )
 from proto_language.constraint.sequence_composition.dinucleotide_composition_constraint import (
@@ -18,6 +19,7 @@ from proto_language.constraint.sequence_composition.specific_kmer_constraint imp
     specific_kmer_constraint,
 )
 from proto_language.constraint.sequence_composition.uracil_content_constraint import (
+    UracilContentConfig,
     uracil_content_constraint,
 )
 
@@ -25,7 +27,9 @@ __all__ = [
     "sequence_length_constraint",
     "gc_content_constraint",
     "uracil_content_constraint",
+    "UracilContentConfig",
     "codon_adaptation_index_constraint",
+    "CodonAdaptationIndexConfig",
     "max_homopolymer_constraint",
     "kmer_frequency_constraint",
     "specific_kmer_constraint",

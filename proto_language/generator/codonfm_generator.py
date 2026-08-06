@@ -8,6 +8,7 @@ from proto_tools import (
     CodonFMSampleInput,
     run_codonfm_sample,
 )
+from proto_tools.transforms.masking import RandomMaskingStrategy
 
 from proto_language.core import Generator, GeneratorInputType
 from proto_language.generator.generator_registry import generator
@@ -24,9 +25,9 @@ class CodonFMGeneratorConfig(BaseConfig):
 
     Attributes:
         model_checkpoint (CodonFMCheckpoint): Encodon checkpoint to sample from.
-        num_mutations (int | None): Exact number of codons to resample per sequence. When
-            ``None``, ``mask_fraction`` is used instead.
-        mask_fraction (float): Fraction of codons to resample when ``num_mutations`` is ``None``.
+        masking_strategy (RandomMaskingStrategy): Which codons to resample, counted in codons.
+            ``num_mutations`` sets an exact count, ``mask_fraction`` a fraction, and
+            ``fixed_positions`` pins codons that must survive (e.g. the start or stop codon).
         temperature (float): Softmax temperature for codon sampling; higher is more diverse.
         device (str): GPU device to run CodonFM on, e.g. ``"cuda"`` or ``"cuda:0"``.
         batch_size (int): Number of same-length sequences to process per GPU batch.
@@ -37,18 +38,10 @@ class CodonFMGeneratorConfig(BaseConfig):
         title="Model Checkpoint",
         description="Encodon checkpoint: encodon_80m | encodon_600m | encodon_1b | encodon_1b_cdwt.",
     )
-    num_mutations: int | None = ConfigField(
-        default=None,
-        ge=1,
-        title="Num Mutations",
-        description="Exact codons to resample per sequence; None uses mask_fraction.",
-    )
-    mask_fraction: float = ConfigField(
-        default=0.15,
-        gt=0.0,
-        le=1.0,
-        title="Mask Fraction",
-        description="Fraction of codons to resample when num_mutations is None.",
+    masking_strategy: RandomMaskingStrategy = ConfigField(
+        default_factory=RandomMaskingStrategy,
+        title="Masking Strategy",
+        description="Which codons to resample (counted in codons); fixed_positions pins codons that must survive.",
     )
     temperature: float = ConfigField(
         default=1.0,
@@ -88,8 +81,8 @@ class CodonFMGenerator(Generator):
 
     Attributes:
         model_checkpoint (str): Encodon checkpoint name.
-        num_mutations (int | None): Exact codons to resample; ``None`` uses ``mask_fraction``.
-        mask_fraction (float): Fraction of codons to resample when ``num_mutations`` is ``None``.
+        masking_strategy (RandomMaskingStrategy): Which codons to resample; ``num_mutations`` /
+            ``mask_fraction`` set how many and ``fixed_positions`` pins codons that must survive.
         temperature (float): Sampling temperature for diversity control.
         device (str): GPU device.
         batch_size (int): Number of sequences to process simultaneously on GPU.
@@ -97,7 +90,8 @@ class CodonFMGenerator(Generator):
     Example:
         >>> from proto_language.generator import CodonFMGenerator, CodonFMGeneratorConfig
         >>> from proto_language.core import Segment
-        >>> gen = CodonFMGenerator(CodonFMGeneratorConfig(num_mutations=3))
+        >>> from proto_tools.transforms.masking import RandomMaskingStrategy
+        >>> gen = CodonFMGenerator(CodonFMGeneratorConfig(masking_strategy=RandomMaskingStrategy(num_mutations=3)))
         >>> segment = Segment(sequence="ATGGTGAGCAAGGGC", sequence_type="dna")  # 5 codons
         >>> gen.assign(segment)
         >>> gen.sample()  # resamples 3 randomly masked codons
@@ -114,8 +108,7 @@ class CodonFMGenerator(Generator):
         super().__init__()
         self.config = config
         self.model_checkpoint = config.model_checkpoint
-        self.num_mutations = config.num_mutations
-        self.mask_fraction = config.mask_fraction
+        self.masking_strategy = config.masking_strategy
         self.temperature = config.temperature
         self.device = config.device
         self.batch_size = config.batch_size
@@ -133,8 +126,7 @@ class CodonFMGenerator(Generator):
             CodonFMSampleInput(sequences=sequences),
             CodonFMSampleConfig(
                 model_checkpoint=self.model_checkpoint,
-                num_mutations=self.num_mutations,
-                mask_fraction=self.mask_fraction,
+                masking_strategy=self.masking_strategy,
                 temperature=self.temperature,
                 device=self.device,
                 batch_size=self.batch_size,

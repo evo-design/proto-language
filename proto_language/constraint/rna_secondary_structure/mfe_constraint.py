@@ -1,9 +1,10 @@
-"""Minimum Free Energy (MFE) objective constraint for mRNA structural stability.
+"""Score ViennaRNA-predicted minimum free energy (MFE).
 
-Folds each sequence with ViennaRNA and scores its minimum free energy (kcal/mol; more negative =
-more thermodynamically stable / compact secondary structure). Unlike the RNA *similarity*
-constraints, this is a direct MFE objective: ``direction="min"`` drives the sequence toward
-more-negative MFE (more stable), ``direction="max"`` toward less structure.
+Folds each sequence with ViennaRNA's nearest-neighbor thermodynamic model and scores the predicted
+minimum free energy in kcal/mol. A more-negative MFE means the model assigns a more energetically
+favorable minimum-energy fold under the selected conditions; it does not by itself establish in-vivo
+stability, compactness, expression, or a unique solution structure. ``direction="min"`` drives the
+sequence toward more-negative MFE, ``direction="max"`` toward less-negative.
 
 MFE is length-dependent, so ``sigmoid_center`` should be chosen for the sequence length under
 optimization (during an optimizer run the segment length is fixed).
