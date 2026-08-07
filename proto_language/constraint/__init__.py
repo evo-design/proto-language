@@ -87,6 +87,8 @@ from proto_language.constraint.rna_expression import (
 
 # RNA secondary structure constraints
 from proto_language.constraint.rna_secondary_structure import (
+    MFEConfig,
+    mfe_constraint,
     rna_basepair_similarity_constraint,
     rna_feature_similarity_constraint,
     rna_motif_similarity_constraint,
@@ -138,22 +140,28 @@ from proto_language.constraint.sequence_annotation import (
 
 # Sequence composition constraints
 from proto_language.constraint.sequence_composition import (
+    CodonAdaptationIndexConfig,
+    UracilContentConfig,
+    codon_adaptation_index_constraint,
     dinucleotide_composition_constraint,
     gc_content_constraint,
     kmer_frequency_constraint,
     max_homopolymer_constraint,
     sequence_length_constraint,
     specific_kmer_constraint,
+    uracil_content_constraint,
 )
 
 # Sequence scoring constraints
 from proto_language.constraint.sequence_scoring import (
     AbLangPerplexityConfig,
+    CodonFMFitnessConstraintConfig,
     ESM2PerplexityConfig,
     MpnnPerplexityConfig,
     MPNNSequenceProbabilityConfig,
     ablang_perplexity_constraint,
     ablang_perplexity_gradient_backward,
+    codonfm_fitness_constraint,
     esm2_perplexity_constraint,
     esm2_perplexity_gradient_backward,
     mpnn_perplexity_constraint,
@@ -170,6 +178,10 @@ __all__ = [
     # Sequence composition
     "sequence_length_constraint",
     "gc_content_constraint",
+    "UracilContentConfig",
+    "uracil_content_constraint",
+    "CodonAdaptationIndexConfig",
+    "codon_adaptation_index_constraint",
     "max_homopolymer_constraint",
     "kmer_frequency_constraint",
     "specific_kmer_constraint",
@@ -277,13 +289,17 @@ __all__ = [
     "rna_motif_similarity_constraint",
     "rna_feature_similarity_constraint",
     "rna_basepair_similarity_constraint",
+    "mfe_constraint",
+    "MFEConfig",
     # Sequence scoring
     "AbLangPerplexityConfig",
+    "CodonFMFitnessConstraintConfig",
     "ESM2PerplexityConfig",
     "MpnnPerplexityConfig",
     "MPNNSequenceProbabilityConfig",
     "ablang_perplexity_constraint",
     "ablang_perplexity_gradient_backward",
+    "codonfm_fitness_constraint",
     "esm2_perplexity_constraint",
     "esm2_perplexity_gradient_backward",
     "mpnn_perplexity_constraint",
