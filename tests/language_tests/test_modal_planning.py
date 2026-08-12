@@ -207,3 +207,69 @@ def test_program_modal_scope_preserves_local_tool_pool(monkeypatch: pytest.Monke
     assert observed == [True]
     assert compute_events == ["enter", "exit"]
     assert not ToolRegistry.dispatch_backend_configured()
+
+
+def test_modal_run_does_not_create_local_tool_pool(monkeypatch: pytest.MonkeyPatch) -> None:
+    """device='modal' routes GPU work remotely, so no local ToolPool should be allocated."""
+    from unittest.mock import patch
+
+    from proto_language.constraint import ConstraintRegistry
+    from proto_language.core import Construct, Program, Segment
+    from proto_language.generator import RandomNucleotideGenerator, RandomNucleotideGeneratorConfig
+    from proto_language.optimizer import RejectionSamplingOptimizer, RejectionSamplingOptimizerConfig
+
+    segment = Segment(sequence="ATGC", sequence_type="dna")
+    generator = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig())
+    generator.assign(segment)
+    constraint = ConstraintRegistry.create(
+        key="gc-content",
+        segments=[segment],
+        config_dict={"min_gc": 0, "max_gc": 100},
+    )
+    optimizer = RejectionSamplingOptimizer(
+        constructs=[Construct([segment])],
+        generators=[generator],
+        constraints=[constraint],
+        config=RejectionSamplingOptimizerConfig(num_samples=1, num_results=1),
+    )
+    program = Program([optimizer], num_results=1)
+
+    monkeypatch.setattr("proto_tools.modal.app.resolve_environment", lambda value: value or "proto-env")
+    resolved: list[object] = []
+    monkeypatch.setattr(program, "run_stage", lambda _stage: resolved.append(program._resolve_compute()))
+
+    with patch("proto_tools.utils.tool_pool.ToolPool") as mock_pool_cls:
+        program.run(device="modal")
+        mock_pool_cls.assert_not_called()
+
+    assert isinstance(resolved[0], nullcontext)
+
+
+def test_local_run_still_creates_tool_pool() -> None:
+    """Without a dispatch backend the local pool is still what runs tools."""
+    from unittest.mock import patch
+
+    from proto_language.constraint import ConstraintRegistry
+    from proto_language.core import Construct, Program, Segment
+    from proto_language.generator import RandomNucleotideGenerator, RandomNucleotideGeneratorConfig
+    from proto_language.optimizer import RejectionSamplingOptimizer, RejectionSamplingOptimizerConfig
+
+    segment = Segment(sequence="ATGC", sequence_type="dna")
+    generator = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig())
+    generator.assign(segment)
+    constraint = ConstraintRegistry.create(
+        key="gc-content",
+        segments=[segment],
+        config_dict={"min_gc": 0, "max_gc": 100},
+    )
+    optimizer = RejectionSamplingOptimizer(
+        constructs=[Construct([segment])],
+        generators=[generator],
+        constraints=[constraint],
+        config=RejectionSamplingOptimizerConfig(num_samples=1, num_results=1),
+    )
+    program = Program([optimizer], num_results=1)
+
+    with patch("proto_tools.utils.tool_pool.ToolPool") as mock_pool_cls:
+        assert program._resolve_compute() is mock_pool_cls.return_value
+        mock_pool_cls.assert_called_once()
