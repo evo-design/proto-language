@@ -47,7 +47,7 @@ import logging
 import math
 import time
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager, nullcontext
 from pathlib import Path
 from typing import Any, Literal
 
@@ -446,12 +446,26 @@ class Program:
                 seqs = [seg["sequence"] for seg in construct["segments"]]
                 logger.debug(f"    {construct['label']}: {' | '.join(seqs)}")
 
-    def run(self) -> None:
+    def run(self, *, device: Literal["modal"] | None = None) -> None:
         """Execute the sequence optimization process for all optimizers sequentially.
 
         Each optimizer builds on the results of the previous one. State automatically
         persists between optimizers through the shared construct objects.
+
+        Args:
+            device (Literal["modal"] | None): Route every tool call to Modal. Missing
+                apps deploy when first called; tools that are never called deploy nothing.
         """
+        if device not in {None, "modal"}:
+            raise ValueError(f"Unsupported program device {device!r}; expected 'modal' or None.")
+        dispatch_context: AbstractContextManager[None]
+        if device == "modal":
+            from proto_language.modal import on_demand_modal_tools
+
+            dispatch_context = on_demand_modal_tools()
+        else:
+            dispatch_context = nullcontext()
+
         # Reset stage tracking for fresh run
         self.current_stage = 0
         self._stage_results = []
@@ -466,11 +480,16 @@ class Program:
 
         seed_str = f", seed={self.seed}" if self.seed is not None else ""
         logger.info(f"Running program: {len(self.optimizers)} stage(s), num_results={self.num_results}{seed_str}")
-        with self._enter_compute(), self._log_duration("Program"):
+        with dispatch_context, self._enter_compute(), self._log_duration("Program"):
             for optimizer_stage_idx in range(len(self.optimizers)):
                 self.run_stage(optimizer_stage_idx)
 
-    def run_stage(self, stage_index: int) -> None:
+    def run_stage(
+        self,
+        stage_index: int,
+        *,
+        device: Literal["modal"] | None = None,
+    ) -> None:
         """Execute a specific optimization stage.
 
         Allows running optimizers one at a time with inspection of results between
@@ -482,6 +501,7 @@ class Program:
 
         Args:
             stage_index (int): Zero-based index of the optimizer stage to run.
+            device (Literal["modal"] | None): Route this stage's actual tool calls to Modal.
 
         Raises:
             IndexError: If stage_index is out of range.
@@ -493,7 +513,17 @@ class Program:
             >>> results = program.get_stage_results(0)  # Access results
             >>> program.run_stage(1)  # Run second optimizer
         """
-        with self._enter_compute():
+        if device not in {None, "modal"}:
+            raise ValueError(f"Unsupported program device {device!r}; expected 'modal' or None.")
+        dispatch_context: AbstractContextManager[None]
+        if device == "modal":
+            from proto_language.modal import on_demand_modal_tools
+
+            dispatch_context = on_demand_modal_tools()
+        else:
+            dispatch_context = nullcontext()
+
+        with dispatch_context, self._enter_compute():
             self._validate_program()
             if stage_index < 0 or stage_index >= len(self.optimizers):
                 raise IndexError(f"Stage index {stage_index} out of range (0-{len(self.optimizers) - 1}).")
@@ -542,7 +572,9 @@ class Program:
         """
         from proto_tools.utils.tool_pool import _active_pool
 
-        if _active_pool.get() is not None:
+        from proto_language.modal import modal_dispatch_active
+
+        if modal_dispatch_active() or _active_pool.get() is not None:
             yield
         else:
             with self.compute:
