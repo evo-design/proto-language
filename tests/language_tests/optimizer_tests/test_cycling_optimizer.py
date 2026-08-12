@@ -1065,6 +1065,32 @@ class TestCyclingOptimizerPipelineResolution:
         )
         assert optimizer.pipeline == "protein-hunter"
 
+    def test_protein_hunter_preserves_ambiguous_protein_type(self, monkeypatch):
+        """Protein-only sequences must not be reinterpreted as DNA before folding."""
+        from proto_language.optimizer import cycling_optimizer as co
+
+        captured: list[Any] = []
+
+        class _FakeOutput:
+            def __init__(self, n: int):
+                self.structures = [make_mock_structure() for _ in range(n)]
+
+        def _fake_predict_structures(complexes, _toolkit, _tool_config):
+            captured.extend(complexes)
+            return _FakeOutput(len(complexes))
+
+        import proto_tools
+
+        monkeypatch.setattr(proto_tools, "predict_structures", _fake_predict_structures)
+
+        cfg = CyclingOptimizerConfig(num_steps=1, num_results=1, pipeline="protein-hunter")
+        fn = co._create_protein_hunter_conditioning_fn(cfg)
+        fn([Sequence(sequence="A" * 10, sequence_type="protein")])
+
+        chain = captured[0].chains[0]
+        assert chain.entity_type == "protein"
+        assert chain.entity_type_inferred is False
+
     def test_protein_hunter_passes_cycle_seed_for_stochastic_tool(self, monkeypatch):
         """conditioning_fn must provide seeded runs to a `stochastic=True` @tool.
 
