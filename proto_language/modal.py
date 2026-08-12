@@ -14,11 +14,6 @@ from filelock import FileLock
 _ACTIVE = contextvars.ContextVar("proto_language_modal_dispatch_active", default=False)
 
 
-def modal_dispatch_active() -> bool:
-    """Return whether this execution context routes language tools to Modal."""
-    return _ACTIVE.get()
-
-
 def _deployment_lock(app_name: str, environment: str) -> FileLock:
     """Coordinate the first deployment across local processes without storing credentials."""
     workspace = os.environ.get("MODAL_TOKEN_ID", "default-profile")
@@ -50,10 +45,11 @@ def _dispatch_with_deployment(key: str, inputs: Any, config: Any, environment: s
 
 @contextmanager
 def on_demand_modal_tools() -> Iterator[None]:
-    """Route actual tool calls to Modal and deploy only missing apps they reach.
+    """Route GPU tool calls to Modal and deploy only missing apps they reach.
 
     Entering this context is the cost-bearing approval: a missing app may build
-    and run its normal warmup. Calls that never occur deploy nothing.
+    and run its normal warmup. CPU tools continue to run locally, and GPU tools
+    that are never called deploy nothing.
     """
     from proto_tools.modal.app import resolve_environment
     from proto_tools.tools import ToolRegistry
@@ -67,6 +63,8 @@ def on_demand_modal_tools() -> Iterator[None]:
         # ToolRegistry's hook is process-global; the ContextVar keeps unrelated
         # threads and tasks on their existing execution path.
         if not _ACTIVE.get():
+            return None
+        if not ToolRegistry.get(key).uses_gpu:
             return None
         return _dispatch_with_deployment(key, inputs, config, resolved_environment)
 

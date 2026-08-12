@@ -453,8 +453,8 @@ class Program:
         persists between optimizers through the shared construct objects.
 
         Args:
-            device (Literal["modal"] | None): Route every tool call to Modal. Missing
-                apps deploy when first called; tools that are never called deploy nothing.
+            device (Literal["modal"] | None): Route GPU tool calls to Modal. Missing
+                apps deploy when first called; CPU tools continue to run locally.
         """
         if device not in {None, "modal"}:
             raise ValueError(f"Unsupported program device {device!r}; expected 'modal' or None.")
@@ -501,7 +501,7 @@ class Program:
 
         Args:
             stage_index (int): Zero-based index of the optimizer stage to run.
-            device (Literal["modal"] | None): Route this stage's actual tool calls to Modal.
+            device (Literal["modal"] | None): Route this stage's GPU tool calls to Modal.
 
         Raises:
             IndexError: If stage_index is out of range.
@@ -572,9 +572,7 @@ class Program:
         """
         from proto_tools.utils.tool_pool import _active_pool
 
-        from proto_language.modal import modal_dispatch_active
-
-        if modal_dispatch_active() or _active_pool.get() is not None:
+        if _active_pool.get() is not None:
             yield
         else:
             with self.compute:

@@ -71,9 +71,10 @@ To run an optimization remotely without deploying the full catalog, opt in at th
 program.run(device="modal")
 ```
 
-Each missing app is deployed only when its tool is actually called. Unused tools are not deployed,
-and subsequent calls reuse the existing app. Because first-use deployment builds and warms the app,
-both that warmup and the requested call are billed to your Modal account.
+The optimization loop and CPU tools continue to run locally. Each missing GPU app is deployed only
+when its tool is actually called; unused GPU tools are not deployed, and subsequent calls reuse the
+existing app. Because first-use deployment builds and warms the app, both that warmup and the
+requested call are billed to your Modal account.
 
 > [!TIP]
 > Setup is complete. See the [Quickstart](#quickstart) to run a program from end to end.
