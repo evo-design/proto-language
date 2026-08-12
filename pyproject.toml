@@ -68,6 +68,7 @@ dependencies = [
     "tqdm",
     "openpyxl",
     "docstring-parser",  # Extract per-field docs from Google-style config docstrings
+    "filelock>=3.0",  # Coordinate first-use Modal deployments across local processes
 ]
 
 [project.urls]
