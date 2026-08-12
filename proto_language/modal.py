@@ -48,8 +48,8 @@ def on_demand_modal_tools() -> Iterator[None]:
     """Route GPU tool calls to Modal and deploy only missing apps they reach.
 
     Entering this context is the cost-bearing approval: a missing app may build
-    and run its normal warmup. CPU tools continue to run locally, and GPU tools
-    that are never called deploy nothing.
+    and run its normal warmup. CPU and local-only tools continue to run locally,
+    and deployable GPU tools that are never called deploy nothing.
     """
     from proto_tools.modal.app import resolve_environment
     from proto_tools.tools import ToolRegistry
@@ -64,7 +64,8 @@ def on_demand_modal_tools() -> Iterator[None]:
         # threads and tasks on their existing execution path.
         if not _ACTIVE.get():
             return None
-        if not ToolRegistry.get(key).uses_gpu:
+        spec = ToolRegistry.get(key)
+        if not spec.uses_gpu or spec.local_only is not None:
             return None
         return _dispatch_with_deployment(key, inputs, config, resolved_environment)
 

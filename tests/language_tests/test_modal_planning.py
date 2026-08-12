@@ -111,6 +111,21 @@ def test_context_routes_gpu_tools_to_modal(monkeypatch: pytest.MonkeyPatch) -> N
         assert backend("esm2-sample", object(), object()) is expected
 
 
+def test_context_leaves_local_only_gpu_tools_local(monkeypatch: pytest.MonkeyPatch) -> None:
+    from proto_tools.tools import ToolRegistry
+
+    monkeypatch.setattr("proto_tools.modal.app.resolve_environment", lambda value: value or "proto-env")
+    monkeypatch.setattr(
+        "proto_language.modal._dispatch_with_deployment",
+        lambda *_args: pytest.fail("a local-only GPU tool was routed to Modal"),
+    )
+
+    with on_demand_modal_tools():
+        backend = ToolRegistry._dispatch_backend
+        assert backend is not None
+        assert backend("alphafold3-prediction", object(), object()) is None
+
+
 def test_context_does_not_overwrite_an_existing_backend(monkeypatch: pytest.MonkeyPatch) -> None:
     from proto_tools.tools import ToolRegistry
 
