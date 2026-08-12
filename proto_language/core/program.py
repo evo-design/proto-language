@@ -47,7 +47,7 @@ import logging
 import math
 import time
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager, nullcontext
 from pathlib import Path
 from typing import Any, Literal
 
@@ -157,10 +157,9 @@ class Program:
                 always takes priority.
             verbose (bool): If True, print detailed energy score calculations for each constraint
                      for all optimizers.
-            compute (ToolPool | None): Context manager for tool execution. If None,
-                auto-detects: nullcontext when external dispatch is configured (cloud SDK
-                backend or a deployment dispatch backend), else ToolPool()
-                (symmetric across GPU and CPU-only hosts).
+            compute (ToolPool | None): Context manager for tool execution. If None, resolved
+                when the run starts: nullcontext when tool calls are routed to Modal, else
+                ToolPool() (symmetric across GPU and CPU-only hosts).
             seed (int | None): Random seed for fully reproducible optimization. When set,
                 derives unique optimizer config seeds, overriding optimizer-level
                 seeds. Same seed + same input = same output.
@@ -173,21 +172,6 @@ class Program:
             raise ValueError(
                 "Program requires at least one Optimizer (got empty list); pass optimizers=[opt1, opt2, ...] to chain stages"
             )
-
-        if compute is None:
-            from contextlib import nullcontext
-
-            from proto_tools.tools.tool_registry import ToolRegistry
-            from proto_tools.utils.tool_pool import ToolPool
-
-            # A local ToolPool bypasses cloud dispatch, so skip it when external dispatch is configured.
-            has_backend = ToolRegistry.dispatch_backend_configured()
-            if has_backend:
-                logger.debug("External dispatch configured; GPU tools will route to the hosted service.")
-                compute = nullcontext()
-            else:
-                # Symmetric across GPU and CPU-only hosts.
-                compute = ToolPool()
 
         self.compute = compute
 
@@ -446,12 +430,18 @@ class Program:
                 seqs = [seg["sequence"] for seg in construct["segments"]]
                 logger.debug(f"    {construct['label']}: {' | '.join(seqs)}")
 
-    def run(self) -> None:
+    def run(self, *, device: Literal["modal"] | None = None) -> None:
         """Execute the sequence optimization process for all optimizers sequentially.
 
         Each optimizer builds on the results of the previous one. State automatically
         persists between optimizers through the shared construct objects.
+
+        Args:
+            device (Literal["modal"] | None): Route GPU tool calls to Modal. Missing
+                apps deploy when first called; CPU tools continue to run locally.
         """
+        dispatch_context = self._dispatch_context(device)
+
         # Reset stage tracking for fresh run
         self.current_stage = 0
         self._stage_results = []
@@ -466,11 +456,16 @@ class Program:
 
         seed_str = f", seed={self.seed}" if self.seed is not None else ""
         logger.info(f"Running program: {len(self.optimizers)} stage(s), num_results={self.num_results}{seed_str}")
-        with self._enter_compute(), self._log_duration("Program"):
+        with dispatch_context, self._enter_compute(), self._log_duration("Program"):
             for optimizer_stage_idx in range(len(self.optimizers)):
                 self.run_stage(optimizer_stage_idx)
 
-    def run_stage(self, stage_index: int) -> None:
+    def run_stage(
+        self,
+        stage_index: int,
+        *,
+        device: Literal["modal"] | None = None,
+    ) -> None:
         """Execute a specific optimization stage.
 
         Allows running optimizers one at a time with inspection of results between
@@ -482,6 +477,7 @@ class Program:
 
         Args:
             stage_index (int): Zero-based index of the optimizer stage to run.
+            device (Literal["modal"] | None): Route this stage's GPU tool calls to Modal.
 
         Raises:
             IndexError: If stage_index is out of range.
@@ -493,7 +489,7 @@ class Program:
             >>> results = program.get_stage_results(0)  # Access results
             >>> program.run_stage(1)  # Run second optimizer
         """
-        with self._enter_compute():
+        with self._dispatch_context(device), self._enter_compute():
             self._validate_program()
             if stage_index < 0 or stage_index >= len(self.optimizers):
                 raise IndexError(f"Stage index {stage_index} out of range (0-{len(self.optimizers) - 1}).")
@@ -533,6 +529,48 @@ class Program:
             self._stage_results.append(stage_result)
             self.current_stage = stage_index + 1
 
+    @staticmethod
+    def _dispatch_context(device: Literal["modal"] | None) -> AbstractContextManager[None]:
+        """Return the tool-dispatch context for a run or stage.
+
+        Args:
+            device (Literal["modal"] | None): Target for GPU tool calls.
+
+        Returns:
+            AbstractContextManager[None]: Modal dispatch context, or a no-op for local runs.
+
+        Raises:
+            ValueError: If device is not 'modal' or None.
+        """
+        if device is None:
+            return nullcontext()
+        if device != "modal":
+            raise ValueError(f"Unsupported program device {device!r}; expected 'modal' or None.")
+        from proto_language.modal import on_demand_modal_tools
+
+        return on_demand_modal_tools()
+
+    def _resolve_compute(self) -> AbstractContextManager[Any]:
+        """Return the compute context, choosing a local pool only when tools run locally.
+
+        Resolved at entry rather than construction so Modal routing configured by
+        ``run(device=...)`` is visible here, and no local ToolPool claims GPUs it will not use.
+        """
+        compute: AbstractContextManager[Any]
+        if self.compute is not None:
+            compute = self.compute
+            return compute
+
+        from proto_tools.tools.tool_registry import ToolRegistry
+        from proto_tools.utils.tool_pool import ToolPool
+
+        if ToolRegistry.dispatch_backend_configured():
+            logger.debug("Modal routing active; GPU tools will run remotely instead of in a local pool.")
+            return nullcontext()
+        # Symmetric across GPU and CPU-only hosts.
+        compute = ToolPool()
+        return compute
+
     @contextmanager
     def _enter_compute(self) -> Iterator[None]:
         """Enter compute context if not already active, otherwise no-op.
@@ -545,7 +583,7 @@ class Program:
         if _active_pool.get() is not None:
             yield
         else:
-            with self.compute:
+            with self._resolve_compute():
                 yield
 
     @contextmanager

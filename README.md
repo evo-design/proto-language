@@ -65,7 +65,14 @@ Setup lives in the tool layer, in the separate [evo-design/proto-tools](https://
 - [Modal setup guide](https://github.com/evo-design/proto-tools/blob/main/proto_tools/modal/README.md) — account setup, deploying a tool, and costs.
 - [Step 4 of the proto-tools README](https://github.com/evo-design/proto-tools#step-4-remote-compute-optional-) — the same step in context.
 
-Once a tool is deployed, set `device="modal"` on the constraint or generator config that uses it.
+To run an optimization remotely without deploying the full catalog, opt in at the program level:
+
+```python
+program.run(device="modal")
+```
+
+Models and tools that require modal compute will be deployed automatically upon the first run of your
+program.
 
 > [!TIP]
 > Setup is complete. See the [Quickstart](#quickstart) to run a program from end to end.
