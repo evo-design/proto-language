@@ -128,7 +128,7 @@ log_cli_level = "INFO"
 log_cli_format = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.12"
 plugins = ["pydantic.mypy"]
 strict = true
 warn_unreachable = true
