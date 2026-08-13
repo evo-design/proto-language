@@ -1,6 +1,7 @@
 """Tests for the CodonFM (Encodon) coding-sequence mutation generator."""
 
 import copy
+import importlib
 from types import SimpleNamespace
 
 import pytest
@@ -11,7 +12,9 @@ from proto_tools.transforms.masking import RandomMaskingStrategy
 from proto_language.generator.codonfm_generator import CodonFMGenerator, CodonFMGeneratorConfig
 from proto_language.generator.generator_registry import GeneratorRegistry
 
-_MODULE = "proto_language.generator.codonfm_generator"
+# Patch the module object: `proto_language.generator` is the registration decorator, not the
+# package, so monkeypatch cannot resolve a dotted string through it.
+_MODULE = importlib.import_module("proto_language.generator.codonfm_generator")
 _CDS = "ATGGTGAGCAAGGGC"  # 15 nt, 5 codons
 
 
@@ -25,7 +28,7 @@ class TestSample:
             # Echo a deterministic single-codon edit per proposal (length preserved).
             return SimpleNamespace(sequences=["AAA" + s[3:] for s in inputs.sequences])
 
-        monkeypatch.setattr(_MODULE + ".run_codonfm_sample", fake_run)
+        monkeypatch.setattr(_MODULE, "run_codonfm_sample", fake_run)
 
         gen = CodonFMGenerator(CodonFMGeneratorConfig(masking_strategy=RandomMaskingStrategy(num_mutations=2), temperature=1.1, device="cpu"))
         segment = Segment(sequence=_CDS, sequence_type="dna")
@@ -42,7 +45,7 @@ class TestSample:
 
     def test_batch_of_proposals(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            _MODULE + ".run_codonfm_sample",
+            _MODULE, "run_codonfm_sample",
             lambda inputs, config: SimpleNamespace(sequences=list(inputs.sequences)),
         )
         gen = CodonFMGenerator(CodonFMGeneratorConfig(masking_strategy=RandomMaskingStrategy(mask_fraction=0.2), device="cpu"))
@@ -58,7 +61,7 @@ class TestSample:
     def test_seed_is_forwarded_and_advances(self, monkeypatch: pytest.MonkeyPatch) -> None:
         seeds: list = []
         monkeypatch.setattr(
-            _MODULE + ".run_codonfm_sample",
+            _MODULE, "run_codonfm_sample",
             lambda inputs, config: seeds.append(config.seed) or SimpleNamespace(sequences=list(inputs.sequences)),
         )
         gen = CodonFMGenerator(CodonFMGeneratorConfig(device="cpu"))
