@@ -1298,7 +1298,7 @@ class TestProgramCompute:
         ToolRegistry.configure_dispatch_backend(lambda key, inputs, config: None)
         try:
             program = _create_simple_program(compute=None)
-            assert isinstance(program.compute, nullcontext)
+            assert isinstance(program._resolve_compute(), nullcontext)
             mock_pool_cls.assert_not_called()
         finally:
             ToolRegistry.clear_dispatch_backend()

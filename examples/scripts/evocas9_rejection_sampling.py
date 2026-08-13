@@ -163,6 +163,7 @@ def structure_filter(
     from proto_tools import (
         AlphaFold3Config,
         AlphaFold3Input,
+        Chain,
         Complex,
         Mmseqs2HomologySearchConfig,
         run_alphafold3,
@@ -236,7 +237,7 @@ def structure_filter(
         proposal_dir = f"{af3_dir}/{af3_name}_{af3_idx}"
         try:
             af3_result = run_alphafold3(
-                AlphaFold3Input(complexes=[Complex(chains=[protein])]),
+                AlphaFold3Input(complexes=[Complex(chains=[Chain(sequence=protein, entity_type="protein")])]),
                 AlphaFold3Config(
                     name=af3_name,
                     output_dir=proposal_dir,

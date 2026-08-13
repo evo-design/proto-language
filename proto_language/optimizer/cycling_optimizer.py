@@ -9,7 +9,7 @@ proposals passing the filter constraints. Repeating drives feedback loops such a
 segment.
 
 Examples:
-    >>> from proto_tools import Complex, predict_structures
+    >>> from proto_tools import Chain, Complex, predict_structures
     >>> from proto_language.core import Construct, Program, Segment, Sequence
     >>> from proto_language.generator import ProteinMPNNGenerator, ProteinMPNNGeneratorConfig
     >>> from proto_language.optimizer import CyclingOptimizer, CyclingOptimizerConfig
@@ -17,7 +17,9 @@ Examples:
     >>> gen = ProteinMPNNGenerator(ProteinMPNNGeneratorConfig(temperature=0.1, excluded_amino_acids=["C"]))
     >>> gen.assign(protein)
     >>> def structure_conditioning_fn(sequences: list[Sequence]) -> list:
-    ...     complexes = [Complex(chains=[seq.sequence]) for seq in sequences]
+    ...     complexes = [
+    ...         Complex(chains=[Chain(sequence=seq.sequence, entity_type=seq.sequence_type)]) for seq in sequences
+    ...     ]
     ...     return predict_structures(complexes, "boltz2", {}).structures  # condition each cycle on folds
     >>> optimizer = CyclingOptimizer(
     ...     target_segment=protein,
@@ -88,7 +90,7 @@ def _create_protein_hunter_conditioning_fn(config: "CyclingOptimizerConfig") -> 
     Args:
         config (CyclingOptimizerConfig): Constraint configuration controlling evaluation parameters.
     """
-    from proto_tools import Complex, predict_structures
+    from proto_tools import Chain, Complex, predict_structures
 
     structure_tool = config.protein_hunter.structure_tool if config.protein_hunter else "boltz2"
 
@@ -106,7 +108,7 @@ def _create_protein_hunter_conditioning_fn(config: "CyclingOptimizerConfig") -> 
         rng = state["rng"]
         if rng is not None:
             tool_config["seed"] = rng.randint(0, 2**31 - 1)
-        complexes = [Complex(chains=[seq.sequence]) for seq in sequences]
+        complexes = [Complex(chains=[Chain(sequence=seq.sequence, entity_type=seq.sequence_type)]) for seq in sequences]
         structures = predict_structures(complexes, structure_tool, tool_config).structures
         for seq, structure in zip(sequences, structures, strict=True):
             seq.structure = structure

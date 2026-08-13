@@ -151,15 +151,15 @@ def balanced_aa_constraint(
         max_possible_excess = 20 - config.max_underrepresented_count
         deficits = np.zeros(batch_size)
 
-        for seq_idx in np.where(excess_mask)[0]:
-            if underrepresented_totals[seq_idx] > 0:
+        for excess_idx in np.where(excess_mask)[0]:
+            if underrepresented_totals[excess_idx] > 0:
                 # Calculate weighted average deficit for sequences
-                underrep_freqs = aa_freq_matrix[seq_idx][underrepresented_mask[seq_idx]]
-                underrep_counts = aa_count_matrix[seq_idx][underrepresented_mask[seq_idx]]
+                underrep_freqs = aa_freq_matrix[excess_idx][underrepresented_mask[excess_idx]]
+                underrep_counts = aa_count_matrix[excess_idx][underrepresented_mask[excess_idx]]
 
                 aa_deficits = config.min_aa_frequency - underrep_freqs
                 weighted_deficit = (aa_deficits * underrep_counts).sum()
-                deficits[seq_idx] = weighted_deficit / underrepresented_totals[seq_idx]
+                deficits[excess_idx] = weighted_deficit / underrepresented_totals[excess_idx]
 
         # Calculate penalties for all sequences
         count_penalties = np.where(max_possible_excess > 0, excess_counts / max_possible_excess, 1.0)
