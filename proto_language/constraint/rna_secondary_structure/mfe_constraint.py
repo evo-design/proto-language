@@ -66,7 +66,7 @@ class MFEConfig(BaseConfig):
     config=MFEConfig,
     description="Drive a sequence toward more-negative (or less-negative) ViennaRNA minimum free energy.",
     uses_gpu=False,
-    tools_called=["viennarna"],
+    tools_called=["viennarna-prediction"],
     category="rna_secondary_structure",
     supported_sequence_types=["dna", "rna"],
 )
