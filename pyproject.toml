@@ -69,6 +69,7 @@ dependencies = [
     "openpyxl",
     "docstring-parser",  # Extract per-field docs from Google-style config docstrings
     "filelock>=3.0",  # Coordinate first-use Modal deployments across local processes
+    "requests>=2.31",  # HTTP client for endpoint-backed classifiers
 ]
 
 [project.urls]
@@ -90,6 +91,7 @@ dev = [
     "ruff==0.15.12",
     "mypy==1.20.2",
     "types-tqdm",           # mypy stubs for tqdm (used by bar-aware logging)
+    "types-requests",       # mypy stubs for requests (used by classifier endpoints)
 ]
 
 

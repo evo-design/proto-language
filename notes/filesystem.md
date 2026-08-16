@@ -19,6 +19,7 @@ proto_language/
 │   ├── constraint_registry.py
 │   ├── protein_quality/
 │   ├── protein_structure/
+│   ├── protein_tagging/
 │   ├── rna_expression/
 │   ├── rna_secondary_structure/
 │   ├── rna_splicing/
@@ -26,6 +27,11 @@ proto_language/
 │   ├── sequence_annotation/
 │   ├── sequence_composition/
 │   └── sequence_scoring/
+├── classifiers/             Trained predictors returning continuous scores
+│   ├── classifier_registry.py
+│   ├── base.py              Classifier, ClassifierOutput, error types
+│   ├── endpoints.py         Shared HTTP client for remote classifiers
+│   └── protein_tagging/
 ├── generator/               Registered proposal generators and registry
 ├── optimizer/               Search strategies and compiled-constraint providers
 │   └── constraint_compiler/
@@ -36,8 +42,9 @@ proto_language/
 
 Important conventions:
 
-- Add pluggable components under the appropriate `constraint/`, `generator/`, or `optimizer/` module and export them through the local `__init__.py` chain.
-- Registries live beside their component families: `constraint_registry.py`, `generator_registry.py`, and `optimizer_registry.py`.
+- Add pluggable components under the appropriate `constraint/`, `classifiers/`, `generator/`, or `optimizer/` module and export them through the local `__init__.py` chain.
+- Registries live beside their component families: `constraint_registry.py`, `classifier_registry.py`, `generator_registry.py`, and `optimizer_registry.py`.
+- `classifiers/endpoints.py` is the only module in the package that performs network I/O. Remote endpoint URLs and credentials resolve from config fields then environment variables, and are never hard-coded as defaults.
 - `utils/io.py` owns result flattening and export writers. `core/program.py` and `core/optimizer.py` expose the public export methods.
 
 ## Tests

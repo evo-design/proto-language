@@ -1,4 +1,4 @@
-"""Programmatic access to docs for registered constraints, generators, and optimizers.
+"""Programmatic access to docs for registered constraints, classifiers, generators, and optimizers.
 
 Each component carries its docs in source: a Google-style docstring on the
 registered function or class, and per-field ``title``/``description`` on the
@@ -8,9 +8,10 @@ typed Pydantic models so agents, CLIs, and notebooks can consume it uniformly.
 
 Two surfaces:
 
-1. **Component docs** — ``get_constraint_doc`` / ``get_generator_doc`` /
-   ``get_optimizer_doc`` return a ``ComponentDoc`` bundling the spec metadata,
-   the function/class docstring, and the config model docs.
+1. **Component docs** — ``get_constraint_doc`` / ``get_classifier_doc`` /
+   ``get_generator_doc`` / ``get_optimizer_doc`` return a ``ComponentDoc``
+   bundling the spec metadata, the function/class docstring, and the config
+   model docs.
 2. **Core-type docs** — ``get_core_type_doc`` returns a ``CoreTypeDoc`` with the
    class docstring and ``__init__`` parameter signature for ``Sequence``,
    ``Segment``, ``Construct``, and ``Program`` (none of which are Pydantic
@@ -26,6 +27,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 from pydantic.fields import FieldInfo
 
+from proto_language.classifiers.classifier_registry import ClassifierRegistry, ClassifierSpec
 from proto_language.constraint.constraint_registry import ConstraintRegistry, ConstraintSpec
 from proto_language.core.construct import Construct
 from proto_language.core.program import Program
@@ -39,7 +41,7 @@ from proto_language.utils.field_docs import field_docs_from_docstrings
 logger = logging.getLogger(__name__)
 
 
-ComponentKind = Literal["constraint", "generator", "optimizer"]
+ComponentKind = Literal["constraint", "classifier", "generator", "optimizer"]
 CoreTypeName = Literal["Sequence", "Segment", "Construct", "Program"]
 
 _CORE_TYPES: dict[str, type] = {
@@ -51,6 +53,7 @@ _CORE_TYPES: dict[str, type] = {
 
 _KIND_TO_REGISTRY: dict[ComponentKind, type[BaseRegistry[Any]]] = {
     "constraint": ConstraintRegistry,
+    "classifier": ClassifierRegistry,
     "generator": GeneratorRegistry,
     "optimizer": OptimizerRegistry,
 }
@@ -104,6 +107,22 @@ class ConstraintSpecMetadata(BaseModel):
     )
 
 
+class ClassifierSpecMetadata(BaseModel):
+    """Classifier-specific spec fields surfaced on ``ComponentDoc.spec_metadata``."""
+
+    category: str | None = Field(default=None, description="Free-form grouping (e.g. ``protein_tagging``).")
+    supported_sequence_types: list[str] = Field(default_factory=list, description="Accepted sequence types.")
+    output_range: tuple[float, float] | None = Field(
+        default=None,
+        description="Inclusive bounds of the native score; None when unbounded.",
+    )
+    output_description: str = Field(description="What the native score means.")
+    endpoint_env_var: str | None = Field(
+        default=None,
+        description="Environment variable naming the remote endpoint; None when run locally.",
+    )
+
+
 class GeneratorSpecMetadata(BaseModel):
     """Generator-specific spec fields surfaced on ``ComponentDoc.spec_metadata``."""
 
@@ -138,7 +157,7 @@ class OptimizerSpecMetadata(BaseModel):
     )
 
 
-SpecMetadata = ConstraintSpecMetadata | GeneratorSpecMetadata | OptimizerSpecMetadata
+SpecMetadata = ClassifierSpecMetadata | ConstraintSpecMetadata | GeneratorSpecMetadata | OptimizerSpecMetadata
 
 
 class ComponentDoc(BaseModel):
@@ -156,8 +175,8 @@ class ComponentDoc(BaseModel):
     spec_metadata: SpecMetadata = Field(
         description=(
             "Component-specific spec fields not covered by the common header. Concrete type "
-            "matches ``kind``: ``ConstraintSpecMetadata`` / ``GeneratorSpecMetadata`` / "
-            "``OptimizerSpecMetadata``."
+            "matches ``kind``: ``ConstraintSpecMetadata`` / ``ClassifierSpecMetadata`` / "
+            "``GeneratorSpecMetadata`` / ``OptimizerSpecMetadata``."
         ),
     )
 
@@ -220,6 +239,8 @@ def _spec_callable_name(spec: BaseSpec) -> str:
     if isinstance(spec, ConstraintSpec):
         fn = spec.function or spec.backward
         return fn.__name__ if fn is not None else ""
+    if isinstance(spec, ClassifierSpec):
+        return spec.function.__name__ if spec.function is not None else ""
     if isinstance(spec, GeneratorSpec):
         return spec.generator_class.__name__
     if isinstance(spec, OptimizerSpec):
@@ -311,6 +332,25 @@ def get_constraint_doc(identifier: str) -> ComponentDoc:
             supported_sequence_types=list(spec.supported_sequence_types),
             requires_generators=list(spec.requires_generators) if spec.requires_generators else None,
             input_labels=[str(lbl) for lbl in spec.input_labels] if spec.input_labels else None,
+        ),
+    )
+
+
+def get_classifier_doc(identifier: str) -> ComponentDoc:
+    """Build a ``ComponentDoc`` for a registered classifier."""
+    key = resolve_key("classifier", identifier)
+    spec = ClassifierRegistry.get(key)
+    fn = spec.function
+    docstring = inspect.cleandoc(fn.__doc__ or "") if fn is not None else ""
+    return ComponentDoc(
+        **_common_doc_kwargs(spec, "classifier"),
+        docstring=docstring,
+        spec_metadata=ClassifierSpecMetadata(
+            category=spec.category,
+            supported_sequence_types=list(spec.supported_sequence_types),
+            output_range=spec.output_range,
+            output_description=spec.output_description,
+            endpoint_env_var=spec.endpoint_env_var,
         ),
     )
 

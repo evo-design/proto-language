@@ -73,6 +73,12 @@ from proto_language.constraint.protein_structure import (
     structure_tmscore_constraint,
 )
 
+# Protein tagging constraints
+from proto_language.constraint.protein_tagging import (
+    TaggabilityConfig,
+    taggability_constraint,
+)
+
 # RNA expression constraints
 from proto_language.constraint.rna_expression import (
     ParadeUTRActivityConfig,
@@ -222,6 +228,9 @@ __all__ = [
     "protein_globularity_constraint",
     "boltz_binding_strength_constraint",
     "pyrosetta_interface_constraint",
+    # Protein tagging
+    "TaggabilityConfig",
+    "taggability_constraint",
     # Protein quality
     "protein_length_constraint",
     "protein_complexity_constraint",

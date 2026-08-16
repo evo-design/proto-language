@@ -12,6 +12,13 @@
       "checks": ["all_consistency", "registry_exports"]
     },
     {
+      "name": "Classifiers",
+      "root": "proto_language/classifiers",
+      "package_root": "proto_language",
+      "registry_decorators": ["classifier"],
+      "checks": ["all_consistency", "registry_exports"]
+    },
+    {
       "name": "Generators",
       "root": "proto_language/generator",
       "package_root": "proto_language",
