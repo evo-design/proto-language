@@ -32,20 +32,27 @@ See `notes/dev.md` for setup, submodules, export validation, and CI. See
 - `proto_language/core/`: data model, ABCs, program orchestration, export, and
   validation.
 - `proto_language/constraint/`: constraint implementations grouped by domain and the constraint registry.
+- `proto_language/classifiers/`: trained predictors returning continuous scores, the
+  classifier registry, and the shared HTTP client for endpoint-backed classifiers.
 - `proto_language/generator/`: sequence proposal generators and registry.
 - `proto_language/optimizer/`: optimization algorithms and constraint compiler
   providers.
 - `proto_language/utils/`: shared config, serialization, scoring, IO, logging,
   gradients, and scheduling helpers.
-- `tests/language_tests/`: core, constraint, generator, and optimizer behavior
-  tests.
+- `tests/language_tests/`: core, constraint, classifier, generator, and optimizer
+  behavior tests.
 - `tests/utils_tests/` and `tests/tests_cpu/`: utility tests and CPU integration
   regressions.
 - `notes/`: canonical long-form developer references.
 
 ## Contributor Conventions
 
-- Registries use decorators: `@constraint`, `@generator`, and `@optimizer`.
+- Registries use decorators: `@constraint`, `@classifier`, `@generator`, and `@optimizer`.
+- Classifiers return their model's native score; mapping into the `[0, 1]`
+  lower-is-better energy convention is the wrapping constraint's job.
+- `proto_language/classifiers/endpoints.py` is the only module that performs network
+  I/O. Endpoint URLs and credentials resolve from config then environment, never from
+  a hard-coded default, and credentials never enter source or tests.
 - Use `logging.getLogger(__name__)`, never `print()`, in framework code.
 - Config classes inherit the local `BaseConfig` and use `ConfigField`.
 - Registry keys are kebab-case. Follow neighboring file, class, function,

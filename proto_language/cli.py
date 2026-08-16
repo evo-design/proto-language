@@ -19,6 +19,7 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel
 
+from proto_language.classifiers.classifier_registry import ClassifierRegistry
 from proto_language.constraint.constraint_registry import ConstraintRegistry, ConstraintSpec
 from proto_language.generator.generator_registry import GeneratorRegistry, GeneratorSpec
 from proto_language.optimizer.optimizer_registry import OptimizerRegistry
@@ -48,6 +49,7 @@ logger = logging.getLogger(__name__)
 
 _KIND_TO_REGISTRY: dict[ComponentKind, _DocRegistry] = {
     "constraint": ConstraintRegistry,
+    "classifier": ClassifierRegistry,
     "generator": GeneratorRegistry,
     "optimizer": OptimizerRegistry,
 }
@@ -227,7 +229,7 @@ def _filter_specs(
 def _cmd_list(args: argparse.Namespace) -> int:
     """``proto-language <kind> list [filters]`` or ``proto-language list``."""
     if args.kind == "all":
-        kinds: list[ComponentKind] = ["constraint", "generator", "optimizer"]
+        kinds: list[ComponentKind] = ["constraint", "classifier", "generator", "optimizer"]
     else:
         kinds = [args.kind]
 
@@ -510,16 +512,17 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="proto-language",
         description=(
-            "Discover and inspect proto-language constraints, generators, optimizers, "
-            "and core types. Verbs return text by default; pass --json for structured output."
+            "Discover and inspect proto-language constraints, classifiers, generators, "
+            "optimizers, and core types. Verbs return text by default; pass --json for "
+            "structured output."
         ),
     )
     sub = parser.add_subparsers(dest="kind", required=True)
 
-    for kind in ("constraint", "generator", "optimizer"):
+    for kind in ("constraint", "classifier", "generator", "optimizer"):
         _add_kind_subparsers(sub, kind)
 
-    p_all = sub.add_parser("list", help="List components across all three registries.")
+    p_all = sub.add_parser("list", help="List components across every registry.")
     _add_list_filters(p_all, kind=None)
     p_all.set_defaults(func=_cmd_list, kind="all")
 

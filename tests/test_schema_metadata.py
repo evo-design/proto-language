@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 
+from proto_language.classifiers import ClassifierRegistry
 from proto_language.constraint import ConstraintRegistry
 from proto_language.generator import GeneratorRegistry
 from proto_language.optimizer import OptimizerRegistry
@@ -57,9 +58,10 @@ def _check_property(model_label: str, path: str, name: str, prop: dict[str, Any]
 
 
 def _all_specs() -> list:
-    """Return every registered spec across the three proto-language registries."""
+    """Return every registered spec across the proto-language registries."""
     return [
         *ConstraintRegistry.list_all(),
+        *ClassifierRegistry.list_all(),
         *GeneratorRegistry.list_all(),
         *OptimizerRegistry.list_all(),
     ]
