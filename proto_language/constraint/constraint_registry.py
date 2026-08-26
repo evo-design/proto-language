@@ -50,13 +50,6 @@ class ConstraintSpec(BaseSpec):
         description="Generator registry keys required in the same optimizer stage; None means none",
     )
 
-    # Constraint mode — set during registration, exposed in API
-    mode: Literal["discrete", "gradient", "dual"] = Field(
-        default="discrete",
-        title="Constraint Mode",
-        description="'discrete' for scoring only, 'gradient' for gradient only, 'dual' for both.",
-    )
-
     # Separate config model for backward callable (None = uses config_model)
     backward_config_model: SkipJsonSchema[type[BaseModel] | None] = Field(
         default=None,
@@ -73,6 +66,17 @@ class ConstraintSpec(BaseSpec):
     # Private fields - excluded from serialization
     function: SkipJsonSchema[Callable[..., Any] | None] = Field(default=None, exclude=True)
     backward: SkipJsonSchema[Callable[..., Any] | None] = Field(default=None, exclude=True)
+
+    @pydantic.computed_field(  # type: ignore[prop-decorator]
+        title="Constraint Mode",
+        description="Effective direct or compiler-backed evaluation mode.",
+    )
+    @property
+    def mode(self) -> Literal["discrete", "gradient", "dual"]:
+        """Return effective direct and compiler-backed evaluation support."""
+        from proto_language.optimizer.constraint_compiler import resolve_constraint_capabilities
+
+        return resolve_constraint_capabilities(self).mode
 
 
 class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
@@ -239,13 +243,6 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
             func._constraint_supported_sequence_types = supported_sequence_types  # type: ignore[attr-defined]
             func._constraint_num_input_sequences_per_tuple = slot_count  # type: ignore[attr-defined]
 
-            if is_backward_fn:
-                mode: Literal["discrete", "gradient", "dual"] = "gradient"
-            elif backward is not None:
-                mode = "dual"
-            else:
-                mode = "discrete"
-
             cls._registry[key] = ConstraintSpec(
                 key=key,
                 label=label,
@@ -259,7 +256,6 @@ class ConstraintRegistry(BaseRegistry[ConstraintSpec]):
                 supported_sequence_types=supported_sequence_types,
                 input_labels=input_labels,
                 requires_generators=requires_generators,
-                mode=mode,
                 backward_config_model=backward_config,
             )
             return func

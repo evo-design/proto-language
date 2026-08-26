@@ -49,7 +49,7 @@ from proto_language.optimizer.constraint_compiler import (
     GradientProvider,
     GradientProviderOutput,
     compile_gradient_providers,
-    constraint_supports_compiled_gradient,
+    resolve_constraint_capabilities,
     validate_gradient_provider_output,
 )
 from proto_language.optimizer.optimizer_registry import optimizer
@@ -532,9 +532,12 @@ class GradientOptimizer(Optimizer):
         self.generator: Generator = generator
         unsupported = []
         for constraint in constraints:
-            ok, reason = constraint_supports_compiled_gradient(constraint, target_segment)
-            if not ok:
-                unsupported.append(reason or f"Constraint '{constraint.label}' does not support gradient evaluation.")
+            capabilities = resolve_constraint_capabilities(constraint, target_segment)
+            if not capabilities.supports_gradient:
+                unsupported.append(
+                    capabilities.gradient_reason
+                    or f"Constraint '{constraint.label}' does not support gradient evaluation."
+                )
         if unsupported:
             raise ValueError("GradientOptimizer requires differentiable constraints: " + "; ".join(unsupported))
         self._gradient_constraints = list(constraints)
@@ -601,51 +604,6 @@ class GradientOptimizer(Optimizer):
             out_of_bounds = [p for p in self.config.softmax_init_positions if p < 0 or p >= seq_len]
             if out_of_bounds:
                 raise ValueError(f"softmax_init_positions {out_of_bounds} out of bounds for segment length {seq_len}.")
-
-    def _validate_component_compatibility(self) -> None:
-        """Validate dependencies while allowing compiler-backed gradient constraints."""
-        from proto_language.constraint.constraint_registry import ConstraintRegistry
-        from proto_language.generator.generator_registry import GeneratorRegistry
-        from proto_language.optimizer.optimizer_registry import OptimizerRegistry
-
-        opt_key = OptimizerRegistry.find_key(self)
-        opt = OptimizerRegistry.get(opt_key) if opt_key else None
-        opt_label = opt.label if opt else self.__class__.__name__
-        gen_keys = {k for gen in self.generators if (k := GeneratorRegistry.find_key(gen)) is not None}
-
-        if opt and opt.compatible_generators is not None:
-            for key in gen_keys:
-                if key not in opt.compatible_generators:
-                    raise ValueError(
-                        f"Generator '{key}' is not compatible with {opt_label}. "
-                        f"Compatible generators: {', '.join(opt.compatible_generators)}"
-                    )
-
-        if opt and opt.required_constraint_mode is not None:
-            required = opt.required_constraint_mode
-            ok_modes = {"gradient": ("gradient", "dual"), "discrete": ("discrete", "dual")}[required]
-            for con in self.constraints:
-                con_key = ConstraintRegistry.find_key(con)
-                if con_key and ConstraintRegistry.get(con_key).mode in ok_modes:
-                    continue
-                ok, reason = constraint_supports_compiled_gradient(con, self.target_segment)
-                if ok:
-                    continue
-                detail = f": {reason}" if reason else ""
-                raise ValueError(
-                    f"Constraint '{con.label}' does not support {required} evaluation, required by {opt_label}{detail}"
-                )
-
-        for con in self.constraints:
-            con_key = ConstraintRegistry.find_key(con)
-            spec = ConstraintRegistry.get(con_key) if con_key else None
-            if not spec or not spec.requires_generators:
-                continue
-            missing = [r for r in spec.requires_generators if r not in gen_keys]
-            if missing:
-                raise ValueError(
-                    f"Constraint '{con.label}' requires a {', '.join(missing)} generator in the same optimization stage"
-                )
 
     def run(self) -> None:
         """Execute gradient optimization.

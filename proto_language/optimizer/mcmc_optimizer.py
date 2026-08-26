@@ -155,6 +155,7 @@ class MCMCOptimizerConfig(BaseOptimizerConfig):
     label="MCMC Optimizer",
     config=MCMCOptimizerConfig,
     description="Markov chain Monte Carlo (Metropolis-Hastings): proposes mutations from the generators and stochastically accepts or rejects each to minimize the weighted constraint energy, with a simulated-annealing temperature schedule that shifts from broad exploration to local refinement over the run.",
+    required_constraint_mode="discrete",
 )
 @final
 class MCMCOptimizer(Optimizer):

@@ -185,6 +185,7 @@ class BeamSearchOptimizerConfig(BaseOptimizerConfig):
     description="Beam search over an autoregressive language model: extends a single segment in fixed-length steps, scoring each candidate's full sequence against the constraints and keeping the top-scoring beams at every step.",
     targets_single_segment=True,
     compatible_generators=["evo1", "evo2", "progen2"],
+    required_constraint_mode="discrete",
 )
 class BeamSearchOptimizer(Optimizer):
     """Beam search optimizer for sequence generation.
