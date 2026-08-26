@@ -706,6 +706,7 @@ class TestWeightSchedules:
             num_steps=10,
             lr=1.0,
             normalize_gradients=False,
+            save_best=False,
             constraint_weight_schedules=[
                 ConstraintWeightSchedule(constraint_label="ablang", start_weight=0.0, end_weight=0.2)
             ],
@@ -714,6 +715,11 @@ class TestWeightSchedules:
         logits = seg.result_sequences[0].logits
         assert logits is not None
         assert logits.min() > -50.0
+        metadata = seg.result_sequences[0]._constraints_metadata["ablang"]
+        assert metadata["configured_weight"] == 99.0
+        assert metadata["effective_weight"] == pytest.approx(0.2)
+        assert metadata["weight"] == pytest.approx(0.2)
+        assert metadata["weighted_score"] == pytest.approx(metadata["score"] * 0.2)
 
     def test_missing_label_warns_but_runs(self, caplog: pytest.LogCaptureFixture) -> None:
         seg = Segment(sequence="AA", sequence_type="protein")
@@ -873,6 +879,13 @@ class TestCompiledConstraints:
                     num_steps=1,
                     lr=0.1,
                     normalize_gradients=False,
+                    constraint_weight_schedules=[
+                        ConstraintWeightSchedule(
+                            constraint_label="esmfold_plddt",
+                            start_weight=1.0,
+                            end_weight=1.0,
+                        )
+                    ],
                 ),
             )
             assert opt._gradient_providers == []
@@ -883,8 +896,11 @@ class TestCompiledConstraints:
         assert opt.energy_scores == [pytest.approx(3.0)]
         assert mock_esm.call_count == 1
         assert mock_esm.call_args.args[0].target_chain_indices == [0]
-        assert mock_esm.call_args.args[1].loss_weights == {"plddt": 2.0, "ptm": 0.5}
+        assert mock_esm.call_args.args[1].loss_weights == {"plddt": 1.0, "ptm": 0.5}
         assert {"esmfold_plddt", "esmfold_ptm"}.issubset(metadata)
+        assert metadata["esmfold_plddt"]["configured_weight"] == 2.0
+        assert metadata["esmfold_plddt"]["effective_weight"] == 1.0
+        assert metadata["esmfold_plddt"]["weighted_score"] == pytest.approx(0.2)
 
     def test_groups_esmfold_scoring_terms_into_one_prediction_call(self) -> None:
         from proto_language.optimizer.constraint_compiler import evaluate_scoring_constraints
@@ -901,7 +917,11 @@ class TestCompiledConstraints:
             mock_esm.return_value = SimpleNamespace(structures=[structure])
             scores = evaluate_scoring_constraints(constraints, mask=[True])
 
-        assert scores == [[pytest.approx(0.7)]]
+        assert scores.aggregate_scores == [[pytest.approx(0.7)]]
+        assert {constraint.label: values for constraint, values in scores.constraint_scores.items()} == {
+            "esmfold_plddt": [pytest.approx(0.4)],
+            "esmfold_ptm": [pytest.approx(0.3)],
+        }
         assert mock_esm.call_count == 1
         assert mock_esm.call_args.args[1] == "esmfold"
         metadata = binder.proposal_sequences[0]._constraints_metadata
@@ -927,7 +947,13 @@ class TestCompiledConstraints:
             scores = evaluate_scoring_constraints(constraints, mask=[True])
 
         expected = (2.0 * 0.2) + (0.5 * 0.6) + (3.0 * 0.3) + (4.0 * 0.2)
-        assert scores == [[pytest.approx(expected)]]
+        assert scores.aggregate_scores == [[pytest.approx(expected)]]
+        assert {constraint.label for constraint in scores.constraint_scores} == {
+            "protenix_plddt",
+            "protenix_ptm",
+            "protenix_iptm",
+            "protenix_pae",
+        }
         assert mock_protenix.call_count == 1
         assert mock_protenix.call_args.args[1] == "protenix"
         assert mock_protenix.call_args.args[2].seed == 0
@@ -977,7 +1003,11 @@ class TestCompiledConstraints:
             mock_protenix.return_value = SimpleNamespace(structures=[structure])
             scores = evaluate_scoring_constraints(constraints, mask=[True], seed=1234)
 
-        assert scores == [[pytest.approx(0.7)]]
+        assert scores.aggregate_scores == [[pytest.approx(0.7)]]
+        assert {constraint.label: values for constraint, values in scores.constraint_scores.items()} == {
+            "protenix_plddt": [pytest.approx(0.4)],
+            "protenix_ptm": [pytest.approx(0.3)],
+        }
         assert mock_protenix.call_count == 1
         execution_config = mock_protenix.call_args.args[2]
         assert execution_config.seed == execution_config.seeds[0]
@@ -1041,7 +1071,11 @@ class TestCompiledConstraints:
                 return_value=score_output,
             ) as mock_malinois:
                 scores = evaluate_scoring_constraints(constraints, mask=[True])
-            assert scores == [[pytest.approx(tool_loss, rel=1e-5)]]
+            assert scores.aggregate_scores == [[pytest.approx(tool_loss, rel=1e-5)]]
+            assert {constraint.label for constraint in scores.constraint_scores} == {
+                "malinois_k562_max",
+                "malinois_hepg2_min",
+            }
             assert mock_malinois.call_count == 1
             assert mock_malinois.call_args.args[1].cell_types == ["K562", "HepG2"]
             metadata = enhancer.proposal_sequences[0]._constraints_metadata
@@ -1198,7 +1232,7 @@ class TestCompiledConstraints:
                 metadata = binder.result_sequences[0]._constraints_metadata
             else:
                 scores = evaluate_scoring_constraints(constraints, mask=[True])
-                assert scores == [[tool_loss]]
+                assert scores.aggregate_scores == [[tool_loss]]
                 metadata = binder.proposal_sequences[0]._constraints_metadata
 
         assert mock_af2.call_count == 1
@@ -1263,7 +1297,7 @@ class TestCompiledConstraints:
                 opt.run()
             else:
                 scores = evaluate_scoring_constraints(constraints, mask=[True])
-                assert scores == [[pytest.approx(3.5)]]
+                assert scores.aggregate_scores == [[pytest.approx(3.5)]]
 
         assert mock_af2.call_count == 1
         assert mock_af2.call_args[0][0].target_pdb.source == str(first_path)
@@ -1320,6 +1354,10 @@ class TestCompiledConstraints:
             opt.score_energy()
 
         assert opt.energy_scores == [pytest.approx(4.0)]
+        assert opt._last_constraint_scores == {
+            "af2_plddt": [pytest.approx(2.0)],
+            "af2_ipae": [pytest.approx(1.0)],
+        }
         assert mock_af2.call_count == 1
         assert mock_af2.call_args[0][1].loss_weights == {
             "plddt": 2.0,
@@ -1361,7 +1399,8 @@ class TestCompiledConstraints:
 
         scores = evaluate_scoring_constraints([constraint], mask=[True])
 
-        assert scores == [[0.0]]
+        assert scores.aggregate_scores == [[0.0]]
+        assert scores.constraint_scores == {constraint: [0.0]}
 
     def test_af2_config_parse_is_strict_only_when_requested(self) -> None:
         """Compiler probes can be lenient, while execution paths preserve validation errors."""

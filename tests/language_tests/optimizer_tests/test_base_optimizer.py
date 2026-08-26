@@ -575,6 +575,32 @@ class TestScoreEnergy:
         # Expected: [2*4, 3*5] = [8, 15]
         assert optimizer.energy_scores == [8.0, 15.0]
 
+    def test_duplicate_labels_on_different_segments_keep_separate_observability(self):
+        """Per-constraint scoring vectors use qualified labels when public labels repeat."""
+        segment_a = Segment(sequence="AA", sequence_type="dna")
+        segment_b = Segment(sequence="CC", sequence_type="dna")
+        construct = Construct([segment_a, segment_b])
+        generators = [MockGenerator(), MockGenerator()]
+        generators[0].assign(segment_a)
+        generators[1].assign(segment_b)
+        constraints = []
+        for segment, score in [(segment_a, 1.0), (segment_b, 2.0)]:
+            constraint = MagicMock(spec=Constraint)
+            constraint.inputs = [segment]
+            constraint.label = "shared"
+            constraint.weight = 1.0
+            constraint.threshold = None
+            constraint.evaluate.return_value = [score]
+            constraints.append(constraint)
+
+        optimizer = ConcreteOptimizer([construct], generators, constraints, 1, 1)
+        optimizer.score_energy()
+
+        assert optimizer.energy_scores == [3.0]
+        assert len(optimizer._last_constraint_scores) == 2
+        assert all(label.startswith("shared[") for label in optimizer._last_constraint_scores)
+        assert sorted(values[0] for values in optimizer._last_constraint_scores.values()) == [1.0, 2.0]
+
     def test_invalid_operation_raises_error(self):
         """Tests that invalid operation raises ValueError."""
         construct, generator, constraint, segment = _setup_optimizer_components()

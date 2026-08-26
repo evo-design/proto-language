@@ -69,6 +69,15 @@ backend seed cursors therefore advance within one run without mutating public
 constraint configs, and reset reproducibly on the next run. In an unseeded
 program, the first constraint's configured seed remains the group's seed.
 
+Scoring plans return both the aggregate component vectors consumed by energy
+aggregation and one weighted contribution vector per public constraint. A
+backend-returned grouped loss remains the optimization source of truth, while
+progress logs retain term-level visibility even when several constraints share
+one call. Constraint metadata records both `configured_weight` and
+`effective_weight`; the legacy `weight` and `weighted_score` fields use the
+effective runtime value so scheduled gradient objectives are reported with the
+same weight the optimizer applied.
+
 ## Tool-Level Patterns
 
 Treat these as patterns, not a registry. The source of truth is the selected generator, constraint config, and proto-tools runner.

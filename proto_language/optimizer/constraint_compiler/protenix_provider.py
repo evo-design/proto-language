@@ -26,7 +26,11 @@ from proto_language.constraint.protein_structure.structure_constraint_config imp
     resolve_metric,
 )
 from proto_language.core import Constraint
-from proto_language.optimizer.constraint_compiler.base import CompiledConstraint, config_group_identity
+from proto_language.optimizer.constraint_compiler.base import (
+    CompiledConstraint,
+    ScoringEvaluation,
+    config_group_identity,
+)
 from proto_language.utils import MAX_ENERGY
 
 logger = logging.getLogger(__name__)
@@ -97,7 +101,7 @@ def evaluate_scoring_group(
     compiled_constraints: list[CompiledConstraint],
     mask: list[bool],
     execution_config: StructureBasedConstraintConfig,
-) -> list[float]:
+) -> ScoringEvaluation:
     """Evaluate compatible Protenix confidence constraints with one prediction batch."""
     first_constraint = compiled_constraints[0].constraint
     config = execution_config
@@ -105,9 +109,10 @@ def evaluate_scoring_group(
     inputs = first_constraint.inputs
     num_proposals = inputs[0].num_proposals
     scores = [float("nan")] * num_proposals
+    constraint_scores = {compiled.constraint: [float("nan")] * num_proposals for compiled in compiled_constraints}
     proposal_indices = [idx for idx, should_eval in enumerate(mask) if should_eval]
     if not proposal_indices:
-        return scores
+        return ScoringEvaluation([scores], constraint_scores)
 
     complexes = []
     for proposal_idx in proposal_indices:
@@ -133,6 +138,7 @@ def evaluate_scoring_group(
         scores[proposal_idx] = group_score
 
         for compiled, score in zip(compiled_constraints, term_scores, strict=True):
+            constraint_scores[compiled.constraint][proposal_idx] = compiled.constraint.weight * score
             metadata = _scoring_constraint_metadata(
                 metrics,
                 output_structure=structure,
@@ -144,7 +150,7 @@ def evaluate_scoring_group(
 
         inputs[0].proposal_sequences[proposal_idx].structure = structure
 
-    return scores
+    return ScoringEvaluation([scores], constraint_scores)
 
 
 def _scoring_constraint_metadata(

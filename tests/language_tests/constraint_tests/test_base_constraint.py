@@ -825,6 +825,8 @@ class TestConstraintGradientSupport:
         metadata = segment.proposal_sequences[0]._constraints_metadata["test_grad"]
         assert metadata["score"] == pytest.approx(1.0)  # mean(ones**2) = 1.0
         assert metadata["weight"] == 1.0
+        assert metadata["configured_weight"] == 1.0
+        assert metadata["effective_weight"] == 1.0
         assert metadata["data"]["temperature"] == 1.0
 
     def test_temperature_affects_gradient(self) -> None:

@@ -567,12 +567,19 @@ class Constraint:
                         original.logits = lg
 
     def _write_constraint_metadata(
-        self, sequence_idx: int, score: float, metadata: dict[str, Any], metadata_recipient_position: int | None = None
+        self,
+        sequence_idx: int,
+        score: float,
+        metadata: dict[str, Any],
+        metadata_recipient_position: int | None = None,
+        effective_weight: float | None = None,
     ) -> None:
         """Write ``_constraints_metadata[self.label]`` on each unique input proposal.
 
         ``metadata_recipient_position`` restricts custom metadata to one input.
         When unset, custom metadata is copied to all inputs for discoverability.
+        ``effective_weight`` records a scheduled runtime weight while preserving
+        the configured constraint weight separately.
         """
         originals_by_id: dict[int, Sequence] = {}
         metadata_by_original: dict[int, dict[str, Any]] = {}
@@ -588,10 +595,13 @@ class Constraint:
 
         for original_id, original in originals_by_id.items():
             seg_idx = position_by_original[original_id]
+            runtime_weight = self._weight if effective_weight is None else effective_weight
             constraint_data: dict[str, Any] = {
                 "score": make_json_safe(score),
-                "weight": self._weight,
-                "weighted_score": make_json_safe(score * self._weight),
+                "weight": runtime_weight,
+                "configured_weight": self._weight,
+                "effective_weight": runtime_weight,
+                "weighted_score": make_json_safe(score * runtime_weight),
                 "data": metadata_by_original[original_id],
             }
             if len(self._inputs) > 1:
@@ -684,7 +694,12 @@ class Constraint:
                     f"(per input_labels), but {num_inputs} segment(s) were provided."
                 )
 
-    def compute_gradient(self, **kwargs: Any) -> list[GradientConstraintOutput]:
+    def compute_gradient(
+        self,
+        *,
+        effective_weight: float | None = None,
+        **kwargs: Any,
+    ) -> list[GradientConstraintOutput]:
         """Compute gradients for all proposals as a batch, parallel with ``evaluate()``.
 
         Builds a batched input list from all proposals and passes it to the backward
@@ -694,6 +709,8 @@ class Constraint:
 
         Args:
             **kwargs (Any): Forwarded to the backward callable (e.g. ``temperature``, ``soft``, ``hard``).
+            effective_weight (float | None): Runtime scheduled weight to record
+                in metadata. The backward callable does not receive this value.
 
         Returns:
             list[GradientConstraintOutput]: One result per proposal. Raw gradient, loss, and
@@ -757,7 +774,12 @@ class Constraint:
                     if struct is not None:
                         seq.structure = struct
 
-            self._write_constraint_metadata(idx, masked_result.loss, masked_result.metrics)
+            self._write_constraint_metadata(
+                idx,
+                masked_result.loss,
+                masked_result.metrics,
+                effective_weight=effective_weight,
+            )
             masked_results.append(masked_result)
 
         return masked_results

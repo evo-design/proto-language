@@ -41,6 +41,7 @@ from proto_language.optimizer.constraint_compiler.base import (
     EffectiveWeight,
     GradientProvider,
     GradientProviderOutput,
+    ScoringEvaluation,
     clone_execution_config,
 )
 
@@ -89,8 +90,13 @@ class DirectGradientProvider(GradientProvider):
         Returns:
             GradientProviderOutput: Proposal-aligned target gradients and weighted losses.
         """
-        results = self.constraint.compute_gradient(temperature=temperature, soft=soft, hard=hard)
         weight = effective_weight(self.constraint, step)
+        results = self.constraint.compute_gradient(
+            temperature=temperature,
+            soft=soft,
+            hard=hard,
+            effective_weight=weight,
+        )
         return GradientProviderOutput(
             label=self.label,
             gradients=[
@@ -175,7 +181,7 @@ def evaluate_scoring_constraints(
     mask: list[bool],
     verbose: bool = False,
     seed: int | None = None,
-) -> list[list[float]]:
+) -> ScoringEvaluation:
     """Evaluate forward scoring constraints, grouping compatible backend calls.
 
     This is the forward, non-gradient counterpart to
@@ -200,9 +206,8 @@ def evaluate_scoring_constraints(
             scoring-group seed streams.
 
     Returns:
-        list[list[float]]: Weighted score arrays, one entry per scoring unit.
-            A scoring unit is either one direct public constraint or one
-            compiled backend group containing multiple public constraints.
+        ScoringEvaluation: Aggregate weighted vectors used for energy plus
+            weighted vectors for every public constraint.
     """
     return compile_scoring_plan(constraints, seed=seed).evaluate(mask=mask, verbose=verbose)
 
@@ -340,7 +345,7 @@ class CompilerAdapter:
         compile_gradient (GradientCompiler | None): Gradient provider builder.
         check_gradient (GradientChecker | None): Runtime gradient preflight.
         match_scoring (ScoringMatcher | None): Additive scoring group matcher.
-        evaluate_scoring (Callable[[list[CompiledConstraint], list[bool], Any], list[float]] | None): Grouped scoring evaluator.
+        evaluate_scoring (Callable[[list[CompiledConstraint], list[bool], Any], ScoringEvaluation] | None): Grouped scoring evaluator.
     """
 
     backend_id: str
@@ -349,7 +354,7 @@ class CompilerAdapter:
     compile_gradient: GradientCompiler | None
     check_gradient: GradientChecker | None
     match_scoring: ScoringMatcher | None
-    evaluate_scoring: Callable[[list[CompiledConstraint], list[bool], Any], list[float]] | None
+    evaluate_scoring: Callable[[list[CompiledConstraint], list[bool], Any], ScoringEvaluation] | None
 
 
 _ESMFOLD_RULE = GradientRule(
@@ -694,9 +699,10 @@ class _DirectScoringUnit:
 
     constraint: Constraint
 
-    def evaluate(self, *, mask: list[bool], verbose: bool) -> list[float]:
+    def evaluate(self, *, mask: list[bool], verbose: bool) -> ScoringEvaluation:
         """Evaluate the direct constraint and normalize numeric outputs."""
-        return [float(score) for score in self.constraint.evaluate(mask=mask, verbose=verbose)]
+        scores = [float(score) for score in self.constraint.evaluate(mask=mask, verbose=verbose)]
+        return ScoringEvaluation([scores], {self.constraint: scores})
 
 
 @dataclass
@@ -707,7 +713,7 @@ class _CompiledScoringUnit:
     constraints: list[CompiledConstraint]
     config: BaseModel
 
-    def evaluate(self, *, mask: list[bool], verbose: bool) -> list[float]:
+    def evaluate(self, *, mask: list[bool], verbose: bool) -> ScoringEvaluation:
         """Evaluate the group through its compiler adapter."""
         del verbose
         if self.adapter.evaluate_scoring is None:
@@ -721,9 +727,19 @@ class ScoringPlan:
 
     units: tuple[_DirectScoringUnit | _CompiledScoringUnit, ...]
 
-    def evaluate(self, *, mask: list[bool], verbose: bool = False) -> list[list[float]]:
+    def evaluate(self, *, mask: list[bool], verbose: bool = False) -> ScoringEvaluation:
         """Evaluate every direct or compiled unit in stable plan order."""
-        return [unit.evaluate(mask=mask, verbose=verbose) for unit in self.units]
+        aggregate_scores: list[list[float]] = []
+        constraint_scores: dict[Constraint, list[float]] = {}
+        for unit in self.units:
+            result = unit.evaluate(mask=mask, verbose=verbose)
+            aggregate_scores.extend(result.aggregate_scores)
+            duplicate_constraints = constraint_scores.keys() & result.constraint_scores.keys()
+            if duplicate_constraints:
+                labels = sorted(constraint.label for constraint in duplicate_constraints)
+                raise ValueError(f"Scoring plan contains duplicate constraint objects: {labels}")
+            constraint_scores.update(result.constraint_scores)
+        return ScoringEvaluation(aggregate_scores, constraint_scores)
 
 
 def compile_scoring_plan(constraints: list[Constraint], *, seed: int | None = None) -> ScoringPlan:

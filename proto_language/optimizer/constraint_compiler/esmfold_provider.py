@@ -37,6 +37,7 @@ from proto_language.optimizer.constraint_compiler.base import (
     EffectiveWeight,
     GradientProvider,
     GradientProviderOutput,
+    ScoringEvaluation,
     _sum_weights_by_objective_key,
     config_group_identity,
     raise_for_failed_tool_output,
@@ -86,8 +87,10 @@ class ESMFoldGradientProvider(GradientProvider):
         effective_weight: EffectiveWeight,
     ) -> GradientProviderOutput:
         """Run one weighted ESMFold backward pass per proposal."""
+        effective_weights = [effective_weight(compiled.constraint, step) for compiled in self.constraints]
         loss_weights = _sum_weights_by_objective_key(
-            (compiled.objective_key, effective_weight(compiled.constraint, step)) for compiled in self.constraints
+            (compiled.objective_key, weight)
+            for compiled, weight in zip(self.constraints, effective_weights, strict=True)
         )
         target_chain_indices = [idx for idx, segment in enumerate(self.inputs) if segment is self.target_segment]
         num_proposals = self.inputs[0].num_proposals
@@ -126,7 +129,7 @@ class ESMFoldGradientProvider(GradientProvider):
             gradients.append(np.array(output.gradient, dtype=np.float64))
             losses.append(output.loss)
 
-            for compiled in self.constraints:
+            for compiled, weight in zip(self.constraints, effective_weights, strict=True):
                 score = _term_score(output.metrics, compiled.objective_key, output.loss)
                 metadata = _constraint_metadata(
                     output.metrics,
@@ -135,7 +138,12 @@ class ESMFoldGradientProvider(GradientProvider):
                     output_loss=score,
                     group_loss=output.loss,
                 )
-                compiled.constraint._write_constraint_metadata(proposal_idx, score, metadata)
+                compiled.constraint._write_constraint_metadata(
+                    proposal_idx,
+                    score,
+                    metadata,
+                    effective_weight=weight,
+                )
 
             self.target_segment.proposal_sequences[proposal_idx].structure = output.structure
 
@@ -256,7 +264,7 @@ def evaluate_scoring_group(
     compiled_constraints: list[CompiledConstraint],
     mask: list[bool],
     execution_config: StructureBasedConstraintConfig,
-) -> list[float]:
+) -> ScoringEvaluation:
     """Evaluate compatible ESMFold confidence constraints with one prediction batch.
 
     ESMFold's prediction API can score all proposals in one backend call. This
@@ -270,9 +278,10 @@ def evaluate_scoring_group(
     inputs = first_constraint.inputs
     num_proposals = inputs[0].num_proposals
     scores = [float("nan")] * num_proposals
+    constraint_scores = {compiled.constraint: [float("nan")] * num_proposals for compiled in compiled_constraints}
     proposal_indices = [idx for idx, should_eval in enumerate(mask) if should_eval]
     if not proposal_indices:
-        return scores
+        return ScoringEvaluation([scores], constraint_scores)
 
     complexes = []
     for proposal_idx in proposal_indices:
@@ -298,6 +307,7 @@ def evaluate_scoring_group(
         scores[proposal_idx] = group_score
 
         for compiled, score in zip(compiled_constraints, term_scores, strict=True):
+            constraint_scores[compiled.constraint][proposal_idx] = compiled.constraint.weight * score
             metadata = _scoring_constraint_metadata(
                 metrics,
                 output_structure=structure,
@@ -309,7 +319,7 @@ def evaluate_scoring_group(
 
         inputs[0].proposal_sequences[proposal_idx].structure = structure
 
-    return scores
+    return ScoringEvaluation([scores], constraint_scores)
 
 
 def _proposal_chains(inputs: list[Segment], target_segment: Segment, proposal_idx: int) -> list[str]:

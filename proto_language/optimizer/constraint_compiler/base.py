@@ -117,6 +117,22 @@ class CompiledConstraint:
 
 
 @dataclass(frozen=True)
+class ScoringEvaluation:
+    """Aggregate scoring components plus every public constraint contribution.
+
+    Attributes:
+        aggregate_scores (list[list[float]]): Proposal-aligned weighted vectors
+            consumed by the optimizer's energy aggregation. A compiled backend
+            group contributes one vector even when it contains several terms.
+        constraint_scores (dict[Constraint, list[float]]): Proposal-aligned
+            weighted contribution for every public constraint object.
+    """
+
+    aggregate_scores: list[list[float]]
+    constraint_scores: dict[Constraint, list[float]]
+
+
+@dataclass(frozen=True)
 class GradientProviderOutput:
     """Gradients and losses returned by a provider for one optimizer step.
 

@@ -307,9 +307,12 @@ class Optimizer(ABC):
                 logger.debug(f"Constraint {idx + 1}: {constraint.label}")
             if self._scoring_plan is None:
                 self._scoring_plan = compile_scoring_plan(scorers, seed=self.seed)
-            all_scores = self._scoring_plan.evaluate(mask=passed, verbose=self.verbose)
+            scoring_evaluation = self._scoring_plan.evaluate(mask=passed, verbose=self.verbose)
+            all_scores = scoring_evaluation.aggregate_scores
+            self._last_constraint_scores = self._label_constraint_scores(scoring_evaluation.constraint_scores)
         else:
             all_scores = []
+            constraint_scores: dict[Constraint, list[float]] = {}
             for idx, constraint in enumerate(scorers):
                 logger.debug(f"Constraint {idx + 1}: {constraint.label}")
                 scores: list[float] = []
@@ -318,14 +321,8 @@ class Optimizer(ABC):
                         raise TypeError(f"Scoring constraint '{constraint.label}' returned boolean score {score!r}.")
                     scores.append(float(score))
                 all_scores.append(scores)
-
-        # Compiler may group scorers into fewer scoring units (e.g. AF2 binder terms),
-        # so per-constraint mapping only works in the 1:1 case.
-        self._last_constraint_scores = (
-            {scorer.label: scores for scorer, scores in zip(scorers, all_scores, strict=True)}
-            if len(all_scores) == len(scorers)
-            else {}
-        )
+                constraint_scores[constraint] = scores
+            self._last_constraint_scores = self._label_constraint_scores(constraint_scores)
 
         # Warn if no scoring constraints exist (all are filters)
         if not all_scores:
@@ -388,6 +385,29 @@ class Optimizer(ABC):
         ]
         rej_str = f" (rejected: {', '.join(rejections)})" if rejections else ""
         return f"{total_passed}/{total_evaluated}{rej_str}"
+
+    def _label_constraint_scores(self, scores: dict[Constraint, list[float]]) -> dict[str, list[float]]:
+        """Assign unambiguous progress labels to per-constraint score vectors."""
+        label_counts: dict[str, int] = {}
+        for constraint in scores:
+            label_counts[constraint.label] = label_counts.get(constraint.label, 0) + 1
+
+        labeled: dict[str, list[float]] = {}
+        for constraint, values in scores.items():
+            label = constraint.label
+            if label_counts[label] > 1:
+                inputs = ",".join(
+                    f"{segment.construct_label or 'construct'}.{segment.label or 'segment'}"
+                    for segment in constraint.inputs
+                )
+                label = f"{label}[{inputs}]"
+            suffix = 1
+            base_label = label
+            while label in labeled:
+                label = f"{base_label}_{suffix}"
+                suffix += 1
+            labeled[label] = values
+        return labeled
 
     def _format_scoring_lines(self) -> list[str]:
         """Per-constraint mean weighted contribution to energy + % share, one line each."""
