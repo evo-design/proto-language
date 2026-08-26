@@ -21,6 +21,7 @@ from a public backward function or from a backend-specific grouped model call.
 
 from typing import Any
 
+import numpy as np
 from pydantic import BaseModel
 
 from proto_language.constraint.constraint_registry import ConstraintSpec
@@ -45,21 +46,23 @@ class DirectGradientProvider(GradientProvider):
     """Provider for one constraint that already exposes a backward callable.
 
     Direct providers are the non-compiled path. They call
-    ``Constraint.compute_gradient`` and then select the gradient entry for the
-    optimizer target segment. This is the reference behavior that compiled
-    backend providers must emulate.
+    ``Constraint.compute_gradient`` and then sum the gradient entries for every
+    input position occupied by the optimizer target segment. This is the
+    reference behavior that compiled backend providers must emulate.
     """
 
-    def __init__(self, constraint: Constraint, target_index: int):
+    def __init__(self, constraint: Constraint, target_indices: tuple[int, ...]):
         """Create a provider for ``constraint``.
 
         Args:
             constraint (Constraint): Differentiable public constraint.
-            target_index (int): Position of the optimizer target segment inside the
-                constraint's input list.
+            target_indices (tuple[int, ...]): Positions of the optimizer target
+                segment inside the constraint's input list.
         """
+        if not target_indices:
+            raise ValueError(f"Constraint '{constraint.label}' inputs do not include the optimizer target segment.")
         self.constraint = constraint
-        self.target_index = target_index
+        self.target_indices = target_indices
         self.label = constraint.label
 
     def compute(
@@ -87,7 +90,13 @@ class DirectGradientProvider(GradientProvider):
         weight = effective_weight(self.constraint, step)
         return GradientProviderOutput(
             label=self.label,
-            gradients=[result.gradient[self.target_index] for result in results],
+            gradients=[
+                sum(
+                    (result.gradient[index] for index in self.target_indices),
+                    start=np.zeros_like(result.gradient[self.target_indices[0]]),
+                )
+                for result in results
+            ],
             losses=[weight * result.loss for result in results],
             weight=weight,
         )
@@ -128,6 +137,13 @@ def compile_gradient_providers(constraints: list[Constraint], target_segment: Se
     malinois_provider_by_key: dict[tuple[Any, ...], malinois.MalinoisGradientProvider] = {}
 
     for constraint in constraints:
+        if constraint.supports_gradient:
+            target_indices = tuple(
+                index for index, segment in enumerate(constraint.inputs) if segment is target_segment
+            )
+            providers.append(DirectGradientProvider(constraint, target_indices))
+            continue
+
         malinois_objective_key = malinois.objective_key_for_constraint(constraint)
         if malinois_objective_key is not None:
             malinois_config = malinois.config_for_constraint(constraint, strict=True)
@@ -148,10 +164,6 @@ def compile_gradient_providers(constraints: list[Constraint], target_segment: Se
                 malinois_provider,
                 CompiledConstraint(constraint=constraint, objective_key=malinois_objective_key),
             )
-            continue
-
-        if constraint.supports_gradient:
-            providers.append(DirectGradientProvider(constraint, constraint.inputs.index(target_segment)))
             continue
 
         esmfold_objective_key = esmfold.objective_key_for_constraint(constraint)
@@ -334,6 +346,14 @@ def constraint_supports_compiled_gradient(
             the current compiler. Otherwise returns ``(False, reason)`` with a
             message suitable for optimizer errors.
     """
+    if constraint.supports_gradient:
+        if target_segment is not None and target_segment not in constraint.inputs:
+            return False, (
+                f"Constraint '{constraint.label}' inputs do not include the optimizer target_segment; "
+                "GradientOptimizer can only differentiate constraints whose inputs contain the target."
+            )
+        return True, None
+
     malinois_objective_key = malinois.objective_key_for_constraint(constraint)
     if malinois_objective_key is not None:
         malinois_config = malinois.config_for_constraint(constraint)
@@ -345,14 +365,6 @@ def constraint_supports_compiled_gradient(
             malinois.validate_gradient_constraint(constraint, target_segment, malinois_config)
         except (TypeError, ValueError) as exc:
             return False, str(exc)
-        return True, None
-
-    if constraint.supports_gradient:
-        if target_segment is not None and target_segment not in constraint.inputs:
-            return False, (
-                f"Constraint '{constraint.label}' inputs do not include the optimizer target_segment; "
-                "GradientOptimizer can only differentiate constraints whose inputs contain the target."
-            )
         return True, None
 
     esmfold_objective_key = esmfold.objective_key_for_constraint(constraint)
