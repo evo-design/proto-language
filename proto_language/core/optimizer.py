@@ -477,7 +477,8 @@ class Optimizer(ABC):
             3. Structure validation: Constructs have segments, generators/constraints are assigned.
             4. No duplicate instances: Each generator/constraint instance can only appear once.
             5. Unique constraint labels: Required for metadata namespacing.
-            6. Valid constraint inputs: Constraints can only reference populated segments.
+            6. Valid constraint inputs: Constraints can only reference construct-owned
+               segments that are populated or assigned to a generator.
             7. Component compatibility: Optimizer/generator/constraint declarative
                dependencies hold (via ``_validate_component_compatibility()``).
 
@@ -555,7 +556,20 @@ class Optimizer(ABC):
         self._deduplicate_constraint_labels()
 
         # 6. Valid constraint inputs
-        # Constraints can only reference segments that have sequences or a generator assigned.
+        # Constraint inputs must belong to this optimizer's constructs so their proposal
+        # pools share one explicit lifecycle. Membership is identity-based because the
+        # exact Segment object owns the mutable pools consumed by constraints.
+        construct_segment_ids = {id(segment) for segment in self.segments}
+        for constraint in self.constraints:
+            for input_index, segment in enumerate(constraint.inputs):
+                if id(segment) not in construct_segment_ids:
+                    raise ValueError(
+                        f"Constraint '{constraint.label}' input {input_index} references segment "
+                        f"'{segment.label or 'unlabeled'}', which does not belong to an optimizer construct. "
+                        "Add the segment to a Construct passed to this optimizer."
+                    )
+
+        # Construct-owned inputs must have sequences or a generator assigned.
         allow_unpopulated_score_only_inputs = (
             not self.generators and self._allow_unpopulated_constraint_inputs_without_generators
         )

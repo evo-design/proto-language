@@ -266,6 +266,34 @@ class TestOptimizerValidation:
         ConcreteOptimizer([construct], [generator1, generator2], [constraint1, constraint2], 4, 2)
 
     # 6. Valid constraint inputs
+    def test_constraint_references_populated_external_segment_raises(self):
+        """Reject populated constraint inputs outside the optimizer constructs."""
+        construct, generator, _, _segment = _setup_optimizer_components()
+        external_segment = Segment(sequence="GCTA", sequence_type="dna")
+
+        constraint = MagicMock(spec=Constraint)
+        constraint.inputs = [external_segment]
+        constraint.label = "external_constraint"
+        constraint.threshold = None
+        constraint.weight = 1.0
+
+        with pytest.raises(ValueError, match="does not belong to an optimizer construct"):
+            ConcreteOptimizer([construct], [generator], [constraint], 4, 2)
+
+    def test_constraint_references_unpopulated_external_segment_raises(self):
+        """Reject unpopulated external inputs before checking proposal state."""
+        construct, generator, _, _segment = _setup_optimizer_components()
+        external_segment = Segment(sequence_type="dna", length=4)
+
+        constraint = MagicMock(spec=Constraint)
+        constraint.inputs = [external_segment]
+        constraint.label = "external_constraint"
+        constraint.threshold = None
+        constraint.weight = 1.0
+
+        with pytest.raises(ValueError, match="does not belong to an optimizer construct"):
+            ConcreteOptimizer([construct], [generator], [constraint], 4, 2)
+
     def test_constraint_references_unpopulated_segment_raises(self):
         """Tests that constraint referencing unpopulated segment without generator raises."""
         segment_with_gen = Segment(sequence="ATCG", sequence_type="dna")
@@ -283,6 +311,47 @@ class TestOptimizerValidation:
 
         with pytest.raises(RuntimeError, match="no populated sequence and no generator assigned"):
             ConcreteOptimizer([construct], [generator], [constraint], 4, 2)
+
+    def test_constraint_accepts_fixed_context_segment_in_construct(self):
+        """Accept a fixed context input owned by a construct without a generator."""
+        designed_segment = Segment(sequence="ATCG", sequence_type="dna")
+        context_segment = Segment(sequence="GCTA", sequence_type="dna")
+        construct = Construct([designed_segment, context_segment])
+
+        generator = MockGenerator()
+        generator.assign(designed_segment)
+
+        constraint = MagicMock(spec=Constraint)
+        constraint.inputs = [designed_segment, context_segment]
+        constraint.label = "context_constraint"
+        constraint.threshold = None
+        constraint.weight = 1.0
+
+        ConcreteOptimizer([construct], [generator], [constraint], 4, 2)
+
+    def test_constraint_accepts_segment_from_another_optimizer_construct(self):
+        """Accept inputs owned by any construct in the same optimizer."""
+        designed_segment = Segment(sequence="ATCG", sequence_type="dna")
+        context_segment = Segment(sequence="GCTA", sequence_type="dna")
+        designed_construct = Construct([designed_segment])
+        context_construct = Construct([context_segment])
+
+        generator = MockGenerator()
+        generator.assign(designed_segment)
+
+        constraint = MagicMock(spec=Constraint)
+        constraint.inputs = [designed_segment, context_segment]
+        constraint.label = "cross_construct_constraint"
+        constraint.threshold = None
+        constraint.weight = 1.0
+
+        ConcreteOptimizer(
+            [designed_construct, context_construct],
+            [generator],
+            [constraint],
+            4,
+            2,
+        )
 
     # 7. Homo-oligomer constraints (same segment repeated in inputs)
     def test_homo_oligomer_constraint_same_segment_multiple_times(self):

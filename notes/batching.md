@@ -10,6 +10,13 @@ Batching is split across proposal pools, generators, constraint calls, compiled 
 4. **Compiled scorers can group compatible constraints.** Additive scoring routes through the constraint compiler, which may collapse several public constraints into one backend call.
 5. **Tools own backend memory strategy.** Sequence count is only one dimension; structures, chains, ligands, recycles, MSA depth, and sample count often matter more.
 
+Every constraint input must be the exact `Segment` instance owned by one of the
+optimizer's constructs. This keeps all consumed proposal pools inside the same
+explicit lifecycle. Fixed context segments do not need a generator, but they
+must be included in a construct and populated before optimizer construction.
+Constraints may combine segments from different constructs passed to the same
+optimizer, and may repeat one owned segment for homo-oligomer inputs.
+
 ## Optimizer Proposal Batching
 
 `Generator` defines the shared fallback:
