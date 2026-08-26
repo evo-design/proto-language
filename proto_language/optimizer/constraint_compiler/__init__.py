@@ -3,6 +3,7 @@
 from proto_language.optimizer.constraint_compiler.base import (
     GradientProvider,
     GradientProviderOutput,
+    ScoringEvaluation,
     validate_gradient_provider_output,
 )
 from proto_language.optimizer.constraint_compiler.compiler import (
@@ -28,6 +29,7 @@ __all__ = [
     "GradientProviderOutput",
     "GradientRule",
     "GradientSupport",
+    "ScoringEvaluation",
     "ScoringPlan",
     "compile_gradient_providers",
     "compile_scoring_plan",

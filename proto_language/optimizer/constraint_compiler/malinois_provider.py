@@ -34,6 +34,7 @@ from proto_language.optimizer.constraint_compiler.base import (
     EffectiveWeight,
     GradientProvider,
     GradientProviderOutput,
+    ScoringEvaluation,
     config_group_identity,
     raise_for_failed_tool_output,
 )
@@ -77,9 +78,10 @@ class MalinoisGradientProvider(GradientProvider):
                 raise RuntimeError(f"{self.label} proposal {proposal_idx}: target input is missing logits.")
             target_logits.append(target_seq.logits)
 
+        effective_weights = [effective_weight(compiled.constraint, step) for compiled in self.constraints]
         loss_terms = [
-            _gradient_loss_term(compiled.constraint, effective_weight(compiled.constraint, step))
-            for compiled in self.constraints
+            _gradient_loss_term(compiled.constraint, weight)
+            for compiled, weight in zip(self.constraints, effective_weights, strict=True)
         ]
         if all(term.weight == 0.0 for term in loss_terms):
             return GradientProviderOutput(
@@ -123,10 +125,20 @@ class MalinoisGradientProvider(GradientProvider):
             )
 
         for proposal_idx, term_metrics in enumerate(loss_terms_by_proposal):
-            for compiled, term_metric in zip(self.constraints, term_metrics, strict=True):
+            for compiled, term_metric, weight in zip(
+                self.constraints,
+                term_metrics,
+                effective_weights,
+                strict=True,
+            ):
                 score = float(term_metric["score"])
                 metadata = _metadata_from_term(term_metric, group_score=float(losses[proposal_idx]))
-                compiled.constraint._write_constraint_metadata(proposal_idx, score, metadata)
+                compiled.constraint._write_constraint_metadata(
+                    proposal_idx,
+                    score,
+                    metadata,
+                    effective_weight=weight,
+                )
 
         return GradientProviderOutput(label=self.label, gradients=gradients, losses=[float(loss) for loss in losses])
 
@@ -223,7 +235,7 @@ def evaluate_scoring_group(
     compiled_constraints: list[CompiledConstraint],
     mask: list[bool],
     execution_config: MalinoisActivityConfig,
-) -> list[float]:
+) -> ScoringEvaluation:
     """Evaluate compatible Malinois activity constraints with one prediction batch."""
     first_constraint = compiled_constraints[0].constraint
     config = execution_config
@@ -231,9 +243,10 @@ def evaluate_scoring_group(
     segment = first_constraint.inputs[0]
     num_proposals = segment.num_proposals
     scores = [float("nan")] * num_proposals
+    constraint_scores = {compiled.constraint: [float("nan")] * num_proposals for compiled in compiled_constraints}
     proposal_indices = [idx for idx, should_eval in enumerate(mask) if should_eval]
     if not proposal_indices:
-        return scores
+        return ScoringEvaluation([scores], constraint_scores)
 
     term_configs: list[MalinoisActivityConfig] = []
     for compiled in compiled_constraints:
@@ -287,13 +300,14 @@ def evaluate_scoring_group(
         scores[proposal_idx] = group_score
 
         for compiled, score, metadata in zip(compiled_constraints, term_scores, term_metadata, strict=True):
+            constraint_scores[compiled.constraint][proposal_idx] = compiled.constraint.weight * score
             compiled.constraint._write_constraint_metadata(
                 proposal_idx,
                 score,
                 _metadata_from_term(metadata, group_score=group_score),
             )
 
-    return scores
+    return ScoringEvaluation([scores], constraint_scores)
 
 
 def _gradient_loss_term(constraint: Constraint, weight: float) -> MalinoisGradientLossTerm:

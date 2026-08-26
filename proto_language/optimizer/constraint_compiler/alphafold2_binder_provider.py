@@ -56,6 +56,7 @@ from proto_language.optimizer.constraint_compiler.base import (
     EffectiveWeight,
     GradientProvider,
     GradientProviderOutput,
+    ScoringEvaluation,
     _sum_weights_by_objective_key,
     config_group_identity,
     raise_for_failed_tool_output,
@@ -180,8 +181,10 @@ class AF2BinderGradientProvider(GradientProvider):
             RuntimeError: If a binder proposal has no logits or the AF2 binder tool
                 does not return a gradient for a gradient request.
         """
+        effective_weights = [effective_weight(compiled.constraint, step) for compiled in self.constraints]
         loss_weights = _sum_weights_by_objective_key(
-            (compiled.objective_key, effective_weight(compiled.constraint, step)) for compiled in self.constraints
+            (compiled.objective_key, weight)
+            for compiled, weight in zip(self.constraints, effective_weights, strict=True)
         )
         num_proposals = self.inputs[0].num_proposals
         binder_slot = self.config.binder_input_index
@@ -247,7 +250,7 @@ class AF2BinderGradientProvider(GradientProvider):
             losses.append(output.loss)
             structures = af2_binder_structures(output.structure, self.config, len(self.inputs))
 
-            for compiled in self.constraints:
+            for compiled, weight in zip(self.constraints, effective_weights, strict=True):
                 score = _term_score(output.metrics, compiled.objective_key, output.loss)
                 metadata = af2_binder_constraint_output_metadata(
                     output.metrics,
@@ -256,7 +259,12 @@ class AF2BinderGradientProvider(GradientProvider):
                     loss_key=compiled.objective_key,
                     group_loss=output.loss,
                 )
-                compiled.constraint._write_constraint_metadata(proposal_idx, score, metadata)
+                compiled.constraint._write_constraint_metadata(
+                    proposal_idx,
+                    score,
+                    metadata,
+                    effective_weight=weight,
+                )
 
             processed_ids: set[int] = set()
             for seg_idx, segment in enumerate(self.inputs):
@@ -494,7 +502,7 @@ def evaluate_scoring_group(
     compiled_constraints: list[CompiledConstraint],
     mask: list[bool],
     execution_config: StructureBasedConstraintConfig,
-) -> list[float]:
+) -> ScoringEvaluation:
     """Evaluate a compatible group of AF2 binder scoring constraints.
 
     The AF2 binder tool returns the weighted sum of the requested loss terms for each
@@ -511,11 +519,8 @@ def evaluate_scoring_group(
             config shared by the compiled group.
 
     Returns:
-        list[float]: Proposal-aligned weighted grouped scores.
-
-    Raises:
-        ValueError: If the group's first constraint no longer has parseable
-            structure config.
+        ScoringEvaluation: Proposal-aligned grouped energy and per-constraint
+            weighted contributions.
     """
     first_constraint = compiled_constraints[0].constraint
     config_model = execution_config
@@ -523,6 +528,7 @@ def evaluate_scoring_group(
     inputs = first_constraint.inputs
     num_proposals = inputs[0].num_proposals
     scores = [float("nan")] * num_proposals
+    constraint_scores = {compiled.constraint: [float("nan")] * num_proposals for compiled in compiled_constraints}
     loss_weights = _sum_weights_by_objective_key(
         (compiled.objective_key, compiled.constraint.weight) for compiled in compiled_constraints
     )
@@ -575,6 +581,7 @@ def evaluate_scoring_group(
         structures = af2_binder_structures(output.structure, config, len(inputs))
         for compiled in compiled_constraints:
             term_score = _term_score(output.metrics, compiled.objective_key, output.loss)
+            constraint_scores[compiled.constraint][proposal_idx] = compiled.constraint.weight * term_score
             metadata = af2_binder_constraint_output_metadata(
                 output.metrics,
                 output_loss=term_score,
@@ -594,7 +601,7 @@ def evaluate_scoring_group(
             if structure is not None:
                 seq.structure = structure
 
-    return scores
+    return ScoringEvaluation([scores], constraint_scores)
 
 
 def _provider_label(constraints: list[CompiledConstraint]) -> str:

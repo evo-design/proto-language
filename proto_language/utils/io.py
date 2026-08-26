@@ -296,7 +296,8 @@ def _flatten_constraint_columns(constraints: dict[str, dict[str, Any]], prefix: 
     """Flatten all constraint data with {prefix}{label}.{field} namespacing.
 
     Used by flatten_sequences, flatten_constructs, flatten_optimization.
-    Includes score, weight, weighted_score, all data fields, and multi-segment info.
+    Includes score, configured/effective weights, weighted_score, all data fields,
+    and multi-segment info.
 
     Args:
         constraints (dict[str, dict[str, Any]]): Dict mapping constraint labels to their data.
@@ -305,7 +306,7 @@ def _flatten_constraint_columns(constraints: dict[str, dict[str, Any]], prefix: 
     flat = {}
     for label, cdata in constraints.items():
         base = f"{prefix}{label}"
-        for key in ("score", "weight", "weighted_score"):
+        for key in ("score", "weight", "configured_weight", "effective_weight", "weighted_score"):
             if key in cdata:
                 flat[f"{base}.{key}"] = cdata[key]
         for key in ("input_segments", "position_in_inputs"):
@@ -355,7 +356,8 @@ def flatten_sequences(
 
     Columns:
         Fixed: result_idx, energy_score, construct, segment, sequence
-        Per constraint: {label}.score, {label}.weight, {label}.weighted_score,
+        Per constraint: {label}.score, {label}.weight,
+            {label}.configured_weight, {label}.effective_weight, {label}.weighted_score,
             {label}.{data_key}, and optionally {label}.input_segments,
             {label}.position_in_inputs
         Per generator: generator.{registry_key}.{field}
@@ -404,7 +406,7 @@ def flatten_constraints(
 
     Columns:
         Fixed: result_idx, energy_score, construct, sequence_type, segment, constraint
-        Standard: score, weight, weighted_score
+        Standard: score, weight, configured_weight, effective_weight, weighted_score
         Multi-segment (when applicable): input_segments, position_in_inputs
         Custom data: {key} un-prefixed; a key colliding with a column above is
             prefixed with ``data.`` to avoid overwriting it.
@@ -431,6 +433,9 @@ def flatten_constraints(
                         "weight": cdata.get("weight"),
                         "weighted_score": cdata.get("weighted_score"),
                     }
+                    for key in ("configured_weight", "effective_weight"):
+                        if key in cdata:
+                            row[key] = cdata[key]
                     for key in ("input_segments", "position_in_inputs"):
                         if key in cdata:
                             row[key] = _serialize_value(cdata[key])
