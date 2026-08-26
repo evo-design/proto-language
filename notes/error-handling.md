@@ -57,6 +57,8 @@ Config construction errors raise.
 Raise for impossible states and programmer bugs. Examples:
 
 - Returned constraint result count does not match evaluated proposals.
+- A gradient provider returns the wrong proposal count, a gradient whose shape differs
+  from the target logits, or a non-finite gradient, loss, weight, or aggregate energy.
 - A scoring constraint returns booleans or a filter returns invalid result shapes.
 - A `ConstraintOutput` has an out-of-range score, wrong type, or wrong structures/logits arity.
 - A proposal that passed all filters has `NaN` energy.

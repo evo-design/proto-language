@@ -41,6 +41,7 @@ Examples:
 """
 
 import logging
+import math
 from collections.abc import Callable, Iterable
 from typing import Any, Protocol
 
@@ -737,6 +738,8 @@ class Constraint:
         for idx, (result, inputs_tuple) in enumerate(zip(results, all_input_tuples, strict=True)):
             if not isinstance(result, GradientConstraintOutput):
                 raise TypeError(f"'{self.label}': expected GradientConstraintOutput, got {type(result).__name__}")
+            if not math.isfinite(result.loss):
+                raise ValueError(f"'{self.label}' proposal {idx}: non-finite loss {result.loss}.")
             if len(result.gradient) != n_inputs:
                 raise ValueError(f"'{self.label}': {len(result.gradient)} gradients, expected {n_inputs}")
             for seg_idx, (grad, seq) in enumerate(zip(result.gradient, inputs_tuple, strict=True)):

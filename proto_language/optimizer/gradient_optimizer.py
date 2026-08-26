@@ -50,6 +50,7 @@ from proto_language.optimizer.constraint_compiler import (
     GradientProviderOutput,
     compile_gradient_providers,
     constraint_supports_compiled_gradient,
+    validate_gradient_provider_output,
 )
 from proto_language.optimizer.optimizer_registry import optimizer
 from proto_language.utils import softmax
@@ -739,10 +740,13 @@ class GradientOptimizer(Optimizer):
                 )
                 for provider in self._gradient_providers
             ]
+            expected_logits: list[np.ndarray] = []
+            for proposal_idx, proposal in enumerate(target.proposal_sequences):
+                if proposal.logits is None:
+                    raise RuntimeError(f"Gradient target proposal {proposal_idx} has no logits at step {step}.")
+                expected_logits.append(proposal.logits)
             for output in provider_outputs:
-                for k, grad in enumerate(output.gradients):
-                    if not np.isfinite(grad).all():
-                        raise ValueError(f"Non-finite gradient from '{output.label}' at step {step} (proposal {k}).")
+                validate_gradient_provider_output(output, expected_logits=expected_logits, step=step)
 
             # Pair each saved energy with the logits that produced it (provider losses are pre-update).
             if self.config.save_best:
@@ -756,6 +760,9 @@ class GradientOptimizer(Optimizer):
 
             # Report the same weighted objective that gradient descent is actually minimizing.
             self.energy_scores = [sum(output.losses[k] for output in provider_outputs) for k in range(self.num_results)]
+            for proposal_idx, energy in enumerate(self.energy_scores):
+                if not np.isfinite(energy):
+                    raise ValueError(f"Non-finite aggregate gradient energy at step {step} (proposal {proposal_idx}).")
             self._proposal_outcomes = ["accepted"] * self.num_proposals
             self._proposal_energy_scores = list(self.energy_scores)
 

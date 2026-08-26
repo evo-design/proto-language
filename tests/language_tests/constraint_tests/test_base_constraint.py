@@ -730,6 +730,23 @@ class TestConstraintGradientSupport:
         assert results[0].gradient[0].shape == (8, 4)
         np.testing.assert_array_almost_equal(results[0].gradient[0], -logits)
 
+    @pytest.mark.parametrize("loss", [float("nan"), float("inf"), float("-inf")])
+    def test_compute_gradient_rejects_non_finite_loss(self, loss: float) -> None:
+        segment = _make_segment_with_proposals(["ACTGACTG"])
+        segment.proposal_sequences[0].logits = np.zeros((8, 4))
+
+        def backward(
+            input_sequences: list[tuple[Sequence, ...]], *, config: BaseModel, **kwargs: Any
+        ) -> list[GradientConstraintOutput]:
+            return [
+                GradientConstraintOutput(gradient=(np.zeros_like(seq.logits),), loss=loss) for (seq,) in input_sequences
+            ]
+
+        constraint = Constraint(inputs=[segment], backward=backward, backward_config=MockConfig(), label="unstable")
+
+        with pytest.raises(ValueError, match=r"unstable.*non-finite loss"):
+            constraint.compute_gradient()
+
     def test_gradient_positions_mask_rows(self) -> None:
         """gradient_positions keeps selected rows and zeroes the rest."""
         segment = _make_segment_with_proposals(["ACTGACTG"])

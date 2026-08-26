@@ -9,9 +9,11 @@ function-local imports that would otherwise be needed.
 
 from __future__ import annotations
 
+import math
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from numbers import Real
 from typing import Any
 
 import numpy as np
@@ -85,6 +87,63 @@ class GradientProviderOutput:
     gradients: list[np.ndarray]
     losses: list[float]
     weight: float = 1.0
+
+
+def validate_gradient_provider_output(
+    output: GradientProviderOutput,
+    *,
+    expected_logits: list[np.ndarray],
+    step: int,
+) -> None:
+    """Validate one provider result against the optimizer target proposals."""
+    expected_count = len(expected_logits)
+    if len(output.gradients) != expected_count:
+        raise ValueError(
+            f"Gradient provider '{output.label}' returned {len(output.gradients)} gradients at step {step}, "
+            f"expected {expected_count}."
+        )
+    if len(output.losses) != expected_count:
+        raise ValueError(
+            f"Gradient provider '{output.label}' returned {len(output.losses)} losses at step {step}, "
+            f"expected {expected_count}."
+        )
+    weight: object = output.weight
+    if isinstance(weight, bool) or not isinstance(weight, Real):
+        raise TypeError(f"Gradient provider '{output.label}' returned non-numeric weight {weight!r} at step {step}.")
+    if not math.isfinite(float(weight)):
+        raise ValueError(
+            f"Gradient provider '{output.label}' returned non-finite weight {output.weight} at step {step}."
+        )
+
+    for proposal_idx, (gradient, loss, logits) in enumerate(
+        zip(output.gradients, output.losses, expected_logits, strict=True)
+    ):
+        if not isinstance(gradient, np.ndarray):
+            raise TypeError(
+                f"Gradient provider '{output.label}' returned {type(gradient).__name__} gradient at step {step} "
+                f"(proposal {proposal_idx}), expected ndarray."
+            )
+        if gradient.shape != logits.shape:
+            raise ValueError(
+                f"Gradient provider '{output.label}' returned gradient shape {gradient.shape} at step {step} "
+                f"(proposal {proposal_idx}), expected logits shape {logits.shape}."
+            )
+        if not np.isfinite(gradient).all():
+            raise ValueError(
+                f"Gradient provider '{output.label}' returned non-finite gradient at step {step} "
+                f"(proposal {proposal_idx})."
+            )
+        loss_value: object = loss
+        if isinstance(loss_value, bool) or not isinstance(loss_value, Real):
+            raise TypeError(
+                f"Gradient provider '{output.label}' returned non-numeric loss {loss_value!r} at step {step} "
+                f"(proposal {proposal_idx})."
+            )
+        if not math.isfinite(float(loss_value)):
+            raise ValueError(
+                f"Gradient provider '{output.label}' returned non-finite loss {loss} at step {step} "
+                f"(proposal {proposal_idx})."
+            )
 
 
 class GradientProvider(ABC):
