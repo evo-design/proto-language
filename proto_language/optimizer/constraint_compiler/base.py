@@ -9,6 +9,8 @@ function-local imports that would otherwise be needed.
 
 from __future__ import annotations
 
+import copy
+import json
 import math
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable
@@ -17,10 +19,61 @@ from numbers import Real
 from typing import Any
 
 import numpy as np
+from pydantic import BaseModel
 
 from proto_language.core import Constraint
 
 EffectiveWeight = Callable[[Constraint, int], float]
+
+_RUNTIME_SEED_FIELDS = frozenset({"seed", "seeds"})
+
+
+def config_group_identity(config: BaseModel, *, exclude: set[str] | frozenset[str] = frozenset()) -> str:
+    """Serialize config compatibility while ignoring mutable runtime seed fields."""
+    excluded = _RUNTIME_SEED_FIELDS | frozenset(exclude)
+
+    def strip_runtime_fields(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {key: strip_runtime_fields(child) for key, child in value.items() if key not in excluded}
+        if isinstance(value, list):
+            return [strip_runtime_fields(child) for child in value]
+        return value
+
+    payload = strip_runtime_fields(config.model_dump(mode="json"))
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
+def clone_execution_config(config: BaseModel, *, seed: int | None) -> Any:
+    """Deep-copy a group config and initialize its private runtime seed stream."""
+    cloned = copy.deepcopy(config)
+
+    def apply(value: Any) -> None:
+        if isinstance(value, BaseModel):
+            if hasattr(value, "_evaluation_seed_offset"):
+                value._evaluation_seed_offset = 0
+            fields = value.__class__.model_fields
+            mutable: Any = value
+            if seed is not None:
+                if "seed" in fields:
+                    mutable.seed = seed
+                if "seeds" in fields:
+                    mutable.seeds = [seed]
+            for field_name in fields:
+                apply(getattr(value, field_name))
+        elif isinstance(value, dict):
+            if seed is not None:
+                if "seed" in value:
+                    value["seed"] = seed
+                if "seeds" in value:
+                    value["seeds"] = [seed]
+            for child in value.values():
+                apply(child)
+        elif isinstance(value, (list, tuple)):
+            for child in value:
+                apply(child)
+
+    apply(cloned)
+    return cloned
 
 
 def _sum_weights_by_objective_key(weighted_keys: Iterable[tuple[str, float]]) -> dict[str, float]:

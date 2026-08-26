@@ -565,9 +565,15 @@ class TestValidation:
             gradients=[np.zeros((1, 20))],
             losses=[0.0],
         )
-        opt._gradient_providers[0].compute = lambda **kwargs: output  # type: ignore[method-assign]
+        provider = SimpleNamespace(compute=lambda **kwargs: output)
 
-        with pytest.raises(ValueError, match=r"bad-shape.*gradient shape \(1, 20\).*logits shape \(5, 20\)"):
+        with (
+            patch(
+                "proto_language.optimizer.gradient_optimizer.compile_gradient_providers",
+                return_value=[provider],
+            ),
+            pytest.raises(ValueError, match=r"bad-shape.*gradient shape \(1, 20\).*logits shape \(5, 20\)"),
+        ):
             opt.run()
 
     @pytest.mark.parametrize("loss", [float("nan"), float("inf"), float("-inf")])
@@ -578,17 +584,29 @@ class TestValidation:
             gradients=[np.zeros((2, 20))],
             losses=[loss],
         )
-        opt._gradient_providers[0].compute = lambda **kwargs: output  # type: ignore[method-assign]
+        provider = SimpleNamespace(compute=lambda **kwargs: output)
 
-        with pytest.raises(ValueError, match=r"unstable-provider.*non-finite loss"):
+        with (
+            patch(
+                "proto_language.optimizer.gradient_optimizer.compile_gradient_providers",
+                return_value=[provider],
+            ),
+            pytest.raises(ValueError, match=r"unstable-provider.*non-finite loss"),
+        ):
             opt.run()
 
     def test_provider_result_counts_must_match_proposals(self) -> None:
         opt = _make_optimizer(Segment(sequence="AA", sequence_type="protein"), _backward, num_steps=1)
         output = GradientProviderOutput(label="missing-result", gradients=[], losses=[])
-        opt._gradient_providers[0].compute = lambda **kwargs: output  # type: ignore[method-assign]
+        provider = SimpleNamespace(compute=lambda **kwargs: output)
 
-        with pytest.raises(ValueError, match=r"missing-result.*0 gradients.*expected 1"):
+        with (
+            patch(
+                "proto_language.optimizer.gradient_optimizer.compile_gradient_providers",
+                return_value=[provider],
+            ),
+            pytest.raises(ValueError, match=r"missing-result.*0 gradients.*expected 1"),
+        ):
             opt.run()
 
 
@@ -756,8 +774,9 @@ class TestCompiledConstraints:
                 constraints=constraints,
                 config=GradientOptimizerConfig(num_results=1, num_steps=1, lr=0.1, normalize_gradients=False),
             )
-            assert len(opt._gradient_providers) == 1
+            assert opt._gradient_providers == []
             opt.run()
+            assert len(opt._gradient_providers) == 1
 
         assert mock_esm.call_count == 1
         assert mock_esm.call_args.args[1].loss_weights == {"plddt": pytest.approx(2.5)}
@@ -816,8 +835,9 @@ class TestCompiledConstraints:
                 constraints=constraints,
                 config=GradientOptimizerConfig(num_results=1, num_steps=1, lr=0.1, normalize_gradients=False),
             )
-            assert len(opt._gradient_providers) == 1
+            assert opt._gradient_providers == []
             opt.run()
+            assert len(opt._gradient_providers) == 1
 
         assert mock_af2.call_count == 1
         assert mock_af2.call_args[0][1].loss_weights == {"plddt": pytest.approx(2.5)}
@@ -855,8 +875,9 @@ class TestCompiledConstraints:
                     normalize_gradients=False,
                 ),
             )
-            assert len(opt._gradient_providers) == 1
+            assert opt._gradient_providers == []
             opt.run()
+            assert len(opt._gradient_providers) == 1
             metadata = binder.result_sequences[0]._constraints_metadata
 
         assert opt.energy_scores == [pytest.approx(3.0)]
@@ -918,6 +939,83 @@ class TestCompiledConstraints:
         assert metadata["protenix_plddt"]["data"]["group_score"] == pytest.approx(expected)
         assert metadata["protenix_pae"]["data"]["avg_pae"] == pytest.approx(6.35)
         assert binder.proposal_sequences[0].structure is structure
+
+    def test_scoring_plan_groups_separate_configs_with_different_runtime_seeds(self) -> None:
+        from proto_tools import ProtenixConfig
+
+        from proto_language import StructureBasedConstraintConfig
+        from proto_language.optimizer.constraint_compiler import evaluate_scoring_constraints
+        from tests.helpers.mock_structure import PDL1_PDB
+
+        binder, target, _construct, original_constraints = _protenix_confidence_problem()
+        constraints: list[Constraint] = []
+        configs: list[StructureBasedConstraintConfig] = []
+        for runtime_seed, original in zip([11, 22], original_constraints[:2], strict=True):
+            config = StructureBasedConstraintConfig(
+                structure_tool="protenix",
+                protenix_config=ProtenixConfig(seed=runtime_seed, seeds=[runtime_seed], use_msa=False),
+            )
+            configs.append(config)
+            constraints.append(
+                Constraint(
+                    inputs=[binder, target],
+                    function=original.function,
+                    function_config=config,
+                    label=original.label,
+                    weight=original.weight,
+                )
+            )
+        structure = Structure(
+            structure=PDL1_PDB.read_text(),
+            structure_format="pdb",
+            metrics={"avg_plddt": 0.8, "ptm": 0.4},
+        )
+
+        with patch(
+            "proto_language.optimizer.constraint_compiler.protenix_provider.predict_structures"
+        ) as mock_protenix:
+            mock_protenix.return_value = SimpleNamespace(structures=[structure])
+            scores = evaluate_scoring_constraints(constraints, mask=[True], seed=1234)
+
+        assert scores == [[pytest.approx(0.7)]]
+        assert mock_protenix.call_count == 1
+        execution_config = mock_protenix.call_args.args[2]
+        assert execution_config.seed == execution_config.seeds[0]
+        assert execution_config.seed not in {11, 22}
+        assert [config.protenix_config.seed for config in configs] == [11, 22]
+        assert [config.protenix_config.seeds for config in configs] == [[11], [22]]
+
+    def test_gradient_plan_is_compiled_after_program_seed_and_rebuilt_for_reruns(self) -> None:
+        binder, _target, construct, constraints = _af2_binder_confidence_problem()
+        constraint = constraints[0]
+        generator = PositionWeightGenerator(PositionWeightGeneratorConfig())
+        generator.assign(binder)
+        opt = GradientOptimizer(
+            target_segment=binder,
+            constructs=[construct],
+            generators=[generator],
+            constraints=[constraint],
+            config=GradientOptimizerConfig(num_results=1, num_steps=1, lr=0.1, seed=999),
+        )
+        Program(optimizers=[opt], num_results=1, seed=1234)
+        assert opt._gradient_providers == []
+        assert opt.seed != 999
+
+        opt._prepare_run()
+        first_provider = opt._gradient_providers[0]
+        first_config = first_provider.config  # type: ignore[attr-defined]
+        first_seed = first_config.seed
+        assert first_seed is not None
+        first_config._evaluation_seed_offset = 7
+
+        opt._prepare_run()
+        second_provider = opt._gradient_providers[0]
+        second_config = second_provider.config  # type: ignore[attr-defined]
+
+        assert second_provider is not first_provider
+        assert second_config is not constraint.function_config.alphafold2_binder_config
+        assert second_config.seed == first_seed
+        assert second_config._evaluation_seed_offset == 0
 
     @pytest.mark.parametrize(("mode", "tool_loss"), [("gradient", 1.25), ("scoring", 0.672354)])
     def test_groups_malinois_cell_type_terms_into_one_tool_call(self, mode: str, tool_loss: float) -> None:
@@ -1712,9 +1810,10 @@ class TestGradientOptimizerGPU:
             constraints=constraints,
             config=GradientOptimizerConfig(num_results=1, num_steps=1, lr=0.1, seed=7),
         )
-        assert len(opt._gradient_providers) == 1
+        assert opt._gradient_providers == []
 
         opt.run()
+        assert len(opt._gradient_providers) == 1
 
         result = binder.result_sequences[0]
         assert result.logits is not None and np.isfinite(result.logits).all()
@@ -1741,9 +1840,10 @@ class TestGradientOptimizerGPU:
             constraints=constraints,
             config=GradientOptimizerConfig(num_results=1, num_steps=1, lr=0.1, seed=7),
         )
-        assert len(opt._gradient_providers) == 1
+        assert opt._gradient_providers == []
 
         opt.run()
+        assert len(opt._gradient_providers) == 1
 
         result = binder.result_sequences[0]
         assert result.logits is not None and np.isfinite(result.logits).all()

@@ -38,6 +38,7 @@ from proto_language.optimizer.constraint_compiler.base import (
     GradientProvider,
     GradientProviderOutput,
     _sum_weights_by_objective_key,
+    config_group_identity,
     raise_for_failed_tool_output,
 )
 from proto_language.utils import MAX_ENERGY
@@ -220,14 +221,14 @@ def group_key(
 ) -> tuple[Any, ...]:
     """Build the identity key used to group compatible ESMFold constraints."""
     input_ids = tuple(id(segment) for segment in constraint.inputs)
-    config_json = config.esmfold_config.model_dump_json()
+    config_json = config_group_identity(config.esmfold_config)
     return (*input_ids, id(target_segment), config_json)
 
 
 def scoring_group_key(constraint: Constraint, config: StructureBasedConstraintConfig) -> tuple[Any, ...]:
     """Build the identity key used to group compatible ESMFold scoring constraints."""
     input_ids = tuple(id(segment) for segment in constraint.inputs)
-    config_json = config.esmfold_config.model_dump_json()
+    config_json = config_group_identity(config.esmfold_config)
     return (*input_ids, config_json)
 
 
@@ -251,7 +252,11 @@ def can_group_scoring_constraint(
     )
 
 
-def evaluate_scoring_group(compiled_constraints: list[CompiledConstraint], mask: list[bool]) -> list[float]:
+def evaluate_scoring_group(
+    compiled_constraints: list[CompiledConstraint],
+    mask: list[bool],
+    execution_config: StructureBasedConstraintConfig,
+) -> list[float]:
     """Evaluate compatible ESMFold confidence constraints with one prediction batch.
 
     ESMFold's prediction API can score all proposals in one backend call. This
@@ -260,9 +265,7 @@ def evaluate_scoring_group(compiled_constraints: list[CompiledConstraint], mask:
     and returns one proposal-aligned weighted sum for the scoring group.
     """
     first_constraint = compiled_constraints[0].constraint
-    config = config_for_constraint(first_constraint, strict=True)
-    if config is None:
-        raise ValueError(f"Constraint '{first_constraint.label}' must use StructureBasedConstraintConfig.")
+    config = execution_config
 
     inputs = first_constraint.inputs
     num_proposals = inputs[0].num_proposals

@@ -191,6 +191,7 @@ class Optimizer(ABC):
         # Per-constraint snapshots from the most recent score_energy() call, used by progress logs
         self._last_filter_pass_counts: dict[str, tuple[int, int]] = {}
         self._last_constraint_scores: dict[str, list[float]] = {}
+        self._scoring_plan: Any | None = None
 
         # Default value for progress tracking (can be overridden by subclasses)
         self.num_steps: int = 1
@@ -300,11 +301,13 @@ class Optimizer(ABC):
         if operation == "add":
             # The compiler groups backend-compatible scoring constraints, e.g. many
             # AF2 binder terms over the same proposal become one weighted model call.
-            from proto_language.optimizer.constraint_compiler import evaluate_scoring_constraints
+            from proto_language.optimizer.constraint_compiler import compile_scoring_plan
 
             for idx, constraint in enumerate(scorers):
                 logger.debug(f"Constraint {idx + 1}: {constraint.label}")
-            all_scores = evaluate_scoring_constraints(scorers, mask=passed, verbose=self.verbose)
+            if self._scoring_plan is None:
+                self._scoring_plan = compile_scoring_plan(scorers, seed=self.seed)
+            all_scores = self._scoring_plan.evaluate(mask=passed, verbose=self.verbose)
         else:
             all_scores = []
             for idx, constraint in enumerate(scorers):
@@ -790,6 +793,10 @@ class Optimizer(ABC):
             self._capture_initial_state()
         else:
             self._restore_initial_state()
+        from proto_language.optimizer.constraint_compiler import compile_scoring_plan
+
+        scorers = [constraint for constraint in self.constraints if constraint.threshold is None]
+        self._scoring_plan = compile_scoring_plan(scorers, seed=self.seed)
 
     def _capture_initial_state(self) -> None:
         """Capture current segment and optimizer state via serialization.

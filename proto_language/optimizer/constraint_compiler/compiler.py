@@ -41,6 +41,7 @@ from proto_language.optimizer.constraint_compiler.base import (
     EffectiveWeight,
     GradientProvider,
     GradientProviderOutput,
+    clone_execution_config,
 )
 
 
@@ -104,7 +105,9 @@ class DirectGradientProvider(GradientProvider):
         )
 
 
-def compile_gradient_providers(constraints: list[Constraint], target_segment: Segment) -> list[GradientProvider]:
+def compile_gradient_providers(
+    constraints: list[Constraint], target_segment: Segment, *, seed: int | None = None
+) -> list[GradientProvider]:
     """Build the gradient providers used by ``GradientOptimizer``.
 
     The compiler walks the user-requested constraints in order. Direct
@@ -122,6 +125,8 @@ def compile_gradient_providers(constraints: list[Constraint], target_segment: Se
     Args:
         constraints (list[Constraint]): Constraints attached to the optimizer target program.
         target_segment (Segment): Segment whose proposal logits are being optimized.
+        seed (int | None): Effective optimizer seed used to initialize isolated
+            compiler-group seed streams.
 
     Returns:
         list[GradientProvider]: Providers in optimizer execution order.
@@ -137,6 +142,7 @@ def compile_gradient_providers(constraints: list[Constraint], target_segment: Se
     providers_by_adapter: dict[str, dict[tuple[Any, ...], GradientProvider]] = {
         adapter.backend_id: {} for adapter in _COMPILER_ADAPTERS
     }
+    next_group_seed = _group_seed_factory(seed, namespace=0x47524144)
 
     for constraint in constraints:
         if constraint.supports_gradient:
@@ -152,6 +158,7 @@ def compile_gradient_providers(constraints: list[Constraint], target_segment: Se
                 target_segment,
                 providers_by_adapter[adapter.backend_id],
                 providers,
+                next_group_seed,
             ):
                 break
         else:
@@ -167,6 +174,7 @@ def evaluate_scoring_constraints(
     *,
     mask: list[bool],
     verbose: bool = False,
+    seed: int | None = None,
 ) -> list[list[float]]:
     """Evaluate forward scoring constraints, grouping compatible backend calls.
 
@@ -188,36 +196,15 @@ def evaluate_scoring_constraints(
         mask (list[bool]): Proposal mask passed through to each constraint evaluation.
         verbose (bool): Whether direct constraint evaluations should log per-proposal
             details.
+        seed (int | None): Effective optimizer seed used for isolated compiled
+            scoring-group seed streams.
 
     Returns:
         list[list[float]]: Weighted score arrays, one entry per scoring unit.
             A scoring unit is either one direct public constraint or one
             compiled backend group containing multiple public constraints.
     """
-    outputs: list[list[float]] = []
-    group_by_key: dict[tuple[str, tuple[Any, ...]], list[CompiledConstraint]] = {}
-    group_order: list[tuple[str, tuple[Any, ...]]] = []
-
-    for constraint in constraints:
-        for adapter in _COMPILER_ADAPTERS:
-            if adapter.match_scoring is None:
-                continue
-            match = adapter.match_scoring(constraint)
-            if match is None:
-                continue
-            adapter_group_key, compiled = match
-            group_key = (adapter.backend_id, adapter_group_key)
-            if group_key not in group_by_key:
-                group_by_key[group_key] = []
-                group_order.append(group_key)
-            group_by_key[group_key].append(compiled)
-            break
-        else:
-            _flush_scoring_groups(group_order, group_by_key, outputs, mask)
-            outputs.append([float(score) for score in constraint.evaluate(mask=mask, verbose=verbose)])
-
-    _flush_scoring_groups(group_order, group_by_key, outputs, mask)
-    return outputs
+    return compile_scoring_plan(constraints, seed=seed).evaluate(mask=mask, verbose=verbose)
 
 
 def constraint_supports_compiled_gradient(
@@ -318,11 +305,28 @@ class ConstraintCapabilities:
 
 
 GradientCompiler = Callable[
-    [Constraint, Segment, dict[tuple[Any, ...], GradientProvider], list[GradientProvider]],
+    [
+        Constraint,
+        Segment,
+        dict[tuple[Any, ...], GradientProvider],
+        list[GradientProvider],
+        Callable[[], int | None],
+    ],
     bool,
 ]
 GradientChecker = Callable[[Constraint, Segment | None], tuple[bool, str | None] | None]
-ScoringMatcher = Callable[[Constraint], tuple[tuple[Any, ...], CompiledConstraint] | None]
+
+
+@dataclass(frozen=True)
+class ScoringMatch:
+    """One compiled scoring constraint plus its backend execution config."""
+
+    group_key: tuple[Any, ...]
+    compiled: CompiledConstraint
+    config: BaseModel
+
+
+ScoringMatcher = Callable[[Constraint], ScoringMatch | None]
 
 
 @dataclass(frozen=True)
@@ -336,7 +340,7 @@ class CompilerAdapter:
         compile_gradient (GradientCompiler | None): Gradient provider builder.
         check_gradient (GradientChecker | None): Runtime gradient preflight.
         match_scoring (ScoringMatcher | None): Additive scoring group matcher.
-        evaluate_scoring (Callable[[list[CompiledConstraint], list[bool]], list[float]] | None): Grouped scoring evaluator.
+        evaluate_scoring (Callable[[list[CompiledConstraint], list[bool], Any], list[float]] | None): Grouped scoring evaluator.
     """
 
     backend_id: str
@@ -345,7 +349,7 @@ class CompilerAdapter:
     compile_gradient: GradientCompiler | None
     check_gradient: GradientChecker | None
     match_scoring: ScoringMatcher | None
-    evaluate_scoring: Callable[[list[CompiledConstraint], list[bool]], list[float]] | None
+    evaluate_scoring: Callable[[list[CompiledConstraint], list[bool], Any], list[float]] | None
 
 
 _ESMFOLD_RULE = GradientRule(
@@ -385,6 +389,7 @@ def _compile_esmfold_gradient(
     target_segment: Segment,
     providers_by_key: dict[tuple[Any, ...], GradientProvider],
     providers: list[GradientProvider],
+    next_group_seed: Callable[[], int | None],
 ) -> bool:
     objective_key = esmfold.objective_key_for_constraint(constraint)
     if objective_key is None:
@@ -400,7 +405,7 @@ def _compile_esmfold_gradient(
     if provider is None:
         provider = esmfold.ESMFoldGradientProvider(
             constraints=[],
-            config=config.esmfold_config,
+            config=clone_execution_config(config.esmfold_config, seed=next_group_seed()),
             inputs=constraint.inputs,
             target_segment=target_segment,
         )
@@ -429,14 +434,18 @@ def _check_esmfold_gradient(constraint: Constraint, target_segment: Segment | No
     return True, None
 
 
-def _match_esmfold_scoring(constraint: Constraint) -> tuple[tuple[Any, ...], CompiledConstraint] | None:
+def _match_esmfold_scoring(constraint: Constraint) -> ScoringMatch | None:
     objective_key = esmfold.objective_key_for_constraint(constraint)
     if objective_key is None:
         return None
     config = esmfold.config_for_constraint(constraint, strict=True)
     if config is None or not esmfold.can_group_scoring_constraint(constraint, objective_key, config):
         return None
-    return esmfold.scoring_group_key(constraint, config), CompiledConstraint(constraint, objective_key)
+    return ScoringMatch(
+        esmfold.scoring_group_key(constraint, config),
+        CompiledConstraint(constraint, objective_key),
+        config,
+    )
 
 
 def _compile_af2_gradient(
@@ -444,6 +453,7 @@ def _compile_af2_gradient(
     target_segment: Segment,
     providers_by_key: dict[tuple[Any, ...], GradientProvider],
     providers: list[GradientProvider],
+    next_group_seed: Callable[[], int | None],
 ) -> bool:
     objective_key = af2b.objective_key_for_constraint(constraint)
     if objective_key is None:
@@ -459,7 +469,7 @@ def _compile_af2_gradient(
     if provider is None:
         provider = af2b.AF2BinderGradientProvider(
             constraints=[],
-            config=config.alphafold2_binder_config,
+            config=clone_execution_config(config.alphafold2_binder_config, seed=next_group_seed()),
             inputs=constraint.inputs,
         )
         providers_by_key[group_key] = provider
@@ -487,14 +497,18 @@ def _check_af2_gradient(constraint: Constraint, target_segment: Segment | None) 
     return True, None
 
 
-def _match_af2_scoring(constraint: Constraint) -> tuple[tuple[Any, ...], CompiledConstraint] | None:
+def _match_af2_scoring(constraint: Constraint) -> ScoringMatch | None:
     objective_key = af2b.objective_key_for_constraint(constraint)
     if objective_key is None:
         return None
     config = af2b.config_for_constraint(constraint, strict=True)
     if config is None or not af2b.can_group_scoring_constraint(constraint, objective_key, config):
         return None
-    return af2b.group_key(constraint, config), CompiledConstraint(constraint, objective_key)
+    return ScoringMatch(
+        af2b.group_key(constraint, config),
+        CompiledConstraint(constraint, objective_key),
+        config,
+    )
 
 
 def _compile_malinois_gradient(
@@ -502,6 +516,7 @@ def _compile_malinois_gradient(
     target_segment: Segment,
     providers_by_key: dict[tuple[Any, ...], GradientProvider],
     providers: list[GradientProvider],
+    next_group_seed: Callable[[], int | None],
 ) -> bool:
     objective_key = malinois.objective_key_for_constraint(constraint)
     if objective_key is None:
@@ -515,7 +530,7 @@ def _compile_malinois_gradient(
     if provider is None:
         provider = malinois.MalinoisGradientProvider(
             constraints=[],
-            config=config,
+            config=clone_execution_config(config, seed=next_group_seed()),
             target_segment=target_segment,
         )
         providers_by_key[group_key] = provider
@@ -539,24 +554,32 @@ def _check_malinois_gradient(constraint: Constraint, target_segment: Segment | N
     return True, None
 
 
-def _match_malinois_scoring(constraint: Constraint) -> tuple[tuple[Any, ...], CompiledConstraint] | None:
+def _match_malinois_scoring(constraint: Constraint) -> ScoringMatch | None:
     objective_key = malinois.objective_key_for_constraint(constraint)
     if objective_key is None:
         return None
     config = malinois.config_for_constraint(constraint, strict=True)
     if config is None or not malinois.can_group_scoring_constraint(constraint, objective_key, config):
         return None
-    return malinois.scoring_group_key(constraint, config), CompiledConstraint(constraint, objective_key)
+    return ScoringMatch(
+        malinois.scoring_group_key(constraint, config),
+        CompiledConstraint(constraint, objective_key),
+        config,
+    )
 
 
-def _match_protenix_scoring(constraint: Constraint) -> tuple[tuple[Any, ...], CompiledConstraint] | None:
+def _match_protenix_scoring(constraint: Constraint) -> ScoringMatch | None:
     objective_key = protenix.objective_key_for_constraint(constraint)
     if objective_key is None:
         return None
     config = protenix.config_for_constraint(constraint, strict=True)
     if config is None or not protenix.can_group_scoring_constraint(constraint, objective_key, config):
         return None
-    return protenix.scoring_group_key(constraint, config), CompiledConstraint(constraint, objective_key)
+    return ScoringMatch(
+        protenix.scoring_group_key(constraint, config),
+        CompiledConstraint(constraint, objective_key),
+        config,
+    )
 
 
 _COMPILER_ADAPTERS = (
@@ -665,18 +688,100 @@ def gradient_support_for_constraint_spec(spec: ConstraintSpec) -> GradientSuppor
     return GradientSupport(rules=rules) if rules else None
 
 
+@dataclass(frozen=True)
+class _DirectScoringUnit:
+    """One ordinary public constraint in a run-scoped scoring plan."""
+
+    constraint: Constraint
+
+    def evaluate(self, *, mask: list[bool], verbose: bool) -> list[float]:
+        """Evaluate the direct constraint and normalize numeric outputs."""
+        return [float(score) for score in self.constraint.evaluate(mask=mask, verbose=verbose)]
+
+
+@dataclass
+class _CompiledScoringUnit:
+    """One compatible backend group with an isolated execution config."""
+
+    adapter: CompilerAdapter
+    constraints: list[CompiledConstraint]
+    config: BaseModel
+
+    def evaluate(self, *, mask: list[bool], verbose: bool) -> list[float]:
+        """Evaluate the group through its compiler adapter."""
+        del verbose
+        if self.adapter.evaluate_scoring is None:
+            raise ValueError(f"Compiler backend {self.adapter.backend_id!r} has no scoring evaluator.")
+        return self.adapter.evaluate_scoring(self.constraints, mask, self.config)
+
+
+@dataclass(frozen=True)
+class ScoringPlan:
+    """Run-scoped ordered scoring units compiled after optimizer seed reset."""
+
+    units: tuple[_DirectScoringUnit | _CompiledScoringUnit, ...]
+
+    def evaluate(self, *, mask: list[bool], verbose: bool = False) -> list[list[float]]:
+        """Evaluate every direct or compiled unit in stable plan order."""
+        return [unit.evaluate(mask=mask, verbose=verbose) for unit in self.units]
+
+
+def compile_scoring_plan(constraints: list[Constraint], *, seed: int | None = None) -> ScoringPlan:
+    """Compile additive scoring into a deterministic run-scoped execution plan."""
+    units: list[_DirectScoringUnit | _CompiledScoringUnit] = []
+    group_by_key: dict[tuple[str, tuple[Any, ...]], _CompiledScoringUnit] = {}
+    group_order: list[tuple[str, tuple[Any, ...]]] = []
+    next_group_seed = _group_seed_factory(seed, namespace=0x53434F52)
+
+    for constraint in constraints:
+        for adapter in _COMPILER_ADAPTERS:
+            if adapter.match_scoring is None:
+                continue
+            match = adapter.match_scoring(constraint)
+            if match is None:
+                continue
+            group_key = (adapter.backend_id, match.group_key)
+            unit = group_by_key.get(group_key)
+            if unit is None:
+                unit = _CompiledScoringUnit(
+                    adapter=adapter,
+                    constraints=[],
+                    config=clone_execution_config(match.config, seed=next_group_seed()),
+                )
+                group_by_key[group_key] = unit
+                group_order.append(group_key)
+            unit.constraints.append(match.compiled)
+            break
+        else:
+            _flush_scoring_groups(group_order, group_by_key, units)
+            units.append(_DirectScoringUnit(constraint))
+
+    _flush_scoring_groups(group_order, group_by_key, units)
+    return ScoringPlan(tuple(units))
+
+
+def _group_seed_factory(parent_seed: int | None, *, namespace: int) -> Callable[[], int | None]:
+    """Return stable first-occurrence seeds for one compiler plan namespace."""
+    group_index = 0
+
+    def next_seed() -> int | None:
+        nonlocal group_index
+        current_index = group_index
+        group_index += 1
+        if parent_seed is None:
+            return None
+        sequence = np.random.SeedSequence([parent_seed, namespace, current_index])
+        return int(sequence.generate_state(1)[0])
+
+    return next_seed
+
+
 def _flush_scoring_groups(
     group_order: list[tuple[str, tuple[Any, ...]]],
-    group_by_key: dict[tuple[str, tuple[Any, ...]], list[CompiledConstraint]],
-    outputs: list[list[float]],
-    mask: list[bool],
+    group_by_key: dict[tuple[str, tuple[Any, ...]], _CompiledScoringUnit],
+    units: list[_DirectScoringUnit | _CompiledScoringUnit],
 ) -> None:
-    """Evaluate queued forward scoring groups and clear the queues."""
-    for group_key in group_order:
-        backend, _key = group_key
-        adapter = next((candidate for candidate in _COMPILER_ADAPTERS if candidate.backend_id == backend), None)
-        if adapter is None or adapter.evaluate_scoring is None:
-            raise ValueError(f"Unknown scoring compiler backend {backend!r}.")
-        outputs.append(adapter.evaluate_scoring(group_by_key[group_key], mask))
+    """Append queued compiled groups to the plan and clear the queues."""
+    units.extend(group_by_key[group_key] for group_key in group_order)
     group_order.clear()
     group_by_key.clear()
