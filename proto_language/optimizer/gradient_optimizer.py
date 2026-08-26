@@ -570,9 +570,9 @@ class GradientOptimizer(Optimizer):
                 self._weight_schedules[e.constraint_label] = SCHEDULES[e.schedule](e.start_weight, e.end_weight)
             else:
                 logger.warning("Unknown weight-schedule label %r; ignored.", e.constraint_label)
-        self._gradient_providers: list[GradientProvider] = compile_gradient_providers(
-            self._gradient_constraints, self.target_segment
-        )
+        # Compiler providers capture backend configs and stochastic cursors, so
+        # they are rebuilt by _prepare_run() after program-level seed override.
+        self._gradient_providers: list[GradientProvider] = []
 
         self._sequence_bias_matrix: np.ndarray | None = build_sequence_logit_bias_matrix(
             config.sequence_bias, self.target_segment
@@ -604,6 +604,15 @@ class GradientOptimizer(Optimizer):
             out_of_bounds = [p for p in self.config.softmax_init_positions if p < 0 or p >= seq_len]
             if out_of_bounds:
                 raise ValueError(f"softmax_init_positions {out_of_bounds} out of bounds for segment length {seq_len}.")
+
+    def _prepare_run(self) -> None:
+        """Reset seeds and rebuild the run-scoped gradient execution plan."""
+        super()._prepare_run()
+        self._gradient_providers = compile_gradient_providers(
+            self._gradient_constraints,
+            self.target_segment,
+            seed=self.seed,
+        )
 
     def run(self) -> None:
         """Execute gradient optimization.

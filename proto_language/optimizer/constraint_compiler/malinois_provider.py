@@ -34,6 +34,7 @@ from proto_language.optimizer.constraint_compiler.base import (
     EffectiveWeight,
     GradientProvider,
     GradientProviderOutput,
+    config_group_identity,
     raise_for_failed_tool_output,
 )
 
@@ -193,13 +194,13 @@ def validate_gradient_constraint(
 
 def group_key(target_segment: Segment, config: MalinoisActivityConfig) -> tuple[Any, ...]:
     """Build the identity key used to group compatible Malinois gradients."""
-    config_json = config.model_dump_json(exclude=_OBJECTIVE_FIELDS)
+    config_json = config_group_identity(config, exclude=_OBJECTIVE_FIELDS)
     return (id(target_segment), config_json)
 
 
 def scoring_group_key(constraint: Constraint, config: MalinoisActivityConfig) -> tuple[Any, ...]:
     """Build the identity key used to group compatible Malinois scoring calls."""
-    config_json = config.model_dump_json(exclude=_OBJECTIVE_FIELDS)
+    config_json = config_group_identity(config, exclude=_OBJECTIVE_FIELDS)
     return (id(constraint.inputs[0]), config_json)
 
 
@@ -218,12 +219,14 @@ def can_group_scoring_constraint(
     return objective_key is not None and config is not None and constraint.threshold is None
 
 
-def evaluate_scoring_group(compiled_constraints: list[CompiledConstraint], mask: list[bool]) -> list[float]:
+def evaluate_scoring_group(
+    compiled_constraints: list[CompiledConstraint],
+    mask: list[bool],
+    execution_config: MalinoisActivityConfig,
+) -> list[float]:
     """Evaluate compatible Malinois activity constraints with one prediction batch."""
     first_constraint = compiled_constraints[0].constraint
-    config = config_for_constraint(first_constraint, strict=True)
-    if config is None:
-        raise ValueError(missing_config_message(first_constraint))
+    config = execution_config
 
     segment = first_constraint.inputs[0]
     num_proposals = segment.num_proposals

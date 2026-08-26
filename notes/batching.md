@@ -59,6 +59,16 @@ Some constraint configs include tool-level batching fields. Current examples inc
 
 For additive scoring, scorers go through the `evaluate_scoring_constraints()` helper in `proto_language.optimizer.constraint_compiler`. Providers currently include ESMFold, Protenix, Malinois, and AlphaFold2 binder, allowing related constraints to share a backend prediction or gradient call when their configs are compatible. One ordered compiler-adapter registry owns scoring groups, gradient compilation, preflight validation, and capability discovery; add or change a backend there rather than adding a separate dispatch branch.
 
+Compiled scoring and gradient groups are run-scoped execution plans. Optimizers
+build them in `_prepare_run()` after the effective program/optimizer seed has
+been reset, and rebuild them on every rerun. Compatibility keys exclude mutable
+runtime `seed`/`seeds` fields, so otherwise-identical public constraints still
+share one backend call. Each group receives a deterministic first-occurrence
+seed in a scoring- or gradient-specific namespace and a deep-copied config;
+backend seed cursors therefore advance within one run without mutating public
+constraint configs, and reset reproducibly on the next run. In an unseeded
+program, the first constraint's configured seed remains the group's seed.
+
 ## Tool-Level Patterns
 
 Treat these as patterns, not a registry. The source of truth is the selected generator, constraint config, and proto-tools runner.

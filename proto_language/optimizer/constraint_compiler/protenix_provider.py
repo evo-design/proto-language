@@ -26,7 +26,7 @@ from proto_language.constraint.protein_structure.structure_constraint_config imp
     resolve_metric,
 )
 from proto_language.core import Constraint
-from proto_language.optimizer.constraint_compiler.base import CompiledConstraint
+from proto_language.optimizer.constraint_compiler.base import CompiledConstraint, config_group_identity
 from proto_language.utils import MAX_ENERGY
 
 logger = logging.getLogger(__name__)
@@ -90,15 +90,17 @@ def can_group_scoring_constraint(
 def scoring_group_key(constraint: Constraint, config: StructureBasedConstraintConfig) -> tuple[Any, ...]:
     """Build the identity key used to group compatible Protenix scoring constraints."""
     input_ids = tuple(id(segment) for segment in constraint.inputs)
-    return (*input_ids, config.protenix_config.model_dump_json())
+    return (*input_ids, config_group_identity(config.protenix_config))
 
 
-def evaluate_scoring_group(compiled_constraints: list[CompiledConstraint], mask: list[bool]) -> list[float]:
+def evaluate_scoring_group(
+    compiled_constraints: list[CompiledConstraint],
+    mask: list[bool],
+    execution_config: StructureBasedConstraintConfig,
+) -> list[float]:
     """Evaluate compatible Protenix confidence constraints with one prediction batch."""
     first_constraint = compiled_constraints[0].constraint
-    config = config_for_constraint(first_constraint, strict=True)
-    if config is None:
-        raise ValueError(f"Constraint '{first_constraint.label}' must use StructureBasedConstraintConfig.")
+    config = execution_config
 
     inputs = first_constraint.inputs
     num_proposals = inputs[0].num_proposals

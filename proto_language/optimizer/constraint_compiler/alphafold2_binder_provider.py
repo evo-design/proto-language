@@ -16,7 +16,6 @@ rest of the language layer.
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 from functools import lru_cache
 from pathlib import Path
@@ -58,6 +57,7 @@ from proto_language.optimizer.constraint_compiler.base import (
     GradientProvider,
     GradientProviderOutput,
     _sum_weights_by_objective_key,
+    config_group_identity,
     raise_for_failed_tool_output,
 )
 from proto_language.utils import one_hot_protein_matrix
@@ -440,10 +440,9 @@ def group_key(constraint: Constraint, config: StructureBasedConstraintConfig) ->
         tuple[Any, ...]: Hashable key combining input identities and serialized AF2 binder config.
     """
     input_ids = tuple(id(segment) for segment in constraint.inputs)
-    config_payload = config.alphafold2_binder_config.model_dump(mode="json", exclude={"seed", "target_pdb"})
     target_pdb = config.alphafold2_binder_config.target_pdb
     target_pdb_identity = _target_pdb_group_identity(target_pdb)
-    config_json = json.dumps(config_payload, sort_keys=True)
+    config_json = config_group_identity(config.alphafold2_binder_config, exclude={"target_pdb"})
     return (*input_ids, target_pdb_identity, config_json)
 
 
@@ -491,7 +490,11 @@ def can_group_scoring_constraint(
     )
 
 
-def evaluate_scoring_group(compiled_constraints: list[CompiledConstraint], mask: list[bool]) -> list[float]:
+def evaluate_scoring_group(
+    compiled_constraints: list[CompiledConstraint],
+    mask: list[bool],
+    execution_config: StructureBasedConstraintConfig,
+) -> list[float]:
     """Evaluate a compatible group of AF2 binder scoring constraints.
 
     The AF2 binder tool returns the weighted sum of the requested loss terms for each
@@ -504,6 +507,8 @@ def evaluate_scoring_group(compiled_constraints: list[CompiledConstraint], mask:
         compiled_constraints (list[CompiledConstraint]): Non-empty compatible group produced by the
             compiler. All entries must share inputs and AF2 binder config.
         mask (list[bool]): Proposal-level evaluation mask. ``False`` entries are skipped.
+        execution_config (StructureBasedConstraintConfig): Isolated run-scoped
+            config shared by the compiled group.
 
     Returns:
         list[float]: Proposal-aligned weighted grouped scores.
@@ -513,9 +518,7 @@ def evaluate_scoring_group(compiled_constraints: list[CompiledConstraint], mask:
             structure config.
     """
     first_constraint = compiled_constraints[0].constraint
-    config_model = config_for_constraint(first_constraint, strict=True)
-    if config_model is None:
-        raise ValueError(f"Constraint '{first_constraint.label}' must use StructureBasedConstraintConfig.")
+    config_model = execution_config
     config = config_model.alphafold2_binder_config
     inputs = first_constraint.inputs
     num_proposals = inputs[0].num_proposals
