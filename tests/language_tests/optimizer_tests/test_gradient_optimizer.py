@@ -27,6 +27,7 @@ from proto_language.optimizer import (
     MCMCOptimizer,
     MCMCOptimizerConfig,
 )
+from proto_language.optimizer.constraint_compiler import GradientProviderOutput
 from proto_language.utils.scheduling import hinge_schedule
 from proto_language.utils.sequence_matrices import SequenceLogitBiasConfig
 
@@ -555,6 +556,39 @@ class TestValidation:
 
         opt = _make_optimizer(Segment(sequence="AA", sequence_type="protein"), nan_bwd, label="naughty", num_steps=1)
         with pytest.raises(ValueError, match="naughty"):
+            opt.run()
+
+    def test_compiled_provider_gradient_must_match_target_logits(self) -> None:
+        opt = _make_optimizer(Segment(sequence="AAAAA", sequence_type="protein"), _backward, num_steps=1)
+        output = GradientProviderOutput(
+            label="bad-shape",
+            gradients=[np.zeros((1, 20))],
+            losses=[0.0],
+        )
+        opt._gradient_providers[0].compute = lambda **kwargs: output  # type: ignore[method-assign]
+
+        with pytest.raises(ValueError, match=r"bad-shape.*gradient shape \(1, 20\).*logits shape \(5, 20\)"):
+            opt.run()
+
+    @pytest.mark.parametrize("loss", [float("nan"), float("inf"), float("-inf")])
+    def test_provider_loss_must_be_finite(self, loss: float) -> None:
+        opt = _make_optimizer(Segment(sequence="AA", sequence_type="protein"), _backward, num_steps=1)
+        output = GradientProviderOutput(
+            label="unstable-provider",
+            gradients=[np.zeros((2, 20))],
+            losses=[loss],
+        )
+        opt._gradient_providers[0].compute = lambda **kwargs: output  # type: ignore[method-assign]
+
+        with pytest.raises(ValueError, match=r"unstable-provider.*non-finite loss"):
+            opt.run()
+
+    def test_provider_result_counts_must_match_proposals(self) -> None:
+        opt = _make_optimizer(Segment(sequence="AA", sequence_type="protein"), _backward, num_steps=1)
+        output = GradientProviderOutput(label="missing-result", gradients=[], losses=[])
+        opt._gradient_providers[0].compute = lambda **kwargs: output  # type: ignore[method-assign]
+
+        with pytest.raises(ValueError, match=r"missing-result.*0 gradients.*expected 1"):
             opt.run()
 
 
