@@ -112,6 +112,27 @@ class TestMCMCOptimizer:
                 config=MCMCOptimizerConfig(num_results=1, num_steps=1),
             )
 
+    def test_rejects_backward_only_constraint_during_initialization(self):
+        segment = Segment(sequence="A" * 10, sequence_type="dna")
+        generator = RandomNucleotideGenerator(
+            RandomNucleotideGeneratorConfig(masking_strategy=MaskingStrategy(num_mutations=1))
+        )
+        generator.assign(segment)
+        constraint = Constraint(
+            inputs=[segment],
+            backward=lambda input_sequences, config: [],
+            backward_config=EmptyConfig(),
+            label="backward-only",
+        )
+
+        with pytest.raises(ValueError, match=r"backward-only.*does not support discrete evaluation"):
+            MCMCOptimizer(
+                constructs=[Construct([segment])],
+                generators=[generator],
+                constraints=[constraint],
+                config=MCMCOptimizerConfig(num_results=1, num_steps=1),
+            )
+
     def test_config_validation(self):
         """Tests MCMCOptimizerConfig validation."""
         from pydantic import ValidationError

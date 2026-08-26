@@ -1156,13 +1156,18 @@ class TestOptimizerRegistry:
     def test_gradient_required_constraint_mode(self):
         assert OptimizerRegistry.get("gradient").required_constraint_mode == "gradient"
 
-    def test_default_required_constraint_mode_is_none(self):
-        assert OptimizerRegistry.get("mcmc").required_constraint_mode is None
+    def test_scoring_optimizers_require_discrete_constraints(self):
+        for key in ("mcmc", "beam-search", "rejection-sampling", "cycling"):
+            assert OptimizerRegistry.get(key).required_constraint_mode == "discrete"
 
     def test_mpnn_perplexity_has_direct_gradient_path(self):
         spec = ConstraintRegistry.get("mpnn-perplexity")
         assert spec.requires_generators is None
         assert spec.mode == "dual"
+
+    def test_compiler_backed_constraint_reports_effective_dual_mode(self):
+        assert ConstraintRegistry.get("structure-plddt").mode == "dual"
+        assert ConstraintRegistry.get("malinois-activity").mode == "dual"
 
     def test_requires_generators_default_none(self):
         assert ConstraintRegistry.get("gc-content").requires_generators is None

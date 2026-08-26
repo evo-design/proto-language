@@ -12,6 +12,7 @@ from proto_language.optimizer.constraint_compiler import (
     compile_gradient_providers,
     constraint_supports_compiled_gradient,
     gradient_support_for_constraint_spec,
+    resolve_constraint_capabilities,
 )
 
 
@@ -34,7 +35,9 @@ def test_compiled_rules_match_supporting_backends(constraint_key: str, backend_i
 
 
 def test_discrete_only_constraint_has_no_compiled_metadata() -> None:
-    assert gradient_support_for_constraint_spec(ConstraintRegistry.get("gc-content")) is None
+    spec = ConstraintRegistry.get("gc-content")
+    assert gradient_support_for_constraint_spec(spec) is None
+    assert resolve_constraint_capabilities(spec).mode == "discrete"
 
 
 def test_af2_binder_rule_targets_binder_input() -> None:

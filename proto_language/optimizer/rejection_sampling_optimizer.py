@@ -174,6 +174,7 @@ class RejectionSamplingOptimizerConfig(BaseOptimizerConfig):
     label="Rejection Sampling Optimizer",
     config=RejectionSamplingOptimizerConfig,
     description="Draws many independent candidates from the generators, scores each against the constraints, and keeps the lowest-energy designs. Stateless and fully parallel, with no iterative refinement between samples.",
+    required_constraint_mode="discrete",
 )
 @final
 class RejectionSamplingOptimizer(Optimizer):

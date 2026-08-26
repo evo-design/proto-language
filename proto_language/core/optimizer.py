@@ -558,6 +558,7 @@ class Optimizer(ABC):
         """
         from proto_language.constraint.constraint_registry import ConstraintRegistry
         from proto_language.generator.generator_registry import GeneratorRegistry
+        from proto_language.optimizer.constraint_compiler import resolve_constraint_capabilities
         from proto_language.optimizer.optimizer_registry import OptimizerRegistry
 
         opt_key = OptimizerRegistry.find_key(self)
@@ -577,13 +578,16 @@ class Optimizer(ABC):
         # B. Optimizer → Constraint mode compatibility
         if opt and opt.required_constraint_mode is not None:
             required = opt.required_constraint_mode
-            ok_modes = {"gradient": ("gradient", "dual"), "discrete": ("discrete", "dual")}[required]
             for con in self.constraints:
-                con_key = ConstraintRegistry.find_key(con)
-                if con_key and ConstraintRegistry.get(con_key).mode not in ok_modes:
-                    raise ValueError(
-                        f"Constraint '{con.label}' does not support {required} evaluation, required by {opt_label}"
-                    )
+                target_segment = getattr(self, "target_segment", None)
+                capabilities = resolve_constraint_capabilities(con, target_segment)
+                supported = capabilities.supports_gradient if required == "gradient" else capabilities.supports_discrete
+                if supported:
+                    continue
+                detail = f": {capabilities.gradient_reason}" if required == "gradient" else ""
+                raise ValueError(
+                    f"Constraint '{con.label}' does not support {required} evaluation, required by {opt_label}{detail}"
+                )
 
         # C. Constraint → Generator key dependency
         for con in self.constraints:

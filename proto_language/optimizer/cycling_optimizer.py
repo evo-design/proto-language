@@ -241,6 +241,7 @@ class CyclingOptimizerConfig(BaseOptimizerConfig):
     config=CyclingOptimizerConfig,
     description="Alternates a conditioning step with a generation step each cycle to drive feedback loops such as Protein Hunter (structure prediction -> inverse folding), keeping proposals that pass the filter constraints.",
     targets_single_segment=True,
+    required_constraint_mode="discrete",
 )
 @final
 class CyclingOptimizer(Optimizer):

@@ -57,7 +57,7 @@ Some constraint configs include tool-level batching fields. Current examples inc
 3. Later filters and scoring constraints only evaluate proposals that still pass.
 4. Rejected proposals receive the optimizer's filter penalty.
 
-For additive scoring, scorers go through the `evaluate_scoring_constraints()` helper in `proto_language.optimizer.constraint_compiler`. Providers currently include ESMFold, Protenix, Malinois, and AlphaFold2 binder, allowing related constraints to share a backend prediction or gradient call when their configs are compatible.
+For additive scoring, scorers go through the `evaluate_scoring_constraints()` helper in `proto_language.optimizer.constraint_compiler`. Providers currently include ESMFold, Protenix, Malinois, and AlphaFold2 binder, allowing related constraints to share a backend prediction or gradient call when their configs are compatible. One ordered compiler-adapter registry owns scoring groups, gradient compilation, preflight validation, and capability discovery; add or change a backend there rather than adding a separate dispatch branch.
 
 ## Tool-Level Patterns
 
