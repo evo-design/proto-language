@@ -45,7 +45,7 @@ def test_top_level_list_groups_all_kinds_in_json(capsys: pytest.CaptureFixture[s
     code, out, _ = _run(capsys, "list", "--json")
     assert code == 0
     payload = json.loads(out)
-    assert set(payload) == {"constraint", "generator", "optimizer"}
+    assert set(payload) == {"constraint", "classifier", "generator", "optimizer"}
 
 
 def test_constraint_list_mode_filter(capsys: pytest.CaptureFixture[str]) -> None:
