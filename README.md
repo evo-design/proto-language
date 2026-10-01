@@ -54,7 +54,7 @@ To override only the model-weights location, set `export PROTO_MODEL_CACHE=/path
 
 ### Step 3: Gated model access (optional)
 
-Some generators and constraints load gated models (for example ESM3, AlphaGenome, and AlphaFold3) that require accepting a license and authenticating with HuggingFace. Set `HF_TOKEN` in the environment after accepting each model's terms. See [`proto-tools/README.md`](https://github.com/evo-design/proto-tools#step-3-gated-model-access-optional-) for the full procedure and the list of gated models.
+Some generators and constraints load gated models (for example ESM3 and AlphaGenome) that require accepting a license and authenticating with HuggingFace. Set `HF_TOKEN` in the environment after accepting each model's terms. See [`proto-tools/README.md`](https://github.com/evo-design/proto-tools#step-3-gated-model-access-optional-) for the full procedure and the list of gated models.
 
 ### Step 4: Remote compute (optional) <a href="https://modal.com"><img src="proto-tools/guides/assets/modal/modal-logo.png" alt="Modal" height="20" align="center"></a>
 

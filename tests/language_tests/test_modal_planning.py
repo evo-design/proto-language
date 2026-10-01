@@ -123,7 +123,7 @@ def test_context_leaves_local_only_gpu_tools_local(monkeypatch: pytest.MonkeyPat
     with on_demand_modal_tools():
         backend = ToolRegistry._dispatch_backend
         assert backend is not None
-        assert backend("alphafold3-prediction", object(), object()) is None
+        assert backend("bindcraft-design", object(), object()) is None
 
 
 def test_context_does_not_overwrite_an_existing_backend(monkeypatch: pytest.MonkeyPatch) -> None:
