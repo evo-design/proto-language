@@ -1,5 +1,17 @@
 """Public API surface for proto-language."""
 
+from proto_language.classifiers import (
+    Classifier,
+    ClassifierEndpointError,
+    ClassifierError,
+    ClassifierInvalidSequenceError,
+    ClassifierOutput,
+    ClassifierRegistry,
+    ClassifierSpec,
+    GFPTaggabilityConfig,
+    classifier,
+    gfp_taggability_classifier,
+)
 from proto_language.constraint import (
     AbLangPerplexityConfig,
     AF3ChainPairProtDNAIPTMConfig,
@@ -35,6 +47,7 @@ from proto_language.constraint import (
     PuffinPromoterActivityConfig,
     PyRosettaInterfaceConfig,
     StructureBasedConstraintConfig,
+    TaggabilityConfig,
     TargetScanSiteConfig,
     ablang_perplexity_constraint,
     ablang_perplexity_gradient_backward,
@@ -122,6 +135,7 @@ from proto_language.constraint import (
     structure_rmsd_constraint,
     structure_termini_distance_constraint,
     structure_tmscore_constraint,
+    taggability_constraint,
     targetscan_site_constraint,
 )
 from proto_language.core import (
@@ -224,6 +238,18 @@ __all__ = [
     "ConstraintRegistry",
     "ConstraintSpec",
     "constraint",
+    # Classifier registry
+    "Classifier",
+    "ClassifierError",
+    "ClassifierEndpointError",
+    "ClassifierInvalidSequenceError",
+    "ClassifierOutput",
+    "ClassifierRegistry",
+    "ClassifierSpec",
+    "classifier",
+    # Protein tagging classifiers
+    "GFPTaggabilityConfig",
+    "gfp_taggability_classifier",
     # Sequence composition constraints
     "sequence_length_constraint",
     "gc_content_constraint",
@@ -282,6 +308,9 @@ __all__ = [
     "operator_site_constraint",
     "ProteinDNAIpsaeConfig",
     "protein_dna_ipsae_constraint",
+    # Protein tagging constraints
+    "TaggabilityConfig",
+    "taggability_constraint",
     # Protein quality constraints
     "protein_length_constraint",
     "protein_complexity_constraint",

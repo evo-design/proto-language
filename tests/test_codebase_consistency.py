@@ -9,6 +9,7 @@ import pytest
 from proto_tools import BaseToolInput, BaseToolOutput, ToolRegistry
 from proto_tools.utils import BaseConfig as ToolsBaseConfig
 
+from proto_language.classifiers import ClassifierRegistry
 from proto_language.constraint import ConstraintRegistry
 from proto_language.generator import GeneratorRegistry
 from proto_language.optimizer import OptimizerRegistry
@@ -27,6 +28,7 @@ def list_of_all_config_models() -> list[type]:
         spec.config_model
         for spec in [
             *ConstraintRegistry.list_all(),
+            *ClassifierRegistry.list_all(),
             *GeneratorRegistry.list_all(),
             *OptimizerRegistry.list_all(),
             *ToolRegistry.list_all(),
@@ -95,7 +97,12 @@ def test_config_consistency(config_model: type):
 
 def list_of_all_tools_called() -> list[tuple[str, str]]:
     """List ``(component_key, tool_key)`` for every ``tools_called`` entry."""
-    specs = [*ConstraintRegistry.list_all(), *GeneratorRegistry.list_all(), *OptimizerRegistry.list_all()]
+    specs = [
+        *ConstraintRegistry.list_all(),
+        *ClassifierRegistry.list_all(),
+        *GeneratorRegistry.list_all(),
+        *OptimizerRegistry.list_all(),
+    ]
     return [(spec.key, tool_key) for spec in specs for tool_key in getattr(spec, "tools_called", None) or []]
 
 
