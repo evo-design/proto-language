@@ -47,7 +47,9 @@ class TestWeightsAndCAI:
         config = CodonAdaptationIndexConfig(reference_sequences=["ATGGCCGCC"], direction="min")
         out = codon_adaptation_index_constraint([(Sequence("GCCGCC", sequence_type="rna"),)], config)
         cai = out[0].metadata["cai"]
-        assert out[0].score == pytest.approx(sigmoid_score(cai, config.sigmoid_center, slope=1.0 / config.sigmoid_scale))
+        assert out[0].score == pytest.approx(
+            sigmoid_score(cai, config.sigmoid_center, slope=1.0 / config.sigmoid_scale)
+        )
 
     def test_only_single_codon_families_is_max_penalty(self) -> None:
         # ATG (Met) + TGG (Trp) are excluded -> no scorable codons -> CAI undefined.
