@@ -44,6 +44,22 @@ class TestSample:
         assert captured["config"].model_checkpoint == "encodon_80m"
         assert captured["inputs"].sequences == [_CDS]
 
+    def test_excluded_amino_acids_reach_the_tool(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The generator owns no exclusion logic; CodonFM drops the codons, so forwarding is the contract."""
+        captured: dict = {}
+
+        def fake_run(inputs, config):
+            captured["config"] = config
+            return SimpleNamespace(sequences=list(inputs.sequences))
+
+        monkeypatch.setattr(_MODULE, "run_codonfm_sample", fake_run)
+
+        gen = CodonFMGenerator(CodonFMGeneratorConfig(device="cpu", excluded_amino_acids=["C", "W"]))
+        gen.assign(Segment(sequence=_CDS, sequence_type="dna"))
+        gen.sample()
+
+        assert captured["config"].excluded_amino_acids == ["C", "W"]
+
     def test_batch_of_proposals(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
             _MODULE,

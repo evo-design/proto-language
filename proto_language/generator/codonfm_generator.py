@@ -9,6 +9,7 @@ from proto_tools import (
     run_codonfm_sample,
 )
 from proto_tools.transforms.masking import RandomMaskingStrategy
+from proto_tools.utils import AminoAcid
 
 from proto_language.core import Generator, GeneratorInputType
 from proto_language.generator.generator_registry import generator
@@ -31,6 +32,8 @@ class CodonFMGeneratorConfig(BaseConfig):
         temperature (float): Softmax temperature for codon sampling; higher is more diverse.
         device (str): GPU device to run CodonFM on, e.g. ``"cuda"`` or ``"cuda:0"``.
         batch_size (int): Number of same-length sequences to process per GPU batch.
+        excluded_amino_acids (list[AminoAcid] | None): Residues no resampled codon may encode;
+            every codon translating to one of them is dropped from the draw.
     """
 
     model_checkpoint: CodonFMCheckpoint = ConfigField(
@@ -59,6 +62,12 @@ class CodonFMGeneratorConfig(BaseConfig):
         ge=1,
         title="Batch Size",
         description="Number of same-length sequences to process simultaneously on GPU.",
+    )
+    excluded_amino_acids: list[AminoAcid] | None = ConfigField(
+        default=None,
+        title="Excluded Amino Acids",
+        description="Single-letter codes no resampled codon may encode (e.g. ['C'] to forbid cysteine).",
+        examples=[["C"]],
     )
 
 
@@ -112,6 +121,7 @@ class CodonFMGenerator(Generator):
         self.temperature = config.temperature
         self.device = config.device
         self.batch_size = config.batch_size
+        self.excluded_amino_acids = config.excluded_amino_acids
 
     def _sample(self) -> None:
         """Resample masked codons for every proposal sequence in the assigned segment.
@@ -130,6 +140,7 @@ class CodonFMGenerator(Generator):
                 temperature=self.temperature,
                 device=self.device,
                 batch_size=self.batch_size,
+                excluded_amino_acids=self.excluded_amino_acids,
                 verbose=False,
                 seed=self._next_seed(),
             ),
