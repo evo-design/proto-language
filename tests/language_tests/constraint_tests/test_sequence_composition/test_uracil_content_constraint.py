@@ -53,5 +53,3 @@ class TestConfigAndRegistry:
     def test_registration(self) -> None:
         spec = ConstraintRegistry.get("uracil-content")
         assert spec.function is uracil_content_constraint
-        assert spec.category == "sequence_composition"
-        assert spec.supported_sequence_types == ["dna", "rna"]

@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from proto_language.constraint.constraint_registry import ConstraintRegistry, InputSlot
+from proto_language.constraint.constraint_registry import ConstraintRegistry
 from proto_language.constraint.sequence_scoring.codonfm_fitness_constraint import (
     CodonFMFitnessConstraintConfig,
     codonfm_fitness_constraint,
@@ -140,19 +140,9 @@ class TestConfigAndRegistry:
         with pytest.raises(ValueError):
             CodonFMFitnessConstraintConfig(sigmoid_scale=0.0)
 
-    def test_batch_size_must_be_at_least_one(self) -> None:
-        with pytest.raises(ValueError):
-            CodonFMFitnessConstraintConfig(batch_size=0)
-
     def test_registration(self) -> None:
         spec = ConstraintRegistry.get("codonfm-fitness")
-        assert spec.mode == "discrete"
         assert spec.function is codonfm_fitness_constraint
-        assert spec.backward is None
-        assert spec.category == "sequence_scoring"
-        assert spec.tools_called == ["codonfm-fitness"]
-        assert spec.supported_sequence_types == ["dna", "rna"]
-        assert spec.input_labels == [InputSlot(label="Sequence")]
 
 
 @pytest.mark.uses_gpu

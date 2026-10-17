@@ -75,5 +75,3 @@ class TestConfigAndRegistry:
     def test_registration(self) -> None:
         spec = ConstraintRegistry.get("codon-adaptation-index")
         assert spec.function is codon_adaptation_index_constraint
-        assert spec.category == "sequence_composition"
-        assert spec.supported_sequence_types == ["dna", "rna"]

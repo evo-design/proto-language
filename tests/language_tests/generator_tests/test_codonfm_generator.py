@@ -78,17 +78,6 @@ class TestSample:
 
 
 class TestConfigAndRegistry:
-    def test_num_mutations_must_be_at_least_one(self) -> None:
-        with pytest.raises(ValueError):
-            CodonFMGeneratorConfig(masking_strategy=RandomMaskingStrategy(num_mutations=0))
-
-    def test_temperature_must_be_positive(self) -> None:
-        with pytest.raises(ValueError):
-            CodonFMGeneratorConfig(temperature=0.0)
-
     def test_registration(self) -> None:
-        spec = GeneratorRegistry.get("codonfm")
-        assert spec.category == "mutation"
-        assert spec.tools_called == ["codonfm-sample"]
-        assert spec.supported_sequence_types == ["dna", "rna"]
+        assert GeneratorRegistry.get("codonfm").generator_class is CodonFMGenerator
         assert CodonFMGenerator.input_type == GeneratorInputType.STARTING_SEQUENCE

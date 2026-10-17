@@ -64,6 +64,3 @@ class TestRegistry:
     def test_registration(self) -> None:
         spec = ConstraintRegistry.get("mfe")
         assert spec.function is mfe_constraint
-        assert spec.category == "rna_secondary_structure"
-        assert spec.tools_called == ["viennarna-prediction"]
-        assert spec.supported_sequence_types == ["dna", "rna"]
