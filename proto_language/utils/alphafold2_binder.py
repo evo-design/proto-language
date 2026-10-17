@@ -279,7 +279,7 @@ def evaluate_af2_binder_predictions(
             AlphaFold2GradientConfig(
                 include_pae_matrix=af2_config.include_pae_matrix,
                 bias_redesign=af2_config.bias_redesign,
-                omit_aas=af2_config.omit_aas,
+                excluded_amino_acids=af2_config.omit_aas,
                 num_recycles=af2_config.num_recycles,
                 recycle_mode=af2_config.recycle_mode,
                 model_num=af2_config.model_num,

@@ -214,7 +214,7 @@ class AF2BinderGradientProvider(GradientProvider):
                 AlphaFold2GradientConfig(
                     include_pae_matrix=self.config.include_pae_matrix,
                     bias_redesign=self.config.bias_redesign,
-                    omit_aas=self.config.omit_aas,
+                    excluded_amino_acids=self.config.omit_aas,
                     num_recycles=self.config.num_recycles,
                     recycle_mode=self.config.recycle_mode,
                     model_num=self.config.model_num,
@@ -543,7 +543,7 @@ def evaluate_scoring_group(compiled_constraints: list[CompiledConstraint], mask:
             AlphaFold2GradientConfig(
                 include_pae_matrix=config.include_pae_matrix,
                 bias_redesign=config.bias_redesign,
-                omit_aas=config.omit_aas,
+                excluded_amino_acids=config.omit_aas,
                 num_recycles=config.num_recycles,
                 recycle_mode=config.recycle_mode,
                 model_num=config.model_num,
