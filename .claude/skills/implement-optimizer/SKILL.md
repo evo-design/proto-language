@@ -27,6 +27,7 @@ allowed-tools:
    - Autoregressive (beam): `proto_language/optimizer/beam_search_optimizer.py`
    - Cycling: `proto_language/optimizer/cycling_optimizer.py`
    - Gradient-based: `proto_language/optimizer/gradient_optimizer.py`
+   - Gradient-based edits to a template (Ledidi): `proto_language/optimizer/ledidi_optimizer.py`
 3. **Read the base class**: `proto_language/core/optimizer.py`
 4. **Read the decorator/registry**: `proto_language/optimizer/optimizer_registry.py`
 

@@ -18,6 +18,7 @@ from proto_language.optimizer.gradient_optimizer import (
     GradientOptimizer,
     GradientOptimizerConfig,
 )
+from proto_language.optimizer.ledidi_optimizer import LedidiOptimizer, LedidiOptimizerConfig
 from proto_language.optimizer.mcmc_optimizer import MCMCOptimizer, MCMCOptimizerConfig
 from proto_language.optimizer.optimizer_registry import OptimizerRegistry, OptimizerSpec, optimizer
 from proto_language.optimizer.rejection_sampling_optimizer import (
@@ -52,4 +53,7 @@ __all__ = [
     "GradientOptimizer",
     "GradientOptimizerConfig",
     "ConstraintWeightSchedule",
+    # Ledidi Optimizer (single-segment)
+    "LedidiOptimizer",
+    "LedidiOptimizerConfig",
 ]
