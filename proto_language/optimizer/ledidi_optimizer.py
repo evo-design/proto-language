@@ -46,7 +46,7 @@ from collections.abc import Callable
 from typing import Any, final
 
 import numpy as np
-from pydantic import ValidationInfo, field_validator
+from pydantic import ValidationInfo, field_validator, model_validator
 
 from proto_language.core import Constraint, Construct, Generator, Optimizer, Segment
 from proto_language.generator import PositionWeightGenerator
@@ -179,6 +179,15 @@ class LedidiOptimizerConfig(BaseOptimizerConfig):
             raise ValueError(f"num_results={value} must equal n_repeats * batch_size = {expected}; leave it unset.")
         return expected
 
+    @model_validator(mode="after")
+    def _sync_num_results(self) -> "LedidiOptimizerConfig":
+        """Keep ``num_results`` equal to ``n_repeats * batch_size`` when either is reassigned."""
+        expected = self.n_repeats * self.batch_size
+        if self.num_results != expected:
+            # Written directly: assigning would re-run validation on this model and recurse.
+            self.__dict__["num_results"] = expected
+        return self
+
     @field_validator("initial_weights")
     @classmethod
     def _check_initial_weights(cls, value: list[list[float]] | None) -> list[list[float]] | None:
@@ -221,6 +230,10 @@ class LedidiOptimizer(Optimizer):
     ``early_stopping_iter`` steps without improvement. The unedited template, scored once
     before the first step, is the starting best, so a trajectory that never improves returns
     copies of its template.
+    Providers score the whole proposal pool, so a trajectory that has stopped is still sampled
+    and scored until every trajectory stops; its weights and results no longer change. Other
+    segments in the constructs keep, in every slot of trajectory ``r``, the sequence that
+    arrived with template ``r``.
 
     The ``PositionWeightGenerator`` marks the target segment, as single-target optimizers
     require; its decoding settings are not used, because results are the sampled sequences.
@@ -335,7 +348,10 @@ class LedidiOptimizer(Optimizer):
             raise ValueError(
                 f"LedidiOptimizer requires a PositionWeightGenerator, got {self.generator.__class__.__name__}."
             )
+        self._check_segment_fit()
 
+    def _check_segment_fit(self) -> None:
+        """Check ``fixed_positions`` and ``initial_weights`` against the target segment."""
         seq_len = self.target_segment.sequence_length
         if self.config.fixed_positions:
             out_of_bounds = [p for p in self.config.fixed_positions if p < 0 or p >= seq_len]
@@ -397,10 +413,22 @@ class LedidiOptimizer(Optimizer):
                 provider returns a non-finite gradient.
         """
         self._prepare_run()
-        assert self.num_results is not None  # noqa: S101 -- mypy type narrowing
         cfg = self.config
         target = self.target_segment
         n_repeats, batch_size = cfg.n_repeats, cfg.batch_size
+        if self.num_results != n_repeats * batch_size or len(target.proposal_sequences) != n_repeats * batch_size:
+            raise ValueError(
+                f"n_repeats * batch_size = {n_repeats * batch_size} no longer matches the {self.num_results} result "
+                "slots this optimizer was built with; build a new LedidiOptimizer after changing either."
+            )
+        self._check_segment_fit()
+
+        # Lay every segment's pool out in blocks, so that all slots of trajectory r carry the r-th
+        # incoming sequence of every segment and partner segments stay paired with their template.
+        for seg in self.segments:
+            starts = seg.proposal_sequences[:n_repeats]
+            seg.proposal_sequences = [copy.deepcopy(starts[k // batch_size]) for k in range(n_repeats * batch_size)]
+            seg.result_sequences = [copy.deepcopy(seq) for seq in seg.proposal_sequences]
         vocab = target.ordered_vocab()
         index = {char: i for i, char in enumerate(vocab)}
         seq_len, n_chars = target.sequence_length, len(vocab)
@@ -413,7 +441,7 @@ class LedidiOptimizer(Optimizer):
 
         templates = np.zeros((n_repeats, seq_len), dtype=np.int64)
         for r in range(n_repeats):
-            sequence = target.proposal_sequences[r].sequence
+            sequence = target.proposal_sequences[r * batch_size].sequence
             bad = sorted({char for char in sequence if char not in index})
             if bad or len(sequence) != seq_len:
                 raise ValueError(
@@ -439,7 +467,7 @@ class LedidiOptimizer(Optimizer):
         # Step 0: the unedited templates are the starting best batches.
         z = np.broadcast_to(base[:, None], (n_repeats, batch_size, seq_len, n_chars)).copy()
         z[:, :, fixed] = fixed_logits[:, None]
-        output_loss, _ = self._evaluate(z)
+        output_loss, _ = self._evaluate(z, 0)
         edits = np.zeros((n_repeats, batch_size))
         totals = output_loss + cfg.l * edits
         best_loss = totals.mean(axis=1)
@@ -451,13 +479,13 @@ class LedidiOptimizer(Optimizer):
         stalled = np.zeros(n_repeats, dtype=np.int64)
         active = np.ones(n_repeats, dtype=bool)
         self._set_results(best_proposals, best_totals, best_output, best_edits, best_step, templates, vocab)
-        self._snapshot(0, totals, edits, active)
+        self._snapshot(0, totals, edits, active, active)
 
         step = 0
         for step in range(1, cfg.max_iter + 1):
             z = base[:, None] + weights[:, None] + rng.gumbel(size=(n_repeats, batch_size, seq_len, n_chars))
             z[:, :, fixed] = fixed_logits[:, None]
-            output_loss, output_grad = self._evaluate(z)
+            output_loss, output_grad = self._evaluate(z, step)
 
             samples = z.argmax(axis=-1)  # (R, B, L)
             edits = (samples != templates[:, None]).sum(axis=-1).astype(np.float64)
@@ -467,6 +495,7 @@ class LedidiOptimizer(Optimizer):
             totals = output_loss + cfg.l * edits
             batch_loss = totals.mean(axis=1)
 
+            ran = active.copy()
             for r in np.flatnonzero(active).tolist():
                 weights[r] *= 1.0 - cfg.lr * cfg.weight_decay
                 weights[r] = adam.step(weights[r], grad[r], cfg.lr, trajectory=r, step=step)
@@ -487,8 +516,8 @@ class LedidiOptimizer(Optimizer):
             last = not active.any() or step == cfg.max_iter
             if step % self.tracking_interval == 0 or last:
                 self._set_results(best_proposals, best_totals, best_output, best_edits, best_step, templates, vocab)
-                self._snapshot(step, totals, edits, active)
-                self._log_progress(step, totals, edits, best_loss, active)
+                self._snapshot(step, totals, edits, ran, active)
+                self._log_progress(step, totals, edits, best_loss, ran, active)
 
             self._clear_tool_cache()
             if not active.any():
@@ -500,7 +529,7 @@ class LedidiOptimizer(Optimizer):
     # Private helpers
     # =============================================================================
 
-    def _evaluate(self, z: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def _evaluate(self, z: np.ndarray, step: int) -> tuple[np.ndarray, np.ndarray]:
         """Score sampled logits with every provider.
 
         Writes ``z`` into the proposal logits and ``argmax(z)`` into the proposal sequences, then
@@ -508,6 +537,7 @@ class LedidiOptimizer(Optimizer):
 
         Args:
             z (np.ndarray): Perturbed logits, shape ``(n_repeats, batch_size, L, |vocab|)``.
+            step (int): Optimizer step, passed on to the providers.
 
         Returns:
             tuple[np.ndarray, np.ndarray]: Weighted output loss per sample ``(R, B)`` and its
@@ -527,7 +557,7 @@ class LedidiOptimizer(Optimizer):
                 temperature=self.config.tau,
                 soft=1.0,
                 hard=1.0,
-                step=0,
+                step=step,
                 effective_weight=lambda constraint, _step: constraint.weight,
             )
             for k, raw in enumerate(output.gradients):
@@ -584,8 +614,8 @@ class LedidiOptimizer(Optimizer):
             if seg is not self.target_segment:
                 seg.result_sequences = [copy.deepcopy(s) for s in seg.proposal_sequences]
 
-    def _snapshot(self, step: int, totals: np.ndarray, edits: np.ndarray, active: np.ndarray) -> None:
-        """Save the current best results with this step's per-trajectory statistics."""
+    def _snapshot(self, step: int, totals: np.ndarray, edits: np.ndarray, ran: np.ndarray, active: np.ndarray) -> None:
+        """Save the current best results with this step's statistics; ``None`` for stopped trajectories."""
         self._save_progress_snapshot(
             time_step=step,
             optimizer_metadata={
@@ -593,18 +623,25 @@ class LedidiOptimizer(Optimizer):
                 "max_iter": self.config.max_iter,
                 "n_repeats": self.config.n_repeats,
                 "batch_size": self.config.batch_size,
-                "mean_edits": edits.mean(axis=1).tolist(),
-                "mean_total_loss": totals.mean(axis=1).tolist(),
+                "mean_edits": [float(x) if r else None for x, r in zip(edits.mean(axis=1), ran, strict=True)],
+                "mean_total_loss": [float(x) if r else None for x, r in zip(totals.mean(axis=1), ran, strict=True)],
                 "active_trajectories": int(active.sum()),
             },
         )
 
     def _log_progress(
-        self, step: int, totals: np.ndarray, edits: np.ndarray, best_loss: np.ndarray, active: np.ndarray
+        self,
+        step: int,
+        totals: np.ndarray,
+        edits: np.ndarray,
+        best_loss: np.ndarray,
+        ran: np.ndarray,
+        active: np.ndarray,
     ) -> None:
-        """Log optimization progress."""
+        """Log optimization progress over the trajectories that ran this step."""
         logger.info(
-            f"Step {step}/{self.config.max_iter}: mean edits {edits.mean():.2f}, mean loss {totals.mean():.4f}, "
+            f"Step {step}/{self.config.max_iter}: mean edits {edits[ran].mean():.2f}, "
+            f"mean loss {totals[ran].mean():.4f}, "
             f"best batch-mean loss {best_loss.min():.4f}, {int(active.sum())}/{len(active)} trajectories active"
         )
         if self.custom_logging:

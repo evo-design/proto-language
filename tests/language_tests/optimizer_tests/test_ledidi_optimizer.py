@@ -135,7 +135,7 @@ def test_requires_position_weight_generator() -> None:
     gen = RandomNucleotideGenerator(RandomNucleotideGeneratorConfig())
     gen.assign(seg)
     con = Constraint(inputs=[seg], backward=_g_fraction_backward, backward_config=_Cfg(), label="oracle")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="random-nucleotide"):
         LedidiOptimizer(
             target_segment=seg,
             constructs=[Construct([seg])],
@@ -289,3 +289,70 @@ def test_runs_in_a_program() -> None:
     program = Program([opt], num_results=4, seed=11)
     program.run()
     assert len(seg.result_sequences) == 4
+
+
+def test_num_results_follows_reassignment() -> None:
+    cfg = LedidiOptimizerConfig(n_repeats=1, batch_size=4)
+    cfg.n_repeats = 3
+    assert cfg.num_results == 12
+
+
+def test_changing_the_batch_after_construction_raises() -> None:
+    opt, _ = _make(batch_size=4)
+    opt.config.batch_size = 8
+    with pytest.raises(ValueError, match="build a new LedidiOptimizer"):
+        opt.run()
+
+
+def test_fixed_positions_assigned_after_construction_are_checked() -> None:
+    opt, _ = _make()
+    opt.config.fixed_positions = [-1]
+    with pytest.raises(ValueError, match="out of bounds"):
+        opt.run()
+
+
+def test_constraint_weight_scales_loss_and_gradient() -> None:
+    """Direct providers return unweighted gradients plus a weight; both must be applied."""
+    results = []
+    for weight in (1.0, 2.0):
+        seg = Segment(sequence=TEMPLATE, sequence_type="dna")
+        gen = PositionWeightGenerator(PositionWeightGeneratorConfig())
+        gen.assign(seg)
+        con = Constraint(inputs=[seg], backward=_g_fraction_backward, backward_config=_Cfg(), label="o", weight=weight)
+        opt = LedidiOptimizer(
+            target_segment=seg,
+            constructs=[Construct([seg])],
+            generators=[gen],
+            constraints=[con],
+            config=LedidiOptimizerConfig(batch_size=2),
+        )
+        z = np.random.default_rng(0).normal(size=(1, 2, len(TEMPLATE), 4))
+        results.append(opt._evaluate(z, 1))
+    np.testing.assert_allclose(results[1][0], 2 * results[0][0])
+    np.testing.assert_allclose(results[1][1], 2 * results[0][1])
+
+
+def test_partner_segments_stay_paired_with_their_template() -> None:
+    """With two incoming (template, partner) pairs, every slot keeps the partner of its template."""
+    design = Segment(sequence="A" * 8, sequence_type="dna", label="design")
+    partner = Segment(sequence="CCCC", sequence_type="dna", label="partner")
+    gen = PositionWeightGenerator(PositionWeightGeneratorConfig())
+    gen.assign(design)
+    con = Constraint(inputs=[design], backward=_constant_backward, backward_config=_Cfg(), label="flat")
+    opt = LedidiOptimizer(
+        target_segment=design,
+        constructs=[Construct([design, partner])],
+        generators=[gen],
+        constraints=[con],
+        config=LedidiOptimizerConfig(n_repeats=2, batch_size=3, max_iter=3, seed=0),
+    )
+    design.result_sequences = [Sequence("AAAAAAAA", sequence_type="dna"), Sequence("GGGGGGGG", sequence_type="dna")]
+    partner.result_sequences = [Sequence("CCCC", sequence_type="dna"), Sequence("TTTT", sequence_type="dna")]
+    opt._initialize_sequence_pools()
+    opt.run()
+    pairs = {
+        (d.metadata["ledidi"]["repeat"], p.sequence)
+        for d, p in zip(design.result_sequences, partner.result_sequences, strict=True)
+    }
+    assert pairs == {(0, "CCCC"), (1, "TTTT")}
+    assert [d.sequence for d in design.result_sequences] == ["AAAAAAAA"] * 3 + ["GGGGGGGG"] * 3
