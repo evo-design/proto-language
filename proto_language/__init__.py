@@ -199,6 +199,8 @@ from proto_language.optimizer import (
     GeneticAlgorithmOptimizerConfig,
     GradientOptimizer,
     GradientOptimizerConfig,
+    LedidiOptimizer,
+    LedidiOptimizerConfig,
     MCMCOptimizer,
     MCMCOptimizerConfig,
     OptimizerRegistry,
@@ -434,6 +436,8 @@ __all__ = [
     "CyclingOptimizerConfig",
     "GradientOptimizer",
     "GradientOptimizerConfig",
+    "LedidiOptimizer",
+    "LedidiOptimizerConfig",
     # Logging
     "setup_logging",
     "get_logger",

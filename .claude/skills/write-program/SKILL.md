@@ -159,7 +159,7 @@ Constraints are grouped by category as subdirectories under `proto_language/cons
 For detailed examples of common patterns, use the `Read` tool to load:
 - **Patterns reference**: `.claude/skills/write-program/PATTERNS.md`
 
-Covers: multi-stage (Rejection Sampling -> MCMC), program-level num_results, multi-segment (fixed flanks + variable region), multi-constraint protein design, gradient-based optimization (GradientOptimizer), incremental execution, custom logging, export results, and accessing results.
+Covers: multi-stage (Rejection Sampling -> MCMC), program-level num_results, multi-segment (fixed flanks + variable region), multi-constraint protein design, gradient-based optimization (GradientOptimizer), edit design (LedidiOptimizer), incremental execution, custom logging, export results, and accessing results.
 
 ## Validation Checklist
 

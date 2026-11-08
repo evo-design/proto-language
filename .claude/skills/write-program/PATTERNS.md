@@ -248,3 +248,20 @@ Program([optimizer], num_results=20, seed=0).run()
 ```
 
 Dual-mode constraints (any registered with both forward and `backward=`) can be reused in a downstream MCMC stage without re-registration; the optimizer selects the gradient or discrete callable automatically.
+
+## Edit Design (Ledidi)
+
+Use `LedidiOptimizer` to make a small number of edits to an existing sequence rather than design one from scratch. The template is the segment's sequence (or the previous stage's results); each step samples hard edited sequences from a Gumbel-softmax, scores them with the same gradient-capable constraints `GradientOptimizer` accepts, and adds `l` times the number of edits to the loss. Each of `n_repeats` trajectories returns its best batch of `batch_size` sequences, so `num_results` is always `n_repeats * batch_size`. Constraint losses lie in [0, 1], so an edit must improve the weighted constraint loss by more than `l` to be kept; lower `l` (e.g. `0.01`) for more edits.
+
+Full worked example: `examples/scripts/malinois_k562_ledidi_edit.py`. Sketch, reusing `segment`, `generator` and `constraints` from above with a real template:
+
+```python
+from proto_language.optimizer import LedidiOptimizer, LedidiOptimizerConfig
+
+config = LedidiOptimizerConfig(n_repeats=2, batch_size=16, l=0.01)
+optimizer = LedidiOptimizer(
+    target_segment=segment, constructs=[construct], generators=[generator], constraints=constraints, config=config
+)
+Program([optimizer], num_results=config.num_results, seed=0).run()
+edits = [seq.metadata["ledidi"]["edits"] for seq in segment.result_sequences]  # (position, ref, alt)
+```
